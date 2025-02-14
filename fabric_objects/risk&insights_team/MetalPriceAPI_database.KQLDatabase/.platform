@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "KQLDatabase",
+    "displayName": "MetalPriceAPI_database",
+    "description": "MetalPriceAPI_database"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "011ff85a-da98-b528-4790-be398b09f9d7"
+  }
+}
