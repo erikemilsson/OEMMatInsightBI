@@ -7,7 +7,7 @@ Microsoft Fabric is a user-friendly SaaS (Software as a Service) data analytics 
 
 **Project Description and Goals:**
 
-SwiftBike Tech is a fictional company that manufactures high-performance electric scooters and bikes designed for both casual riders and sports enthusiasts. The company emphasizes lightweight materials and efficient motors to deliver superior performance. As an international enterprise, SwiftBike Tech has manufacturing plants in Europe and Asia and has recently transitioned most of their on-premises ERP (Engineering Resource Planning) data to Azure Blob storage to support their expanding global business.
+SwiftBike Tech is a fictional company that manufactures high-performance electric scooters and bikes designed for both casual riders and sports enthusiasts. The company emphasizes lightweight materials and efficient motors to deliver superior performance. As an international enterprise, SwiftBike Tech has manufacturing plants in Europe and Asia and has recently transitioned most of their on-premises ERP (Engineering Resource Planning) data to Azure Database storage to support their expanding global business.
 
 To manage analytics and distribute dashboards and reports to various groups, SwiftBike Tech has chosen Microsoft Fabric. This move is part of their broader strategy to leverage modern cloud technologies for better decision-making and operational efficiency between developers, data professionals, and various user groups.
 
@@ -38,16 +38,16 @@ These goals aim to provide *designers* with actionable insights into their mater
 
 **Data Sources Overview**
 
-1. **Live Commodity Prices:**
+**Live Commodity Prices:**
    - Data from metalpriceapi.com provides real-time commodity prices, which are crucial for tracking the cost impacts of materials used in manufacturing.
 
-2. **Indicators:**
+**Indicators:**
    - **ESG (Environmental, Social, and Governance):** Metrics to assess the environmental impact, social responsibility, and governance practices related to material sourcing.
    - **Value Added (VA):** Indicators to measure the value added by each part or component in the production process.
 
-3. **Country-Level Use-Shares:**
+**Country-Level Use-Shares:**
    - Data on the use-shares of materials at various stages such as mining, refining, and manufacturing, broken down by country level.
 
-4. **Synthetic ERP-Data in Azure Blob Storage:**
+**Synthetic ERP-Data in Azure Database:**
    - **BOMs (Bill of Materials) Database:** Contains detailed information about the parts and components used in each product.
    - **Sales Tracking Database:** Tracks sales data to understand demand and performance metrics related to different part numbers.
