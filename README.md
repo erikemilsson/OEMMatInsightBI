@@ -5,7 +5,7 @@ Microsoft Fabric is a user-friendly SaaS (Software as a Service) data analytics 
 
 ## Project Summary
 
-**Project Description and Goals:**
+### Project Description and Goals:
 
 SwiftBike Tech is a fictional company that manufactures high-performance electric scooters and bikes designed for both casual riders and sports enthusiasts. The company emphasizes lightweight materials and efficient motors to deliver superior performance. As an international enterprise, SwiftBike Tech has manufacturing plants in Europe and Asia and has recently transitioned most of their on-premises ERP (Engineering Resource Planning) data to Azure Database storage to support their expanding global business.
 
@@ -21,7 +21,7 @@ The primary objectives for the initial phase of this project are:
 
 These goals aim to provide *designers* with actionable insights into their material sourcing and usage, enabling them to make informed decisions that align with their business objectives and sustainability goals.
 
-**Method Overivew:**
+### Method Overivew:
 
 1. **Data Ingestion, Cleaning, and Transformation:**
    - Data from various sources are ingested into Microsoft Fabric.
@@ -36,7 +36,7 @@ These goals aim to provide *designers* with actionable insights into their mater
    - Dashboards are developed with comprehensive tables and custom DAX (Data Analysis Expressions) scripting to meet the project goals.
    - Visualizations are designed to provide clear insights into part impacts, enabling users to easily prioritize and filter part numbers as required.
 
-**Data Sources Overview**
+### Data Sources Overview
 
 **Live Commodity Prices:**
    - Data from metalpriceapi.com provides real-time commodity prices, which are crucial for tracking the cost impacts of materials used in manufacturing.
