@@ -29,3 +29,7 @@ Then I started looking into the possiblity of using raw material price data to g
 #### Today
 
 Today I looked over several sources that provide commodity (metals and minerals) data with APIs that I can load into a Fabric Eventhouse. after looking around at various sources I found one that was called MetalPriceAPI that has a free-tier (that provides data in 30-minute intervals), and a basic-tier for about 100SEK (which provides data in 10-minute intervals). It has several precious metals and base metals, and also prices in many currencies. I will get started with the free-tier, and then upgrade once everything else is built and connected.
+
+## 2025-02-18
+
+I looked through the MetalPriceAPI [documentaton](https://metalpriceapi.com/documentation). It's an external HTTP API, so it can't connect to a Fabric Eventstream directly as it isn't listed as one a type of source it can connect to. However, Azure services like Eventhubs are available as an Evenstream source, so i could use that with either Azure Functions or Logic Apps to 
