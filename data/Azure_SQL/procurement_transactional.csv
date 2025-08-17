@@ -1,0 +1,133 @@
+﻿Date,MaterialName,SupplierName,Region,Quantity,Unit,UnitPriceEUR
+1/31/24,Nickel,MetaWorks GmbH,EU,1137,kg,18.67
+1/31/24,Lithium,AltMiner SA,NA,828,kg,69.85
+1/31/24,Cobalt,CongoMetals Ltd,AF,296,kg,38.73
+1/31/24,Graphite,SinoGraphite Co.,APAC,1426,kg,6.72
+1/31/24,Aluminum,EuroAl Industries,EU,2318,kg,2.24
+1/31/24,Steel (high-tensile),NordicSteel AB,EU,1736,kg,1.79
+1/31/24,Copper,AndeanCopper Corp,SA,892,kg,8.02
+1/31/24,Rare Earths (NdPr),REE Global Inc.,APAC,119,kg,89.59
+1/31/24,Plastic (ABS),PolyChem BV,EU,2133,kg,1.54
+1/31/24,Tires (Rubber compound),GlobalRubber SA,NA,588,pcs,13.13
+1/31/24,"Electronics (controllers, sensors)",MicroTech Pte Ltd,APAC,2796,pcs,47.16
+2/28/24,Nickel,MetaWorks GmbH,EU,1139,kg,19.04
+2/28/24,Lithium,AltMiner SA,NA,770,kg,58.78
+2/28/24,Cobalt,CongoMetals Ltd,AF,311,kg,40.3
+2/28/24,Graphite,SinoGraphite Co.,APAC,1356,kg,6.89
+2/28/24,Aluminum,EuroAl Industries,EU,2667,kg,2.47
+2/28/24,Steel (high-tensile),NordicSteel AB,EU,1827,kg,1.92
+2/28/24,Copper,AndeanCopper Corp,SA,818,kg,9.04
+2/28/24,Rare Earths (NdPr),REE Global Inc.,APAC,128,kg,82.92
+2/28/24,Plastic (ABS),PolyChem BV,EU,2114,kg,1.48
+2/28/24,Tires (Rubber compound),GlobalRubber SA,NA,579,pcs,12.44
+2/28/24,"Electronics (controllers, sensors)",MicroTech Pte Ltd,APAC,3231,pcs,44.69
+3/31/24,Nickel,MetaWorks GmbH,EU,1312,kg,19.39
+3/31/24,Lithium,AltMiner SA,NA,750,kg,62.9
+3/31/24,Cobalt,CongoMetals Ltd,AF,294,kg,39.31
+3/31/24,Graphite,SinoGraphite Co.,APAC,1642,kg,6.79
+3/31/24,Aluminum,EuroAl Industries,EU,2329,kg,2.39
+3/31/24,Steel (high-tensile),NordicSteel AB,EU,1632,kg,2
+3/31/24,Copper,AndeanCopper Corp,SA,833,kg,8.41
+3/31/24,Rare Earths (NdPr),REE Global Inc.,APAC,130,kg,89.36
+3/31/24,Plastic (ABS),PolyChem BV,EU,2127,kg,1.43
+3/31/24,Tires (Rubber compound),GlobalRubber SA,NA,588,pcs,12.79
+3/31/24,"Electronics (controllers, sensors)",MicroTech Pte Ltd,APAC,3068,pcs,42.21
+4/30/24,Nickel,MetaWorks GmbH,EU,1137,kg,17.19
+4/30/24,Lithium,AltMiner SA,NA,729,kg,60.17
+4/30/24,Cobalt,CongoMetals Ltd,AF,284,kg,41.76
+4/30/24,Graphite,SinoGraphite Co.,APAC,1466,kg,6.72
+4/30/24,Aluminum,EuroAl Industries,EU,2559,kg,2.11
+4/30/24,Steel (high-tensile),NordicSteel AB,EU,1697,kg,2.02
+4/30/24,Copper,AndeanCopper Corp,SA,945,kg,8.23
+4/30/24,Rare Earths (NdPr),REE Global Inc.,APAC,118,kg,89.5
+4/30/24,Plastic (ABS),PolyChem BV,EU,2066,kg,1.63
+4/30/24,Tires (Rubber compound),GlobalRubber SA,NA,545,pcs,12.37
+4/30/24,"Electronics (controllers, sensors)",MicroTech Pte Ltd,APAC,3192,pcs,46.6
+5/31/24,Nickel,MetaWorks GmbH,EU,1269,kg,17.74
+5/31/24,Lithium,AltMiner SA,NA,879,kg,60.53
+5/31/24,Cobalt,CongoMetals Ltd,AF,324,kg,35.79
+5/31/24,Graphite,SinoGraphite Co.,APAC,1467,kg,6.6
+5/31/24,Aluminum,EuroAl Industries,EU,2698,kg,2.33
+5/31/24,Steel (high-tensile),NordicSteel AB,EU,1767,kg,1.78
+5/31/24,Copper,AndeanCopper Corp,SA,928,kg,9.12
+5/31/24,Rare Earths (NdPr),REE Global Inc.,APAC,120,kg,88.22
+5/31/24,Plastic (ABS),PolyChem BV,EU,2076,kg,1.38
+5/31/24,Tires (Rubber compound),GlobalRubber SA,NA,572,pcs,13.2
+5/31/24,"Electronics (controllers, sensors)",MicroTech Pte Ltd,APAC,2973,pcs,43.4
+6/30/24,Nickel,MetaWorks GmbH,EU,1317,kg,20.16
+6/30/24,Lithium,AltMiner SA,NA,834,kg,65.79
+6/30/24,Cobalt,CongoMetals Ltd,AF,281,kg,40.94
+6/30/24,Graphite,SinoGraphite Co.,APAC,1427,kg,6.97
+6/30/24,Aluminum,EuroAl Industries,EU,2663,kg,2.08
+6/30/24,Steel (high-tensile),NordicSteel AB,EU,1628,kg,2.02
+6/30/24,Copper,AndeanCopper Corp,SA,950,kg,9.53
+6/30/24,Rare Earths (NdPr),REE Global Inc.,APAC,128,kg,83.21
+6/30/24,Plastic (ABS),PolyChem BV,EU,2371,kg,1.59
+6/30/24,Tires (Rubber compound),GlobalRubber SA,NA,588,pcs,11.62
+6/30/24,"Electronics (controllers, sensors)",MicroTech Pte Ltd,APAC,3221,pcs,48.97
+7/31/24,Nickel,MetaWorks GmbH,EU,1258,kg,19.32
+7/31/24,Lithium,AltMiner SA,NA,743,kg,64.61
+7/31/24,Cobalt,CongoMetals Ltd,AF,326,kg,35.92
+7/31/24,Graphite,SinoGraphite Co.,APAC,1481,kg,7.71
+7/31/24,Aluminum,EuroAl Industries,EU,2310,kg,2.17
+7/31/24,Steel (high-tensile),NordicSteel AB,EU,1841,kg,2
+7/31/24,Copper,AndeanCopper Corp,SA,923,kg,9.52
+7/31/24,Rare Earths (NdPr),REE Global Inc.,APAC,112,kg,84.5
+7/31/24,Plastic (ABS),PolyChem BV,EU,2250,kg,1.61
+7/31/24,Tires (Rubber compound),GlobalRubber SA,NA,555,pcs,13.15
+7/31/24,"Electronics (controllers, sensors)",MicroTech Pte Ltd,APAC,3120,pcs,42.43
+8/31/24,Nickel,MetaWorks GmbH,EU,1132,kg,18.14
+8/31/24,Lithium,AltMiner SA,NA,753,kg,65.67
+8/31/24,Cobalt,CongoMetals Ltd,AF,299,kg,36.76
+8/31/24,Graphite,SinoGraphite Co.,APAC,1532,kg,7.55
+8/31/24,Aluminum,EuroAl Industries,EU,2272,kg,2.49
+8/31/24,Steel (high-tensile),NordicSteel AB,EU,1939,kg,2.07
+8/31/24,Copper,AndeanCopper Corp,SA,969,kg,8.97
+8/31/24,Rare Earths (NdPr),REE Global Inc.,APAC,120,kg,91.86
+8/31/24,Plastic (ABS),PolyChem BV,EU,2313,kg,1.38
+8/31/24,Tires (Rubber compound),GlobalRubber SA,NA,603,pcs,11.12
+8/31/24,"Electronics (controllers, sensors)",MicroTech Pte Ltd,APAC,2724,pcs,47.79
+9/30/24,Nickel,MetaWorks GmbH,EU,1255,kg,17.45
+9/30/24,Lithium,AltMiner SA,NA,856,kg,64.29
+9/30/24,Cobalt,CongoMetals Ltd,AF,320,kg,35.99
+9/30/24,Graphite,SinoGraphite Co.,APAC,1429,kg,7.06
+9/30/24,Aluminum,EuroAl Industries,EU,2692,kg,2.46
+9/30/24,Steel (high-tensile),NordicSteel AB,EU,1830,kg,1.75
+9/30/24,Copper,AndeanCopper Corp,SA,921,kg,8.96
+9/30/24,Rare Earths (NdPr),REE Global Inc.,APAC,123,kg,91.72
+9/30/24,Plastic (ABS),PolyChem BV,EU,2418,kg,1.36
+9/30/24,Tires (Rubber compound),GlobalRubber SA,NA,587,pcs,10.94
+9/30/24,"Electronics (controllers, sensors)",MicroTech Pte Ltd,APAC,2862,pcs,49.39
+10/31/24,Nickel,MetaWorks GmbH,EU,1145,kg,19.1
+10/31/24,Lithium,AltMiner SA,NA,841,kg,66.91
+10/31/24,Cobalt,CongoMetals Ltd,AF,315,kg,37.05
+10/31/24,Graphite,SinoGraphite Co.,APAC,1524,kg,6.92
+10/31/24,Aluminum,EuroAl Industries,EU,2554,kg,2.27
+10/31/24,Steel (high-tensile),NordicSteel AB,EU,1886,kg,1.74
+10/31/24,Copper,AndeanCopper Corp,SA,868,kg,9.46
+10/31/24,Rare Earths (NdPr),REE Global Inc.,APAC,129,kg,77.68
+10/31/24,Plastic (ABS),PolyChem BV,EU,2371,kg,1.64
+10/31/24,Tires (Rubber compound),GlobalRubber SA,NA,582,pcs,12.91
+10/31/24,"Electronics (controllers, sensors)",MicroTech Pte Ltd,APAC,2847,pcs,42.65
+11/30/24,Nickel,MetaWorks GmbH,EU,1257,kg,17.96
+11/30/24,Lithium,AltMiner SA,NA,849,kg,68.75
+11/30/24,Cobalt,CongoMetals Ltd,AF,278,kg,38
+11/30/24,Graphite,SinoGraphite Co.,APAC,1491,kg,6.9
+11/30/24,Aluminum,EuroAl Industries,EU,2275,kg,2.37
+11/30/24,Steel (high-tensile),NordicSteel AB,EU,1687,kg,2.01
+11/30/24,Copper,AndeanCopper Corp,SA,878,kg,8.33
+11/30/24,Rare Earths (NdPr),REE Global Inc.,APAC,121,kg,88.13
+11/30/24,Plastic (ABS),PolyChem BV,EU,2279,kg,1.64
+11/30/24,Tires (Rubber compound),GlobalRubber SA,NA,636,pcs,11
+11/30/24,"Electronics (controllers, sensors)",MicroTech Pte Ltd,APAC,3109,pcs,46.79
+12/31/24,Nickel,MetaWorks GmbH,EU,1101,kg,17.31
+12/31/24,Lithium,AltMiner SA,NA,875,kg,65.65
+12/31/24,Cobalt,CongoMetals Ltd,AF,292,kg,35.63
+12/31/24,Graphite,SinoGraphite Co.,APAC,1632,kg,7.92
+12/31/24,Aluminum,EuroAl Industries,EU,2465,kg,2.3
+12/31/24,Steel (high-tensile),NordicSteel AB,EU,1649,kg,1.91
+12/31/24,Copper,AndeanCopper Corp,SA,972,kg,9.24
+12/31/24,Rare Earths (NdPr),REE Global Inc.,APAC,108,kg,86.01
+12/31/24,Plastic (ABS),PolyChem BV,EU,2093,kg,1.35
+12/31/24,Tires (Rubber compound),GlobalRubber SA,NA,547,pcs,12.97
+12/31/24,"Electronics (controllers, sensors)",MicroTech Pte Ltd,APAC,3293,pcs,44.23
