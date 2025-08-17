@@ -1,5 +1,9 @@
 
 .qodo
 
-#data
+# data
 local_tables.xlsx
+
+# files with sensitive details
+azure/import_script.md
+azure/user_creation.sql
