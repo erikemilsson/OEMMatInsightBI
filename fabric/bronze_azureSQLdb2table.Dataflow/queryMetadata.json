@@ -1,0 +1,43 @@
+{
+  "formatVersion": "202502",
+  "computeEngineSettings": {},
+  "name": "bronze_azureSQLdb2table",
+  "queryGroups": [],
+  "documentLocale": "en-US",
+  "queriesMetadata": {
+    "procurement_transactional": {
+      "queryId": "d06c1012-1350-43c0-a815-d596982c7408",
+      "queryName": "procurement_transactional",
+      "loadEnabled": false
+    },
+    "supplier_ref": {
+      "queryId": "7c8ed57b-e8b4-469b-85db-6eff8475ccba",
+      "queryName": "supplier_ref",
+      "loadEnabled": false
+    },
+    "procurement_transactional_DataDestination": {
+      "queryId": "12604285-bd67-48fe-a985-6581317a77dc",
+      "queryName": "procurement_transactional_DataDestination",
+      "isHidden": true,
+      "loadEnabled": false
+    },
+    "supplier_ref_DataDestination": {
+      "queryId": "a8fef4e6-ff5b-432e-aa73-c77d1d7a38d2",
+      "queryName": "supplier_ref_DataDestination",
+      "isHidden": true,
+      "loadEnabled": false
+    }
+  },
+  "connections": [
+    {
+      "path": "procurement-supplier.database.windows.net;procurement-supplier-db",
+      "kind": "SQL",
+      "connectionId": "{\"ClusterId\":\"299a756b-b9b4-49ec-99ff-d462ca4e9ade\",\"DatasourceId\":\"ce4b380a-50f3-410c-adc5-65393d7d2f84\"}"
+    },
+    {
+      "path": "Lakehouse",
+      "kind": "Lakehouse",
+      "connectionId": "{\"ClusterId\":\"299a756b-b9b4-49ec-99ff-d462ca4e9ade\",\"DatasourceId\":\"67405385-7a91-49ef-a6ee-62543264d646\"}"
+    }
+  ]
+}

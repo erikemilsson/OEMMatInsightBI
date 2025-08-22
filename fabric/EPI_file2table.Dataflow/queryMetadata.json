@@ -1,0 +1,38 @@
+{
+  "formatVersion": "202502",
+  "computeEngineSettings": {},
+  "name": "EPI_file2table",
+  "queryGroups": [],
+  "documentLocale": "en-US",
+  "queriesMetadata": {
+    "epi2024results csv": {
+      "queryId": "c5c4dc29-aad0-44eb-bf65-8da9eed95ace",
+      "queryName": "epi2024results csv",
+      "loadEnabled": false
+    },
+    "epi2024variables2024-12-11 csv": {
+      "queryId": "827c1b24-3407-4aa3-aec2-40e639b31315",
+      "queryName": "epi2024variables2024-12-11 csv",
+      "loadEnabled": false
+    },
+    "epi2024results csv_DataDestination": {
+      "queryId": "76cd931b-56d6-4ebc-9cea-4bd722c83f04",
+      "queryName": "epi2024results csv_DataDestination",
+      "isHidden": true,
+      "loadEnabled": false
+    },
+    "epi2024variables2024-12-11 csv_DataDestination": {
+      "queryId": "b8e07312-1688-4333-868d-4f46609b3200",
+      "queryName": "epi2024variables2024-12-11 csv_DataDestination",
+      "isHidden": true,
+      "loadEnabled": false
+    }
+  },
+  "connections": [
+    {
+      "path": "Lakehouse",
+      "kind": "Lakehouse",
+      "connectionId": "{\"ClusterId\":\"299a756b-b9b4-49ec-99ff-d462ca4e9ade\",\"DatasourceId\":\"67405385-7a91-49ef-a6ee-62543264d646\"}"
+    }
+  ]
+}

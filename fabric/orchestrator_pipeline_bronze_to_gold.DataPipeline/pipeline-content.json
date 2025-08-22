@@ -1,5 +1,374 @@
 {
   "properties": {
-    "activities": []
+    "activities": [
+      {
+        "type": "Copy",
+        "typeProperties": {
+          "source": {
+            "type": "DelimitedTextSource",
+            "formatSettings": {
+              "type": "DelimitedTextReadSettings",
+              "skipLineCount": 0
+            },
+            "storeSettings": {
+              "type": "HttpReadSettings",
+              "requestMethod": "GET"
+            },
+            "datasetSettings": {
+              "type": "DelimitedText",
+              "typeProperties": {
+                "location": {
+                  "type": "HttpServerLocation"
+                },
+                "columnDelimiter": ",",
+                "quoteChar": "\"",
+                "escapeChar": "\\",
+                "firstRowAsHeader": true
+              },
+              "schema": [],
+              "externalReferences": {
+                "connection": "97124587-4fe9-43ee-bd6c-6a0fe3bc5664"
+              },
+              "annotations": []
+            }
+          },
+          "sink": {
+            "type": "LakehouseTableSink",
+            "tableActionOption": "OverwriteSchema",
+            "partitionOption": "None",
+            "datasetSettings": {
+              "type": "LakehouseTable",
+              "typeProperties": {
+                "table": "bronze_EUSupplyShares"
+              },
+              "schema": [],
+              "linkedService": {
+                "name": "oem_lh",
+                "properties": {
+                  "type": "Lakehouse",
+                  "typeProperties": {
+                    "artifactId": "ee9dfadb-ba4f-90c4-4683-e635488fb9f8",
+                    "workspaceId": "00000000-0000-0000-0000-000000000000",
+                    "rootFolder": "Tables"
+                  },
+                  "annotations": []
+                }
+              },
+              "annotations": []
+            }
+          },
+          "translator": {
+            "type": "TabularTranslator",
+            "mappings": [
+              {
+                "source": {
+                  "name": "Material",
+                  "type": "String",
+                  "physicalType": "String"
+                },
+                "sink": {
+                  "name": "Material",
+                  "physicalType": "string"
+                }
+              },
+              {
+                "source": {
+                  "name": "Stage",
+                  "type": "String",
+                  "physicalType": "String"
+                },
+                "sink": {
+                  "name": "Stage",
+                  "physicalType": "string"
+                }
+              },
+              {
+                "source": {
+                  "name": "Country",
+                  "type": "String",
+                  "physicalType": "String"
+                },
+                "sink": {
+                  "name": "Country",
+                  "physicalType": "string"
+                }
+              },
+              {
+                "source": {
+                  "name": "Share",
+                  "type": "String",
+                  "physicalType": "String"
+                },
+                "sink": {
+                  "name": "Share",
+                  "physicalType": "string"
+                }
+              },
+              {
+                "source": {
+                  "name": "t",
+                  "type": "String",
+                  "physicalType": "String"
+                },
+                "sink": {
+                  "name": "t",
+                  "physicalType": "string"
+                }
+              }
+            ],
+            "typeConversion": true,
+            "typeConversionSettings": {
+              "allowDataTruncation": true,
+              "treatBooleanAsNumber": false
+            }
+          },
+          "enableStaging": false
+        },
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "bronzecopy_EUSupplyShares",
+        "description": "Copy EU CRM github repo csv file",
+        "dependsOn": []
+      },
+      {
+        "type": "Copy",
+        "typeProperties": {
+          "source": {
+            "type": "DelimitedTextSource",
+            "formatSettings": {
+              "type": "DelimitedTextReadSettings",
+              "skipLineCount": 0
+            },
+            "storeSettings": {
+              "type": "HttpReadSettings",
+              "requestMethod": "GET"
+            },
+            "datasetSettings": {
+              "type": "DelimitedText",
+              "typeProperties": {
+                "location": {
+                  "type": "HttpServerLocation"
+                },
+                "columnDelimiter": ",",
+                "quoteChar": "\"",
+                "escapeChar": "\\",
+                "firstRowAsHeader": true
+              },
+              "schema": [],
+              "externalReferences": {
+                "connection": "172b089e-bb4a-4615-94fb-beef5019fca7"
+              },
+              "annotations": []
+            }
+          },
+          "sink": {
+            "type": "LakehouseTableSink",
+            "tableActionOption": "Append",
+            "partitionOption": "None",
+            "datasetSettings": {
+              "type": "LakehouseTable",
+              "typeProperties": {
+                "table": "bronze_GlobalSupplyShares"
+              },
+              "schema": [],
+              "linkedService": {
+                "name": "oem_lh",
+                "properties": {
+                  "type": "Lakehouse",
+                  "typeProperties": {
+                    "artifactId": "ee9dfadb-ba4f-90c4-4683-e635488fb9f8",
+                    "workspaceId": "00000000-0000-0000-0000-000000000000",
+                    "rootFolder": "Tables"
+                  },
+                  "annotations": []
+                }
+              },
+              "annotations": []
+            }
+          },
+          "translator": {
+            "type": "TabularTranslator",
+            "mappings": [
+              {
+                "source": {
+                  "name": "Material",
+                  "type": "String",
+                  "physicalType": "String"
+                },
+                "sink": {
+                  "name": "Material",
+                  "physicalType": "string"
+                }
+              },
+              {
+                "source": {
+                  "name": "Stage",
+                  "type": "String",
+                  "physicalType": "String"
+                },
+                "sink": {
+                  "name": "Stage",
+                  "physicalType": "string"
+                }
+              },
+              {
+                "source": {
+                  "name": "Country",
+                  "type": "String",
+                  "physicalType": "String"
+                },
+                "sink": {
+                  "name": "Country",
+                  "physicalType": "string"
+                }
+              },
+              {
+                "source": {
+                  "name": "Share",
+                  "type": "String",
+                  "physicalType": "String"
+                },
+                "sink": {
+                  "name": "Share",
+                  "physicalType": "string"
+                }
+              },
+              {
+                "source": {
+                  "name": "t",
+                  "type": "String",
+                  "physicalType": "String"
+                },
+                "sink": {
+                  "name": "t",
+                  "physicalType": "string"
+                }
+              }
+            ],
+            "typeConversion": true,
+            "typeConversionSettings": {
+              "allowDataTruncation": true,
+              "treatBooleanAsNumber": false
+            }
+          },
+          "enableStaging": false
+        },
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "bronzecopy_GlobalSupplyShares",
+        "description": "Copy Global CRM github repo csv file",
+        "dependsOn": []
+      },
+      {
+        "type": "RefreshDataflow",
+        "typeProperties": {
+          "dataflowId": "44581fe1-5761-86fb-47e7-cd01257b9976",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "notifyOption": "NoNotification",
+          "dataflowType": "DataflowFabric"
+        },
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "bronze_WB",
+        "dependsOn": []
+      },
+      {
+        "type": "RefreshDataflow",
+        "typeProperties": {
+          "dataflowId": "d55b25e4-1f6b-8171-4275-2b6947f7a4ab",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "notifyOption": "NoNotification",
+          "dataflowType": "DataflowFabric"
+        },
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "bronze_procurement",
+        "dependsOn": []
+      },
+      {
+        "type": "RefreshDataflow",
+        "typeProperties": {
+          "dataflowId": "657d7784-fc38-b0f7-43f3-6bee7870878f",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "notifyOption": "NoNotification",
+          "dataflowType": "DataflowFabric"
+        },
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "bronze_EPI",
+        "dependsOn": []
+      }
+    ],
+    "parameters": {
+      "procurement_array": {
+        "type": "Array",
+        "defaultValue": [
+          {
+            "source": "dbo.Suppliers",
+            "sink": "bronze_suppliers"
+          },
+          {
+            "source": "dbo.Materials",
+            "sink": "bronze_materials",
+            "translator": {
+              "type": "TabularTranslator",
+              "mappings": [
+                {
+                  "source": {
+                    "name": "Material ID",
+                    "type": "String",
+                    "physicalType": "String"
+                  },
+                  "sink": {
+                    "name": "Material_ID",
+                    "physicalType": "string"
+                  }
+                },
+                {
+                  "source": {
+                    "name": "Short Name",
+                    "type": "String",
+                    "physicalType": "String"
+                  },
+                  "sink": {
+                    "name": "Short_Name",
+                    "physicalType": "string"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "source": "dbo.Purchases",
+            "sink": "bronze_purchases"
+          }
+        ]
+      }
+    }
   }
 }

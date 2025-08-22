@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Dataflow",
+    "displayName": "bronze_azureSQLdb2table"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "d55b25e4-1f6b-8171-4275-2b6947f7a4ab"
+  }
+}
