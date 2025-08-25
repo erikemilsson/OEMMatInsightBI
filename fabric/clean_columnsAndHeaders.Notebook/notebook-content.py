@@ -228,3 +228,78 @@ df_no_year.write.format("delta").mode("overwrite").saveAsTable('silver_WB')
 # META   "language": "python",
 # META   "language_group": "synapse_pyspark"
 # META }
+
+# MARKDOWN ********************
+
+# ## procurement: bronze --> silver
+
+# CELL ********************
+
+df1 = spark.sql("SELECT * FROM oem_lh.bronze_procurement_transactional LIMIT 1000")
+df2 = spark.sql("SELECT * FROM oem_lh.bronze_supplier_ref LIMIT 1000")
+display(df1)
+display(df2)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# Join procurement_transactional & supplier_ref
+left_join_df = df1.join(
+    df2,
+    df1.SupplierName == df2.SupplierName, # The join condition
+    "left"  # The type of join
+)
+display(left_join_df)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# rename column headers
+new_columns = [c.lower().replace(' ', '_') for c in left_join_df.columns] # create a list of new, clean column names
+df2_newheaders = left_join_df.toDF(*new_columns)
+display(df2_newheaders)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+df_dropped = df2_newheaders.drop("region", "suppliername") # drop repeated columns
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+df_dropped.write.format("delta").mode("overwrite").saveAsTable('silver_procurement')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ##
