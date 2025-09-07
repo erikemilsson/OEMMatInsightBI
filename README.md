@@ -50,6 +50,34 @@ SwiftBike Tech has chosen Microsoft Fabric to manage analytics and provide a das
 *   **Country-Level Material-Use Shares:** Data on material use-shares at different production stages.
 *   **Synthetic Supplier & Procurement data in Azure Database:** Bill of Materials (BOMs) and Sales Tracking data.
 
+## Technical Overview
+
+
+### Pipeline Overview
+
+
+
+### Data governance + incremental strategy
+
+
+**Pipeline Parameter Specification**
+
+| Name              | Type   | Default Value                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Example Value                                             | Consumed in                                                        | Purpose                                                                                                                                      |
+| ----------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| procurement_array | Array  | [{"source":"dbo.Suppliers","sink":"bronze_suppliers"},{"source":"dbo.Materials","sink":"bronze_materials","translator":{"type":"TabularTranslator","mappings":[{"source":{"name":"Material ID","type":"String","physicalType":"String"},"sink":{"name":"Material_ID","physicalType":"string"}},{"source":{"name":"Short Name","type":"String","physicalType":"String"},"sink":{"name":"Short_Name","physicalType":"string"}}]}},{"source":"dbo.Purchases","sink":"bronze_purchases"}] | [{"source":"dbo.Procurement"},{"source":"dbo.Suppliers"}] | Dataflow / Copy activities                                         | Controls which source tables to ingest for procurement-related data. Useful if you want to add/remove sources without editing activity code. |
+| p_full_load       | Bool   | FALSE                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | true / false                                              | All Silver notebooks                                               | Switches between full refresh (overwrite all data) and incremental (merge only new/changed rows).                                            |
+| p_from_date       | String | "1900-01-01"                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | "2024-01-01"                                              | nb_silver_standardize, nb_silver_integrate (procurement filtering) | Watermark date for incremental loads. Filters order_date >= p_from_date so only new data is processed.                                       |
+
+
+#### Usage pattern
+	•	First run (initial load):
+	•	p_full_load = true
+	•	p_from_date = "1900-01-01" (ignored because full load)
+	•	Subsequent runs (incremental):
+	•	p_full_load = false
+	•	p_from_date = @{pipeline().parameters.last_success_date} (or manually set)
+
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
