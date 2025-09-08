@@ -369,6 +369,29 @@
             ]
           }
         ]
+      },
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "7a4e1cd4-61eb-9465-4866-ae0e966a4b73",
+          "workspaceId": "00000000-0000-0000-0000-000000000000"
+        },
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "silver-to-gold",
+        "dependsOn": [
+          {
+            "activity": "bronze-to-silver data cleaning",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
       }
     ],
     "parameters": {
@@ -415,6 +438,14 @@
             "sink": "bronze_purchases"
           }
         ]
+      },
+      "p_full_load": {
+        "type": "bool",
+        "defaultValue": false
+      },
+      "p_from_date": {
+        "type": "string",
+        "defaultValue": "1900-01-01"
       }
     }
   }

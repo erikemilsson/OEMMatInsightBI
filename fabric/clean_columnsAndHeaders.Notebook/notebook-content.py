@@ -26,11 +26,34 @@
 
 # MARKDOWN ********************
 
-# ## epi2024results: bronze --> silver
+# # nb_silver_standardize
+# 
+# This notebook does the following:
+# - cleans headers, 
+# - trims entries, 
+# - type casts, 
+# - light normalization (no business joins).
+
 
 # CELL ********************
 
-from pyspark.sql.types import *
+from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
+from pyspark.sql.functions import col, expr, regexp_replace, substring
+from pyspark.sql.types import (IntegerType,StringType,DoubleType,StructType,StructField)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ## epi2024results: bronze --> silver
+
+# CELL ********************
 
 # Load dataframe to session
 df = spark.sql("SELECT * FROM oem_lh.bronze_epi2024results")
@@ -53,7 +76,7 @@ def clean_and_rename(df):
 
 df_cleaned = clean_and_rename(df)
 
-df_multi_casted = df_cleaned.withColumn("code", col("code").cast(IntegerType())) # cast code as integer
+df_multi_casted = df_cleaned.withColumn("code", F.col("code").cast(IntegerType())) # cast code as integer
 display(df_multi_casted)
 
 
@@ -145,9 +168,6 @@ df_newheaders.write.format("delta").mode("overwrite").saveAsTable('silver_global
 
 # CELL ********************
 
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import expr, col, regexp_replace, substring
-
 df = spark.sql("SELECT * FROM oem_lh.`bronze_WB_ESGCSV`")
 
 # unpivot year rows
@@ -199,7 +219,7 @@ display(df2_newheaders)
 
 # CELL ********************
 
-# Join WB_ESGCSV & WB_ESGSeries
+# Join ESG CSV with Series metadata to align codes with topics
 left_join_df = df_newheaders.join(
     df2_newheaders,
     df_newheaders.indicator_code == df2_newheaders.series_code, # The join condition
@@ -235,8 +255,8 @@ df_no_year.write.format("delta").mode("overwrite").saveAsTable('silver_WB')
 
 # CELL ********************
 
-df1 = spark.sql("SELECT * FROM oem_lh.bronze_procurement_transactional LIMIT 1000")
-df2 = spark.sql("SELECT * FROM oem_lh.bronze_supplier_ref LIMIT 1000")
+df1 = spark.sql("SELECT * FROM oem_lh.bronze_procurement_transactional")
+df2 = spark.sql("SELECT * FROM oem_lh.bronze_supplier_ref")
 display(df1)
 display(df2)
 

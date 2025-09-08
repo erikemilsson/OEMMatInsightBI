@@ -4,9 +4,18 @@ section Section1;
 shared procurement_transactional = let
   Source = Sql.Database("procurement-supplier.database.windows.net", "procurement-supplier-db", [EnableCrossDatabaseFolding = true]),
   #"Navigation 1" = Source{[Schema = "dbo", Item = "procurement_transactional"]}[Data],
-  #"Changed column type" = Table.TransformColumnTypes(#"Navigation 1", {{"Date", type text}, {"Quantity", type text}, {"Unit", type text}, {"UnitPriceEUR", type text}})
+  #"Changed column type" = Table.TransformColumnTypes(#"Navigation 1", {{"Date", type text}}),
+  #"Changed column type 1" = Table.TransformColumnTypes(#"Changed column type", {{"Date", type date}}, "en-US"),
+  #"Added custom" = Table.TransformColumnTypes(Table.AddColumn(#"Changed column type 1", "CorrectedDate", each #date(
+    Date.Day([Date]) + 2000, 
+    Date.Month([Date]), 
+    Date.Year([Date]) - 2000
+)), {{"CorrectedDate", type date}}),
+  #"Reordered columns" = Table.ReorderColumns(#"Added custom", {"Date", "CorrectedDate", "MaterialName", "SupplierName", "Region", "Quantity", "Unit", "UnitPriceEUR"}),
+  #"Removed columns" = Table.RemoveColumns(#"Reordered columns", {"Date"}),
+  #"Renamed columns" = Table.RenameColumns(#"Removed columns", {{"CorrectedDate", "Date"}})
 in
-  #"Changed column type";
+  #"Renamed columns";
 [DataDestinations = {[Definition = [Kind = "Reference", QueryName = "supplier_ref_DataDestination", IsNewTarget = true], Settings = [Kind = "Automatic", TypeSettings = [Kind = "Table"]]]}]
 shared supplier_ref = let
   Source = Sql.Database("procurement-supplier.database.windows.net", "procurement-supplier-db", [EnableCrossDatabaseFolding = true]),
