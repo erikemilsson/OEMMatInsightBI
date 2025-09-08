@@ -1,0 +1,69 @@
+{
+  "config": "{\"version\":\"5.66\",\"themeCollection\":{\"baseTheme\":{\"name\":\"CY24SU10\",\"version\":{\"visual\":\"1.8.95\",\"report\":\"2.0.95\",\"page\":\"1.3.95\"},\"type\":2}},\"activeSectionIndex\":0,\"defaultDrillFilterOtherVisuals\":true,\"settings\":{\"useNewFilterPaneExperience\":true,\"allowChangeFilterTypes\":true,\"useStylableVisualContainerHeader\":true,\"queryLimitOption\":6,\"useEnhancedTooltips\":true,\"exportDataMode\":1,\"useDefaultAggregateDisplayName\":true},\"objects\":{\"section\":[{\"properties\":{\"verticalAlignment\":{\"expr\":{\"Literal\":{\"Value\":\"'Top'\"}}}}}]}}",
+  "layoutOptimization": 0,
+  "resourcePackages": [
+    {
+      "resourcePackage": {
+        "disabled": false,
+        "items": [
+          {
+            "name": "CY24SU10",
+            "path": "BaseThemes/CY24SU10.json",
+            "type": 202
+          }
+        ],
+        "name": "SharedResources",
+        "type": 2
+      }
+    }
+  ],
+  "sections": [
+    {
+      "config": "{}",
+      "displayName": "Page 1",
+      "displayOption": 1,
+      "filters": "[]",
+      "height": 720.00,
+      "name": "e6e14b10023fbbeb6ed0",
+      "visualContainers": [
+        {
+          "config": "{\"name\":\"3ece2c2fb1eaae3a5ff7\",\"layouts\":[{\"id\":0,\"position\":{\"x\":1000,\"y\":14.545454545454547,\"z\":2,\"width\":280,\"height\":207.27272727272728,\"tabOrder\":2}}],\"singleVisual\":{\"visualType\":\"kpi\",\"projections\":{\"Indicator\":[{\"queryRef\":\"fact_supply_share.Material Risk Index\"}]},\"prototypeQuery\":{\"Version\":2,\"From\":[{\"Name\":\"f\",\"Entity\":\"fact_supply_share\",\"Type\":0}],\"Select\":[{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"f\"}},\"Property\":\"Material Risk Index\"},\"Name\":\"fact_supply_share.Material Risk Index\",\"NativeReferenceName\":\"Material Risk Index\"}]},\"drillFilterOtherVisuals\":true}}",
+          "filters": "[]",
+          "height": 207.27,
+          "width": 280.00,
+          "x": 1000.00,
+          "y": 14.55,
+          "z": 2.00
+        },
+        {
+          "config": "{\"name\":\"54ee0804f36fed6e1bdb\",\"layouts\":[{\"id\":0,\"position\":{\"x\":0,\"y\":13.333333333333334,\"z\":3,\"width\":280,\"height\":207.27272727272728,\"tabOrder\":3}}],\"singleVisual\":{\"visualType\":\"kpi\",\"projections\":{\"Indicator\":[{\"queryRef\":\"fact_procurement.Spend EUR (By Toggle)\"}]},\"prototypeQuery\":{\"Version\":2,\"From\":[{\"Name\":\"f\",\"Entity\":\"fact_procurement\",\"Type\":0}],\"Select\":[{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"f\"}},\"Property\":\"Spend EUR (By Toggle)\"},\"Name\":\"fact_procurement.Spend EUR (By Toggle)\",\"NativeReferenceName\":\"Spend EUR (By Toggle)\"}]},\"drillFilterOtherVisuals\":true}}",
+          "filters": "[]",
+          "height": 207.27,
+          "width": 280.00,
+          "x": 0.00,
+          "y": 13.33,
+          "z": 3.00
+        },
+        {
+          "config": "{\"name\":\"a9474becc801b52a921c\",\"layouts\":[{\"id\":0,\"position\":{\"x\":81.21212121212122,\"y\":307.8787878787879,\"z\":4,\"width\":343.03030303030306,\"height\":265.4545454545455,\"tabOrder\":4}}],\"singleVisual\":{\"visualType\":\"lineClusteredColumnComboChart\",\"projections\":{\"Category\":[{\"queryRef\":\"gold_dim_material.material_name_std\",\"active\":true}],\"Y\":[{\"queryRef\":\"fact_supply_share.Spend Exposure at Risk\"}]},\"prototypeQuery\":{\"Version\":2,\"From\":[{\"Name\":\"g\",\"Entity\":\"gold_dim_material\",\"Type\":0},{\"Name\":\"f\",\"Entity\":\"fact_supply_share\",\"Type\":0}],\"Select\":[{\"Column\":{\"Expression\":{\"SourceRef\":{\"Source\":\"g\"}},\"Property\":\"material_name_std\"},\"Name\":\"gold_dim_material.material_name_std\",\"NativeReferenceName\":\"material_name_std\"},{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"f\"}},\"Property\":\"Spend Exposure at Risk\"},\"Name\":\"fact_supply_share.Spend Exposure at Risk\",\"NativeReferenceName\":\"Spend Exposure at Risk\"}],\"OrderBy\":[{\"Direction\":2,\"Expression\":{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"f\"}},\"Property\":\"Spend Exposure at Risk\"}}}]},\"drillFilterOtherVisuals\":true,\"hasDefaultSort\":true}}",
+          "filters": "[]",
+          "height": 265.45,
+          "width": 343.03,
+          "x": 81.21,
+          "y": 307.88,
+          "z": 4.00
+        },
+        {
+          "config": "{\"name\":\"ce96eea91ea8dc94afd3\",\"layouts\":[{\"id\":0,\"position\":{\"x\":467.87878787878793,\"y\":13.333333333333334,\"z\":1,\"width\":280,\"height\":207.27272727272728,\"tabOrder\":1}}],\"singleVisual\":{\"visualType\":\"kpi\",\"projections\":{\"Indicator\":[{\"queryRef\":\"fact_supply_share.Spend Exposure at Risk\"}]},\"prototypeQuery\":{\"Version\":2,\"From\":[{\"Name\":\"f\",\"Entity\":\"fact_supply_share\",\"Type\":0}],\"Select\":[{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"f\"}},\"Property\":\"Spend Exposure at Risk\"},\"Name\":\"fact_supply_share.Spend Exposure at Risk\",\"NativeReferenceName\":\"Spend Exposure at Risk\"}]},\"drillFilterOtherVisuals\":true}}",
+          "filters": "[]",
+          "height": 207.27,
+          "width": 280.00,
+          "x": 467.88,
+          "y": 13.33,
+          "z": 1.00
+        }
+      ],
+      "width": 1280.00
+    }
+  ]
+}

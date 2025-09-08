@@ -1,0 +1,55 @@
+table 'Risk Weights'
+	lineageTag: 701d5de5-1037-4cd9-8504-75f430783053
+
+	measure w_Share =
+			SELECTEDVALUE('Risk Weights'[Weight], 0.5)
+			              + 0*CALCULATE(1, 'Risk Weights'[Component]="Supply Share")  -- binder
+		lineageTag: 4caac522-8967-4192-bf32-bdfbc2947d86
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure w_Score = CALCULATE(SELECTEDVALUE('Risk Weights'[Weight], 0.3), 'Risk Weights'[Component]="Country Score")
+		lineageTag: c70cb46e-648f-46db-b532-62f7116f692d
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure w_Intensity = CALCULATE(SELECTEDVALUE('Risk Weights'[Weight], 0.2), 'Risk Weights'[Component]="Intensity")
+		lineageTag: e268e379-b0af-4ea4-ba6b-cbca6621207a
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Component
+		lineageTag: 74c369c4-f400-4746-aba0-35a3e6767263
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Component]
+
+		annotation SummarizationSetBy = Automatic
+
+	column Weight
+		formatString: \$#,0.###############;(\$#,0.###############);\$#,0.###############
+		lineageTag: b1d1631a-7be2-4459-8d84-f2ce58b2e7de
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Weight]
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"currencyCulture":"en-US"}
+
+	partition 'Risk Weights' = calculated
+		mode: import
+		source = ```
+				
+				    DATATABLE(
+				        "Component", STRING, "Weight", DECIMAL,
+				        {
+				            {"Supply Share", 0.5},
+				            {"Country Score", 0.3},
+				            {"Intensity", 0.2}
+				        }
+				    )
+				```
+
+	annotation PBI_Id = 0346674f280e4a0ca618eb61d914b136
+

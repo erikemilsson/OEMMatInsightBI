@@ -1,0 +1,162 @@
+table fact_supply_share
+	lineageTag: 028baa3f-7462-417b-bd6a-e41d7c65fea4
+	sourceLineageTag: [dbo].[fact_supply_share]
+
+	measure 'Supply Share % (2023)' =
+			
+			CALCULATE(
+			    AVERAGE(fact_supply_share[share_pct]),
+			    TREATAS( VALUES('Year Table'[year]), fact_supply_share[year] )
+			)
+		formatString: 0
+		lineageTag: 2085c544-5c17-4baa-a675-3d37b9cbb378
+
+		changedProperty = Name
+
+	measure 'Intensity (t)' =
+			
+			CALCULATE(
+			    AVERAGE(fact_supply_share[intensity_t]),
+			    TREATAS( VALUES('Year Table'[year]), fact_supply_share[year] )
+			)
+		formatString: 0
+		lineageTag: f3c94de1-e969-4e6c-a586-4575e92189d8
+
+		changedProperty = Name
+
+	measure 'Intensity (Norm)' =
+			
+			VAR cur = [Intensity (t)]
+			VAR minv = MINX(ALLSELECTED(gold_dim_country), [Intensity (t)])
+			VAR maxv = MAXX(ALLSELECTED(gold_dim_country), [Intensity (t)])
+			RETURN
+			DIVIDE(cur - minv, maxv - minv, 0)
+		lineageTag: 10007b06-0cb5-4770-8506-3ead5bced347
+
+		changedProperty = Name
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Supply Share (0..1)' = DIVIDE([Supply Share % (2023)], 100)
+		lineageTag: 19ae0d4b-190b-41ff-9dc3-51e8c84e52e4
+
+		changedProperty = Name
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Country-Stage Risk' =
+			
+			[w_Share]     * [Supply Share (0..1)] +
+			[w_Score]     * [Score (Norm)] +
+			[w_Intensity] * [Intensity (Norm)]
+		lineageTag: d62850bf-c53a-492b-baa0-4f932c0cbbe0
+
+		changedProperty = Name
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Material Risk Index' = ```
+			
+			VAR t =
+			    SUMX(
+			        SUMMARIZE(
+			            fact_supply_share,
+			            fact_supply_share[material_key],
+			            fact_supply_share[country_key],
+			            fact_supply_share[stage_key]
+			        ),
+			        [Supply Share (0..1)] * 
+			        (
+			            [w_Share]     * [Supply Share (0..1)] +
+			            [w_Score]     * [Score (Norm)] +
+			            [w_Intensity] * [Intensity (Norm)]
+			        )
+			    )
+			RETURN t
+			```
+		lineageTag: d88e5153-0f4d-45d7-bbbd-78afc9d3a8ec
+
+		changedProperty = Name
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Spend Exposure at Risk' = [Spend EUR (By Toggle)] * [Material Risk Index]
+		lineageTag: 2f581900-02b8-4986-bd88-e6347e5760d1
+
+		changedProperty = Name
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column material_key
+		dataType: int64
+		formatString: 0
+		sourceProviderType: bigint
+		lineageTag: e9d6e9db-8421-4a05-ac0d-fad503a4dd83
+		sourceLineageTag: material_key
+		summarizeBy: none
+		sourceColumn: material_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column stage_key
+		dataType: int64
+		formatString: 0
+		sourceProviderType: bigint
+		lineageTag: 3a2b2885-b056-48a1-bbf3-7fe03deae0f2
+		sourceLineageTag: stage_key
+		summarizeBy: none
+		sourceColumn: stage_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column country_key
+		dataType: int64
+		formatString: 0
+		sourceProviderType: bigint
+		lineageTag: 0dbb3a05-df46-415c-96d0-7594334d6073
+		sourceLineageTag: country_key
+		summarizeBy: none
+		sourceColumn: country_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column year
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: 7c90e969-48b0-4446-8f66-aed721f31e42
+		sourceLineageTag: year
+		summarizeBy: sum
+		sourceColumn: year
+
+		annotation SummarizationSetBy = Automatic
+
+	column share_pct
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 59a02965-22a3-4e62-9499-53a1fcf830a5
+		sourceLineageTag: share_pct
+		summarizeBy: none
+		sourceColumn: share_pct
+
+		annotation SummarizationSetBy = Automatic
+
+	column intensity_t
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: d0329ec9-2ac2-42fb-a170-71f139e1da0b
+		sourceLineageTag: intensity_t
+		summarizeBy: none
+		sourceColumn: intensity_t
+
+		annotation SummarizationSetBy = Automatic
+
+	partition fact_supply_share = entity
+		mode: directLake
+		source
+			entityName: fact_supply_share
+			schemaName: dbo
+			expressionSource: DatabaseQuery
+
+	annotation PBI_ResultType = Table
+

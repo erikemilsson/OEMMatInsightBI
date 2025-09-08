@@ -1,0 +1,17 @@
+table 'Spend View'
+	lineageTag: 3072ced2-15dc-460c-968d-92cdce75e9ea
+
+	column View
+		lineageTag: b31eda86-5e40-42bd-b92c-58b64dfacba4
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [View]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'Spend View' = calculated
+		mode: import
+		source = DATATABLE("View", STRING, {{"Production"}, {"HQ (Supplier)"}})
+
+	annotation PBI_Id = a38d6d14a4b24816bf10beedaae856a1
+

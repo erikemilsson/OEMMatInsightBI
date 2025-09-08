@@ -1,0 +1,32 @@
+table 'Year Table'
+	lineageTag: 4473b77b-264e-431d-af8d-6879ee283127
+
+	measure 'Selected Year' = SELECTEDVALUE('Year Table'[year], 2023)
+		formatString: 0
+		lineageTag: 5590acd5-2937-473e-8a15-a25f1928e6f3
+
+	measure 'Is 2023' = ```
+			
+			    IF(
+			        MAX(fact_supply_share[year]) = [Selected Year],
+			        1, 0
+			    )
+			```
+		formatString: 0
+		lineageTag: aad75811-cbc0-41e9-bf21-d2a198c57381
+
+	column year
+		formatString: 0
+		lineageTag: b0161e9d-168c-44f5-988b-985cf6268b4e
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [year]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'Year Table' = calculated
+		mode: import
+		source = DATATABLE("year", INTEGER, {{2023}})
+
+	annotation PBI_Id = 3a6a7065606f4c56966a3ca83384a007
+

@@ -1,0 +1,98 @@
+table fact_epi_score
+	lineageTag: 8fa14112-31a5-4c8c-b841-f76d173bc9d8
+	sourceLineageTag: [dbo].[fact_epi_score]
+
+	measure 'Score (Selected Indicator, Year)' =
+			
+			CALCULATE(
+			    AVERAGE(fact_epi_score[score]),
+			    TREATAS( VALUES('Year Table'[year]), fact_epi_score[year] )
+			)
+		lineageTag: 8c42fc41-9cb9-42e1-bf72-bf6a89c3ef22
+
+		changedProperty = Name
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure '__Score Raw' = [Score (Selected Indicator)]
+		lineageTag: b45b2f76-8945-42f5-b897-f005f989c502
+
+		changedProperty = Name
+
+	measure 'Score (Selected Indicator)' =
+			
+			-- Expects filters from gold_dim_indicator (e.g., EPI vs WB, or a chosen variable)
+			AVERAGE(fact_epi_score[score])
+		lineageTag: 820e460d-f177-452e-adf5-a6122845d3dd
+
+		changedProperty = Name
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Score (Norm)' =
+			
+			VAR cur = [__Score Raw]
+			VAR minv = MINX(ALLSELECTED(gold_dim_country), [__Score Raw])
+			VAR maxv = MAXX(ALLSELECTED(gold_dim_country), [__Score Raw])
+			RETURN
+			DIVIDE(cur - minv, maxv - minv, 0)
+		lineageTag: 32a96499-0b78-4344-91b8-57f83ddc1716
+
+		changedProperty = Name
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column country_key
+		dataType: int64
+		formatString: 0
+		sourceProviderType: bigint
+		lineageTag: 156e77e1-b25d-43bc-9c0e-d9694cec2158
+		sourceLineageTag: country_key
+		summarizeBy: none
+		sourceColumn: country_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column indicator_key
+		dataType: int64
+		formatString: 0
+		sourceProviderType: bigint
+		lineageTag: 36a6a8a5-4ae3-48c0-92d9-3574e4d24af3
+		sourceLineageTag: indicator_key
+		summarizeBy: none
+		sourceColumn: indicator_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column year
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: 02c08239-03d3-4aa7-947e-f1798e39a870
+		sourceLineageTag: year
+		summarizeBy: sum
+		sourceColumn: year
+
+		annotation SummarizationSetBy = Automatic
+
+	column score
+		dataType: double
+		sourceProviderType: float
+		lineageTag: 8faeba74-5203-4117-8259-38d3580c0066
+		sourceLineageTag: score
+		summarizeBy: sum
+		sourceColumn: score
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition fact_epi_score = entity
+		mode: directLake
+		source
+			entityName: fact_epi_score
+			schemaName: dbo
+			expressionSource: DatabaseQuery
+
+	annotation PBI_ResultType = Table
+

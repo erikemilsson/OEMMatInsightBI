@@ -1,0 +1,27 @@
+model Model
+	culture: en-US
+	collation: Latin1_General_100_BIN2_UTF8
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	sourceQueryCulture: en-US
+	dataAccessOptions
+		legacyRedirects
+		returnErrorValuesAsNull
+
+annotation __PBI_TimeIntelligenceEnabled = 0
+
+annotation PBI_QueryOrder = ["DatabaseQuery"]
+
+annotation PBI_ProTooling = ["WebModelingEdit"]
+
+ref table fact_procurement
+ref table fact_supply_share
+ref table gold_dim_stage
+ref table gold_dim_material
+ref table fact_epi_score
+ref table gold_dim_indicator
+ref table gold_dim_country
+ref table gold_dim_date
+ref table 'Year Table'
+ref table 'Spend View'
+ref table 'Risk Weights'
+
