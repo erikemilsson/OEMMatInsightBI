@@ -8,3 +8,6 @@ local_tables.xlsx
 azure/import_script.md
 azure/user_creation.sql
 azure/grant_permissions.sql
+
+# other
+.vscode
