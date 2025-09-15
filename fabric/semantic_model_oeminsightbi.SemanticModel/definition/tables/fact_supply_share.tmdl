@@ -5,7 +5,10 @@ table fact_supply_share
 	measure 'Supply Share % (2023)' =
 			
 			CALCULATE(
-			    AVERAGE(fact_supply_share[share_pct]),
+			    AVERAGEX(
+			        fact_supply_share,
+			        VALUE(fact_supply_share[share_pct])
+			    ),
 			    TREATAS( VALUES('Year Table'[year]), fact_supply_share[year] )
 			)
 		formatString: 0
@@ -16,7 +19,10 @@ table fact_supply_share
 	measure 'Intensity (t)' =
 			
 			CALCULATE(
-			    AVERAGE(fact_supply_share[intensity_t]),
+			    AVERAGEX(
+			        fact_supply_share,
+			        VALUE(fact_supply_share[intensity_t])
+			    ),
 			    TREATAS( VALUES('Year Table'[year]), fact_supply_share[year] )
 			)
 		formatString: 0

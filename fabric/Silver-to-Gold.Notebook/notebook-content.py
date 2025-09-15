@@ -118,10 +118,10 @@ write_tbl(dim_country, "gold_dim_country")
 
 # CELL ********************
 
-proc = spark.table(f"{CATALOG}.silver_procurement").select(
+proc = spark.table(f"{DB}.silver_procurement").select(
     F.initcap(F.trim("materialname")).alias("material")
 )
-sup  = spark.table(f"{CATALOG}.silver_globalsupplyshares").select(
+sup  = spark.table(f"{DB}.silver_globalsupplyshares").select(
     F.initcap(F.trim("material")).alias("material")
 )
 materials = (proc.union(sup)
@@ -160,7 +160,7 @@ write_tbl(dim_material, "gold_dim_material")
 
 # CELL ********************
 
-epi_vars = spark.table(f"{CATALOG}.`silver_epi2024variables2024-12-11`").select(
+epi_vars = spark.table(f"{DB}.`silver_epi2024variables2024-12-11`").select(
     F.lit("EPI").alias("source_system"),
     "type",
     F.col("abbreviation").alias("abbrev"),
@@ -171,7 +171,7 @@ epi_vars = spark.table(f"{CATALOG}.`silver_epi2024variables2024-12-11`").select(
     F.coalesce("policyobjective","issuecategory").alias("parent_label")
 ).withColumn("indicator_key", stable_key(["source_system","abbrev","variable_name"]))
 
-wb_vars = (spark.table(f"{CATALOG}.silver_wb")
+wb_vars = (spark.table(f"{DB}.silver_wb")
   .select("indicator_code","indicator_name","topic")
   .dropna(subset=["indicator_code"])
   .dropDuplicates(["indicator_code","indicator_name"])
@@ -357,8 +357,8 @@ sup = spark.table(f"{DB}.silver_globalsupplyshares").select(
     F.initcap(F.trim("material")).alias("material"),
     F.col("stage"),
     F.col("country"),
-    F.col("share").alias("share_pct"),
-    F.col("t").alias("intensity_t")
+    F.regexp_replace("share", "[<%]", "").cast("double").alias("share_pct"),
+    F.col("t").cast("double").alias("intensity_t")
 )
 
 fact_supply_share = (sup

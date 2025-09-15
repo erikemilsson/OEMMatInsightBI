@@ -154,21 +154,6 @@ print(f"Successfully saved context to '{file_name}' in your Lakehouse Files.")
 # META   "language_group": "jupyter_python"
 # META }
 
-# CELL ********************
-
-import pandas as pd
-# Load data into pandas DataFrame from "/lakehouse/default/Files/llm_model_context.txt"
-df =  pd.read_csv("/lakehouse/default/Files/llm_model_context.txt", sep="\\s+")
-display(df)
-
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "jupyter_python"
-# META }
-
 # MARKDOWN ********************
 
 # #### Learn more about notebooks in Fabric

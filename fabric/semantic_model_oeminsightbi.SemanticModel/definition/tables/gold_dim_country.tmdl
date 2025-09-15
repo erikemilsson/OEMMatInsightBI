@@ -15,11 +15,14 @@ table gold_dim_country
 
 	column iso3
 		dataType: string
+		isHidden
 		sourceProviderType: varchar(8000)
 		lineageTag: 3fd4fc0d-dacc-4c37-b1b1-bc0dd91b57d6
 		sourceLineageTag: iso3
 		summarizeBy: none
 		sourceColumn: iso3
+
+		changedProperty = IsHidden
 
 		annotation SummarizationSetBy = Automatic
 
