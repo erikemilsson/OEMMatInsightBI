@@ -2,20 +2,6 @@ table fact_supply_share
 	lineageTag: 028baa3f-7462-417b-bd6a-e41d7c65fea4
 	sourceLineageTag: [dbo].[fact_supply_share]
 
-	measure 'Supply Share % (2023)' =
-			
-			CALCULATE(
-			    AVERAGEX(
-			        fact_supply_share,
-			        VALUE(fact_supply_share[share_pct])
-			    ),
-			    TREATAS( VALUES('Year Table'[year]), fact_supply_share[year] )
-			)
-		formatString: 0
-		lineageTag: 2085c544-5c17-4baa-a675-3d37b9cbb378
-
-		changedProperty = Name
-
 	measure 'Supply Share (0..1)' =
 			
 			DIVIDE(
@@ -48,12 +34,6 @@ table fact_supply_share
 		changedProperty = Name
 
 		annotation PBI_FormatHint = {"isGeneralNumber":true}
-
-	measure 'Debug - Latest Supply Year' =
-			
-			MAXX(ALL(fact_supply_share[year]), fact_supply_share[year])
-		formatString: 0
-		lineageTag: 34445705-75c7-4b07-a6c0-b991cc45bb12
 
 	column material_key
 		dataType: int64

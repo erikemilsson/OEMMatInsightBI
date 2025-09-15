@@ -24,5 +24,4 @@ ref table gold_dim_date
 ref table Procurement_Calendar
 ref table Supply_Years
 ref table Indicator_Years
-ref table Time_Filter
 

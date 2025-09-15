@@ -56,12 +56,6 @@ table fact_epi_score
 
 		annotation PBI_FormatHint = {"isGeneralNumber":true}
 
-	measure 'Debug - Latest Indicator Year' =
-			
-			MAXX(ALL(fact_epi_score[year]), fact_epi_score[year])
-		formatString: 0
-		lineageTag: 9c15e9ff-1a00-472d-9aa4-3d7e149f0b89
-
 	measure 'Score Latest' =
 			
 			VAR LatestYear = [Debug - Latest Indicator Year]
