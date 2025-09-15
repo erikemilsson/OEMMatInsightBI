@@ -303,29 +303,19 @@
           },
           {
             "name": "share_pct",
-            "dataType": "string",
+            "dataType": "double",
             "sourceColumn": "share_pct",
-            "sourceProviderType": "varchar",
+            "sourceProviderType": "float",
             "sourceLineageTag": "share_pct",
-            "summarizeBy": "none",
+            "summarizeBy": "sum",
             "annotations": [
               {
                 "name": "SummarizationSetBy",
                 "value": "Automatic"
-              }
-            ]
-          },
-          {
-            "name": "intensity_t",
-            "dataType": "string",
-            "sourceColumn": "intensity_t",
-            "sourceProviderType": "varchar",
-            "sourceLineageTag": "intensity_t",
-            "summarizeBy": "none",
-            "annotations": [
+              },
               {
-                "name": "SummarizationSetBy",
-                "value": "Automatic"
+                "name": "PBI_FormatHint",
+                "value": "{\"isGeneralNumber\":true}"
               }
             ]
           }

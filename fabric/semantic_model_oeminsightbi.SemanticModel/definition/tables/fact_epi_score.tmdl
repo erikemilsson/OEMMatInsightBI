@@ -42,6 +42,58 @@ table fact_epi_score
 
 		annotation PBI_FormatHint = {"isGeneralNumber":true}
 
+	measure 'Score (Latest)' =
+			
+			VAR LatestYear = MAXX(Indicator_Years, Indicator_Years[Year])
+			RETURN
+			CALCULATE(
+			    AVERAGE(fact_epi_score[score]),
+			    Indicator_Years[Year] = LatestYear
+			)
+		lineageTag: 977472b8-924c-4ac8-bb58-cd91d6815aba
+
+		changedProperty = Name
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Debug - Latest Indicator Year' =
+			
+			MAXX(ALL(fact_epi_score[year]), fact_epi_score[year])
+		formatString: 0
+		lineageTag: 9c15e9ff-1a00-472d-9aa4-3d7e149f0b89
+
+	measure 'Score Latest' =
+			
+			VAR LatestYear = [Debug - Latest Indicator Year]
+			RETURN
+			CALCULATE(
+			    AVERAGE(fact_epi_score[score]),
+			    fact_epi_score[year] = LatestYear
+			)
+		lineageTag: d0afe4f7-84fd-4aaa-8165-7156066e69e9
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Score Norm Latest' = ```
+			
+			VAR Current = [Score Latest]
+			VAR MinVal = 
+			    CALCULATE(
+			        MINX(VALUES(gold_dim_country[country_key]), [Score Latest]),
+			        ALLSELECTED(gold_dim_country)
+			    )
+			VAR MaxVal = 
+			    CALCULATE(
+			        MAXX(VALUES(gold_dim_country[country_key]), [Score Latest]),
+			        ALLSELECTED(gold_dim_country)
+			    )
+			RETURN
+			DIVIDE(Current - MinVal, MaxVal - MinVal, 0)
+			```
+		lineageTag: 8206303b-13cc-4a6f-bad4-5536ec5f7aef
+
+		changedProperty = Name
+
 	column country_key
 		dataType: int64
 		formatString: 0
@@ -70,7 +122,7 @@ table fact_epi_score
 		sourceProviderType: int
 		lineageTag: 02c08239-03d3-4aa7-947e-f1798e39a870
 		sourceLineageTag: year
-		summarizeBy: sum
+		summarizeBy: none
 		sourceColumn: year
 
 		annotation SummarizationSetBy = Automatic

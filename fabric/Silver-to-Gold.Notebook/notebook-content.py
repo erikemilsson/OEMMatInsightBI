@@ -357,8 +357,7 @@ sup = spark.table(f"{DB}.silver_globalsupplyshares").select(
     F.initcap(F.trim("material")).alias("material"),
     F.col("stage"),
     F.col("country"),
-    F.regexp_replace("share", "[<%]", "").cast("double").alias("share_pct"),
-    F.col("t").cast("double").alias("intensity_t")
+    F.regexp_replace("share", "[<%]", "").cast("double").alias("share_pct")
 )
 
 fact_supply_share = (sup
@@ -366,7 +365,7 @@ fact_supply_share = (sup
   .join(dim_country_lu,  on=F.col("country")==dim_country_lu.country_name_std,   how="left")
   .join(dim_stage_lu,    on=F.col("stage")==dim_stage_lu.stage_code,             how="left")
   .withColumn("year", F.lit(2023).cast(IntegerType()))
-  .select("material_key","stage_key","country_key","year","share_pct","intensity_t"))
+  .select("material_key","stage_key","country_key","year","share_pct"))
 
 write_tbl(fact_supply_share, "fact_supply_share")
 

@@ -21,7 +21,8 @@ ref table fact_epi_score
 ref table gold_dim_indicator
 ref table gold_dim_country
 ref table gold_dim_date
-ref table 'Year Table'
-ref table 'Spend View'
-ref table 'Risk Weights'
+ref table Procurement_Calendar
+ref table Supply_Years
+ref table Indicator_Years
+ref table Time_Filter
 

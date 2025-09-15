@@ -1,0 +1,53 @@
+table Time_Filter
+	lineageTag: 73a5a935-6f89-4b28-8e9c-b380e1f6d2b1
+
+	measure 'Dynamic Spend' = ```
+			
+			VAR SelectedPeriod = SELECTEDVALUE(Time_Filter[Period], "Latest")
+			RETURN
+			SWITCH(
+			    SelectedPeriod,
+			    "YTD", [Spend EUR - YTD],
+			    "LY", [Spend EUR - Last Full Year], 
+			    "R12M", [Spend EUR - Rolling 12 Months],
+			    [Spend EUR]
+			)
+			```
+		lineageTag: 801ee741-249f-4b3b-b831-bd3f81fd29d6
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Period
+		lineageTag: 8d4c1e1a-8acb-44ae-bd99-a64b9c13c17a
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Period]
+
+		annotation SummarizationSetBy = Automatic
+
+	column Description
+		lineageTag: b89e37bf-48fe-44e8-835f-fc87974f7bcc
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Description]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Time_Filter = calculated
+		mode: import
+		source = ```
+				
+				DATATABLE(
+				    "Period", STRING,
+				    "Description", STRING,
+				    {
+				        {"YTD", "Year to Date 2025"},
+				        {"LY", "Full Year 2024"}, 
+				        {"R12M", "Rolling 12 Months"},
+				        {"Latest", "Latest Available Data"}
+				    }
+				)
+				```
+
+	annotation PBI_Id = a2989becc4df4d3da5220b3149886ee8
+
