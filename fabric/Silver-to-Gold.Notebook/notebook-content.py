@@ -203,7 +203,7 @@ grp_map = F.create_map(
         "Fluorspar", "Industrial minerals",
         "Perlite", "Industrial minerals",
         "Magnesite", "Industrial minerals",
-        "Phosphorus", "Chemicals"),
+        "Phosphorus", "Chemicals",
         "Phosphate Rock", "Chemicals",
         "Potash", "Chemicals",
         "Sulphur", "Chemicals",
