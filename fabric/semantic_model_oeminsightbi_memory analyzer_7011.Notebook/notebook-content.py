@@ -76,7 +76,7 @@ measures_df = fabric.list_measures(dataset=dataset, workspace=workspace)
 
 # (Optional) You can display one of the dataframes to see what it looks like
 print("--- Sample of Columns DataFrame ---")
-display(columns_df.head())
+display(columns_df)
 
 # METADATA ********************
 

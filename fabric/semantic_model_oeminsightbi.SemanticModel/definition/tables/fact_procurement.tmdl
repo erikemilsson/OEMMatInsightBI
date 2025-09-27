@@ -2,56 +2,6 @@ table fact_procurement
 	lineageTag: 6777fb5e-6e9e-452b-aef7-a4824a303f63
 	sourceLineageTag: [dbo].[fact_procurement]
 
-	measure 'Spend EUR' = SUM(fact_procurement[spend_eur])
-		lineageTag: ece4d9b0-7048-4b0a-9d4a-2d120b5afeac
-
-		annotation PBI_FormatHint = {"isGeneralNumber":true}
-
-	measure 'Quantity (Base)' = SUM(fact_procurement[quantity_base])
-		lineageTag: f70c20d9-b412-4d70-b446-e09c94e68416
-
-		changedProperty = Name
-
-		annotation PBI_FormatHint = {"isGeneralNumber":true}
-
-	measure 'Spend EUR - YTD' = ```
-			
-			CALCULATE(
-			    [Spend EUR],
-			    FILTER(Procurement_Calendar, Procurement_Calendar[IsYTD] = TRUE)
-			)
-			
-			```
-		lineageTag: b659d80f-3fa6-4b83-900c-ea58b4c9e3bd
-
-		changedProperty = Name
-
-		annotation PBI_FormatHint = {"isGeneralNumber":true}
-
-	measure 'Spend EUR - Rolling 12 Months' =
-			
-			CALCULATE(
-			    [Spend EUR],
-			    FILTER(Procurement_Calendar, Procurement_Calendar[IsFullYearBack] = TRUE)
-			)
-		lineageTag: 65c2f582-3a5d-4613-96bf-20aaaaa0000a
-
-		changedProperty = Name
-
-		annotation PBI_FormatHint = {"isGeneralNumber":true}
-
-	measure 'Spend EUR - Last Full Year' =
-			
-			CALCULATE(
-			    [Spend EUR],
-			    FILTER(Procurement_Calendar, Procurement_Calendar[IsLastFullYear] = TRUE)
-			)
-		lineageTag: d1a92742-aa86-4254-bf87-134ba747b580
-
-		changedProperty = Name
-
-		annotation PBI_FormatHint = {"isGeneralNumber":true}
-
 	column date_key
 		dataType: int64
 		formatString: 0

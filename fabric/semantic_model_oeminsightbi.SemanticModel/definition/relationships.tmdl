@@ -31,15 +31,3 @@ relationship 2d4df9d7-0c18-660a-a9e2-f4185e25d5a2
 	fromColumn: fact_supply_share.stage_key
 	toColumn: gold_dim_stage.stage_key
 
-relationship b6a3eae0-2a86-25a1-852b-82bf2231399a
-	fromColumn: Procurement_Calendar.Date
-	toColumn: gold_dim_date.date
-
-relationship f42970f8-cda9-3a21-2cb3-37c081c4d656
-	fromColumn: fact_supply_share.year
-	toColumn: Supply_Years.Year
-
-relationship c75e2d31-2dd8-1087-c738-e3042225a4b5
-	fromColumn: fact_epi_score.year
-	toColumn: Indicator_Years.Year
-

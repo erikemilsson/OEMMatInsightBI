@@ -21,7 +21,4 @@ ref table fact_epi_score
 ref table gold_dim_indicator
 ref table gold_dim_country
 ref table gold_dim_date
-ref table Procurement_Calendar
-ref table Supply_Years
-ref table Indicator_Years
 

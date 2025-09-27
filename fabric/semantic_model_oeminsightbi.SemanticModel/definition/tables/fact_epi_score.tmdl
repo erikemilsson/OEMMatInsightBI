@@ -2,92 +2,6 @@ table fact_epi_score
 	lineageTag: 8fa14112-31a5-4c8c-b841-f76d173bc9d8
 	sourceLineageTag: [dbo].[fact_epi_score]
 
-	measure 'Score (Selected Indicator, Year)' =
-			
-			CALCULATE(
-			    AVERAGE(fact_epi_score[score]),
-			    TREATAS( VALUES('Year Table'[year]), fact_epi_score[year] )
-			)
-		lineageTag: 8c42fc41-9cb9-42e1-bf72-bf6a89c3ef22
-
-		changedProperty = Name
-
-		annotation PBI_FormatHint = {"isGeneralNumber":true}
-
-	measure '__Score Raw' = [Score (Selected Indicator)]
-		lineageTag: b45b2f76-8945-42f5-b897-f005f989c502
-
-		changedProperty = Name
-
-	measure 'Score (Selected Indicator)' =
-			
-			-- Expects filters from gold_dim_indicator (e.g., EPI vs WB, or a chosen variable)
-			AVERAGE(fact_epi_score[score])
-		lineageTag: 820e460d-f177-452e-adf5-a6122845d3dd
-
-		changedProperty = Name
-
-		annotation PBI_FormatHint = {"isGeneralNumber":true}
-
-	measure 'Score (Norm)' =
-			
-			VAR cur = [__Score Raw]
-			VAR minv = MINX(ALLSELECTED(gold_dim_country), [__Score Raw])
-			VAR maxv = MAXX(ALLSELECTED(gold_dim_country), [__Score Raw])
-			RETURN
-			DIVIDE(cur - minv, maxv - minv, 0)
-		lineageTag: 32a96499-0b78-4344-91b8-57f83ddc1716
-
-		changedProperty = Name
-
-		annotation PBI_FormatHint = {"isGeneralNumber":true}
-
-	measure 'Score (Latest)' =
-			
-			VAR LatestYear = MAXX(Indicator_Years, Indicator_Years[Year])
-			RETURN
-			CALCULATE(
-			    AVERAGE(fact_epi_score[score]),
-			    Indicator_Years[Year] = LatestYear
-			)
-		lineageTag: 977472b8-924c-4ac8-bb58-cd91d6815aba
-
-		changedProperty = Name
-
-		annotation PBI_FormatHint = {"isGeneralNumber":true}
-
-	measure 'Score Latest' =
-			
-			VAR LatestYear = [Debug - Latest Indicator Year]
-			RETURN
-			CALCULATE(
-			    AVERAGE(fact_epi_score[score]),
-			    fact_epi_score[year] = LatestYear
-			)
-		lineageTag: d0afe4f7-84fd-4aaa-8165-7156066e69e9
-
-		annotation PBI_FormatHint = {"isGeneralNumber":true}
-
-	measure 'Score Norm Latest' = ```
-			
-			VAR Current = [Score Latest]
-			VAR MinVal = 
-			    CALCULATE(
-			        MINX(VALUES(gold_dim_country[country_key]), [Score Latest]),
-			        ALLSELECTED(gold_dim_country)
-			    )
-			VAR MaxVal = 
-			    CALCULATE(
-			        MAXX(VALUES(gold_dim_country[country_key]), [Score Latest]),
-			        ALLSELECTED(gold_dim_country)
-			    )
-			RETURN
-			DIVIDE(Current - MinVal, MaxVal - MinVal, 0)
-			```
-		lineageTag: 8206303b-13cc-4a6f-bad4-5536ec5f7aef
-
-		changedProperty = Name
-
 	column country_key
 		dataType: int64
 		formatString: 0
@@ -116,7 +30,7 @@ table fact_epi_score
 		sourceProviderType: int
 		lineageTag: 02c08239-03d3-4aa7-947e-f1798e39a870
 		sourceLineageTag: year
-		summarizeBy: none
+		summarizeBy: sum
 		sourceColumn: year
 
 		annotation SummarizationSetBy = Automatic

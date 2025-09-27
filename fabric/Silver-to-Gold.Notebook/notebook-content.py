@@ -130,14 +130,99 @@ materials = (proc.union(sup)
                   .withColumn("material_name_std", F.regexp_replace("material", r"\s+", " "))
 )
 
-# simple grouping rules (extend as needed)
+# simple grouping rules
 grp_map = F.create_map(
     [F.lit(x) for x in [
-      "Lithium","Battery metals","Graphite","Battery metals",
-      "Copper","Base metals","Nickel","Battery metals","Cobalt","Battery metals",
-      "Lead","Base metals","Aluminum","Base metals"
-    ]]
+        "Lithium","Battery metals",
+        "Graphite","Battery metals",
+        "Copper","Base metals",
+        "Nickel","Battery metals",
+        "Cobalt","Battery metals",
+        "Lead","Base metals",
+        "Aluminum","Base metals",
+        "Aluminium", "Base metals",  # Alternative spelling
+        "Lead", "Base metals",
+        "Zinc", "Base metals",
+        "Tin", "Base metals",
+        "Iron Ore", "Base metals",
+        "Magnesium", "Base metals",
+        "Gold", "Precious metals",
+        "Silver", "Precious metals",
+        "Platinum", "Precious metals",
+        "Palladium", "Precious metals",
+        "Rhodium", "Precious metals",
+        "Iridium", "Precious metals",
+        "Ruthenium", "Precious metals",
+        "Neodymium", "Rare earth elements",
+        "Praseodymium", "Rare earth elements",
+        "Cerium", "Rare earth elements",
+        "Lanthanum", "Rare earth elements",
+        "Yttrium", "Rare earth elements",
+        "Ytterbium", "Rare earth elements",
+        "Terbium", "Rare earth elements",
+        "Europium", "Rare earth elements",
+        "Gadolinium", "Rare earth elements",
+        "Dysprosium", "Rare earth elements",
+        "Erbium", "Rare earth elements",
+        "Holmium", "Rare earth elements",
+        "Lutetium", "Rare earth elements",
+        "Samarium", "Rare earth elements",
+        "Scandium", "Rare earth elements",
+        "Thulium", "Rare earth elements",
+        "Rare Earths (ndpr)", "Rare earth elements",  # Neodymium-Praseodymium
+        "Tungsten", "Specialty metals",
+        "Molybdenum", "Specialty metals",
+        "Titanium", "Specialty metals",
+        "Titanium Metal", "Specialty metals",
+        "Tantalum", "Specialty metals",
+        "Vanadium", "Specialty metals",
+        "Chromium", "Specialty metals",
+        "Bismuth", "Specialty metals",
+        "Antimony", "Specialty metals",
+        "Arsenic", "Specialty metals",
+        "Beryllium", "Specialty metals",
+        "Cadmium", "Specialty metals",
+        "Gallium", "Specialty metals",
+        "Germanium", "Specialty metals",
+        "Hafnium", "Specialty metals",
+        "Indium", "Specialty metals",
+        "Rhenium", "Specialty metals",
+        "Selenium", "Specialty metals",
+        "Tellurium", "Specialty metals",
+        "Zirconium", "Specialty metals",
+        "Silicon Metal", "Specialty metals",
+        "Niobium", "Specialty metals",
+        "Limestone", "Industrial minerals",
+        "Silica Sand", "Industrial minerals",
+        "Kaolin", "Industrial minerals",
+        "Feldspar", "Industrial minerals",
+        "Talc", "Industrial minerals",
+        "Bentonite", "Industrial minerals",
+        "Diatomite", "Industrial minerals",
+        "Barytes", "Industrial minerals",
+        "Fluorspar", "Industrial minerals",
+        "Perlite", "Industrial minerals",
+        "Magnesite", "Industrial minerals",
+        "Phosphorus", "Chemicals"),
+        "Phosphate Rock", "Chemicals",
+        "Potash", "Chemicals",
+        "Sulphur", "Chemicals",
+        "Borate", "Chemicals",
+        "Coking Coal", "Energy materials",
+        "Helium", "Energy materials",
+        "Neon", "Energy materials",
+        "Krypton", "Energy materials",
+        "Natural Rubber", "Organic materials",
+        "Natural Teak Wood", "Organic materials",
+        "Roundwood", "Organic materials",
+        "Electronics (controllers, Sensors)", "Manufactured products",
+        "Plastic (abs)", "Manufactured products",
+        "Tires (rubber Compound)", "Manufactured products",
+        "Steel (high-tensile)", "Manufactured products",
+        ]
+    ]
 )
+
 dim_material = (materials
   .withColumn("commodity_group", grp_map.getItem(F.col("material_name_std")))
   .withColumn("unit_base", F.lit("kg"))
@@ -167,7 +252,7 @@ epi_vars = spark.table(f"{DB}.`silver_epi2024variables2024-12-11`").select(
     F.col("variable").alias("variable_name"),
     "policyobjective","issuecategory","weight","description",
     F.lit(None).cast(StringType()).alias("indicator_code"),
-    # Parent logic: EPI → policyobjective or issuecategory (light touch)
+    # Parent logic: EPI → policyobjective or issuecategory
     F.coalesce("policyobjective","issuecategory").alias("parent_label")
 ).withColumn("indicator_key", stable_key(["source_system","abbrev","variable_name"]))
 
