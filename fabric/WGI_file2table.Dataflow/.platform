@@ -1,12 +1,11 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
   "metadata": {
-    "type": "Notebook",
-    "displayName": "Silver-to-Gold",
-    "description": "New notebook"
+    "type": "Dataflow",
+    "displayName": "WGI_file2table"
   },
   "config": {
     "version": "2.0",
-    "logicalId": "7a4e1cd4-61eb-9465-4866-ae0e966a4b73"
+    "logicalId": "34dbecdd-73ff-8048-4c9f-21c5453ee038"
   }
 }
