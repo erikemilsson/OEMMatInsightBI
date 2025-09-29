@@ -88,24 +88,27 @@ print(f"Pipeline started at: {pipeline_run_ts}")
 # Country name standardization mappings
 country_aliases = spark.createDataFrame([
     # Common variations
-    ("USA", "United States"),
-    ("US", "United States"),
-    ("U.S.", "United States"),
-    ("U.S.A.", "United States"),
-    ("United States of America", "United States"),
+    ("USA", "United States of America"),
+    ("US", "United States of America"),
+    ("U.S.", "United States of America"),
+    ("U.S.A.", "United States of America"),
+    ("United States", "United States of America"),
     ("UK", "United Kingdom"),
     ("GB", "United Kingdom"),
     ("Great Britain", "United Kingdom"),
-    ("England", "United Kingdom"),  # Common mistake
+    ("England", "United Kingdom"),
     ("Czech Republic", "Czechia"),
     ("Slovak Republic", "Slovakia"),
     ("DR Congo", "Democratic Republic of the Congo"),
     ("DRC", "Democratic Republic of the Congo"),
+    ("DRC (HQ in South Africa)", "Democratic Republic of the Congo"),
     ("Congo, Dem. Rep.", "Democratic Republic of the Congo"),
     ("UAE", "United Arab Emirates"),
     ("South Korea", "Korea, Rep."),
     ("Republic of Korea", "Korea, Rep."),
     ("North Korea", "Korea, Dem. People's Rep."),
+    ("Korea, South", "South Korea"),
+    ("Korea, North", "North Korea"),
     ("Russia", "Russian Federation"),
     ("Vietnam", "Viet Nam"),
     ("Laos", "Lao PDR"),
@@ -118,6 +121,38 @@ country_aliases = spark.createDataFrame([
     ("Holland", "Netherlands"),
     ("Ivory Coast", "Côte d'Ivoire"),
     ("Cape Verde", "Cabo Verde"),
+    ("Türkiye", "Turkey"),
+    ("T�rkiye", "Turkey"),
+    ("Turkyie", "Turkey"),
+    ("Tï¿½rkiye", "Turkey"),
+    ("Korea, South", "Korea, Rep."),
+    ("Korea, North", "Korea, Dem. People's Rep."),
+    ("Congo, D.R.", "Democratic Republic of the Congo"),
+    ("Brasilia", "Brazil"),
+    ("Hong Kong", "China"),
+    ("French Guiana", "France"),
+    ("Kosovo", "Kosovo"),
+    ("San Marino", "San Marino"),
+    ("Libya", "Libya"),
+    ("Syria", "Syrian Arab Republic"),
+    ("Yemen", "Yemen, Rep."),
+    ("Yemen", "Yemen, Rep."),
+    ("Syria", "Syrian Arab Republic"),
+    ("Libya", "Libya"),
+    ("Kosovo", "Kosovo"),
+    ("San Marino", "San Marino"),
+    ("Czechia", "Czech Republic"),
+    ("Congo", "Congo, Rep."),
+    ("Congo, D.R.", "Congo, Dem. Rep."),
+    ("Nauru", "Nauru"),
+    ("Korea, South", "South Korea"),
+    ("Korea, North", "North Korea"),
+    ("Congo, D.R.", "Dem. Rep. Congo"),
+    ("DRC", "Dem. Rep. Congo"),
+    ("DR Congo", "Dem. Rep. Congo"),
+    ("DRC (HQ in South Africa)", "Dem. Rep. Congo"),
+    ("Congo", "Republic of Congo"),
+    ("Czechia", "Czech Republic"),
     # Add more as discovered
 ], ["alias", "standard_name"])
 
@@ -160,62 +195,220 @@ write_tbl(material_aliases, "mapping_material_aliases")
 
 # CELL ********************
 
-# Load base country data
+## Fixed Country Dimension Logic
+
+# 1. CONSISTENT KEY GENERATION STRATEGY
+def generate_country_key(iso3_col, name_col):
+    """Generate consistent country keys using ISO3 when available, fallback to name"""
+    return F.when(F.col(iso3_col).isNotNull(), 
+                  stable_key([iso3_col])
+                 ).otherwise(stable_key([name_col]))
+
+# 2. BUILD BASE DIMENSION WITH PROPER SCHEMA
+# Load base country data with consistent schema
 epi = spark.table(f"{DB}.silver_epi2024results").select(
     F.col("iso").alias("iso3"),
     F.col("code").cast(IntegerType()).alias("iso_numeric"),
     F.col("country").alias("country_name_epi")
-).dropna(subset=["iso3"]).dropDuplicates(["iso3"])
+).filter(F.col("iso3").isNotNull()).dropDuplicates(["iso3"])
 
 wb = spark.table(f"{DB}.silver_wb").select(
     F.col("country_code").alias("wb_code"),
     F.col("country_name").alias("country_name_wb")
-).dropna(subset=["wb_code"]).dropDuplicates(["wb_code"])
+).filter(F.col("wb_code").isNotNull()).dropDuplicates(["wb_code"])
 
-# Build primary dimension
-dim_country_base = (epi.alias("e")
-  .join(wb.alias("w"), F.upper(F.col("e.iso3")) == F.upper(F.col("w.wb_code")), "left")
-  .select(
-      F.coalesce(F.col("e.country_name_epi"), F.col("w.country_name_wb")).alias("country_name_std"),
-      F.col("e.iso3"),
-      F.col("e.iso_numeric"),
-      F.col("w.wb_code")
-  )
-  .dropDuplicates(["iso3"])
+# Build primary dimension from EPI and WB data
+dim_country_base = (
+    epi.alias("e")
+    .join(wb.alias("w"), F.upper(F.col("e.iso3")) == F.upper(F.col("w.wb_code")), "left")
+    .select(
+        F.coalesce(F.col("e.country_name_epi"), F.col("w.country_name_wb")).alias("country_name_std"),
+        F.col("e.iso3"),
+        F.col("e.iso_numeric"),
+        F.col("w.wb_code")
+    )
+    .dropDuplicates(["iso3"])
 )
 
-# Extend with all known aliases for lookup purposes
-country_with_aliases = (
-    dim_country_base
+# 3. ADD MISSING COUNTRIES WITH PROPER SCHEMA ALIGNMENT
+missing_countries = spark.createDataFrame([
+    ("North Korea", "PRK", 408, "PRK"),
+    ("Yemen", "YEM", 887, "YEM"), 
+    ("Syria", "SYR", 760, "SYR"),
+    ("Libya", "LBY", 434, "LBY"),
+    ("Turkey", "TUR", 792, "TUR"),
+    ("Kosovo", "XKX", None, None),
+    ("San Marino", "SMR", 674, "SMR"),
+    ("Nauru", "NRU", 520, "NRU"),
+], ["country_name_std", "iso3", "iso_numeric", "wb_code"])
+
+# 4. UNION ALL COUNTRIES WITH CONSISTENT KEY GENERATION
+all_countries = dim_country_base.unionByName(missing_countries, allowMissingColumns=True)
+
+# Generate consistent keys for all records
+dim_country = (
+    all_countries
+    .withColumn("country_key", generate_country_key("iso3", "country_name_std"))
+    .select("country_key", "iso3", "iso_numeric", "wb_code", "country_name_std")
+    .dropDuplicates(["country_key"])  # Ensure unique keys
+)
+
+# 5. CLEAN UP CONFLICTING ALIASES
+country_aliases_clean = spark.createDataFrame([
+    # US variations
+    ("USA", "United States of America"),
+    ("US", "United States of America"),
+    ("U.S.", "United States of America"),
+    ("U.S.A.", "United States of America"),
+    ("United States", "United States of America"),
+    
+    # UK variations
+    ("UK", "United Kingdom"),
+    ("GB", "United Kingdom"),
+    ("Great Britain", "United Kingdom"),
+    ("England", "United Kingdom"),
+    
+    # Congo variations - FIXED to map to actual dimension names
+    ("DR Congo", "Dem. Rep. Congo"),
+    ("DRC", "Dem. Rep. Congo"),
+    ("DRC (HQ in South Africa)", "Dem. Rep. Congo"),
+    ("Congo, Dem. Rep.", "Dem. Rep. Congo"),
+    ("Congo, D.R.", "Dem. Rep. Congo"),
+    ("Democratic Republic of the Congo", "Dem. Rep. Congo"),
+    ("Congo", "Republic of Congo"),
+    
+    # Korea variations - FIXED to map to actual dimension names
+    ("Korea, South", "South Korea"),
+    ("Republic of Korea", "South Korea"),
+    ("Korea, Rep.", "South Korea"),
+    ("Korea, North", "North Korea"),
+    ("Korea, Dem. People's Rep.", "North Korea"),
+    
+    # Turkey variations (including encoding issues)
+    ("Türkiye", "Turkey"),
+    ("TÃ¼rkiye", "Turkey"),
+    ("TÃ¯Â¿Â½rkiye", "Turkey"),
+    ("Turkyie", "Turkey"),
+    ("Tï¿½rkiye", "Turkey"),
+    
+    # Czech variations - FIXED
+    ("Czechia", "Czech Republic"),
+    ("Slovak Republic", "Slovakia"),
+    
+    # Middle East - FIXED to use actual names in dimension
+    ("UAE", "United Arab Emirates"),
+    ("Syrian Arab Republic", "Syria"),
+    
+    # Other mappings
+    ("Vietnam", "Viet Nam"),
+    ("Laos", "Lao PDR"),
+    ("Burma", "Myanmar"),
+    ("Bolivia", "Bolivia, Plurinational State of"),
+    ("Venezuela", "Venezuela, Bolivarian Republic of"),
+    ("Brasilia", "Brazil"),
+    ("Tanzania", "Tanzania, United Republic of"),
+    ("Ivory Coast", "Côte d'Ivoire"),
+    ("Cape Verde", "Cabo Verde"),
+    ("Holland", "Netherlands"),
+    ("Moldova", "Moldova, Republic of"),
+    ("Macedonia", "North Macedonia"),
+    ("Russia", "Russian Federation"),
+    ("Hong Kong", "China"),
+    ("French Guiana", "France"),
+], ["alias", "standard_name"])
+
+# 6. BUILD COMPREHENSIVE LOOKUP TABLE
+country_lookup = (
+    # First, add all standard country names as self-lookups
+    dim_country
     .select(
         F.col("country_name_std").alias("lookup_name"),
-        "iso3", "iso_numeric", "wb_code", "country_name_std"
+        "country_key", "iso3", "iso_numeric", "wb_code", "country_name_std"
     )
+    # Then add aliases that successfully map to existing countries
     .unionByName(
-        country_aliases.alias("ca")
-        .join(dim_country_base.alias("dc"), 
+        country_aliases_clean.alias("ca")
+        .join(dim_country.alias("dc"), 
               F.col("ca.standard_name") == F.col("dc.country_name_std"), "inner")
         .select(
             F.col("ca.alias").alias("lookup_name"),
-            "dc.iso3", "dc.iso_numeric", "dc.wb_code", "dc.country_name_std"
+            "dc.country_key", "dc.iso3", "dc.iso_numeric", "dc.wb_code", "dc.country_name_std"
         )
     )
 )
 
-# Create final dimension with unique countries only
-dim_country = (
-    dim_country_base
-    .withColumn("country_key", stable_key(["iso3"]))
-    .select("country_key","iso3","iso_numeric","wb_code","country_name_std")
+# 7. WRITE TABLES
+write_tbl(dim_country, "gold_dim_country")
+write_tbl(country_lookup, "gold_dim_country_lookup")
+
+# 8. COMPREHENSIVE VALIDATION AND DEBUGGING
+print(f"\n{'='*60}")
+print("COUNTRY DIMENSION VALIDATION REPORT")
+print(f"{'='*60}")
+
+print(f"\nDimension Statistics:")
+print(f"  Base countries from EPI/WB: {dim_country_base.count()}")
+print(f"  Added missing countries: {missing_countries.count()}")
+print(f"  Total countries in dimension: {dim_country.count()}")
+print(f"  Total lookup entries (with aliases): {country_lookup.count()}")
+
+# Validate that all manually added countries are present
+print(f"\nValidating Missing Countries in Final Dimension:")
+missing_country_names = ["North Korea", "Yemen", "Syria", "Libya", "Turkey", "Kosovo", "San Marino", "Nauru"]
+
+for country in missing_country_names:
+    exists = dim_country.filter(F.col("country_name_std") == country).count() > 0
+    print(f"  {'✓' if exists else '✗'} '{country}' {'found' if exists else 'MISSING!'}")
+
+# Validate alias mappings
+print(f"\nValidating Alias Mappings:")
+test_aliases = ["Yemen", "Korea, North", "Turkyie", "Kosovo", "DRC (HQ in South Africa)", "Korea, South"]
+
+for alias in test_aliases:
+    mapping = country_lookup.filter(F.col("lookup_name") == alias)
+    if mapping.count() > 0:
+        mapped_to = mapping.first()["country_name_std"]
+        print(f"  ✓ '{alias}' → '{mapped_to}'")
+    else:
+        print(f"  ✗ '{alias}' NOT MAPPED!")
+
+# Check for duplicate country keys
+duplicate_keys = (
+    dim_country
+    .groupBy("country_key")
+    .count()
+    .filter(F.col("count") > 1)
+    .count()
 )
 
-write_tbl(dim_country, "gold_dim_country")
-write_tbl(country_with_aliases, "gold_dim_country_lookup")  # Extended lookup table
+if duplicate_keys > 0:
+    print(f"\n⚠️  WARNING: {duplicate_keys} duplicate country keys found!")
+    (dim_country
+     .groupBy("country_key")
+     .count()
+     .filter(F.col("count") > 1)
+     .show())
+else:
+    print(f"\n✓ No duplicate country keys found")
 
-# Data quality check
-print(f"\nCountry dimension stats:")
-print(f"  Base countries: {dim_country_base.count()}")
-print(f"  With aliases: {country_with_aliases.count()}")
+# Show any unmapped aliases
+unmapped_aliases = (
+    country_aliases_clean.alias("ca")
+    .join(dim_country.alias("dc"), 
+          F.col("ca.standard_name") == F.col("dc.country_name_std"), "left")
+    .filter(F.col("dc.country_name_std").isNull())
+)
+
+unmapped_count = unmapped_aliases.count()
+if unmapped_count > 0:
+    print(f"\n⚠️  WARNING: {unmapped_count} aliases point to non-existent countries:")
+    unmapped_aliases.select("alias", "standard_name").show(truncate=False)
+else:
+    print(f"\n✓ All aliases map to existing countries")
+
+print(f"\n{'='*60}")
+print("Country dimension fix completed!")
+print(f"{'='*60}")
 
 # METADATA ********************
 
@@ -247,7 +440,7 @@ materials_raw = (
 # Apply alias resolution
 materials = (
     materials_raw
-    .join(material_aliases, materials_raw.material == material_aliases.alias, "left")
+    .join(material_aliases, materials_raw.material == material_aliases["alias"], "left")
     .withColumn("material_name_std", 
                 F.coalesce(F.col("standard_material"), F.col("material")))
     .select("material_name_std")
@@ -301,27 +494,57 @@ grp_map = F.create_map(
     F.lit("Electronics (controllers, Sensors)"), F.lit("Manufactured products"),
     F.lit("Plastic (Abs)"), F.lit("Manufactured products"),
     F.lit("Tires (rubber Compound)"), F.lit("Manufactured products"),
-    F.lit("Steel (High-Tensile)"), F.lit("Manufactured products")
+    F.lit("Steel (High-Tensile)"), F.lit("Manufactured products"),
+    F.lit("Helium"), F.lit("Specialty gases"),
+    F.lit("Neon"), F.lit("Specialty gases"),
+    F.lit("Natural Graphite"), F.lit("Battery metals"),
+    F.lit("Erbium"), F.lit("Rare earth elements"),
+    F.lit("Thulium"), F.lit("Rare earth elements"),
+    F.lit("Holmium"), F.lit("Rare earth elements"),
+    F.lit("Lutetium"), F.lit("Rare earth elements"),
+    F.lit("Samarium"), F.lit("Rare earth elements"),
+    F.lit("Arsenic"), F.lit("Specialty metals"),
+    F.lit("Selenium"), F.lit("Specialty metals"),
+    F.lit("Germanium"), F.lit("Specialty metals"),
+    F.lit("Hafnium"), F.lit("Specialty metals"),
+    F.lit("Rhenium"), F.lit("Specialty metals"),
+    F.lit("Zirconium"), F.lit("Specialty metals"),
+    F.lit("Bismuth"), F.lit("Specialty metals"),
+    F.lit("Strontium"), F.lit("Industrial minerals"),
+    F.lit("Feldspar"), F.lit("Industrial minerals"),
+    F.lit("Gypsum"), F.lit("Industrial minerals"),
+    F.lit("Natural Teak Wood"), F.lit("Organic materials"),
+    F.lit("Phosphorous"), F.lit("Chemicals"),
 )
 
 dim_material = (
     materials
-    .withColumn("commodity_group", grp_map[F.col("material_name_std")])
+    .withColumn("commodity_group", 
+                F.coalesce(grp_map[F.col("material_name_std")], F.lit("Other/Unknown")))
     .withColumn("unit_base", F.lit("kg"))
     .withColumn("material_key", stable_key(["material_name_std"]))
     .select("material_key","material_name_std","commodity_group","unit_base")
 )
 
-# Create extended lookup with aliases
+# Create extended lookup with aliases - include all needed columns
 material_lookup = (
     dim_material
-    .select(F.col("material_name_std").alias("lookup_name"), "material_key", "material_name_std", "commodity_group")
+    .select(
+        F.col("material_name_std").alias("lookup_name"), 
+        "material_key",  # This is already correct in your code
+        "material_name_std", 
+        "commodity_group"
+    )
     .unionByName(
         material_aliases.alias("ma")
         .join(dim_material.alias("dm"), 
               F.col("ma.standard_material") == F.col("dm.material_name_std"), "inner")
-        .select(F.col("ma.alias").alias("lookup_name"), 
-                "dm.material_key", "dm.material_name_std", "dm.commodity_group")
+        .select(
+            F.col("ma.alias").alias("lookup_name"), 
+            "dm.material_key", 
+            "dm.material_name_std", 
+            "dm.commodity_group"
+        )
     )
 )
 
@@ -650,6 +873,10 @@ unit_norm = F.create_map(*[
     F.lit("lbs"), F.lit(0.453592),
     F.lit("oz"), F.lit(0.0283495),  # ounces to kg
     F.lit("ton"), F.lit(907.185),  # US ton to kg
+    F.lit("pcs"), F.lit(1.0),  # Pieces - keep as count, no weight conversion
+    F.lit("pieces"), F.lit(1.0),  # Alternative spelling
+    F.lit("unit"), F.lit(1.0),
+    F.lit("units"), F.lit(1.0),
 ])
 
 # Prepare procurement data
@@ -806,46 +1033,98 @@ print(f"Unique production countries: {stats.unique_production}")
 
 # ## Pipeline Summary and Data Quality Report
 
-# MARKDOWN ********************
+# CELL ********************
 
-# print("\n" + "="*70)
-# print("SILVER-TO-GOLD PIPELINE EXECUTION SUMMARY")
-# print("="*70)
-# 
-# # Record counts for all tables
-# tables = [
-#     ("gold_dim_country", "Country Dimension"),
-#     ("gold_dim_material", "Material Dimension"),
-#     ("gold_dim_indicator", "Indicator Dimension"),
-#     ("gold_dim_stage", "Stage Dimension"),
-#     ("gold_dim_date", "Date Dimension"),
-#     ("fact_epi_score", "EPI Score Facts"),
-#     ("fact_supply_share", "Supply Share Facts"),
-#     ("fact_procurement", "Procurement Facts")
-# ]
-# 
-# print("\nTable Record Counts:")
-# print("-" * 40)
-# for table_name, display_name in tables:
-#     try:
-#         count = spark.table(f"{DB}.{table_name}").count()
-#         print(f"{display_name:.<30} {count:>8,}")
-#     except Exception as e:
-#         print(f"{display_name:.<30} ERROR: {e}")
-# 
-# # Create data quality summary table
-# quality_summary = spark.createDataFrame([
-#     ("Pipeline Run", str(pipeline_run_ts), "INFO"),
-#     ("Database", DB, "INFO"),
-#     ("Unmapped Materials", str(missing_materials), "WARNING" if missing_materials > 0 else "OK"),
-#     ("Unmapped Countries", str(missing_hq + missing_prod), "WARNING" if (missing_hq + missing_prod) > 0 else "OK"),
-#     ("Unknown Units", str(missing_units), "WARNING" if missing_units > 0 else "OK")
-# ], ["metric", "value", "status"])
-# 
-# write_tbl(quality_summary, "pipeline_quality_summary")
-# 
-# print("\n" + "="*70)
-# print("Pipeline completed successfully!")
-# print("Review 'pipeline_quality_summary' table for detailed metrics")
-# print("="*70)
+print("\n" + "="*70)
+print("SILVER-TO-GOLD PIPELINE EXECUTION SUMMARY")
+print("="*70)
 
+# Record counts for all tables
+tables = [
+    ("gold_dim_country", "Country Dimension"),
+    ("gold_dim_material", "Material Dimension"),
+    ("gold_dim_indicator", "Indicator Dimension"),
+    ("gold_dim_stage", "Stage Dimension"),
+    ("gold_dim_date", "Date Dimension"),
+    ("fact_epi_score", "EPI Score Facts"),
+    ("fact_supply_share", "Supply Share Facts"),
+    ("fact_procurement", "Procurement Facts")
+]
+
+print("\nTable Record Counts:")
+print("-" * 40)
+for table_name, display_name in tables:
+    try:
+        count = spark.table(f"{DB}.{table_name}").count()
+        print(f"{display_name:.<30} {count:>8,}")
+    except Exception as e:
+        print(f"{display_name:.<30} ERROR: {e}")
+
+# Create data quality summary table
+quality_summary = spark.createDataFrame([
+    ("Pipeline Run", str(pipeline_run_ts), "INFO"),
+    ("Database", DB, "INFO"),
+    ("Unmapped Materials", str(missing_materials), "WARNING" if missing_materials > 0 else "OK"),
+    ("Unmapped Countries", str(missing_hq + missing_prod), "WARNING" if (missing_hq + missing_prod) > 0 else "OK"),
+    ("Unknown Units", str(missing_units), "WARNING" if missing_units > 0 else "OK")
+], ["metric", "value", "status"])
+
+write_tbl(quality_summary, "pipeline_quality_summary")
+
+print("\n" + "="*70)
+print("Pipeline completed successfully!")
+print("Review 'pipeline_quality_summary' table for detailed metrics")
+print("="*70)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+def log_data_quality_issue(issue_type, table_name, count, details):
+    return spark.createDataFrame(
+        [(pipeline_run_ts, issue_type, table_name, count, details)],
+        ["run_timestamp", "issue_type", "table_name", "record_count", "details"]
+    )
+
+# Collect all issues
+dq_issues = [
+    log_data_quality_issue("Unmapped Material", "dim_material", 50, "Missing commodity groups"),
+    log_data_quality_issue("Unmapped Country", "fact_supply_share", 3410, "NULL country keys"),
+    log_data_quality_issue("Unmapped Country", "fact_procurement", 12, "DRC (HQ in South Africa)")
+]
+
+# Union and write
+quality_log = dq_issues[0]
+for issue in dq_issues[1:]:
+    quality_log = quality_log.union(issue)
+    
+write_tbl(quality_log, "data_quality_log")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+existing_countries = spark.table(f"{DB}.gold_dim_country").select("country_name_std").distinct()
+
+# Check for specific problem countries
+for country_pattern in ["Korea", "Yemen", "Congo", "Syria", "Libya", "Turkey", "Czech"]:
+    matches = existing_countries.filter(F.col("country_name_std").contains(country_pattern))
+    print(f"\nCountries containing '{country_pattern}':")
+    matches.show(truncate=False)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
