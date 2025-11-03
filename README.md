@@ -10,18 +10,32 @@ Microsoft Fabric is a user-friendly SaaS (Software as a Service) data analytics 
 *   **Data Analytics Suite:** Microsoft Fabric
 *   **Data Storage:** Azure SQL Database (for synthetic ERP data), OneLake
 *   **BI & Visualization:** Power BI
-*   **Data Integration:** Fabric Data Factory
-*   **Data Transformation:** DAX
+*   **Data Integration:** Fabric Data Factory (Pipelines and Dataflows)
+*   **Data Transformation:** PySpark (in Fabric Notebooks), Power Query M (in Dataflows), SQL, and DAX
+
+## Project Structure
+
+This repository is organized into the following directories:
+
+*   `azure/`: Contains SQL scripts for setting up the initial Azure SQL database.
+*   `data/`: Contains sample data files used in the project.
+*   `fabric/`: Contains all the Microsoft Fabric artifacts, including notebooks, dataflows, pipelines, lakehouse, warehouse, and the Power BI semantic model.
 
 ## Setup and Installation
 
 This project is built entirely on the Microsoft Fabric SaaS platform and does not require local installation. The setup involves the following:
 
-1.  **Azure SQL Database & SQL Server:** A provisioned Azure SQL Database is used to host the synthetic procurement data. SQL Server is used to interact with the database.
+1.  **Azure SQL Database & SQL Server:** A provisioned Azure SQL Database is used to host the synthetic procurement data. The SQL scripts in the `azure/` directory can be used to create the necessary tables.
 2.  **Microsoft Fabric Workspace:** A Fabric workspace is set up to serve as the central environment for data integration, modeling, and visualization.
-3.  **Data Ingestion:** Data pipelines in Fabric are configured to ingest data from the Azure SQL Database. Country-level ESG indicators and country-level material-use shares are uploaded to the Fabric OneLake.
-1.  **Semantic Model:** A Power BI semantic model is developed within Fabric to create relationships between the different data sources and define key metrics.
-2.  **Power BI Report:** A Power BI report is created on top of the semantic model to build the interactive dashboards.
+3.  **Data Ingestion:**
+    *   The `bronze_azureSQLdb2table.Dataflow` and `copyjob1.CopyJob` are used to ingest data from the Azure SQL Database into the `oem_lh.Lakehouse`.
+    *   The `EPI_file2table.Dataflow` and `WB_file2table.Dataflow` are used to ingest data from uploaded files.
+4.  **Data Transformation:**
+    *   The `clean_columnsAndHeaders.Notebook` and `Silver-to-Gold.Notebook` (PySpark notebooks) are used to clean and transform the data from the bronze to the silver and gold layers of the lakehouse.
+    *   The `silver-to-gold-dataflow.Dataflow` is also used for data transformation.
+5.  **Data Warehousing:** The transformed data is loaded into the `oem_wh.Warehouse`.
+6.  **Semantic Model:** A Power BI semantic model (`semantic_model_oeminsightbi.SemanticModel`) is developed within Fabric to create relationships between the different data sources and define key metrics.
+7.  **Power BI Report:** A Power BI report (`report.Report`) is created on top of the semantic model to build the interactive dashboards.
 
 ## Project Summary
 
@@ -36,7 +50,7 @@ SwiftBike Tech has chosen Microsoft Fabric to manage analytics and provide a das
 1.  **Data Ingestion, Cleaning, and Transformation:**
     *   Data from various sources are ingested into Microsoft Fabric.
     *   The data undergoes cleaning and transformation processes to ensure accuracy and consistency.
-    *   Data pipelines are created and orchestrated to automate updates and maintain real-time data freshness.
+    *   The `orchestrator_pipeline_bronze_to_gold.DataPipeline` is used to automate updates and maintain real-time data freshness.
 2.  **Semantic Model Development:**
     *   Semantic models are built using the cleaned and transformed data in Fabric, tailored specifically for the business use cases of SwiftBike Tech.
     *   These models will support the prioritization of part numbers based on various impact indicators and enable filtering by part ID.
@@ -46,19 +60,17 @@ SwiftBike Tech has chosen Microsoft Fabric to manage analytics and provide a das
 
 ### Data Sources Overview
 
-*   **ESG Indicators:** From [Yale Environmental Performance Index](https://epi.yale.edu/), [World Bank Worldwide Governance Indicators](https://www.worldbank.org/en/publication/worldwide-governance-indicators), 
+*   **ESG Indicators:** From [Yale Environmental Performance Index](https://epi.yale.edu/), [World Bank Worldwide Governance Indicators](https://www.worldbank.org/en/publication/worldwide-governance-indicators),
 *   **Country-Level Material-Use Shares:** Data on material use-shares at different production stages.
 *   **Synthetic Supplier & Procurement data in Azure Database:** Bill of Materials (BOMs) and Sales Tracking data.
 
 ## Technical Overview
 
-
 ### Pipeline Overview
 
-
+The `orchestrator_pipeline_bronze_to_gold.DataPipeline` orchestrates the entire data flow, from ingesting the raw data from Azure SQL and files to the final gold layer in the data warehouse. It executes the dataflows and notebooks in the correct order to ensure data consistency and freshness.
 
 ### Data governance + incremental strategy
-
 
 **Pipeline Parameter Specification**
 
