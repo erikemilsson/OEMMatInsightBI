@@ -1,12 +1,74 @@
-.qodo
+# ===================================
+# Local Development & Personal Files
+# ===================================
 
-# data
+# Claude Code configuration (personal AI assistant setup)
+.claude/
+
+# Qodo AI
+.qodo/
+
+# VS Code settings (personal preferences)
+.vscode/
+
+# Archive folder (personal reference documents)
+.archive/
+
+# ===================================
+# Data & Sensitive Files
+# ===================================
+
+# Local data files
 local_tables.xlsx
+data/
 
-# files with sensitive details
+# Files with sensitive details (connection strings, credentials)
 azure/import_script.md
 azure/user_creation.sql
 azure/grant_permissions.sql
 
-# other
-.vscode
+# ===================================
+# Python
+# ===================================
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Compiled Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# ===================================
+# Operating System
+# ===================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ===================================
+# IDE & Editors
+# ===================================
+
+# JetBrains IDEs
+.idea/
+
+# ===================================
+# Logs & Temporary Files
+# ===================================
+
+*.log
+*.tmp
+*.temp
+.pytest_cache/
