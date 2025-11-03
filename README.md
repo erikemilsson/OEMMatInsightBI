@@ -90,6 +90,91 @@ The `orchestrator_pipeline_bronze_to_gold.DataPipeline` orchestrates the entire 
 	•	p_from_date = @{pipeline().parameters.last_success_date} (or manually set)
 
 
+## Testing
+
+This project includes a comprehensive unit test suite for transformation functions.
+
+### Running Tests Locally
+
+**Prerequisites:**
+- Python 3.12+ installed
+- Virtual environment recommended
+
+**Setup:**
+```bash
+# Create and activate virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install test dependencies
+pip install -r requirements-test.txt
+```
+
+**Run All Tests:**
+```bash
+# Run all tests with verbose output
+pytest tests/ -v
+
+# Run specific test file
+pytest tests/test_key_generation.py -v
+
+# Run tests with specific marker
+pytest tests/ -m unit -v
+```
+
+**Run Tests with Coverage:**
+```bash
+# Generate coverage report
+pytest --cov=src --cov-report=html tests/
+
+# View coverage report
+open htmlcov/index.html  # On macOS
+```
+
+**Run Tests in Parallel:**
+```bash
+# Use multiple CPU cores for faster test execution
+pytest tests/ -n auto
+```
+
+### Test Structure
+
+```
+tests/
+├── conftest.py              # Pytest fixtures (SparkSession, sample data)
+├── test_key_generation.py   # Tests for surrogate key generation
+└── test_data_quality.py     # Tests for data quality checks
+
+src/transformations/
+├── key_generation.py        # Surrogate key functions
+└── data_quality.py          # Data quality check functions
+```
+
+### Test Categories
+
+Tests are marked with categories:
+- `@pytest.mark.unit` - Fast unit tests for individual functions
+- `@pytest.mark.integration` - Integration tests requiring external resources
+- `@pytest.mark.slow` - Tests that take significant time
+- `@pytest.mark.smoke` - Quick smoke tests for basic functionality
+
+**Run specific category:**
+```bash
+pytest tests/ -m unit        # Run only unit tests
+pytest tests/ -m "not slow"  # Skip slow tests
+```
+
+### Continuous Integration
+
+Tests can be integrated into CI/CD pipelines:
+```yaml
+# Example GitHub Actions workflow
+- name: Run tests
+  run: |
+    pip install -r requirements-test.txt
+    pytest tests/ --cov=src --cov-report=xml
+```
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.

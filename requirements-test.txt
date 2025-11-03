@@ -1,0 +1,24 @@
+# Testing Dependencies for OEMMatInsightBI
+# Install with: pip install -r requirements-test.txt
+
+# Core Testing Framework
+pytest>=8.0.0
+pytest-cov>=4.1.0
+pytest-xdist>=3.5.0  # Parallel test execution
+
+# PySpark (match Fabric runtime version)
+pyspark>=3.4.0
+
+# Code Quality
+pytest-flake8>=1.1.1
+pytest-mypy>=0.10.3
+
+# Test Utilities
+pytest-mock>=3.12.0
+pytest-timeout>=2.2.0
+
+# Coverage Reporting
+coverage[toml]>=7.4.0
+
+# Optional: Pretty test output
+pytest-sugar>=1.0.0
