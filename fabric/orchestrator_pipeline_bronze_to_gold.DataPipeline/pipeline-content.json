@@ -136,143 +136,9 @@
         "dependsOn": []
       },
       {
-        "type": "Copy",
-        "typeProperties": {
-          "source": {
-            "type": "DelimitedTextSource",
-            "formatSettings": {
-              "type": "DelimitedTextReadSettings",
-              "skipLineCount": 0
-            },
-            "storeSettings": {
-              "type": "HttpReadSettings",
-              "requestMethod": "GET"
-            },
-            "datasetSettings": {
-              "type": "DelimitedText",
-              "typeProperties": {
-                "location": {
-                  "type": "HttpServerLocation"
-                },
-                "columnDelimiter": ",",
-                "quoteChar": "\"",
-                "escapeChar": "\\",
-                "firstRowAsHeader": true
-              },
-              "schema": [],
-              "externalReferences": {
-                "connection": "172b089e-bb4a-4615-94fb-beef5019fca7"
-              },
-              "annotations": []
-            }
-          },
-          "sink": {
-            "type": "LakehouseTableSink",
-            "tableActionOption": "Append",
-            "partitionOption": "None",
-            "datasetSettings": {
-              "type": "LakehouseTable",
-              "typeProperties": {
-                "table": "bronze_GlobalSupplyShares"
-              },
-              "schema": [],
-              "linkedService": {
-                "name": "oem_lh",
-                "properties": {
-                  "type": "Lakehouse",
-                  "typeProperties": {
-                    "artifactId": "ee9dfadb-ba4f-90c4-4683-e635488fb9f8",
-                    "workspaceId": "00000000-0000-0000-0000-000000000000",
-                    "rootFolder": "Tables"
-                  },
-                  "annotations": []
-                }
-              },
-              "annotations": []
-            }
-          },
-          "translator": {
-            "type": "TabularTranslator",
-            "mappings": [
-              {
-                "source": {
-                  "name": "Material",
-                  "type": "String",
-                  "physicalType": "String"
-                },
-                "sink": {
-                  "name": "Material",
-                  "physicalType": "string"
-                }
-              },
-              {
-                "source": {
-                  "name": "Stage",
-                  "type": "String",
-                  "physicalType": "String"
-                },
-                "sink": {
-                  "name": "Stage",
-                  "physicalType": "string"
-                }
-              },
-              {
-                "source": {
-                  "name": "Country",
-                  "type": "String",
-                  "physicalType": "String"
-                },
-                "sink": {
-                  "name": "Country",
-                  "physicalType": "string"
-                }
-              },
-              {
-                "source": {
-                  "name": "Share",
-                  "type": "String",
-                  "physicalType": "String"
-                },
-                "sink": {
-                  "name": "Share",
-                  "physicalType": "string"
-                }
-              },
-              {
-                "source": {
-                  "name": "t",
-                  "type": "String",
-                  "physicalType": "String"
-                },
-                "sink": {
-                  "name": "t",
-                  "physicalType": "string"
-                }
-              }
-            ],
-            "typeConversion": true,
-            "typeConversionSettings": {
-              "allowDataTruncation": true,
-              "treatBooleanAsNumber": false
-            }
-          },
-          "enableStaging": false
-        },
-        "policy": {
-          "timeout": "0.12:00:00",
-          "retry": 0,
-          "retryIntervalInSeconds": 30,
-          "secureInput": false,
-          "secureOutput": false
-        },
-        "name": "bronzecopy_GlobalSupplyShares",
-        "description": "Copy Global CRM github repo csv file",
-        "dependsOn": []
-      },
-      {
         "type": "RefreshDataflow",
         "typeProperties": {
-          "dataflowId": "44581fe1-5761-86fb-47e7-cd01257b9976",
+          "dataflowId": "34dbecdd-73ff-8048-4c9f-21c5453ee038",
           "workspaceId": "00000000-0000-0000-0000-000000000000",
           "notifyOption": "NoNotification",
           "dataflowType": "DataflowFabric"
@@ -284,7 +150,7 @@
           "secureInput": false,
           "secureOutput": false
         },
-        "name": "bronze_WB",
+        "name": "bronze_WGI",
         "dependsOn": []
       },
       {
@@ -345,13 +211,7 @@
             ]
           },
           {
-            "activity": "bronzecopy_GlobalSupplyShares",
-            "dependencyConditions": [
-              "Succeeded"
-            ]
-          },
-          {
-            "activity": "bronze_WB",
+            "activity": "bronze_WGI",
             "dependencyConditions": [
               "Succeeded"
             ]
@@ -373,7 +233,7 @@
       {
         "type": "TridentNotebook",
         "typeProperties": {
-          "notebookId": "7a4e1cd4-61eb-9465-4866-ae0e966a4b73",
+          "notebookId": "b65d5f35-9e31-b8c4-4705-0bdc711d4ef3",
           "workspaceId": "00000000-0000-0000-0000-000000000000"
         },
         "policy": {

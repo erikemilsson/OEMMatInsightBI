@@ -7,11 +7,6 @@ relationship 20bc2388-5ef8-fc2b-414a-ade81e5d1201
 	fromColumn: fact_procurement.production_country_key
 	toColumn: gold_dim_country.country_key
 
-relationship 24d2c083-bc4e-3702-df41-fc76f9db48ec
-	isActive: false
-	fromColumn: fact_procurement.supplier_hq_country_key
-	toColumn: gold_dim_country.country_key
-
 relationship b117715e-b56f-334d-61ba-9954a7199305
 	fromColumn: fact_epi_score.country_key
 	toColumn: gold_dim_country.country_key

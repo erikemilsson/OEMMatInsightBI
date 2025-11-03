@@ -77,7 +77,8 @@ def clean_and_rename(df):
 df_cleaned = clean_and_rename(df)
 
 df_multi_casted = df_cleaned.withColumn("code", F.col("code").cast(IntegerType())) # cast code as integer
-display(df_multi_casted)
+df_selected = df_multi_casted.select("code", "iso", "country", "EPI")
+display(df_selected)
 
 
 # METADATA ********************
@@ -89,39 +90,7 @@ display(df_multi_casted)
 
 # CELL ********************
 
-df_multi_casted.write.format("delta").mode("overwrite").saveAsTable('silver_epi2024results')
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# MARKDOWN ********************
-
-# ## epi2024variables2024-12-11: bronze --> silver
-
-# CELL ********************
-
-df = spark.sql("SELECT * FROM oem_lh.`bronze_epi2024variables2024-12-11`")
-
-# rename column headers
-new_columns = [c.lower().replace(' ', '_') for c in df.columns] # create a list of new, clean column names
-df_newheaders = df.toDF(*new_columns)
-
-display(df_newheaders)
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-df_newheaders.write.format("delta").mode("overwrite").saveAsTable('`silver_epi2024variables2024-12-11`')
+df_selected.write.format("delta").mode("overwrite").saveAsTable('silver_epi2024results')
 
 # METADATA ********************
 
@@ -140,7 +109,8 @@ df = spark.sql("SELECT * FROM oem_lh.`bronze_GlobalSupplyShares`")
 
 # rename column headers
 new_columns = [c.lower().replace(' ', '_') for c in df.columns] # create a list of new, clean column names
-df_newheaders = df.toDF(*new_columns)
+df_newheaders = df.toDF(*new_columns).drop('t')
+
 
 display(df_newheaders)
 
@@ -301,6 +271,7 @@ display(df2_newheaders)
 # CELL ********************
 
 df_dropped = df2_newheaders.drop("region", "suppliername") # drop repeated columns
+display(df_dropped)
 
 # METADATA ********************
 

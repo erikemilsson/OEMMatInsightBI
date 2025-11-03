@@ -1,19 +1,19 @@
 {
   "formatVersion": "202502",
   "computeEngineSettings": {},
-  "name": "EPI_file2table",
+  "name": "WB_file2table",
   "queryGroups": [],
   "documentLocale": "en-US",
   "queriesMetadata": {
-    "epi2024results csv": {
-      "queryId": "c5c4dc29-aad0-44eb-bf65-8da9eed95ace",
-      "queryName": "epi2024results csv",
+    "DefaultDestination": {
+      "queryId": "9e8f3fd2-ad0a-43ae-a83d-010337f06ebb",
+      "queryName": "DefaultDestination",
+      "isHidden": true,
       "loadEnabled": false
     },
-    "epi2024results csv_DataDestination": {
-      "queryId": "76cd931b-56d6-4ebc-9cea-4bd722c83f04",
-      "queryName": "epi2024results csv_DataDestination",
-      "isHidden": true,
+    "bronze_WGI": {
+      "queryId": "6cdfba55-ce74-4929-bd52-8f309574acfd",
+      "queryName": "bronze_WGI",
       "loadEnabled": false
     }
   },
