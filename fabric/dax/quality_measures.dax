@@ -1,0 +1,384 @@
+-- =====================================================================
+-- DATA QUALITY DAX MEASURES
+-- =====================================================================
+-- These measures provide comprehensive data quality metrics for
+-- monitoring and visualizing data quality in Power BI reports.
+--
+-- IMPORTANT: Requires quality columns in fact tables:
+--   - data_quality_score (DOUBLE)
+--   - quality_category (STRING)
+--   - For fact_supply_share: has_unmapped_material, has_unmapped_country
+-- =====================================================================
+
+-- =====================================================================
+-- SECTION 1: CORE QUALITY METRICS
+-- =====================================================================
+
+-- Total record counts
+Total Procurement Records =
+COUNTROWS(fact_procurement)
+
+Total Supply Share Records =
+COUNTROWS(fact_supply_share)
+
+-- Average quality scores
+Avg Quality Score (Procurement) =
+AVERAGE(fact_procurement[data_quality_score])
+
+Avg Quality Score (Supply) =
+AVERAGE(fact_supply_share[data_quality_score])
+
+-- Overall quality score across all facts (weighted by record count)
+Overall Quality Score =
+VAR ProcRecords = [Total Procurement Records]
+VAR SupplyRecords = [Total Supply Share Records]
+VAR TotalRecords = ProcRecords + SupplyRecords
+VAR ProcScore = [Avg Quality Score (Procurement)]
+VAR SupplyScore = [Avg Quality Score (Supply)]
+RETURN
+    DIVIDE(
+        (ProcRecords * ProcScore) + (SupplyRecords * SupplyScore),
+        TotalRecords,
+        BLANK()
+    )
+
+-- =====================================================================
+-- SECTION 2: QUALITY CATEGORY BREAKDOWNS
+-- =====================================================================
+
+-- Procurement quality categories
+High Quality Records (Procurement) =
+CALCULATE(
+    COUNTROWS(fact_procurement),
+    fact_procurement[quality_category] = "High"
+)
+
+Medium Quality Records (Procurement) =
+CALCULATE(
+    COUNTROWS(fact_procurement),
+    fact_procurement[quality_category] = "Medium"
+)
+
+Low Quality Records (Procurement) =
+CALCULATE(
+    COUNTROWS(fact_procurement),
+    fact_procurement[quality_category] = "Low"
+)
+
+Unmapped Records (Procurement) =
+CALCULATE(
+    COUNTROWS(fact_procurement),
+    fact_procurement[quality_category] = "Unmapped"
+)
+
+-- Supply share quality categories
+High Quality Records (Supply) =
+CALCULATE(
+    COUNTROWS(fact_supply_share),
+    fact_supply_share[quality_category] = "High"
+)
+
+Medium Quality Records (Supply) =
+CALCULATE(
+    COUNTROWS(fact_supply_share),
+    fact_supply_share[quality_category] = "Medium"
+)
+
+Low Quality Records (Supply) =
+CALCULATE(
+    COUNTROWS(fact_supply_share),
+    fact_supply_share[quality_category] = "Low"
+)
+
+Unmapped Records (Supply) =
+CALCULATE(
+    COUNTROWS(fact_supply_share),
+    fact_supply_share[quality_category] = "Unmapped"
+)
+
+-- =====================================================================
+-- SECTION 3: QUALITY PERCENTAGES
+-- =====================================================================
+
+% High Quality (Procurement) =
+DIVIDE(
+    [High Quality Records (Procurement)],
+    [Total Procurement Records],
+    0
+)
+
+% High Quality (Supply) =
+DIVIDE(
+    [High Quality Records (Supply)],
+    [Total Supply Share Records],
+    0
+)
+
+% Overall High Quality =
+VAR HighProc = [High Quality Records (Procurement)]
+VAR HighSupply = [High Quality Records (Supply)]
+VAR TotalProc = [Total Procurement Records]
+VAR TotalSupply = [Total Supply Share Records]
+RETURN
+    DIVIDE(
+        HighProc + HighSupply,
+        TotalProc + TotalSupply,
+        0
+    )
+
+% Unmapped (Procurement) =
+DIVIDE(
+    [Unmapped Records (Procurement)],
+    [Total Procurement Records],
+    0
+)
+
+% Unmapped (Supply) =
+DIVIDE(
+    [Unmapped Records (Supply)],
+    [Total Supply Share Records],
+    0
+)
+
+-- =====================================================================
+-- SECTION 4: BUSINESS IMPACT METRICS
+-- =====================================================================
+
+-- Total spend by quality category
+Spend - High Quality =
+CALCULATE(
+    SUM(fact_procurement[spend_eur]),
+    fact_procurement[quality_category] = "High"
+)
+
+Spend - Medium Quality =
+CALCULATE(
+    SUM(fact_procurement[spend_eur]),
+    fact_procurement[quality_category] = "Medium"
+)
+
+Spend - Low Quality =
+CALCULATE(
+    SUM(fact_procurement[spend_eur]),
+    fact_procurement[quality_category] = "Low"
+)
+
+Spend - Unmapped =
+CALCULATE(
+    SUM(fact_procurement[spend_eur]),
+    fact_procurement[quality_category] = "Unmapped"
+)
+
+% Spend High Quality =
+DIVIDE(
+    [Spend - High Quality],
+    SUM(fact_procurement[spend_eur]),
+    0
+)
+
+-- Supply share impact
+Total Supply Share % (High Quality) =
+CALCULATE(
+    SUM(fact_supply_share[share_pct]),
+    fact_supply_share[quality_category] = "High"
+)
+
+Supply with Unmapped Material =
+CALCULATE(
+    COUNTROWS(fact_supply_share),
+    fact_supply_share[has_unmapped_material] = TRUE()
+)
+
+Supply with Unmapped Country =
+CALCULATE(
+    COUNTROWS(fact_supply_share),
+    fact_supply_share[has_unmapped_country] = TRUE()
+)
+
+Total Unmapped Impact Score =
+SUM(fact_supply_share[unmapped_impact_score])
+
+-- =====================================================================
+-- SECTION 5: QUALITY ASSESSMENT
+-- =====================================================================
+
+-- Text-based quality rating
+Quality Rating =
+VAR OverallPct = [% Overall High Quality]
+RETURN
+    SWITCH(
+        TRUE(),
+        OverallPct >= 0.90, "✅ Excellent",
+        OverallPct >= 0.75, "✓ Good",
+        OverallPct >= 0.60, "⚠️ Fair",
+        "❌ Needs Improvement"
+    )
+
+-- Color indicator for conditional formatting
+Quality Color =
+VAR OverallPct = [% Overall High Quality]
+RETURN
+    SWITCH(
+        TRUE(),
+        OverallPct >= 0.90, "#28a745",  -- Green
+        OverallPct >= 0.75, "#5cb85c",  -- Light green
+        OverallPct >= 0.60, "#f0ad4e",  -- Orange
+        "#d9534f"  -- Red
+    )
+
+-- =====================================================================
+-- SECTION 6: DIMENSION-SPECIFIC QUALITY METRICS
+-- =====================================================================
+
+-- Material matching quality
+Materials with Issues =
+CALCULATE(
+    DISTINCTCOUNT(fact_procurement[material_key]),
+    fact_procurement[quality_category] IN {"Low", "Unmapped"}
+)
+
+-- Country matching quality (HQ)
+Countries with Issues (HQ) =
+CALCULATE(
+    DISTINCTCOUNT(fact_procurement[supplier_hq_country_key]),
+    fact_procurement[quality_category] IN {"Low", "Unmapped"}
+)
+
+-- Country matching quality (Production)
+Countries with Issues (Production) =
+CALCULATE(
+    DISTINCTCOUNT(fact_procurement[production_country_key]),
+    fact_procurement[quality_category] IN {"Low", "Unmapped"}
+)
+
+-- =====================================================================
+-- SECTION 7: TREND ANALYSIS (if historical data available)
+-- =====================================================================
+
+-- Quality score by date
+Quality Score by Date =
+CALCULATE(
+    [Avg Quality Score (Procurement)],
+    ALLEXCEPT(fact_procurement, gold_dim_date)
+)
+
+-- Quality improvement indicator
+Quality Trend =
+VAR CurrentScore = [Avg Quality Score (Procurement)]
+VAR PreviousScore =
+    CALCULATE(
+        [Avg Quality Score (Procurement)],
+        DATEADD(gold_dim_date[date], -1, MONTH)
+    )
+VAR Improvement = CurrentScore - PreviousScore
+RETURN
+    SWITCH(
+        TRUE(),
+        ISBLANK(PreviousScore), "No Historical Data",
+        Improvement > 0.05, "↑ Improving",
+        Improvement < -0.05, "↓ Declining",
+        "→ Stable"
+    )
+
+-- =====================================================================
+-- SECTION 8: AUDIT TABLE METRICS (if audit tables added to model)
+-- =====================================================================
+
+-- Note: Uncomment these if audit tables are added to the semantic model
+
+/*
+Total Unmapped Procurement Issues =
+COUNTROWS(gold_unmapped_procurement_audit)
+
+Total Unmapped Supply Issues =
+COUNTROWS(gold_unmapped_supply_audit)
+
+High Impact Supply Issues =
+CALCULATE(
+    COUNTROWS(gold_unmapped_supply_audit),
+    gold_unmapped_supply_audit[impact_level] = "High Impact"
+)
+
+Top Unmapped Material =
+TOPN(
+    1,
+    VALUES(gold_unmapped_supply_audit[original_material]),
+    CALCULATE(COUNTROWS(gold_unmapped_supply_audit)),
+    DESC
+)
+*/
+
+-- =====================================================================
+-- SECTION 9: KPI TARGETS
+-- =====================================================================
+
+-- Target: 90% high quality
+Quality Target = 0.90
+
+Quality vs Target =
+[% Overall High Quality] - [Quality Target]
+
+Quality Target Met =
+IF(
+    [% Overall High Quality] >= [Quality Target],
+    "✓ Target Met",
+    "✗ Below Target"
+)
+
+Gap to Target (Records) =
+VAR CurrentHigh = [High Quality Records (Procurement)] + [High Quality Records (Supply)]
+VAR TotalRecords = [Total Procurement Records] + [Total Supply Share Records]
+VAR TargetRecords = TotalRecords * [Quality Target]
+RETURN
+    TargetRecords - CurrentHigh
+
+-- =====================================================================
+-- SECTION 10: DRILL-THROUGH CONTEXT MEASURES
+-- =====================================================================
+
+-- For use in drill-through pages to show quality details
+Selected Quality Category =
+SELECTEDVALUE(fact_procurement[quality_category], "All Categories")
+
+Selected Quality Score =
+SELECTEDVALUE(fact_procurement[data_quality_score], BLANK())
+
+-- Show quality score in tooltip
+Quality Score Tooltip =
+"Quality Score: " & FORMAT([Selected Quality Score], "0.000") &
+" (" & [Selected Quality Category] & ")"
+
+-- =====================================================================
+-- SECTION 11: CONDITIONAL FORMATTING HELPERS
+-- =====================================================================
+
+-- For conditional formatting in tables/matrices
+Quality Score Band =
+VAR Score = [Avg Quality Score (Procurement)]
+RETURN
+    SWITCH(
+        TRUE(),
+        Score >= 0.95, "0.95 - 1.00",
+        Score >= 0.90, "0.90 - 0.95",
+        Score >= 0.80, "0.80 - 0.90",
+        Score >= 0.70, "0.70 - 0.80",
+        Score >= 0.50, "0.50 - 0.70",
+        "< 0.50"
+    )
+
+-- Background color for score band
+Score Band Color =
+VAR Score = [Avg Quality Score (Procurement)]
+RETURN
+    SWITCH(
+        TRUE(),
+        Score >= 0.95, "#d4edda",  -- Light green
+        Score >= 0.90, "#cce5ff",  -- Light blue
+        Score >= 0.80, "#fff3cd",  -- Light yellow
+        Score >= 0.70, "#f8d7da",  -- Light red
+        "#f8d7da"  -- Red
+    )
+
+-- =====================================================================
+-- END OF DATA QUALITY MEASURES
+-- =====================================================================

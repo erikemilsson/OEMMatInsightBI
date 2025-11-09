@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "data_quality_analysis",
+    "description": "Comprehensive data quality analysis and monitoring dashboard"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "a1b2c3d4-5e6f-7g8h-9i0j-k1l2m3n4o5p6"
+  }
+}
