@@ -420,6 +420,11 @@ materials = (
     .distinct()
 )
 
+# NEW: Add UNKNOWN placeholder materials for unmapped records
+unknown_materials = spark.createDataFrame([
+    ("Unknown Material", "Other/Unknown", "kg"),
+], ["material_name_std", "commodity_group", "unit_base"])
+
 # Commodity group mapping (FIXED SYNTAX ERROR)
 grp_map = F.create_map(
     F.lit("Lithium"), F.lit("Battery metals"),
