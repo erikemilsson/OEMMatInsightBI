@@ -59,8 +59,12 @@ class TestCheckUnmapped:
     @pytest.mark.unit
     def test_check_unmapped_raises_on_fail(self, spark):
         """Test that check_unmapped raises error when fail=True."""
+        schema = StructType([
+            StructField("name", StringType(), True),
+            StructField("key", IntegerType(), True)
+        ])
         data = [("Unknown", None)]
-        df = spark.createDataFrame(data, ["name", "key"])
+        df = spark.createDataFrame(data, schema)
 
         with pytest.raises(ValueError, match="Pipeline failed"):
             check_unmapped(
