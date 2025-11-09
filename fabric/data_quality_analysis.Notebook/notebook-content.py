@@ -18,12 +18,12 @@
 # MARKDOWN ********************
 
 # # Data Quality Analysis Dashboard
-#
+# 
 # **Purpose:** Comprehensive data quality monitoring and alias resolution analysis
-#
+# 
 # This notebook surfaces all data quality metrics, unmapped values, and match confidence scores
 # to provide transparency into the quality and assumptions of the data pipeline.
-#
+# 
 # **Last Updated:** Generated automatically on pipeline run
 
 # CELL ********************
