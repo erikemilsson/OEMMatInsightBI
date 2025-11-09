@@ -408,7 +408,7 @@ epi_countries = (spark.table(f"{DB}.silver_epi2024results")
                 .select(F.col("country").alias("country_name"))
                 .distinct())
 
-wb_countries = (spark.table(f"{DB}.silver_wb")
+wb_countries = (spark.table(f"{DB}.silver_WB")
                .select(F.col("country_name"))
                .distinct())
 

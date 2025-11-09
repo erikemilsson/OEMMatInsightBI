@@ -205,7 +205,7 @@ epi = spark.table(f"{DB}.silver_epi2024results").select(
     F.col("country").alias("country_name_epi")
 ).filter(F.col("iso3").isNotNull()).dropDuplicates(["iso3"])
 
-wb = spark.table(f"{DB}.silver_wb").select(
+wb = spark.table(f"{DB}.silver_WB").select(
     F.col("country_code").alias("wb_code"),
     F.col("country_name").alias("country_name_wb")
 ).filter(F.col("wb_code").isNotNull()).dropDuplicates(["wb_code"])
@@ -314,7 +314,7 @@ def create_country_coverage_matrix():
         F.col("country").alias("country_epi")
     ).distinct()
     
-    wb_countries = spark.table(f"{DB}.silver_wb").select(
+    wb_countries = spark.table(f"{DB}.silver_WB").select(
         F.col("country_name").alias("country_wb")
     ).distinct()
     
@@ -565,7 +565,7 @@ epi_vars = spark.table(f"{DB}.`silver_epi2024variables2024-12-11`").select(
 
 # WB indicators
 wb_vars = (
-    spark.table(f"{DB}.silver_wb")
+    spark.table(f"{DB}.silver_WB")
     .select("indicator_code","indicator_name","topic")
     .dropna(subset=["indicator_code"])
     .dropDuplicates(["indicator_code","indicator_name"])
