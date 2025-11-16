@@ -1,0 +1,65 @@
+{
+  "id": "task-004",
+  "title": "Design & Implement Row-Level Security (RLS)",
+  "description": "Implement Row-Level Security with 6 realistic roles demonstrating enterprise security patterns. Design phase complete with comprehensive security strategy.",
+  "status": "Pending",
+  "priority": "P1",
+  "difficulty": 6,
+  "estimatedEffort": "4 days total",
+  "owner": "Claude Code",
+  "completionDate": "2025-11-03 (Design Phase)",
+  "actualEffort": "3 hours (design phase)",
+  "acceptanceCriteria": [
+    "6 security roles defined and implemented",
+    "DAX security filters working correctly for regional and category access",
+    "Test scenarios validated with 'View as Role' feature",
+    "Documentation complete with screenshots for portfolio",
+    "No data leakage (users can't see unauthorized data)",
+    "Performance acceptable (<2 second report load with RLS)"
+  ],
+  "dependencies": [
+    "Semantic model with complete star schema",
+    "gold_dim_country[region] column populated",
+    "gold_dim_material[commodity_group] column populated",
+    "Power BI Desktop or Fabric workspace access with security permissions"
+  ],
+  "relatedFiles": [
+    "/fabric/semantic_model_oeminsightbi.SemanticModel/",
+    "/.claude/context/rls_security_strategy.md (comprehensive design)",
+    "/project_definition.md (lines 1242-1245)"
+  ],
+  "notes": [
+    "Design phase ✅ COMPLETE - 6 roles, DAX filters, dynamic security patterns documented",
+    "Implementation deferred until Fabric workspace access is available",
+    "Primarily for portfolio showcase - demonstrates understanding of RLS patterns",
+    "Consider creating a video demo showing role switching"
+  ],
+  "roles": [
+    {
+      "name": "Global Executive",
+      "filter": "No filter (full access)"
+    },
+    {
+      "name": "Regional Manager - Americas",
+      "filter": "gold_dim_country[region] = \"Americas\""
+    },
+    {
+      "name": "Regional Manager - Europe",
+      "filter": "gold_dim_country[region] = \"Europe\""
+    },
+    {
+      "name": "Regional Manager - Asia-Pacific",
+      "filter": "gold_dim_country[region] IN {\"Asia\", \"Asia-Pacific\", \"Oceania\"}"
+    },
+    {
+      "name": "Category Manager - Battery Metals",
+      "filter": "gold_dim_material[commodity_group] = \"Battery metals\""
+    },
+    {
+      "name": "Category Manager - Base Metals",
+      "filter": "gold_dim_material[commodity_group] = \"Base metals\""
+    }
+  ],
+  "subtasks": [],
+  "progress": "Design complete, implementation pending"
+}

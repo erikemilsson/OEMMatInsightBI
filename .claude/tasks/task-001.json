@@ -1,0 +1,38 @@
+{
+  "id": "task-001",
+  "title": "Enhance Data Quality & Matching Visibility",
+  "description": "Create centralized data quality dashboard to view unmapped values, assess match confidence, and understand impact of mapping decisions on final results.",
+  "status": "Pending",
+  "priority": "P1",
+  "difficulty": 6,
+  "estimatedEffort": "2-3 days",
+  "owner": "TBD",
+  "acceptanceCriteria": [
+    "Data Quality Notebook created (/fabric/notebooks/data_quality_report.Notebook)",
+    "Quality summary statistics calculated (match rates by source system)",
+    "Top 10 unmapped countries and materials identified by impact",
+    "New table created: gold_data_quality_dashboard",
+    "Power BI DQ Page created in existing report",
+    "Overall quality scorecard with match rates and unmapped counts",
+    "Confidence distribution chart (High/Medium/Low/Unmapped)",
+    "Unmapped values table with impact assessment",
+    "Documentation updated in /fabric/Readme.md"
+  ],
+  "dependencies": [
+    "Existing audit tables: gold_unmapped_procurement_audit, gold_unmapped_supply_audit",
+    "Access to silver-to-gold2.Notebook transformation logic",
+    "Power BI report edit permissions"
+  ],
+  "relatedFiles": [
+    "/fabric/silver-to-gold2.Notebook/",
+    "/fabric/report.Report/",
+    "/project_definition.md (lines 972-973)"
+  ],
+  "notes": [
+    "This task directly addresses the main technical debt identified in project_definition.md",
+    "Focus on clarity and portfolio value - this will be a showcase feature",
+    "Consider using Fabric's built-in data profiling features if available"
+  ],
+  "subtasks": [],
+  "progress": "Not started"
+}

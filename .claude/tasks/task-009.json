@@ -1,0 +1,48 @@
+{
+  "id": "task-009",
+  "title": "Document Existing DAX Measures",
+  "description": "Investigation and documentation task to identify and document any existing DAX measures in the semantic model.",
+  "status": "Finished",
+  "priority": "P2",
+  "difficulty": 2,
+  "estimatedEffort": "0.5 hours",
+  "owner": "Claude Code",
+  "completionDate": "2025-11-03",
+  "actualEffort": "0.5 hours",
+  "acceptanceCriteria": [
+    "All existing DAX measures identified",
+    "Measures exported to TMDL format (if any exist)",
+    "Complete documentation with business logic",
+    "Files committed to git repository",
+    "project_definition.md updated"
+  ],
+  "dependencies": [
+    "Power BI Desktop installed",
+    "Access to semantic model file or workspace",
+    "Git access for committing files"
+  ],
+  "relatedFiles": [
+    "/fabric/semantic_model_oeminsightbi.SemanticModel/definition/expressions.tmdl",
+    "/.claude/reference/dax_measures.md (created)",
+    "/project_definition.md (lines 787-810)"
+  ],
+  "notes": [
+    "✅ COMPLETED - Investigation confirmed no custom DAX measures exist",
+    "Only implicit column-level aggregations found",
+    "Documentation created noting findings and recommendations",
+    "Task closed quickly as expected (simple documentation task)"
+  ],
+  "findings": [
+    "No custom DAX measures exist in git-synced semantic model files",
+    "Only database connection expression found in expressions.tmdl",
+    "fact_epi_score.score has SUM aggregation (may be semantically incorrect)",
+    "Measures may exist in .pbix file but not version-controlled"
+  ],
+  "recommendations": [
+    "Prioritize Task 02: Redesign Semantic Model & DAX Measures (P1)",
+    "Implement comprehensive measure library (40+ measures designed)",
+    "Version control all measures in TMDL format"
+  ],
+  "subtasks": [],
+  "progress": "Completed"
+}

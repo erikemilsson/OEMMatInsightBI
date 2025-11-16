@@ -1,0 +1,66 @@
+{
+  "id": "task-005",
+  "title": "Automate External Data Ingestion",
+  "description": "Automate EPI and WGI dataset ingestion to eliminate manual CSV uploads. EU Supply Shares already automated. Research phase complete with feasible automation paths identified.",
+  "status": "Pending",
+  "priority": "P2",
+  "difficulty": 5,
+  "estimatedEffort": "3-4 days",
+  "owner": "Claude Code",
+  "completionDate": "2025-11-03 (Research Phase)",
+  "actualEffort": "2 hours (research phase)",
+  "acceptanceCriteria": [
+    "EPI data source URL identified and documented",
+    "WGI data source URL identified and documented",
+    "Automated ingestion working for both datasets (HTTP or API)",
+    "Pipeline runs end-to-end without manual file upload",
+    "Documentation updated in external_data_automation.md"
+  ],
+  "dependencies": [
+    "Access to dataflow definitions in /fabric",
+    "Pipeline edit permissions",
+    "Network access from Fabric to external URLs",
+    "No firewall restrictions blocking HTTP downloads"
+  ],
+  "relatedFiles": [
+    "/fabric/EPI_file2table.Dataflow/",
+    "/fabric/WGI_file2table.Dataflow/",
+    "/fabric/bronzecopy_EUSupplyShares.CopyJob/ (example to follow)",
+    "/.claude/context/external_data_automation.md (research document)",
+    "/project_definition.md (lines 191-278)"
+  ],
+  "notes": [
+    "Research phase ✅ COMPLETE - Both datasets can be fully automated",
+    "EPI: Direct CSV downloads at https://epi.yale.edu/downloads/ (CC BY-NC-SA 4.0)",
+    "WGI: World Bank REST API at https://api.worldbank.org/v2/ (Open Data)",
+    "Implementation deferred until Fabric workspace access is available",
+    "License compliance documented (EPI non-commercial only, WGI commercial OK)"
+  ],
+  "dataSources": [
+    {
+      "name": "EPI (Environmental Performance Index)",
+      "source": "Yale Center for Environmental Law & Policy",
+      "currentIngestion": "Manual CSV upload",
+      "automationMethod": "HTTP Copy Activity or Python notebook with requests",
+      "updateFrequency": "Annual (Q2-Q3)",
+      "url": "https://epi.yale.edu/downloads/"
+    },
+    {
+      "name": "WGI (World Governance Indicators)",
+      "source": "World Bank",
+      "currentIngestion": "Manual CSV upload",
+      "automationMethod": "Python notebook with World Bank API (preferred)",
+      "updateFrequency": "Annual (Q3-Q4)",
+      "url": "https://api.worldbank.org/v2/"
+    },
+    {
+      "name": "EU CRM Supply Shares",
+      "source": "GitHub repository CSV",
+      "currentIngestion": "✅ Automated (HTTP Copy Activity)",
+      "automationMethod": "Already implemented",
+      "updateFrequency": "Annual"
+    }
+  ],
+  "subtasks": [],
+  "progress": "Research complete, implementation pending"
+}

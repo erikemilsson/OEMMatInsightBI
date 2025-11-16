@@ -1,0 +1,103 @@
+{
+  "id": "task-007",
+  "title": "Add Comprehensive Data Quality Checks",
+  "description": "Implement systematic data quality framework with 9 check functions across bronze/silver/gold layers using ISO 25012 quality dimensions. Design phase complete.",
+  "status": "Pending",
+  "priority": "P2",
+  "difficulty": 6,
+  "estimatedEffort": "3 days",
+  "owner": "Claude Code",
+  "completionDate": "2025-11-03 (Design Phase)",
+  "actualEffort": "3 hours (design phase)",
+  "acceptanceCriteria": [
+    "Data quality framework notebook created with 9+ check functions",
+    "DQ checks integrated into pipeline (after bronze, silver, gold activities)",
+    "DQ results table (gold_quality_audit) populated with check history",
+    "Zero false positives in production runs",
+    "Quality scoring system implemented (0-100 scale with categorization)",
+    "Alert strategy configured by severity (Excellent to Critical)",
+    "Documentation complete in data_quality_framework.md"
+  ],
+  "dependencies": [
+    "Pipeline edit permissions",
+    "Ability to create new notebook artifact",
+    "Access to all bronze/silver/gold tables",
+    "Schema definitions for validation"
+  ],
+  "relatedFiles": [
+    "To create: /fabric/data_quality_checks.Notebook/",
+    "/fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/",
+    "/fabric/silver-to-gold2.Notebook/ (existing gold layer DQ logic)",
+    "/.claude/context/data_quality_framework.md (comprehensive design)",
+    "/project_definition.md (lines 1054-1125)"
+  ],
+  "notes": [
+    "Design phase ✅ COMPLETE - ISO 25012 framework, 9 check functions, scoring system",
+    "Quality dimensions: Completeness, Accuracy, Consistency, Timeliness, Validity, Uniqueness",
+    "Implementation deferred until Fabric workspace access is available",
+    "This complements Task 01 (DQ visibility) by generating the underlying quality data"
+  ],
+  "qualityDimensions": [
+    "Completeness: Null rate, row count, field population",
+    "Accuracy: Range validation, format validation, cross-source validation",
+    "Consistency: Cross-table consistency, referential integrity, historical consistency",
+    "Timeliness: Data freshness, load latency, staleness detection",
+    "Validity: Business rule violations, data type conformance, domain validity",
+    "Uniqueness: Duplicate rate, key uniqueness, record deduplication"
+  ],
+  "checkFunctions": [
+    {
+      "layer": "Bronze",
+      "checks": ["Row count validation", "Schema validation", "Required field completeness", "Duplicate detection"],
+      "count": 4
+    },
+    {
+      "layer": "Silver",
+      "checks": ["Referential integrity", "Business rule validation", "Outlier detection (Z-score)"],
+      "count": 3
+    },
+    {
+      "layer": "Gold",
+      "checks": ["Aggregate reconciliation (silver vs gold totals)", "Trend validation (anomaly detection)"],
+      "count": 2
+    }
+  ],
+  "subtasks": [
+    {
+      "id": "task-007-1",
+      "title": "Implement bronze layer quality checks",
+      "status": "Pending",
+      "estimatedEffort": "0.5 days",
+      "details": "Row count, schema validation, required fields, duplicates"
+    },
+    {
+      "id": "task-007-2",
+      "title": "Implement silver layer quality checks",
+      "status": "Pending",
+      "estimatedEffort": "1 day",
+      "details": "Referential integrity, business rules, outlier detection"
+    },
+    {
+      "id": "task-007-3",
+      "title": "Implement gold layer quality checks",
+      "status": "Pending",
+      "estimatedEffort": "0.5 days",
+      "details": "Aggregate reconciliation, trend validation"
+    },
+    {
+      "id": "task-007-4",
+      "title": "Implement quality scoring and categorization",
+      "status": "Pending",
+      "estimatedEffort": "0.5 days",
+      "details": "Calculate dimension scores, overall table score (0-100), categorize as Excellent/Good/Fair/Poor/Critical"
+    },
+    {
+      "id": "task-007-5",
+      "title": "Configure alerting and integrate with pipeline",
+      "status": "Pending",
+      "estimatedEffort": "0.5 days",
+      "details": "Email alerts by severity, add DQ notebook to pipeline, create quality monitoring dashboard"
+    }
+  ],
+  "progress": "Design complete (5/5 subtasks planned, 0/5 implemented)"
+}

@@ -1,0 +1,70 @@
+{
+  "id": "task-010",
+  "title": "Configure Pipeline Scheduling",
+  "description": "Configure automated scheduling for the orchestrator pipeline to eliminate manual execution. Currently runs manually, needs daily schedule at 6:00 AM.",
+  "status": "Pending",
+  "priority": "P3",
+  "difficulty": 3,
+  "estimatedEffort": "0.5-1 day",
+  "owner": "TBD",
+  "acceptanceCriteria": [
+    "Schedule configured and active in Fabric workspace",
+    "First scheduled run completes successfully",
+    "Documentation updated with schedule details in pipeline_schedule.md",
+    "Notifications working (test failure notification)",
+    "Power BI reports refresh automatically after pipeline run"
+  ],
+  "dependencies": [
+    "Pipeline must be fully tested and working",
+    "Source systems must be available at scheduled time (6:00 AM)",
+    "Fabric workspace must have capacity for scheduled execution",
+    "Notification email addresses configured"
+  ],
+  "relatedFiles": [
+    "/fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/",
+    "To create: /.claude/context/pipeline_schedule.md",
+    "/project_definition.md (line 697)"
+  ],
+  "notes": [
+    "Pipeline currently has no schedule configured - runs manually",
+    "Recommended: Daily at 6:00 AM Europe/Stockholm (after nightly Azure SQL batch)",
+    "Expected pipeline runtime: 15-30 minutes",
+    "Schedule can be paused for maintenance periods",
+    "For portfolio showcase, document that scheduling is configured"
+  ],
+  "recommendedSchedule": {
+    "frequency": "Daily",
+    "time": "06:00 AM",
+    "timezone": "Europe/Stockholm",
+    "rationale": "Procurement data refreshed nightly in Azure SQL (by 5:00 AM)"
+  },
+  "dataSourceSchedule": [
+    {
+      "source": "Azure SQL Procurement",
+      "updateFrequency": "Daily (transactional)",
+      "recommendedRefresh": "Daily 6:00 AM"
+    },
+    {
+      "source": "Azure SQL Supplier Ref",
+      "updateFrequency": "Rare (reference data)",
+      "recommendedRefresh": "Daily (piggybacked)"
+    },
+    {
+      "source": "EPI Dataset",
+      "updateFrequency": "Annual (Q2-Q3)",
+      "recommendedRefresh": "Weekly or Manual"
+    },
+    {
+      "source": "WGI Dataset",
+      "updateFrequency": "Annual (Q3-Q4)",
+      "recommendedRefresh": "Weekly or Manual"
+    },
+    {
+      "source": "EU CRM Supply Shares",
+      "updateFrequency": "Annual",
+      "recommendedRefresh": "Weekly or Manual"
+    }
+  ],
+  "subtasks": [],
+  "progress": "Not started"
+}

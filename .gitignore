@@ -2,8 +2,8 @@
 # Local Development & Personal Files
 # ===================================
 
-# Claude Code configuration (personal AI assistant setup)
-.claude/
+# Claude Code configuration - NOW VERSION CONTROLLED (task management system)
+# .claude/ - Uncommented to track task management system (upgraded 2025-11-16)
 
 # Qodo AI
 .qodo/

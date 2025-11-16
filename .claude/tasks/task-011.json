@@ -1,0 +1,145 @@
+{
+  "id": "task-011",
+  "title": "Implement Error Handling & Retry Logic",
+  "description": "Replace fail-fast approach with intelligent retry logic, error categorization, execution logging, and notification strategy. Design phase complete with comprehensive error handling strategy.",
+  "status": "Pending",
+  "priority": "P3",
+  "difficulty": 6,
+  "estimatedEffort": "3 days",
+  "owner": "Claude Code",
+  "completionDate": "2025-11-03 (Design Phase)",
+  "actualEffort": "3 hours (design phase)",
+  "acceptanceCriteria": [
+    "Retry logic configured for all 7 pipeline activities",
+    "Error logging table (gold_pipeline_execution_log) created and populated",
+    "Email notifications configured and tested",
+    "Documentation complete with error handling strategy and playbook",
+    "Test scenarios validated (transient and permanent failures)",
+    "Error recovery time reduced by >50%"
+  ],
+  "dependencies": [
+    "Pipeline edit permissions in Fabric",
+    "Email server configuration for notifications",
+    "Access to execution logs in Fabric",
+    "Ability to create lakehouse tables (error log)"
+  ],
+  "relatedFiles": [
+    "/fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/",
+    "To create: /fabric/pipeline_error_handler.Notebook/",
+    "/.claude/context/error_handling_strategy.md (comprehensive design)",
+    "To create: /.claude/reference/error_recovery_playbook.md",
+    "/project_definition.md (lines 699-715)"
+  ],
+  "notes": [
+    "Design phase ✅ COMPLETE - Error categorization, retry config, logging, notifications",
+    "Current: Fail-fast with 0 retries on all activities",
+    "Implementation deferred until Fabric workspace access is available",
+    "Balance retries vs fail-fast: don't mask real issues with excessive retries"
+  ],
+  "errorCategories": [
+    {
+      "category": "Transient",
+      "action": "Retry with exponential backoff",
+      "examples": ["Network timeouts", "Connection resets", "Resource unavailable", "Throttling"]
+    },
+    {
+      "category": "Permanent",
+      "action": "Fail immediately, send alert",
+      "examples": ["Authentication failed", "Schema mismatch", "Table not found", "Access denied"]
+    },
+    {
+      "category": "Unknown",
+      "action": "Retry with caution, log for analysis",
+      "examples": ["Unexpected errors", "New error patterns"]
+    }
+  ],
+  "retryConfiguration": [
+    {
+      "activity": "bronze_procurement",
+      "currentRetries": 0,
+      "recommendedRetries": 3,
+      "retryInterval": "5 minutes",
+      "rationale": "Azure SQL connection may timeout, highest priority"
+    },
+    {
+      "activity": "bronzecopy_EUSupplyShares",
+      "currentRetries": 0,
+      "recommendedRetries": 3,
+      "retryInterval": "5 minutes",
+      "rationale": "HTTP endpoint may be temporarily unavailable"
+    },
+    {
+      "activity": "bronze_WGI",
+      "currentRetries": 0,
+      "recommendedRetries": 2,
+      "retryInterval": "3 minutes",
+      "rationale": "Dataflow refresh may have resource contention"
+    },
+    {
+      "activity": "bronze_EPI",
+      "currentRetries": 0,
+      "recommendedRetries": 2,
+      "retryInterval": "3 minutes",
+      "rationale": "Dataflow refresh may have resource contention"
+    },
+    {
+      "activity": "clean_columnsAndHeaders (Notebook)",
+      "currentRetries": 0,
+      "recommendedRetries": 2,
+      "retryInterval": "2 minutes",
+      "rationale": "Spark session may fail to start"
+    },
+    {
+      "activity": "silver-to-gold2 (Notebook)",
+      "currentRetries": 0,
+      "recommendedRetries": 2,
+      "retryInterval": "2 minutes",
+      "rationale": "Spark session may fail to start"
+    },
+    {
+      "activity": "Copy job1 (Warehouse sync)",
+      "currentRetries": 0,
+      "recommendedRetries": 1,
+      "retryInterval": "5 minutes",
+      "rationale": "Warehouse sync may have lock contention"
+    }
+  ],
+  "subtasks": [
+    {
+      "id": "task-011-1",
+      "title": "Configure retry logic in pipeline JSON",
+      "status": "Pending",
+      "estimatedEffort": "0.5 days",
+      "details": "Update all 7 activities with retry counts and intervals"
+    },
+    {
+      "id": "task-011-2",
+      "title": "Create execution log table and implement logging functions",
+      "status": "Pending",
+      "estimatedEffort": "1 day",
+      "details": "Create gold_pipeline_execution_log, implement log_activity_start/success/failure functions"
+    },
+    {
+      "id": "task-011-3",
+      "title": "Set up email notifications",
+      "status": "Pending",
+      "estimatedEffort": "0.5 days",
+      "details": "Configure Fabric notifications or Logic App for email alerts"
+    },
+    {
+      "id": "task-011-4",
+      "title": "Test with simulated failures",
+      "status": "Pending",
+      "estimatedEffort": "0.5 days",
+      "details": "Test transient, permanent, and unknown error scenarios"
+    },
+    {
+      "id": "task-011-5",
+      "title": "Create monitoring dashboard and documentation",
+      "status": "Pending",
+      "estimatedEffort": "0.5 days",
+      "details": "Power BI monitoring dashboard, error recovery playbook"
+    }
+  ],
+  "progress": "Design complete (5/5 subtasks planned, 0/5 implemented)"
+}

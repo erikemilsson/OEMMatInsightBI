@@ -1,0 +1,89 @@
+{
+  "id": "task-002",
+  "title": "Redesign Semantic Model & DAX Measures",
+  "description": "Implement robust DAX measures library (40+ measures designed) to answer business questions effectively. Design phase complete with comprehensive measure library.",
+  "status": "Broken Down",
+  "priority": "P1",
+  "difficulty": 7,
+  "estimatedEffort": "5 days total",
+  "owner": "Claude Code",
+  "completionDate": "2025-11-03 (Design Phase)",
+  "actualEffort": "4 hours (design phase)",
+  "acceptanceCriteria": [
+    "All 40+ DAX measures implemented in semantic model",
+    "Measure groups created: Procurement, Time Intelligence, Sustainability, Risk, Advanced",
+    "Time intelligence working (YoY, MoM, YTD comparisons)",
+    "All 10 key business questions answerable with measures",
+    "Measures documented with business logic in dax_measure_library.md",
+    "Report visuals showing correct calculations",
+    "Performance acceptable with DirectLake mode"
+  ],
+  "dependencies": [
+    "Existing semantic model structure",
+    "gold_dim_indicator[weight] column for EPI weighting",
+    "Time dimension properly configured",
+    "Power BI Desktop access for implementation"
+  ],
+  "relatedFiles": [
+    "/fabric/semantic_model_oeminsightbi.SemanticModel/definition/",
+    "/.claude/context/dax_measure_library.md (comprehensive design)",
+    "/project_definition.md (lines 787-810)"
+  ],
+  "notes": [
+    "Design phase ✅ COMPLETE - 40+ measures designed across 5 categories",
+    "Implementation deferred until Fabric workspace access is available",
+    "Focus on measures that showcase technical sophistication for portfolio",
+    "Use variables in DAX for performance and readability"
+  ],
+  "subtasks": [
+    {
+      "id": "task-002-1",
+      "title": "Setup: Create _Measures table and display folders",
+      "status": "Pending",
+      "estimatedEffort": "0.5 days"
+    },
+    {
+      "id": "task-002-2",
+      "title": "Implement 10 Core Procurement Measures",
+      "status": "Pending",
+      "estimatedEffort": "1 day",
+      "details": "Total Spend EUR, Total Quantity, Avg Unit Price, Supplier Count, Material Count, Transaction Count, Active Procurement Days, Has Procurement, Days from Last Procurement"
+    },
+    {
+      "id": "task-002-3",
+      "title": "Implement 9 Time Intelligence Measures",
+      "status": "Pending",
+      "estimatedEffort": "1 day",
+      "details": "Total Spend LY/MTD/YTD/LYTD, YoY Growth EUR/%, MoM Growth %, 3M Moving Avg"
+    },
+    {
+      "id": "task-002-4",
+      "title": "Implement 8 Sustainability Measures",
+      "status": "Pending",
+      "estimatedEffort": "1 day",
+      "details": "Avg EPI Score, Weighted EPI Score, Spend-Weighted EPI, % Spend by EPI Category, WGI indicators"
+    },
+    {
+      "id": "task-002-5",
+      "title": "Implement 7 Risk Measures",
+      "status": "Pending",
+      "estimatedEffort": "0.5 days",
+      "details": "HHI Index, Max Concentration, High Risk Material Count, Composite Risk Score"
+    },
+    {
+      "id": "task-002-6",
+      "title": "Implement 6 Advanced Measures & What-If Parameters",
+      "status": "Pending",
+      "estimatedEffort": "0.5 days",
+      "details": "Material Rank, Unit Price Volatility, Cumulative Spend %, EPI/Risk Threshold parameters"
+    },
+    {
+      "id": "task-002-7",
+      "title": "Documentation & Testing",
+      "status": "Pending",
+      "estimatedEffort": "0.5 days",
+      "details": "Add measure descriptions, run unit tests, performance benchmarks, validate calculations"
+    }
+  ],
+  "progress": "Design Complete (7/7 subtasks planned, 0/7 implemented)"
+}
