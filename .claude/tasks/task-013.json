@@ -1,0 +1,49 @@
+{
+  "id": "task-013",
+  "title": "Create Portfolio-Ready Power BI Visualizations (Streamlined)",
+  "description": "Fast-track approach to create 2-3 portfolio-quality Power BI pages for erikemilsson.com. Uses existing data connections and minimal new DAX measures instead of full redesign. Complements (doesn't replace) Task 002/003.",
+  "status": "Pending",
+  "priority": "P1",
+  "difficulty": 5,
+  "estimatedEffort": "1-2 days",
+  "owner": "Claude Code",
+  "dependencies": [],
+  "acceptanceCriteria": [
+    "2-3 polished Power BI pages created (vs. 5 pages in Task 003)",
+    "Page 1: Executive Dashboard (spend, trends, geographic distribution)",
+    "Page 2: Risk & Sustainability Analysis (supply concentration, EPI scores)",
+    "5-10 new DAX measures implemented (vs. 40+ in Task 002)",
+    "Professional formatting with consistent color scheme",
+    "Export high-quality screenshots + PDF for portfolio website",
+    "Interactive PBIX file ready to share with recruiters",
+    "Brief case study document (1-2 pages) describing insights"
+  ],
+  "relatedFiles": [
+    "/fabric/report.Report/",
+    "/fabric/semantic_model_oeminsightbi.SemanticModel/",
+    "/.claude/context/dax_measure_library.md (reference for measure ideas)"
+  ],
+  "notes": [
+    "SCOPE REDUCTION: This is a streamlined 'portfolio shortcut' approach",
+    "Uses existing report structure - clean up and enhance vs. rebuild from scratch",
+    "Focuses on visual impact and storytelling over technical completeness",
+    "Can be completed in 1-2 days vs. 8-10 days for full Task 002+003 approach",
+    "Does NOT replace Task 002/003 - those remain available for full implementation later",
+    "Deliverable: Screenshots + PDF + PBIX + case study for erikemilsson.com"
+  ],
+  "deliverables": [
+    "2-3 Power BI report pages (polished and professional)",
+    "5-10 new DAX measures (strategic, high-impact measures only)",
+    "High-resolution screenshots (1920x1080 PNG)",
+    "PDF export of full report",
+    "PBIX file for sharing/demonstrations",
+    "Case study document explaining business context and insights"
+  ],
+  "approach": [
+    "Step 1: Clean existing report (remove debug visuals, fix layout)",
+    "Step 2: Add 5-10 strategic DAX measures (e.g., YoY growth, risk scores)",
+    "Step 3: Create 2 polished pages with clear narrative",
+    "Step 4: Apply professional theme and formatting",
+    "Step 5: Export portfolio assets (screenshots, PDF, case study)"
+  ]
+}
