@@ -1,0 +1,92 @@
+table _Measures
+	lineageTag: a1b2c3d4-e5f6-47a8-b9c0-d1e2f3a4b5c6
+	isHidden
+
+	/// Procurement Measures
+	measure 'Total Spend EUR' = SUM(fact_procurement[spend_eur])
+		formatString: #,##0
+		displayFolder: Procurement
+
+	measure 'YoY Spend Growth %' =
+		VAR CurrentPeriod = [Total Spend EUR]
+		VAR PriorPeriod = CALCULATE([Total Spend EUR], SAMEPERIODLASTYEAR(gold_dim_date[date]))
+		RETURN
+		    DIVIDE(CurrentPeriod - PriorPeriod, PriorPeriod, 0)
+		formatString: 0.0%;-0.0%;0.0%
+		displayFolder: Procurement
+
+	/// Sustainability Measures
+	measure 'Avg EPI Score' =
+		CALCULATE(
+		    AVERAGE(fact_epi_score[score]),
+		    gold_dim_indicator[source_system] = "EPI"
+		)
+		formatString: 0.0
+		displayFolder: Sustainability
+
+	measure 'Spend-Weighted EPI Score' =
+		SUMX(
+		    SUMMARIZE(
+		        fact_procurement,
+		        fact_procurement[supplier_hq_country_key]
+		    ),
+		    VAR CountrySpend = CALCULATE([Total Spend EUR])
+		    VAR CountryEPI =
+		        CALCULATE(
+		            [Avg EPI Score],
+		            FILTER(
+		                fact_epi_score,
+		                fact_epi_score[country_key] = fact_procurement[supplier_hq_country_key]
+		            )
+		        )
+		    RETURN
+		        CountrySpend * CountryEPI
+		) / [Total Spend EUR]
+		formatString: 0.0
+		displayFolder: Sustainability
+
+	measure '% Spend - High EPI (>60)' =
+		VAR HighEPISpend =
+		    CALCULATE(
+		        [Total Spend EUR],
+		        FILTER(
+		            fact_epi_score,
+		            fact_epi_score[score] >= 60 &&
+		            RELATED(gold_dim_indicator[source_system]) = "EPI"
+		        )
+		    )
+		RETURN
+		    DIVIDE(HighEPISpend, [Total Spend EUR], 0)
+		formatString: 0.0%;-0.0%;0.0%
+		displayFolder: Sustainability
+
+	/// Risk Measures
+	measure 'Max Supply Concentration %' =
+		VAR MaxShare = MAXX(fact_supply_share, VALUE(fact_supply_share[share_pct]))
+		RETURN
+		    DIVIDE(MaxShare, 100, 0)
+		formatString: 0.0%;-0.0%;0.0%
+		displayFolder: Risk
+
+	measure 'HHI Index' =
+		SUMX(
+		    fact_supply_share,
+		    POWER(DIVIDE(VALUE(fact_supply_share[share_pct]), 100, 0), 2)
+		)
+		formatString: 0.000
+		displayFolder: Risk
+
+	measure 'High Risk Material Count' =
+		CALCULATE(
+		    DISTINCTCOUNT(fact_supply_share[material_key]),
+		    VALUE(fact_supply_share[share_pct]) > 50
+		)
+		formatString: #,##0
+		displayFolder: Risk
+
+	partition _Measures = calculated
+		mode: import
+		source = ROW("Measure Placeholder", 1)
+
+	annotation PBI_ResultType = Table
+
