@@ -1,0 +1,75 @@
+{
+  "id": "task-014",
+  "title": "Deploy Enhanced Semantic Model & Build Power BI Visuals",
+  "description": "⏸️ PICK UP HERE: Deploy the 18-measure semantic model to Fabric workspace and build portfolio-quality Power BI visualizations. This task continues from 2025-11-17 session where 10 new DAX measures were added to _Measures.tmdl (total: 18 measures). Use MEASURE_GUIDE.md for visual design guidance.",
+  "status": "Pending",
+  "startDate": null,
+  "completionDate": null,
+  "priority": "P1",
+  "difficulty": 4,
+  "estimatedEffort": "2-3 hours",
+  "owner": "Erik Emilsson",
+  "dependencies": [],
+  "acceptanceCriteria": [
+    "Updated semantic model deployed to Fabric workspace (18 measures visible)",
+    "Semantic model refreshed successfully in Fabric",
+    "Power BI Desktop connected to updated semantic model",
+    "All 18 measures verified working (no errors)",
+    "Page 1 created: Executive Dashboard (4 KPI cards + 4 charts per MEASURE_GUIDE.md)",
+    "Page 2 created: Risk & Sustainability Analysis (3 KPI cards + 4 charts per MEASURE_GUIDE.md)",
+    "Professional theme applied to report",
+    "Report saved as .pbix file",
+    "High-resolution screenshots exported (1920x1080 PNG)",
+    "PDF export generated for portfolio"
+  ],
+  "relatedFiles": [
+    "/fabric/semantic_model_oeminsightbi.SemanticModel/definition/tables/_Measures.tmdl (18 measures - UPDATED 2025-11-17)",
+    "/MEASURE_GUIDE.md (comprehensive guide created 2025-11-17)",
+    "/fabric/report.Report/ (target for new visuals)",
+    "/.claude/context/dax_measure_library.md (reference)"
+  ],
+  "notes": [
+    "🎯 START HERE: This is where the 2025-11-17 session ended",
+    "CONTEXT: 10 new DAX measures were added to _Measures.tmdl (Priority 1: 6 essential, Priority 2: 4 advanced)",
+    "Total measures now: 18 (8 original + 10 new)",
+    "New measures include: Total Quantity, Transaction Count, Supplier Countries Count, Materials Count, Avg Spend per Transaction, Latest EPI Score, Diversification Score, Top 3 Countries Spend %, Spend Exposure at Risk, Material Risk Index",
+    "MEASURE_GUIDE.md contains: schema overview, usage guide for all 18 measures, visual recommendations, page layouts, troubleshooting tips",
+    "IMPORTANT: Must deploy semantic model to Fabric BEFORE measures are available in Power BI Desktop",
+    "Deployment options: (A) Git sync to Fabric workspace, or (B) Manual update in Fabric portal",
+    "Once deployed: File → Get Data → Power BI semantic models → Select semantic_model_oeminsightbi",
+    "Report design spec already exists in /fabric/report.Report/PORTFOLIO_DESIGN.md from Task 013",
+    "This task focuses on TECHNICAL IMPLEMENTATION, Task 013 focused on DESIGN/PLANNING"
+  ],
+  "deliverables": [
+    "Deployed semantic model with 18 measures in Fabric workspace",
+    "Power BI report with 2 portfolio-quality pages (Executive Dashboard + Risk & Sustainability)",
+    ".pbix file (saved locally and optionally uploaded to Fabric)",
+    "High-resolution screenshots (1920x1080 PNG) for portfolio website",
+    "PDF export of complete report"
+  ],
+  "approach": [
+    "Step 1: Deploy updated _Measures.tmdl to Fabric workspace (Git sync or manual)",
+    "Step 2: Refresh semantic model in Fabric to apply changes",
+    "Step 3: Open Power BI Desktop → Get Data → Connect to semantic model",
+    "Step 4: Verify all 18 measures appear in _Measures table (check display folders: Procurement, Sustainability, Risk)",
+    "Step 5: Build Page 1 - Executive Dashboard following MEASURE_GUIDE.md section 'Part 4: Visual Recommendations'",
+    "Step 6: Build Page 2 - Risk & Sustainability Analysis following MEASURE_GUIDE.md",
+    "Step 7: Apply professional theme (CY24SU10 already configured)",
+    "Step 8: Test all visuals (verify measures calculate correctly, slicers work)",
+    "Step 9: Export screenshots (File → Export → Export current page → PNG at 1920x1080)",
+    "Step 10: Export PDF (File → Export → Export to PDF)",
+    "Step 11: Save .pbix file locally and optionally publish to Fabric workspace"
+  ],
+  "sessionContext": {
+    "lastUpdated": "2025-11-17",
+    "currentState": "Measures created locally in _Measures.tmdl, MEASURE_GUIDE.md written, ready for deployment",
+    "nextAction": "Deploy semantic model to Fabric workspace",
+    "keyResources": [
+      "MEASURE_GUIDE.md - Complete usage guide for all 18 measures",
+      "_Measures.tmdl - Contains all 18 DAX measures (deploy this file)",
+      "PORTFOLIO_DESIGN.md - Design specifications for report layout"
+    ],
+    "blockers": "None - ready to proceed with deployment",
+    "estimatedTimeToComplete": "2-3 hours (30min deploy/test, 90min build visuals, 30min export)"
+  }
+}

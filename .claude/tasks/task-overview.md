@@ -1,21 +1,21 @@
 # Task Overview: OEMMatInsightBI Project
 
-**Last Updated:** 2025-11-16
-**Total Tasks:** 13
+**Last Updated:** 2025-11-17
+**Total Tasks:** 14
 **Status:** Active development
 
 ---
 
 ## Executive Summary
 
-This project has 13 well-defined tasks spanning data engineering, BI development, and infrastructure optimization. The task management system uses JSON-based format with difficulty scoring and automated workflow support.
+This project has 14 well-defined tasks spanning data engineering, BI development, and infrastructure optimization. The task management system uses JSON-based format with difficulty scoring and automated workflow support.
 
 **Key Metrics:**
-- **Completed:** 2 tasks (15%)
-- **In Progress:** 1 task (8%)
-- **Broken Down:** 1 task (8%)
-- **Pending:** 9 tasks (69%)
-- **P1 (High Priority):** 5 tasks
+- **Completed:** 2 tasks (14%)
+- **In Progress:** 1 task (7%)
+- **Broken Down:** 1 task (7%)
+- **Pending:** 10 tasks (71%)
+- **P1 (High Priority):** 6 tasks
 - **P2 (Medium Priority):** 5 tasks
 - **P3 (Infrastructure):** 3 tasks
 
@@ -27,7 +27,7 @@ This project has 13 well-defined tasks spanning data engineering, BI development
 |----|------|----------|------------|--------|----------|
 | 001 | Enhance Data Quality & Matching Visibility | P1 | 6 | Pending | Not started |
 | 002 | Redesign Semantic Model & DAX Measures | P1 | 7 | Broken Down | Design complete (0/7 subtasks implemented) |
-| 003 | Redesign Power BI Report | P1 | 8 | Pending | Blocked by task-002, task-001 (0/7 subtasks) |
+| 003 | Redesign Power BI Report | P1 | 8 | Pending | Blocked by task-002 (0/7 subtasks) |
 | 004 | Design & Implement Row-Level Security | P1 | 6 | Pending | Design complete |
 | 005 | Automate External Data Ingestion | P2 | 5 | Pending | Research complete |
 | 006 | Implement Incremental Load Logic | P2 | 7 | Pending | Design complete (0/5 subtasks planned) |
@@ -38,6 +38,7 @@ This project has 13 well-defined tasks spanning data engineering, BI development
 | 011 | Implement Error Handling & Retry Logic | P3 | 6 | Pending | Design complete (0/5 subtasks planned) |
 | 012 | Optimize Pipeline Performance | P3 | 7 | Pending | Not started (0/5 subtasks) |
 | 013 | Create Portfolio-Ready Power BI Visualizations | P1 | 5 | Finished | Completed ✅ (2025-11-16) |
+| 014 | Deploy Enhanced Semantic Model & Build Visuals | P1 | 4 | Pending | ⏸️ **PICK UP HERE** (2025-11-17) |
 
 ---
 
@@ -60,7 +61,7 @@ These tasks directly impact the quality and completeness of the portfolio demons
    - Build 5 portfolio-quality report pages from scratch
    - **Status:** Pending (7 subtasks planned)
    - **Effort:** 3-5 days
-   - **Dependency:** ⚠️ BLOCKED by Task 002 and Task 001
+   - **Dependency:** ⚠️ BLOCKED by Task 002
 
 4. **Task 004:** Design & Implement RLS (Difficulty: 6)
    - Implement 6 security roles with DAX filters
@@ -80,6 +81,21 @@ These tasks directly impact the quality and completeness of the portfolio demons
    - **Effort:** 1 session (completed same day)
    - **Note:** Complements (doesn't replace) Task 002/003
 
+6. **Task 014:** Deploy Enhanced Semantic Model & Build Power BI Visuals (Difficulty: 4) ⏸️ **PICK UP HERE**
+   - **NEW TASK:** Deploy 18-measure semantic model and build portfolio visuals
+   - **Context:** 10 new measures added to _Measures.tmdl on 2025-11-17 (18 total)
+   - **Resources Created:**
+     - ✅ MEASURE_GUIDE.md (comprehensive usage guide for all 18 measures)
+     - ✅ Updated _Measures.tmdl (Priority 1: 6 essential + Priority 2: 4 advanced)
+   - **Next Steps:**
+     1. Deploy semantic model to Fabric workspace
+     2. Connect Power BI Desktop to updated model
+     3. Build 2 portfolio pages (Executive Dashboard + Risk & Sustainability)
+     4. Export screenshots and PDF
+   - **Status:** Pending (Ready to start)
+   - **Effort:** 2-3 hours
+   - **Owner:** Erik Emilsson
+
 ### P2 Tasks (Medium Priority - Technical Depth)
 These tasks demonstrate technical sophistication and engineering best practices:
 
@@ -98,272 +114,170 @@ These tasks demonstrate technical sophistication and engineering best practices:
    - **Status:** Pending (Design complete, 5 subtasks planned)
    - **Effort:** 3 days
 
-8. **Task 008:** Create Unit Tests (Difficulty: 4)
-   - pytest framework with 35+ test cases for transformation functions
-   - **Status:** In Progress (Framework complete)
+8. **Task 008:** Create Unit Tests for Transformation Functions (Difficulty: 4)
+   - Set up pytest testing framework
+   - **Status:** In Progress (Framework complete, optional enhancements remain)
    - **Effort:** 0.5 days remaining
 
-9. **Task 009:** Document DAX Measures (Difficulty: 2)
-   - Investigation and documentation of existing measures
-   - **Status:** Finished ✅
+9. **Task 009:** Document Existing DAX Measures (Difficulty: 2) ✅ **COMPLETED**
+   - Investigation task - found no custom measures
+   - **Status:** Finished (Completed 2025-11-03)
    - **Effort:** 0.5 hours
 
-### P3 Tasks (Infrastructure - Production Readiness)
-These tasks showcase operational excellence and production-ready practices:
+### P3 Tasks (Infrastructure - Operational Excellence)
+These tasks improve operational maturity and production readiness:
 
 10. **Task 010:** Configure Pipeline Scheduling (Difficulty: 3)
-    - Set up daily automated pipeline execution
-    - **Status:** Pending
-    - **Effort:** 0.5-1 day
+   - Set up daily automated execution at 6:00 AM
+   - **Status:** Pending
+   - **Effort:** 0.5-1 day
 
 11. **Task 011:** Implement Error Handling & Retry Logic (Difficulty: 6)
-    - Intelligent retry logic and error categorization
-    - **Status:** Pending (Design complete, 5 subtasks planned)
-    - **Effort:** 3 days
+   - Replace fail-fast with intelligent retry and notifications
+   - **Status:** Pending (Design complete, 5 subtasks planned)
+   - **Effort:** 3 days
 
 12. **Task 012:** Optimize Pipeline Performance (Difficulty: 7) ⚠️ **Must Break Down**
-    - Partitioning, V-Order, indexing, and performance testing
-    - **Status:** Pending (5 subtasks planned)
-    - **Effort:** 2-4 days
+   - Partitioning, V-Order, indexing (target: >30% improvement)
+   - **Status:** Pending (5 subtasks planned)
+   - **Effort:** 2-4 days
 
 ---
 
-## Difficulty Distribution
+## Recent Activity
 
-### Breakdown Threshold: Difficulty ≥7 (Must break down before starting)
+### Completed Since Last Sync (2025-11-16)
+✅ **Task 013:** Create Portfolio-Ready Power BI Visualizations
+   - Completed 2025-11-16
+   - 8 DAX measures implemented
+   - Design docs and case study created
 
-**High Complexity (7-10):** 4 tasks - **Requires Breakdown**
-- Task 002: DAX Measures (7) - ✅ Broken Down (7 subtasks)
-- Task 003: Power BI Report (8) - Subtasks planned (7 subtasks)
-- Task 006: Incremental Load (7) - Subtasks planned (5 subtasks)
-- Task 012: Performance Optimization (7) - Subtasks planned (5 subtasks)
+### New Tasks Added (2025-11-17)
+🆕 **Task 014:** Deploy Enhanced Semantic Model & Build Power BI Visuals
+   - Created 2025-11-17
+   - Continues from session where 10 new measures were added
+   - Total measures: 18 (8 from Task 013 + 10 new)
+   - **⏸️ PICK UP HERE** - Ready to deploy and build visuals
 
-**Medium Complexity (4-6):** 7 tasks - **Direct Execution**
-- Task 001: DQ Visibility (6)
-- Task 004: RLS Security (6)
-- Task 005: External Data Automation (5)
-- Task 007: Data Quality Checks (6)
-- Task 008: Unit Tests (4)
-- Task 011: Error Handling (6)
-- Task 013: Portfolio Visualizations (5) 🆕
-
-**Low Complexity (1-3):** 2 tasks - **Direct Execution**
-- Task 009: Document DAX (2) - ✅ Completed
-- Task 010: Pipeline Scheduling (3)
+### Currently In Progress
+🚧 **Task 008:** Create Unit Tests for Transformation Functions
+   - Framework complete, optional enhancements remain
+   - pytest setup done, 35+ test cases written
+   - Can be marked as complete or continue with optional work
 
 ---
 
-## Effort Estimation
+## Dependency Analysis
 
-**Total Estimated Effort:** ~36-52 days (updated with Task 013)
+### Blocked Tasks
+⚠️ **Task 003:** Redesign Power BI Report
+   - Blocked by: Task 002 (Broken Down - 0% complete)
+   - Estimated time to unblock: 5 days (complete all Task 002 subtasks)
+   - **Alternative:** Task 014 provides immediate portfolio delivery path
 
-| Priority | Tasks | Est. Days | % of Total |
-|----------|-------|-----------|------------|
-| P1 | 5 | 15-21 days | 42-40% |
-| P2 | 5 | 12-16 days | 33-31% |
-| P3 | 3 | 5.5-9 days | 15-17% |
-| Completed | 1 | 0.5 hours | ~0% |
+### Ready to Start (No Blockers)
+The following tasks have no dependencies and can be started immediately:
 
-**Design Work Already Complete:** ~15 hours (Tasks 002, 004, 005, 006, 007, 011)
+📋 **Task 001:** Enhance DQ Visibility (P1, Difficulty: 6, Effort: 2-3 days)
+📋 **Task 004:** Design & Implement RLS (P1, Difficulty: 6, Effort: 4 days) - Design complete
+📋 **Task 005:** Automate External Data (P2, Difficulty: 5, Effort: 3-4 days) - Research complete
+📋 **Task 006:** Implement Incremental Load (P2, Difficulty: 7, Effort: 3.5 days) - Design complete, needs breakdown
+📋 **Task 007:** Add Data Quality Checks (P2, Difficulty: 6, Effort: 3 days) - Design complete
+📋 **Task 010:** Configure Pipeline Scheduling (P3, Difficulty: 3, Effort: 0.5-1 day)
+📋 **Task 011:** Implement Error Handling (P3, Difficulty: 6, Effort: 3 days) - Design complete
+📋 **Task 012:** Optimize Performance (P3, Difficulty: 7, Effort: 2-4 days) - Needs breakdown
+📋 **Task 014:** Deploy Semantic Model & Build Visuals (P1, Difficulty: 4, Effort: 2-3 hours) ⏸️ **PICK UP HERE**
 
 ---
 
-## Task Dependencies
+## Task Breakdown Status
 
-```
-Task 003 (Power BI Report)
-  ↳ Depends on: Task 002 (DAX Measures) ⚠️ BLOCKING
-  ↳ Depends on: Task 001 (DQ Dashboard content) ⚠️ BLOCKING
-  ↳ Status: BLOCKED (cannot start until dependencies complete)
+Tasks marked with difficulty ≥7 should be broken down into subtasks:
 
-Task 001 (DQ Visibility)
-  ↳ Depends on: Existing audit tables ✅
-  ↳ Status: Ready to start
-
-Task 002 (DAX Measures)
-  ↳ No dependencies ✅
-  ↳ Status: Broken Down, ready to implement
-
-Task 006 (Incremental Load)
-  ↳ Independent (can run in parallel)
-
-Task 007 (Data Quality Checks)
-  ↳ Independent (can run in parallel)
-
-Task 012 (Performance Optimization)
-  ↳ Should run after Task 006 (incremental load) for maximum benefit
-  ↳ Soft dependency (not blocking)
-
-Task 013 (Portfolio Visualizations)
-  ↳ No dependencies ✅
-  ↳ Status: Ready to start (fast-track approach)
-```
+| Task | Difficulty | Breakdown Status | Subtasks |
+|------|-----------|------------------|----------|
+| 002 | 7 | ✅ Broken Down | 7 subtasks planned (0 complete) |
+| 003 | 8 | ✅ Subtasks Defined | 7 subtasks planned (0 complete) |
+| 006 | 7 | ✅ Subtasks Defined | 5 subtasks planned (0 complete) |
+| 012 | 7 | ✅ Subtasks Defined | 5 subtasks planned (0 complete) |
 
 ---
 
 ## Progress Tracking
 
-### Completed (2/13 - 15%)
-- ✅ **Task 009:** Document DAX Measures (0.5 hours)
-- ✅ **Task 013:** Create Portfolio-Ready Power BI Visualizations (1 session, 2025-11-16)
+### Overall Completion
+- **Tasks Completed:** 2/14 (14%)
+- **Effort Completed:** ~2 hours (design phases) + 1.5 sessions (Task 008, 013)
+- **Estimated Remaining:** ~35-50 days of effort
 
-### In Progress (1/13 - 8%)
-- 🚧 **Task 008:** Create Unit Tests (Framework complete, optional enhancements remain)
+### P1 Tasks Progress
+- **Completed:** 1/6 (Task 013) = 17%
+- **In Progress:** 0/6
+- **Ready to Deploy:** 1/6 (Task 014) ⏸️
 
-### Broken Down (1/13 - 8%)
-- 📦 **Task 002:** Redesign Semantic Model & DAX Measures (0/7 subtasks implemented)
-
-### Design Complete / Research Done (5/13 - 38%)
-These tasks have comprehensive design documents and are implementation-ready:
-- ✅ **Task 002:** 40+ DAX measures designed in dax_measure_library.md
-- ✅ **Task 004:** 6 RLS roles designed in rls_security_strategy.md
-- ✅ **Task 005:** Data automation research in external_data_automation.md
-- ✅ **Task 006:** Incremental load strategy in incremental_load_strategy.md
-- ✅ **Task 007:** Quality framework in data_quality_framework.md
-- ✅ **Task 011:** Error handling strategy in error_handling_strategy.md
-
-### Blocked (1/13 - 8%)
-- ⚠️ **Task 003:** Power BI Report (blocked by Task 002 and Task 001)
-
-### Not Started (4/13 - 31%)
-- **Task 001:** DQ Visibility
-- **Task 004:** RLS Implementation
-- **Task 010:** Pipeline Scheduling
-- **Task 012:** Performance Optimization
+### Design-Complete Tasks (Ready for Implementation)
+These tasks have comprehensive design documentation and can be implemented immediately:
+- ✅ Task 002: DAX measures (dax_measure_library.md)
+- ✅ Task 004: RLS strategy (rls_security_strategy.md)
+- ✅ Task 005: External data automation (external_data_automation.md)
+- ✅ Task 006: Incremental load (incremental_load_strategy.md)
+- ✅ Task 007: Data quality framework (data_quality_framework.md)
+- ✅ Task 011: Error handling (error_handling_strategy.md)
 
 ---
 
-## Quick Start Recommendations
+## Recommended Next Actions
 
-### For Immediate Portfolio Impact:
-**Option A: Fast-Track** ✅ **COMPLETED**
-1. **Task 013** (Portfolio Visualizations) - ✅ Finished 2025-11-16
-   - Created 8 strategic DAX measures
-   - Complete report design specifications
-   - Professional case study document (2500 words)
-   - Ready to publish on erikemilsson.com
+### Immediate Priority (Today/This Week)
+1. **⏸️ Start Task 014** - Deploy semantic model and build visuals (2-3 hours)
+   - Highest ROI: Immediate portfolio deliverable
+   - No blockers, all resources ready
+   - Builds on work completed 2025-11-17
 
-**Option B: Comprehensive (8-10 days)**
-1. **Start with Task 002** (DAX Measures) - Design complete, foundational for Task 003
-2. **Then Task 003** (Power BI Report) - Full 5-page redesign
-3. **Then Task 001** (DQ Dashboard) - Demonstrates data governance awareness
+2. **Complete Task 008** - Mark unit testing task as finished (5 min)
+   - Framework complete, optional work can be deferred
+   - Easy win to increase completion rate
 
-### For Technical Depth:
-1. **Task 008** (Unit Tests) - Already 80% complete, easy win
-2. **Task 007** (Data Quality Checks) - Design complete, showcases ISO 25012 knowledge
-3. **Task 006** (Incremental Load) - Design complete, demonstrates lakehouse optimization
+### Short-Term (Next 1-2 Weeks)
+3. **Start Task 001** - Data quality visibility (2-3 days)
+   - High portfolio value
+   - Demonstrates data quality awareness
 
-### For Production Readiness:
-1. **Task 010** (Scheduling) - Simple, high visibility
-2. **Task 011** (Error Handling) - Design complete, showcases reliability engineering
-3. **Task 012** (Performance) - Demonstrates optimization expertise
+4. **Start Task 004** - Implement RLS (4 days)
+   - Design complete, ready to implement
+   - Showcases enterprise security patterns
 
----
+### Medium-Term (Next Month)
+5. **Complete Task 002 Subtasks** - Implement full DAX measure library
+   - Unblocks Task 003 (Power BI report redesign)
+   - High technical showcase value
 
-## Automation Rules
-
-Based on the reference repository's task management system:
-
-### **Rule 1: Automatic Breakdown (Difficulty ≥7)**
-Tasks with difficulty ≥7 **MUST** be broken down into subtasks before execution:
-- **Task 002** (Diff: 7) - ✅ Already broken down into 7 subtasks
-- **Task 003** (Diff: 8) - Subtasks planned (7 subtasks)
-- **Task 006** (Diff: 7) - Subtasks planned (5 subtasks)
-- **Task 012** (Diff: 7) - Subtasks planned (5 subtasks)
-
-### **Rule 2: Parent Task Completion**
-Parent tasks automatically complete when all subtasks are finished:
-- **Task 002:** Status = "Broken Down (0/7 done)"
-  - Will transition to "Finished" when all 7 subtasks complete
-
-### **Rule 3: Task Lifecycle**
-```
-Pending → In Progress → (Broken Down if difficulty ≥7) → Finished
-                    ↓
-                  Blocked (if dependencies not met)
-```
+6. **Implement Task 006/007/011** - Engineering best practices
+   - Incremental load, data quality, error handling
+   - Demonstrates production-ready engineering
 
 ---
 
-## New Task: Task 013 - Portfolio Shortcut 🆕
+## Notes
 
-**Task 013** provides a **fast-track alternative** to the full Task 002+003 approach:
+**Portfolio Strategy:**
+- Task 013 ✅ provides immediate portfolio showcase (completed 2025-11-16)
+- Task 014 ⏸️ extends showcase with enhanced measures (2-3 hours to complete)
+- Tasks 002/003 provide comprehensive long-term solution (8-10 days)
+- Both paths are valuable - Task 014 is quick win, Task 002/003 is depth
 
-**Comparison:**
-| Aspect | Task 002+003 (Full) | Task 013 (Streamlined) |
-|--------|---------------------|------------------------|
-| Time | 8-10 days | 1-2 days |
-| Pages | 5 pages | 2-3 pages |
-| DAX Measures | 40+ measures | 5-10 measures |
-| Approach | Complete redesign | Clean up + enhance existing |
-| Deliverables | Full semantic model + report | Screenshots + PDF + case study |
-| Portfolio Ready | Yes (comprehensive) | Yes (focused) |
+**Task Management:**
+- Use `/complete-task task-XXX` to start a task
+- Use `/breakdown task-XXX` for complex tasks (difficulty ≥7)
+- Use `/sync-tasks` to update this overview
+- Design-complete tasks can be implemented immediately
 
-**When to choose Task 013:**
-- Need portfolio assets quickly (job applications, website update)
-- Want to demonstrate Power BI skills without full rebuild
-- Prioritize visual impact over technical completeness
-
-**When to choose Task 002+003:**
-- Have time for comprehensive implementation
-- Want to showcase full semantic model design
-- Building foundation for long-term portfolio project
+**Dependencies:**
+- Only Task 003 is currently blocked (waiting on Task 002)
+- Task 014 provides alternative path to portfolio delivery
+- Most tasks are independent and can be parallelized
 
 ---
 
-## Next Actions
-
-**To begin working on tasks:**
-1. **✅ Fast-track portfolio:** Task 013 completed! Next: Publish case study to erikemilsson.com
-2. **Comprehensive approach:** Run `/complete-task task-002` (7 subtasks, then Task 003)
-3. **Easy win:** Run `/complete-task task-008` (finish unit tests framework)
-
-**To sync task progress:**
-- Run `/sync-tasks` to validate structure and update progress matrix
-
-**To break down a task:**
-- Run `/breakdown task-003` to decompose the Power BI Report into subtasks (already planned)
-
----
-
-## Files and Structure
-
-### Task Files (JSON Format)
-```
-/.claude/tasks/
-├── task-001.json  (DQ Visibility)
-├── task-002.json  (DAX Measures - with 7 subtasks)
-├── task-003.json  (Power BI Report - with 7 subtasks)
-├── task-004.json  (RLS Security)
-├── task-005.json  (External Data Automation)
-├── task-006.json  (Incremental Load - with 5 subtasks)
-├── task-007.json  (Data Quality Checks - with 5 subtasks)
-├── task-008.json  (Unit Tests)
-├── task-009.json  (Document DAX - Completed)
-├── task-010.json  (Pipeline Scheduling)
-├── task-011.json  (Error Handling - with 5 subtasks)
-├── task-012.json  (Performance Optimization - with 5 subtasks)
-├── task-013.json  (Portfolio Visualizations - NEW) 🆕
-└── task-overview.md  (this file)
-```
-
-### Legacy Markdown Files (Archived)
-The original markdown task files are preserved in the same directory for reference:
-```
-/.claude/tasks/
-├── 01_enhance_data_quality_visibility.md
-├── 02_redesign_semantic_model.md
-├── ... (all 12 original .md files)
-```
-
----
-
-## Version History
-
-- **v2.1** (2025-11-16): Added Task 013 (Portfolio Visualizations - streamlined approach)
-- **v2.0** (2025-11-16): Migrated to JSON format with difficulty scoring and automation rules
-- **v1.0** (2025-11-03): Initial markdown-based task structure
-
----
-
-*This task overview is automatically maintained by the task management system. For the latest status, run `/sync-tasks`.*
+*Last Sync: 2025-11-17*
+*Next Recommended Action: Start Task 014 - Deploy Enhanced Semantic Model & Build Visuals*

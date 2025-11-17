@@ -84,6 +84,110 @@ table _Measures
 		formatString: #,##0
 		displayFolder: Risk
 
+	measure 'Diversification Score' =
+		VAR HHI = [HHI Index]
+		RETURN
+		    1 - HHI
+		formatString: 0.000
+		displayFolder: Risk
+
+	measure 'Top 3 Countries Spend %' =
+		VAR Top3Spend =
+		    CALCULATE(
+		        [Total Spend EUR],
+		        TOPN(
+		            3,
+		            ALLSELECTED(gold_dim_country),
+		            [Total Spend EUR],
+		            DESC
+		        )
+		    )
+		RETURN
+		    DIVIDE(Top3Spend, CALCULATE([Total Spend EUR], ALLSELECTED(gold_dim_country)), 0)
+		formatString: 0.0%;-0.0%;0.0%
+		displayFolder: Risk
+
+	measure 'Spend Exposure at Risk' =
+		SUMX(
+		    SUMMARIZE(
+		        fact_procurement,
+		        fact_procurement[supplier_hq_country_key],
+		        fact_procurement[material_key]
+		    ),
+		    VAR MaterialSpend = CALCULATE([Total Spend EUR])
+		    VAR SupplyConcentration =
+		        CALCULATE(
+		            MAXX(fact_supply_share, VALUE(fact_supply_share[share_pct]))
+		        ) / 100
+		    VAR EpiScore = CALCULATE([Avg EPI Score])
+		    VAR RiskFactor = SupplyConcentration * (1 - DIVIDE(EpiScore, 100, 0))
+		    RETURN
+		        MaterialSpend * RiskFactor
+		)
+		formatString: #,##0
+		displayFolder: Risk
+
+	measure 'Material Risk Index' =
+		VAR LatestSupplyYear = MAXX(fact_supply_share, fact_supply_share[year])
+		VAR LatestEPIYear = MAXX(fact_epi_score, fact_epi_score[year])
+		RETURN
+		    SUMX(
+		        SUMMARIZE(
+		            fact_supply_share,
+		            fact_supply_share[material_key],
+		            fact_supply_share[country_key]
+		        ),
+		        VAR SupplyShare =
+		            CALCULATE(
+		                VALUE(fact_supply_share[share_pct]) / 100,
+		                fact_supply_share[year] = LatestSupplyYear
+		            )
+		        VAR EPIScore =
+		            CALCULATE(
+		                [Avg EPI Score],
+		                fact_epi_score[year] = LatestEPIYear
+		            )
+		        VAR RiskScore = SupplyShare * (1 - DIVIDE(EPIScore, 100, 0))
+		        RETURN
+		            RiskScore
+		    )
+		formatString: 0.000
+		displayFolder: Risk
+
+	/// Operational Measures
+	measure 'Total Quantity' = SUM(fact_procurement[quantity_base])
+		formatString: #,##0
+		displayFolder: Procurement
+
+	measure 'Transaction Count' = COUNTROWS(fact_procurement)
+		formatString: #,##0
+		displayFolder: Procurement
+
+	measure 'Supplier Countries Count' = DISTINCTCOUNT(fact_procurement[supplier_hq_country_key])
+		formatString: #,##0
+		displayFolder: Procurement
+
+	measure 'Materials Count' = DISTINCTCOUNT(fact_procurement[material_key])
+		formatString: #,##0
+		displayFolder: Procurement
+
+	measure 'Avg Spend per Transaction' =
+		DIVIDE([Total Spend EUR], [Transaction Count], 0)
+		formatString: #,##0
+		displayFolder: Procurement
+
+	/// Time Intelligence Measures
+	measure 'Latest EPI Score' =
+		VAR LatestYear = MAXX(fact_epi_score, fact_epi_score[year])
+		RETURN
+		    CALCULATE(
+		        AVERAGE(fact_epi_score[score]),
+		        fact_epi_score[year] = LatestYear,
+		        gold_dim_indicator[source_system] = "EPI"
+		    )
+		formatString: 0.0
+		displayFolder: Sustainability
+
 	partition _Measures = calculated
 		mode: import
 		source = ROW("Measure Placeholder", 1)
