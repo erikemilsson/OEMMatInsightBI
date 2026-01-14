@@ -233,6 +233,14 @@ missing_countries = spark.createDataFrame([
 
 # NEW: Add UNKNOWN placeholder countries for unmapped records
 # This ensures we don't lose data in aggregations
+# NOTE: Must provide explicit schema because all iso_numeric/wb_code values are None
+unknown_countries_schema = StructType([
+    StructField("country_name_std", StringType(), True),
+    StructField("iso3", StringType(), True),
+    StructField("iso_numeric", IntegerType(), True),
+    StructField("wb_code", StringType(), True),
+    StructField("region", StringType(), True)
+])
 unknown_countries = spark.createDataFrame([
     ("Unknown - Africa", "UNK_AFR", None, None, "Africa"),
     ("Unknown - Asia", "UNK_ASIA", None, None, "Asia"),
@@ -240,7 +248,7 @@ unknown_countries = spark.createDataFrame([
     ("Unknown - Americas", "UNK_AMER", None, None, "Americas"),
     ("Unknown - Oceania", "UNK_OCE", None, None, "Oceania"),
     ("Unknown - Global", "UNK_GLOB", None, None, None),
-], ["country_name_std", "iso3", "iso_numeric", "wb_code", "region"])
+], unknown_countries_schema)
 
 # 4. UNION ALL COUNTRIES WITH CONSISTENT KEY GENERATION
 all_countries = (
