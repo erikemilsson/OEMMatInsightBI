@@ -27,7 +27,7 @@
 # CELL ********************
 
 from pyspark.sql import functions as F, Window as W
-from pyspark.sql.types import IntegerType, StringType, FloatType, DateType, StructType, StructField, DoubleType
+from pyspark.sql.types import IntegerType, StringType, FloatType, DateType, StructType, StructField, DoubleType, LongType
 import logging
 from datetime import datetime
 
@@ -205,20 +205,15 @@ epi = spark.table(f"{DB}.silver_epi2024results").select(
     F.col("country").alias("country_name_epi")
 ).filter(F.col("iso3").isNotNull()).dropDuplicates(["iso3"])
 
-wb = spark.table(f"{DB}.silver_WB").select(
-    F.col("country_code").alias("wb_code"),
-    F.col("country_name").alias("country_name_wb")
-).filter(F.col("wb_code").isNotNull()).dropDuplicates(["wb_code"])
-
-# Build primary dimension from EPI and WB data
+# NOTE: silver_WB table removed (World Bank ESG data not available)
+# Build primary dimension from EPI data only
 dim_country_base = (
-    epi.alias("e")
-    .join(wb.alias("w"), F.upper(F.col("e.iso3")) == F.upper(F.col("w.wb_code")), "left")
+    epi
     .select(
-        F.coalesce(F.col("e.country_name_epi"), F.col("w.country_name_wb")).alias("country_name_std"),
-        F.col("e.iso3"),
-        F.col("e.iso_numeric"),
-        F.col("w.wb_code")
+        F.col("country_name_epi").alias("country_name_std"),
+        F.col("iso3"),
+        F.col("iso_numeric"),
+        F.col("iso3").alias("wb_code")  # Use iso3 as wb_code fallback
     )
     .dropDuplicates(["iso3"])
 )
@@ -313,10 +308,10 @@ def create_country_coverage_matrix():
     epi_countries = spark.table(f"{DB}.silver_epi2024results").select(
         F.col("country").alias("country_epi")
     ).distinct()
-    
-    wb_countries = spark.table(f"{DB}.silver_WB").select(
-        F.col("country_name").alias("country_wb")
-    ).distinct()
+
+    # NOTE: silver_WB table removed (World Bank ESG data not available)
+    # Create empty DataFrame with same schema for compatibility
+    wb_countries = spark.createDataFrame([], "country_wb: string")
     
     supply_countries = spark.table(f"{DB}.silver_globalsupplyshares").select(
         F.col("country").alias("country_supply")
@@ -563,24 +558,23 @@ epi_vars = spark.table(f"{DB}.`silver_epi2024variables2024-12-11`").select(
     F.lit(None).cast(StringType()).alias("indicator_code")
 ).withColumn("indicator_key", stable_key(["source_system","abbrev","variable_name"]))
 
-# WB indicators
-wb_vars = (
-    spark.table(f"{DB}.silver_WB")
-    .select("indicator_code","indicator_name","topic")
-    .dropna(subset=["indicator_code"])
-    .dropDuplicates(["indicator_code","indicator_name"])
-    .select(
-        F.lit("WB").alias("source_system"),
-        F.lit(None).cast(StringType()).alias("type"),
-        F.lit(None).cast(StringType()).alias("abbrev"),
-        F.col("indicator_name").alias("variable_name"),
-        F.lit(None).cast(StringType()).alias("policyobjective"),
-        F.lit(None).cast(StringType()).alias("issuecategory"),
-        F.lit(None).cast(FloatType()).alias("weight"),
-        F.lit(None).cast(StringType()).alias("description"),
-        "indicator_code",
-        F.col("topic").alias("parent_label")
-    ).withColumn("indicator_key", stable_key(["source_system","indicator_code"]))
+# WB indicators - NOTE: silver_WB table removed (World Bank ESG data not available)
+# Create empty WB indicators DataFrame with same schema for compatibility
+wb_vars = spark.createDataFrame(
+    [],
+    StructType([
+        StructField("source_system", StringType(), True),
+        StructField("type", StringType(), True),
+        StructField("abbrev", StringType(), True),
+        StructField("variable_name", StringType(), True),
+        StructField("policyobjective", StringType(), True),
+        StructField("issuecategory", StringType(), True),
+        StructField("weight", FloatType(), True),
+        StructField("description", StringType(), True),
+        StructField("indicator_code", StringType(), True),
+        StructField("parent_label", StringType(), True),
+        StructField("indicator_key", LongType(), True)
+    ])
 )
 
 # Union all indicators
