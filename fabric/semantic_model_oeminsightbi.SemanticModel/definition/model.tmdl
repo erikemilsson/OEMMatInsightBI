@@ -22,4 +22,5 @@ ref table gold_dim_indicator
 ref table gold_dim_country
 ref table gold_dim_date
 ref table _Measures
+ref table gold_data_quality_dashboard
 

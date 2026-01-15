@@ -1,0 +1,64 @@
+table gold_data_quality_dashboard
+	lineageTag: f1e2d3c4-b5a6-4789-8012-345678901234
+	sourceLineageTag: [dbo].[gold_data_quality_dashboard]
+
+	column category
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 01234567-89ab-cdef-0123-456789abcdef
+		sourceLineageTag: category
+		summarizeBy: none
+		sourceColumn: category
+
+		annotation SummarizationSetBy = Automatic
+
+	column metric_name
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 12345678-9abc-def0-1234-56789abcdef0
+		sourceLineageTag: metric_name
+		summarizeBy: none
+		sourceColumn: metric_name
+
+		annotation SummarizationSetBy = Automatic
+
+	column metric_value
+		dataType: double
+		sourceProviderType: float
+		lineageTag: 23456789-abcd-ef01-2345-6789abcdef01
+		sourceLineageTag: metric_value
+		summarizeBy: sum
+		sourceColumn: metric_value
+
+		annotation SummarizationSetBy = Automatic
+
+	column description
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 34567890-bcde-f012-3456-789abcdef012
+		sourceLineageTag: description
+		summarizeBy: none
+		sourceColumn: description
+
+		annotation SummarizationSetBy = Automatic
+
+	column metric_date
+		dataType: dateTime
+		formatString: General Date
+		sourceProviderType: timestamp
+		lineageTag: 45678901-cdef-0123-4567-89abcdef0123
+		sourceLineageTag: metric_date
+		summarizeBy: none
+		sourceColumn: metric_date
+
+		annotation SummarizationSetBy = Automatic
+
+	partition gold_data_quality_dashboard = entity
+		mode: directLake
+		source
+			entityName: gold_data_quality_dashboard
+			schemaName: dbo
+			expressionSource: DatabaseQuery
+
+	annotation PBI_ResultType = Table
+

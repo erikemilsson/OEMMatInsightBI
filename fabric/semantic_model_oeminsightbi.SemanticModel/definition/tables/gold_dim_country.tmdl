@@ -57,6 +57,16 @@ table gold_dim_country
 
 		annotation SummarizationSetBy = Automatic
 
+	column region
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: c8d9e0f1-a2b3-4c5d-6e7f-8a9b0c1d2e3f
+		sourceLineageTag: region
+		summarizeBy: none
+		sourceColumn: region
+
+		annotation SummarizationSetBy = Automatic
+
 	partition gold_dim_country = entity
 		mode: directLake
 		source

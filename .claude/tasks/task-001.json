@@ -2,11 +2,11 @@
   "id": "task-001",
   "title": "Enhance Data Quality & Matching Visibility",
   "description": "Create centralized data quality dashboard to view unmapped values, assess match confidence, and understand impact of mapping decisions on final results.",
-  "status": "Pending",
+  "status": "In Progress",
   "priority": "P1",
   "difficulty": 6,
   "estimatedEffort": "2-3 days",
-  "owner": "TBD",
+  "owner": "Claude Code",
   "acceptanceCriteria": [
     "Data Quality Notebook created (/fabric/notebooks/data_quality_report.Notebook)",
     "Quality summary statistics calculated (match rates by source system)",
@@ -33,6 +33,43 @@
     "Focus on clarity and portfolio value - this will be a showcase feature",
     "Consider using Fabric's built-in data profiling features if available"
   ],
-  "subtasks": [],
-  "progress": "Not started"
+  "subtasks": [
+    {
+      "id": "task-001-1",
+      "title": "Add DQ dashboard table creation to silver-to-gold2.Notebook",
+      "status": "Finished",
+      "completionDate": "2026-01-15"
+    },
+    {
+      "id": "task-001-2",
+      "title": "Create gold_data_quality_dashboard.tmdl in semantic model",
+      "status": "Finished",
+      "completionDate": "2026-01-15"
+    },
+    {
+      "id": "task-001-3",
+      "title": "Add 5 DQ measures to _Measures.tmdl",
+      "status": "Finished",
+      "completionDate": "2026-01-15"
+    },
+    {
+      "id": "task-001-4",
+      "title": "Create DQ_PAGE_GUIDE.md with step-by-step instructions",
+      "status": "Finished",
+      "completionDate": "2026-01-15"
+    },
+    {
+      "id": "task-001-5",
+      "title": "Erik: Run pipeline and sync semantic model",
+      "status": "Pending",
+      "owner": "Erik"
+    },
+    {
+      "id": "task-001-6",
+      "title": "Erik: Build DQ page following DQ_PAGE_GUIDE.md",
+      "status": "Pending",
+      "owner": "Erik"
+    }
+  ],
+  "progress": "Claude work complete (4/6 subtasks). Waiting for Erik to run pipeline and build DQ page."
 }

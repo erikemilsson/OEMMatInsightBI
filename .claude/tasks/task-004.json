@@ -2,13 +2,13 @@
   "id": "task-004",
   "title": "Design & Implement Row-Level Security (RLS)",
   "description": "Implement Row-Level Security with 6 realistic roles demonstrating enterprise security patterns. Design phase complete with comprehensive security strategy.",
-  "status": "Pending",
+  "status": "In Progress",
   "priority": "P1",
   "difficulty": 6,
   "estimatedEffort": "4 days total",
   "owner": "Claude Code",
   "completionDate": "2025-11-03 (Design Phase)",
-  "actualEffort": "3 hours (design phase)",
+  "actualEffort": "3 hours (design phase) + 0.5 hours (implementation)",
   "acceptanceCriteria": [
     "6 security roles defined and implemented",
     "DAX security filters working correctly for regional and category access",
@@ -29,10 +29,11 @@
     "/project_definition.md (lines 1242-1245)"
   ],
   "notes": [
-    "Design phase ✅ COMPLETE - 6 roles, DAX filters, dynamic security patterns documented",
-    "Implementation deferred until Fabric workspace access is available",
-    "Primarily for portfolio showcase - demonstrates understanding of RLS patterns",
-    "Consider creating a video demo showing role switching"
+    "Design phase COMPLETE - 6 roles, DAX filters, dynamic security patterns documented",
+    "Implementation COMPLETE - roles.tmdl created with 6 roles",
+    "Region column added to gold_dim_country via PySpark notebook",
+    "Waiting for Erik to run pipeline (to populate region column) and test RLS",
+    "Primarily for portfolio showcase - demonstrates understanding of RLS patterns"
   ],
   "roles": [
     {
@@ -49,7 +50,7 @@
     },
     {
       "name": "Regional Manager - Asia-Pacific",
-      "filter": "gold_dim_country[region] IN {\"Asia\", \"Asia-Pacific\", \"Oceania\"}"
+      "filter": "gold_dim_country[region] = \"Asia-Pacific\""
     },
     {
       "name": "Category Manager - Battery Metals",
@@ -60,6 +61,37 @@
       "filter": "gold_dim_material[commodity_group] = \"Base metals\""
     }
   ],
-  "subtasks": [],
-  "progress": "Design complete, implementation pending"
+  "subtasks": [
+    {
+      "id": "task-004-1",
+      "title": "Add region mapping to silver-to-gold2.Notebook",
+      "status": "Finished",
+      "completionDate": "2026-01-15"
+    },
+    {
+      "id": "task-004-2",
+      "title": "Update gold_dim_country.tmdl with region column",
+      "status": "Finished",
+      "completionDate": "2026-01-15"
+    },
+    {
+      "id": "task-004-3",
+      "title": "Create roles.tmdl with 6 RLS roles",
+      "status": "Finished",
+      "completionDate": "2026-01-15"
+    },
+    {
+      "id": "task-004-4",
+      "title": "Erik: Run pipeline to populate region column",
+      "status": "Pending",
+      "owner": "Erik"
+    },
+    {
+      "id": "task-004-5",
+      "title": "Erik: Sync semantic model and test RLS with 'View as Role'",
+      "status": "Pending",
+      "owner": "Erik"
+    }
+  ],
+  "progress": "Implementation Complete (3/5 subtasks). Waiting for Erik to run pipeline and test RLS."
 }

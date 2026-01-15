@@ -250,11 +250,171 @@ unknown_countries = spark.createDataFrame([
     ("Unknown - Global", "UNK_GLOB", None, None, None),
 ], unknown_countries_schema)
 
-# 4. UNION ALL COUNTRIES WITH CONSISTENT KEY GENERATION
+# 4. REGION MAPPING FOR RLS (Row-Level Security)
+# Maps ISO3 codes to geographic regions for regional manager filtering
+region_mapping = F.create_map(
+    # Americas
+    F.lit("USA"), F.lit("Americas"),
+    F.lit("CAN"), F.lit("Americas"),
+    F.lit("MEX"), F.lit("Americas"),
+    F.lit("BRA"), F.lit("Americas"),
+    F.lit("ARG"), F.lit("Americas"),
+    F.lit("CHL"), F.lit("Americas"),
+    F.lit("COL"), F.lit("Americas"),
+    F.lit("PER"), F.lit("Americas"),
+    F.lit("VEN"), F.lit("Americas"),
+    F.lit("ECU"), F.lit("Americas"),
+    F.lit("BOL"), F.lit("Americas"),
+    F.lit("URY"), F.lit("Americas"),
+    F.lit("PRY"), F.lit("Americas"),
+    F.lit("GUY"), F.lit("Americas"),
+    F.lit("SUR"), F.lit("Americas"),
+    F.lit("PAN"), F.lit("Americas"),
+    F.lit("CRI"), F.lit("Americas"),
+    F.lit("GTM"), F.lit("Americas"),
+    F.lit("HND"), F.lit("Americas"),
+    F.lit("NIC"), F.lit("Americas"),
+    F.lit("SLV"), F.lit("Americas"),
+    F.lit("CUB"), F.lit("Americas"),
+    F.lit("DOM"), F.lit("Americas"),
+    F.lit("HTI"), F.lit("Americas"),
+    F.lit("JAM"), F.lit("Americas"),
+    F.lit("TTO"), F.lit("Americas"),
+    # Europe
+    F.lit("DEU"), F.lit("Europe"),
+    F.lit("FRA"), F.lit("Europe"),
+    F.lit("GBR"), F.lit("Europe"),
+    F.lit("ITA"), F.lit("Europe"),
+    F.lit("ESP"), F.lit("Europe"),
+    F.lit("NLD"), F.lit("Europe"),
+    F.lit("BEL"), F.lit("Europe"),
+    F.lit("CHE"), F.lit("Europe"),
+    F.lit("AUT"), F.lit("Europe"),
+    F.lit("POL"), F.lit("Europe"),
+    F.lit("SWE"), F.lit("Europe"),
+    F.lit("NOR"), F.lit("Europe"),
+    F.lit("FIN"), F.lit("Europe"),
+    F.lit("DNK"), F.lit("Europe"),
+    F.lit("IRL"), F.lit("Europe"),
+    F.lit("PRT"), F.lit("Europe"),
+    F.lit("GRC"), F.lit("Europe"),
+    F.lit("CZE"), F.lit("Europe"),
+    F.lit("ROU"), F.lit("Europe"),
+    F.lit("HUN"), F.lit("Europe"),
+    F.lit("UKR"), F.lit("Europe"),
+    F.lit("SVK"), F.lit("Europe"),
+    F.lit("BGR"), F.lit("Europe"),
+    F.lit("HRV"), F.lit("Europe"),
+    F.lit("SVN"), F.lit("Europe"),
+    F.lit("LTU"), F.lit("Europe"),
+    F.lit("LVA"), F.lit("Europe"),
+    F.lit("EST"), F.lit("Europe"),
+    F.lit("LUX"), F.lit("Europe"),
+    F.lit("SRB"), F.lit("Europe"),
+    F.lit("BIH"), F.lit("Europe"),
+    F.lit("ALB"), F.lit("Europe"),
+    F.lit("MKD"), F.lit("Europe"),
+    F.lit("MNE"), F.lit("Europe"),
+    F.lit("ISL"), F.lit("Europe"),
+    F.lit("MLT"), F.lit("Europe"),
+    F.lit("CYP"), F.lit("Europe"),
+    F.lit("RUS"), F.lit("Europe"),
+    F.lit("BLR"), F.lit("Europe"),
+    F.lit("MDA"), F.lit("Europe"),
+    # Asia-Pacific
+    F.lit("CHN"), F.lit("Asia-Pacific"),
+    F.lit("JPN"), F.lit("Asia-Pacific"),
+    F.lit("KOR"), F.lit("Asia-Pacific"),
+    F.lit("AUS"), F.lit("Asia-Pacific"),
+    F.lit("IND"), F.lit("Asia-Pacific"),
+    F.lit("IDN"), F.lit("Asia-Pacific"),
+    F.lit("THA"), F.lit("Asia-Pacific"),
+    F.lit("VNM"), F.lit("Asia-Pacific"),
+    F.lit("MYS"), F.lit("Asia-Pacific"),
+    F.lit("SGP"), F.lit("Asia-Pacific"),
+    F.lit("PHL"), F.lit("Asia-Pacific"),
+    F.lit("NZL"), F.lit("Asia-Pacific"),
+    F.lit("PAK"), F.lit("Asia-Pacific"),
+    F.lit("BGD"), F.lit("Asia-Pacific"),
+    F.lit("MMR"), F.lit("Asia-Pacific"),
+    F.lit("KHM"), F.lit("Asia-Pacific"),
+    F.lit("LAO"), F.lit("Asia-Pacific"),
+    F.lit("LKA"), F.lit("Asia-Pacific"),
+    F.lit("NPL"), F.lit("Asia-Pacific"),
+    F.lit("MNG"), F.lit("Asia-Pacific"),
+    F.lit("PRK"), F.lit("Asia-Pacific"),
+    F.lit("TWN"), F.lit("Asia-Pacific"),
+    F.lit("HKG"), F.lit("Asia-Pacific"),
+    F.lit("MAC"), F.lit("Asia-Pacific"),
+    F.lit("BRN"), F.lit("Asia-Pacific"),
+    F.lit("TLS"), F.lit("Asia-Pacific"),
+    F.lit("PNG"), F.lit("Asia-Pacific"),
+    F.lit("FJI"), F.lit("Asia-Pacific"),
+    # Africa
+    F.lit("ZAF"), F.lit("Africa"),
+    F.lit("EGY"), F.lit("Africa"),
+    F.lit("NGA"), F.lit("Africa"),
+    F.lit("MAR"), F.lit("Africa"),
+    F.lit("KEN"), F.lit("Africa"),
+    F.lit("GHA"), F.lit("Africa"),
+    F.lit("COD"), F.lit("Africa"),
+    F.lit("ZMB"), F.lit("Africa"),
+    F.lit("TZA"), F.lit("Africa"),
+    F.lit("ETH"), F.lit("Africa"),
+    F.lit("UGA"), F.lit("Africa"),
+    F.lit("DZA"), F.lit("Africa"),
+    F.lit("TUN"), F.lit("Africa"),
+    F.lit("LBY"), F.lit("Africa"),
+    F.lit("SDN"), F.lit("Africa"),
+    F.lit("AGO"), F.lit("Africa"),
+    F.lit("MOZ"), F.lit("Africa"),
+    F.lit("ZWE"), F.lit("Africa"),
+    F.lit("BWA"), F.lit("Africa"),
+    F.lit("NAM"), F.lit("Africa"),
+    F.lit("SEN"), F.lit("Africa"),
+    F.lit("CIV"), F.lit("Africa"),
+    F.lit("CMR"), F.lit("Africa"),
+    F.lit("MLI"), F.lit("Africa"),
+    F.lit("BFA"), F.lit("Africa"),
+    F.lit("NER"), F.lit("Africa"),
+    F.lit("TCD"), F.lit("Africa"),
+    F.lit("COG"), F.lit("Africa"),
+    F.lit("GAB"), F.lit("Africa"),
+    F.lit("GNQ"), F.lit("Africa"),
+    F.lit("RWA"), F.lit("Africa"),
+    F.lit("BDI"), F.lit("Africa"),
+    F.lit("MWI"), F.lit("Africa"),
+    F.lit("MDG"), F.lit("Africa"),
+    F.lit("MUS"), F.lit("Africa"),
+    # Middle East
+    F.lit("SAU"), F.lit("Middle East"),
+    F.lit("ARE"), F.lit("Middle East"),
+    F.lit("ISR"), F.lit("Middle East"),
+    F.lit("TUR"), F.lit("Middle East"),
+    F.lit("IRN"), F.lit("Middle East"),
+    F.lit("QAT"), F.lit("Middle East"),
+    F.lit("KWT"), F.lit("Middle East"),
+    F.lit("BHR"), F.lit("Middle East"),
+    F.lit("OMN"), F.lit("Middle East"),
+    F.lit("JOR"), F.lit("Middle East"),
+    F.lit("LBN"), F.lit("Middle East"),
+    F.lit("SYR"), F.lit("Middle East"),
+    F.lit("IRQ"), F.lit("Middle East"),
+    F.lit("YEM"), F.lit("Middle East"),
+    F.lit("AFG"), F.lit("Middle East"),
+    F.lit("KAZ"), F.lit("Middle East"),
+    F.lit("UZB"), F.lit("Middle East"),
+    F.lit("TKM"), F.lit("Middle East"),
+    F.lit("AZE"), F.lit("Middle East"),
+    F.lit("GEO"), F.lit("Middle East"),
+    F.lit("ARM"), F.lit("Middle East"),
+)
+
+# 5. UNION ALL COUNTRIES WITH CONSISTENT KEY GENERATION AND REGION ASSIGNMENT
 all_countries = (
     dim_country_base
-    .withColumn("region", F.lit(None).cast(StringType()))  # Add region column for compatibility
-    .unionByName(missing_countries.withColumn("region", F.lit(None).cast(StringType())), allowMissingColumns=True)
+    .withColumn("region", F.coalesce(region_mapping[F.col("iso3")], F.lit("Other")))
+    .unionByName(missing_countries.withColumn("region", F.coalesce(region_mapping[F.col("iso3")], F.lit("Other"))), allowMissingColumns=True)
     .unionByName(unknown_countries, allowMissingColumns=True)
 )
 
@@ -1357,6 +1517,139 @@ print("\nVisualization guidance:")
 print("  - Use quality_category field to show confidence in charts")
 print("  - Filter on is_placeholder=False to exclude unknowns")
 print("  - Include data_quality_score as tooltip for transparency")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# # Comprehensive Data Quality Dashboard Table (Task 001)
+
+# CELL ********************
+
+def create_dq_dashboard():
+    """
+    Create a comprehensive data quality dashboard table optimized for Power BI.
+    This table provides all key metrics needed for a Data Quality page in the report.
+    """
+
+    # Get procurement metrics
+    proc_metrics = spark.sql(f"""
+        SELECT
+            COUNT(*) as total_records,
+            AVG(data_quality_score) as avg_quality_score,
+            SUM(CASE WHEN quality_category = 'High' THEN 1 ELSE 0 END) as high_count,
+            SUM(CASE WHEN quality_category = 'Medium' THEN 1 ELSE 0 END) as medium_count,
+            SUM(CASE WHEN quality_category = 'Low' THEN 1 ELSE 0 END) as low_count,
+            SUM(CASE WHEN quality_category = 'Unmapped' THEN 1 ELSE 0 END) as unmapped_count,
+            SUM(spend_eur) as total_spend
+        FROM {DB}.fact_procurement
+    """).first()
+
+    # Get supply share metrics
+    supply_metrics = spark.sql(f"""
+        SELECT
+            COUNT(*) as total_records,
+            AVG(data_quality_score) as avg_quality_score,
+            SUM(CASE WHEN quality_category = 'High' THEN 1 ELSE 0 END) as high_count,
+            SUM(CASE WHEN quality_category = 'Medium' THEN 1 ELSE 0 END) as medium_count,
+            SUM(CASE WHEN quality_category = 'Low' THEN 1 ELSE 0 END) as low_count,
+            SUM(CASE WHEN quality_category = 'Unmapped' THEN 1 ELSE 0 END) as unmapped_count
+        FROM {DB}.fact_supply_share
+    """).first()
+
+    # Get unmapped audit counts
+    unmapped_proc_count = spark.table(f"{DB}.gold_unmapped_procurement_audit").count()
+    unmapped_supply_count = spark.table(f"{DB}.gold_unmapped_supply_audit").count()
+
+    # Get top unmapped values
+    top_unmapped_materials = spark.sql(f"""
+        SELECT original_material, COUNT(*) as count
+        FROM {DB}.gold_unmapped_procurement_audit
+        WHERE original_material IS NOT NULL
+        GROUP BY original_material
+        ORDER BY count DESC
+        LIMIT 10
+    """).collect()
+
+    top_unmapped_countries = spark.sql(f"""
+        SELECT original_hq_country, COUNT(*) as count
+        FROM {DB}.gold_unmapped_procurement_audit
+        WHERE original_hq_country IS NOT NULL
+        GROUP BY original_hq_country
+        ORDER BY count DESC
+        LIMIT 10
+    """).collect()
+
+    # Build dashboard table with all metrics in long format (category, metric_name, metric_value)
+    dashboard_rows = [
+        # Overall Metrics
+        ("Overall", "Match Rate", proc_metrics.avg_quality_score * 100 if proc_metrics.avg_quality_score else 0, "Percentage of records with high-confidence matches", datetime.now()),
+        ("Overall", "Total Records", proc_metrics.total_records + supply_metrics.total_records, "Combined procurement and supply share records", datetime.now()),
+        ("Overall", "High Confidence %", (proc_metrics.high_count / proc_metrics.total_records * 100) if proc_metrics.total_records else 0, "Records with quality score >= 0.9", datetime.now()),
+        ("Overall", "Unmapped Records", unmapped_proc_count + unmapped_supply_count, "Total records with unmapped dimensions", datetime.now()),
+
+        # Procurement Metrics
+        ("Procurement", "Total Records", proc_metrics.total_records, "Number of procurement transactions", datetime.now()),
+        ("Procurement", "Match Rate", proc_metrics.avg_quality_score * 100 if proc_metrics.avg_quality_score else 0, "Average quality score for procurement", datetime.now()),
+        ("Procurement", "High Confidence Count", proc_metrics.high_count, "Records with High quality category", datetime.now()),
+        ("Procurement", "Medium Confidence Count", proc_metrics.medium_count, "Records with Medium quality category", datetime.now()),
+        ("Procurement", "Low Confidence Count", proc_metrics.low_count, "Records with Low quality category", datetime.now()),
+        ("Procurement", "Unmapped Count", proc_metrics.unmapped_count, "Records with Unmapped quality category", datetime.now()),
+        ("Procurement", "Total Spend EUR", proc_metrics.total_spend if proc_metrics.total_spend else 0, "Total procurement spend in EUR", datetime.now()),
+
+        # Supply Share Metrics
+        ("Supply", "Total Records", supply_metrics.total_records, "Number of supply share records", datetime.now()),
+        ("Supply", "Match Rate", supply_metrics.avg_quality_score * 100 if supply_metrics.avg_quality_score else 0, "Average quality score for supply shares", datetime.now()),
+        ("Supply", "High Confidence Count", supply_metrics.high_count, "Records with High quality category", datetime.now()),
+        ("Supply", "Medium Confidence Count", supply_metrics.medium_count, "Records with Medium quality category", datetime.now()),
+        ("Supply", "Low Confidence Count", supply_metrics.low_count, "Records with Low quality category", datetime.now()),
+        ("Supply", "Unmapped Count", supply_metrics.unmapped_count, "Records with Unmapped quality category", datetime.now()),
+    ]
+
+    # Add top unmapped materials
+    for i, row in enumerate(top_unmapped_materials):
+        dashboard_rows.append((
+            "Unmapped Materials",
+            f"#{i+1}: {row.original_material}",
+            row.count,
+            f"Unmapped material name appearing {row.count} times",
+            datetime.now()
+        ))
+
+    # Add top unmapped countries
+    for i, row in enumerate(top_unmapped_countries):
+        dashboard_rows.append((
+            "Unmapped Countries",
+            f"#{i+1}: {row.original_hq_country}",
+            row.count,
+            f"Unmapped country name appearing {row.count} times",
+            datetime.now()
+        ))
+
+    # Create DataFrame
+    dq_dashboard = spark.createDataFrame(
+        dashboard_rows,
+        ["category", "metric_name", "metric_value", "description", "metric_date"]
+    )
+
+    write_tbl(dq_dashboard, "gold_data_quality_dashboard")
+    return dq_dashboard
+
+# Execute dashboard creation
+dq_dashboard = create_dq_dashboard()
+
+print("\n" + "="*70)
+print("DATA QUALITY DASHBOARD TABLE CREATED")
+print("="*70)
+print(f"\nTable: {DB}.gold_data_quality_dashboard")
+print(f"Records: {dq_dashboard.count()}")
+print("\nMetric Categories:")
+dq_dashboard.groupBy("category").count().orderBy("category").show()
 
 # METADATA ********************
 

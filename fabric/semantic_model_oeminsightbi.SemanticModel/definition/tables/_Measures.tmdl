@@ -176,6 +176,18 @@ table _Measures
 		formatString: #,##0
 		displayFolder: Procurement
 
+	measure 'Avg Unit Price EUR' =
+		VAR TotalSpend = [Total Spend EUR]
+		VAR TotalQty = [Total Quantity]
+		RETURN
+		    DIVIDE(TotalSpend, TotalQty, 0)
+		formatString: #,##0.00
+		displayFolder: Procurement
+
+	measure 'Active Procurement Days' = DISTINCTCOUNT(fact_procurement[date_key])
+		formatString: #,##0
+		displayFolder: Procurement
+
 	/// Time Intelligence Measures
 	measure 'Latest EPI Score' =
 		VAR LatestYear = MAXX(fact_epi_score, fact_epi_score[year])
@@ -187,6 +199,249 @@ table _Measures
 		    )
 		formatString: 0.0
 		displayFolder: Sustainability
+
+	measure 'Total Spend LY' =
+		CALCULATE(
+		    [Total Spend EUR],
+		    SAMEPERIODLASTYEAR(gold_dim_date[date])
+		)
+		formatString: #,##0
+		displayFolder: Time Intelligence
+
+	measure 'Total Spend MTD' =
+		CALCULATE(
+		    [Total Spend EUR],
+		    DATESMTD(gold_dim_date[date])
+		)
+		formatString: #,##0
+		displayFolder: Time Intelligence
+
+	measure 'Total Spend YTD' =
+		CALCULATE(
+		    [Total Spend EUR],
+		    DATESYTD(gold_dim_date[date])
+		)
+		formatString: #,##0
+		displayFolder: Time Intelligence
+
+	measure 'Total Spend LYTD' =
+		CALCULATE(
+		    [Total Spend YTD],
+		    SAMEPERIODLASTYEAR(gold_dim_date[date])
+		)
+		formatString: #,##0
+		displayFolder: Time Intelligence
+
+	measure 'YoY Spend Growth EUR' =
+		VAR CurrentPeriod = [Total Spend EUR]
+		VAR PriorPeriod = [Total Spend LY]
+		RETURN
+		    CurrentPeriod - PriorPeriod
+		formatString: #,##0
+		displayFolder: Time Intelligence
+
+	measure 'MoM Spend Growth %' =
+		VAR CurrentMonth = [Total Spend EUR]
+		VAR PriorMonth = CALCULATE([Total Spend EUR], DATEADD(gold_dim_date[date], -1, MONTH))
+		RETURN
+		    DIVIDE(CurrentMonth - PriorMonth, PriorMonth, 0)
+		formatString: 0.0%;-0.0%;0.0%
+		displayFolder: Time Intelligence
+
+	measure '3M Moving Avg Spend' =
+		VAR Last3Months =
+		    DATESINPERIOD(
+		        gold_dim_date[date],
+		        MAX(gold_dim_date[date]),
+		        -3,
+		        MONTH
+		    )
+		RETURN
+		    CALCULATE(
+		        DIVIDE([Total Spend EUR], 3, 0),
+		        Last3Months
+		    )
+		formatString: #,##0
+		displayFolder: Time Intelligence
+
+	/// Additional Sustainability Measures
+	measure 'Weighted EPI Score' =
+		VAR WeightedScores =
+		    SUMX(
+		        fact_epi_score,
+		        fact_epi_score[score] * RELATED(gold_dim_indicator[weight])
+		    )
+		VAR TotalWeights =
+		    CALCULATE(
+		        SUM(gold_dim_indicator[weight]),
+		        gold_dim_indicator[source_system] = "EPI"
+		    )
+		RETURN
+		    DIVIDE(WeightedScores, TotalWeights, 0)
+		formatString: 0.0
+		displayFolder: Sustainability
+
+	measure '% Spend - Medium EPI (40-60)' =
+		VAR MediumEPISpend =
+		    CALCULATE(
+		        [Total Spend EUR],
+		        FILTER(
+		            fact_epi_score,
+		            fact_epi_score[score] >= 40 &&
+		            fact_epi_score[score] < 60 &&
+		            RELATED(gold_dim_indicator[source_system]) = "EPI"
+		        )
+		    )
+		RETURN
+		    DIVIDE(MediumEPISpend, [Total Spend EUR], 0)
+		formatString: 0.0%;-0.0%;0.0%
+		displayFolder: Sustainability
+
+	measure '% Spend - Low EPI (<40)' =
+		VAR LowEPISpend =
+		    CALCULATE(
+		        [Total Spend EUR],
+		        FILTER(
+		            fact_epi_score,
+		            fact_epi_score[score] < 40 &&
+		            RELATED(gold_dim_indicator[source_system]) = "EPI"
+		        )
+		    )
+		RETURN
+		    DIVIDE(LowEPISpend, [Total Spend EUR], 0)
+		formatString: 0.0%;-0.0%;0.0%
+		displayFolder: Sustainability
+
+	measure 'Avg WGI Score' =
+		CALCULATE(
+		    AVERAGE(fact_epi_score[score]),
+		    gold_dim_indicator[source_system] = "WB"
+		)
+		formatString: 0.00
+		displayFolder: Sustainability
+
+	/// Additional Risk Measures
+	measure 'HHI Category' =
+		VAR HHI = [HHI Index]
+		RETURN
+		    SWITCH(
+		        TRUE(),
+		        HHI < 0.15, "Low",
+		        HHI < 0.25, "Moderate",
+		        "High"
+		    )
+		displayFolder: Risk
+
+	measure 'Composite Risk Score' =
+		VAR ConcentrationRisk = [HHI Index]
+		VAR SustainabilityRisk = 1 - DIVIDE([Spend-Weighted EPI Score], 100, 0)
+		RETURN
+		    (ConcentrationRisk * 0.5) + (SustainabilityRisk * 0.5)
+		formatString: 0.000
+		displayFolder: Risk
+
+	/// Advanced Measures
+	measure 'Material Rank by Spend' =
+		RANKX(
+		    ALL(gold_dim_material[material_name_std]),
+		    [Total Spend EUR],
+		    ,
+		    DESC,
+		    DENSE
+		)
+		formatString: #,##0
+		displayFolder: Advanced
+
+	measure 'Top 10 Material Spend %' =
+		VAR Top10Spend =
+		    CALCULATE(
+		        [Total Spend EUR],
+		        TOPN(10, ALL(gold_dim_material[material_name_std]), [Total Spend EUR], DESC)
+		    )
+		RETURN
+		    DIVIDE(Top10Spend, CALCULATE([Total Spend EUR], ALL(gold_dim_material)), 0)
+		formatString: 0.0%;-0.0%;0.0%
+		displayFolder: Advanced
+
+	measure 'Unit Price Volatility' =
+		STDEV.P(fact_procurement[unitprice_eur])
+		formatString: 0.00
+		displayFolder: Advanced
+
+	measure 'CV - Unit Price' =
+		VAR StdDev = [Unit Price Volatility]
+		VAR Mean = [Avg Unit Price EUR]
+		RETURN
+		    DIVIDE(StdDev, Mean, 0)
+		formatString: 0.00
+		displayFolder: Advanced
+
+	measure 'Cumulative Spend %' =
+		VAR CurrentMaterialSpend = [Total Spend EUR]
+		VAR MaterialsUpToCurrent =
+		    FILTER(
+		        ALL(gold_dim_material[material_name_std]),
+		        [Total Spend EUR] >= CurrentMaterialSpend
+		    )
+		VAR CumulativeSpend =
+		    CALCULATE(
+		        [Total Spend EUR],
+		        MaterialsUpToCurrent
+		    )
+		RETURN
+		    DIVIDE(CumulativeSpend, CALCULATE([Total Spend EUR], ALL(gold_dim_material)), 0)
+		formatString: 0.0%;-0.0%;0.0%
+		displayFolder: Advanced
+
+	measure 'Is Top 80% Spend' =
+		IF([Cumulative Spend %] <= 0.8, "Top 80%", "Remaining 20%")
+		displayFolder: Advanced
+
+	/// Data Quality Measures
+	measure 'Overall Match Rate %' =
+		CALCULATE(
+		    AVERAGE(gold_data_quality_dashboard[metric_value]),
+		    gold_data_quality_dashboard[category] = "Overall",
+		    gold_data_quality_dashboard[metric_name] = "Match Rate"
+		)
+		formatString: 0.0%
+		displayFolder: Data Quality
+
+	measure 'Unmapped Records Count' =
+		CALCULATE(
+		    SUM(gold_data_quality_dashboard[metric_value]),
+		    gold_data_quality_dashboard[category] = "Overall",
+		    gold_data_quality_dashboard[metric_name] = "Unmapped Records"
+		)
+		formatString: #,##0
+		displayFolder: Data Quality
+
+	measure 'High Confidence Records %' =
+		CALCULATE(
+		    AVERAGE(gold_data_quality_dashboard[metric_value]),
+		    gold_data_quality_dashboard[category] = "Overall",
+		    gold_data_quality_dashboard[metric_name] = "High Confidence %"
+		)
+		formatString: 0.0%
+		displayFolder: Data Quality
+
+	measure 'Procurement Match Rate %' =
+		CALCULATE(
+		    AVERAGE(gold_data_quality_dashboard[metric_value]),
+		    gold_data_quality_dashboard[category] = "Procurement",
+		    gold_data_quality_dashboard[metric_name] = "Match Rate"
+		)
+		formatString: 0.0%
+		displayFolder: Data Quality
+
+	measure 'Supply Match Rate %' =
+		CALCULATE(
+		    AVERAGE(gold_data_quality_dashboard[metric_value]),
+		    gold_data_quality_dashboard[category] = "Supply",
+		    gold_data_quality_dashboard[metric_name] = "Match Rate"
+		)
+		formatString: 0.0%
+		displayFolder: Data Quality
 
 	partition _Measures = calculated
 		mode: import
