@@ -1,0 +1,123 @@
+{
+  "id": "task-016",
+  "title": "Guided Power BI Dashboard Building (User-Claude Collaboration)",
+  "description": "Build portfolio-quality Power BI dashboard pages through step-by-step collaboration. Claude provides instructions, user executes in Power BI, then Claude reviews screenshots and provides feedback. This interactive approach ensures quality visuals while overcoming browser automation limitations.",
+  "status": "Ready",
+  "startDate": null,
+  "completionDate": null,
+  "priority": "P1",
+  "difficulty": 3,
+  "estimatedEffort": "1-2 hours (collaborative session)",
+  "owner": "Erik Emilsson (executor) + Claude (guide)",
+  "dependencies": ["task-015"],
+  "acceptanceCriteria": [
+    "Page 1 (Executive Dashboard) has 4 KPI cards + at least 2 charts",
+    "Page 2 (Risk & Sustainability) has 3 KPI cards + at least 2 charts",
+    "All visuals display data correctly (no errors)",
+    "Professional layout with proper spacing and alignment",
+    "Report saved successfully",
+    "Screenshots exported for portfolio (1920x1080 PNG)"
+  ],
+  "relatedFiles": [
+    "/MEASURE_GUIDE.md",
+    "/.claude/context/dax_measure_library.md",
+    "/fabric/report.Report/"
+  ],
+  "notes": [
+    "WORKFLOW: This task uses an interactive collaboration pattern:",
+    "1. Claude provides specific step-by-step instructions",
+    "2. User executes the steps in Power BI (browser or Desktop)",
+    "3. User tells Claude when done (or pastes screenshot path)",
+    "4. Claude takes screenshot using Playwright",
+    "5. Claude reviews screenshot and provides feedback/next steps",
+    "6. Repeat until page is complete",
+    "",
+    "CURRENT STATE (as of session end):",
+    "- Page 1 has 4 KPI cards: Total Spend EUR (3M), Supplier Countries Count (10), Materials Count (11), Transaction Count (144)",
+    "- Report is saved",
+    "- Need to add charts once Task 015 (relationships) is complete"
+  ],
+  "deliverables": [
+    "Completed Executive Dashboard page (Page 1)",
+    "Completed Risk & Sustainability page (Page 2)",
+    "High-resolution screenshots for portfolio",
+    "Saved Power BI report"
+  ],
+  "collaborativeWorkflow": {
+    "description": "Step-by-step interactive workflow between Claude and User",
+    "steps": [
+      {
+        "step": 1,
+        "actor": "Claude",
+        "action": "Provide specific instructions for creating a visual",
+        "example": "Click on empty canvas area, then click 'Clustered column chart' icon in Visualizations pane"
+      },
+      {
+        "step": 2,
+        "actor": "User",
+        "action": "Execute the instructions in Power BI",
+        "example": "User performs the clicks in the browser"
+      },
+      {
+        "step": 3,
+        "actor": "User",
+        "action": "Return to Claude and say 'Done' or describe any issues",
+        "example": "User types: 'Done, chart is created but empty'"
+      },
+      {
+        "step": 4,
+        "actor": "Claude",
+        "action": "Take screenshot using Playwright browser_take_screenshot tool",
+        "example": "Claude captures current page state"
+      },
+      {
+        "step": 5,
+        "actor": "Claude",
+        "action": "Review screenshot and provide feedback + next instructions",
+        "example": "Claude says: 'Good, now drag Total Spend EUR to Y-axis well'"
+      },
+      {
+        "step": 6,
+        "actor": "Both",
+        "action": "Repeat steps 1-5 until visual is complete, then move to next visual",
+        "example": "Continue until all visuals on page are done"
+      }
+    ]
+  },
+  "visualsToCreate": {
+    "page1_executive_dashboard": [
+      {
+        "type": "KPI Cards (4)",
+        "status": "DONE",
+        "measures": ["Total Spend EUR", "Supplier Countries Count", "Materials Count", "Transaction Count"]
+      },
+      {
+        "type": "Clustered Column Chart",
+        "status": "TODO",
+        "config": "Total Spend EUR by material_name_std (requires Task 015)"
+      },
+      {
+        "type": "Donut Chart",
+        "status": "TODO",
+        "config": "Total Spend EUR by commodity_group (requires Task 015)"
+      }
+    ],
+    "page2_risk_sustainability": [
+      {
+        "type": "KPI Cards (3)",
+        "status": "TODO",
+        "measures": ["Latest EPI Score", "Spend-Weighted EPI Score", "% Spend - High EPI (>60)"]
+      },
+      {
+        "type": "Gauge",
+        "status": "TODO",
+        "config": "Diversification Score (0-1 scale)"
+      },
+      {
+        "type": "Column Chart",
+        "status": "TODO",
+        "config": "Spend Exposure at Risk by material"
+      }
+    ]
+  }
+}

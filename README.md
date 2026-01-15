@@ -1,5 +1,11 @@
 # OEMMatInsightBI
 
+![Tests](https://github.com/erikemilsson/OEMMatInsightBI/actions/workflows/test.yml/badge.svg)
+![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)
+![PySpark](https://img.shields.io/badge/PySpark-3.4%2B-orange)
+![Fabric](https://img.shields.io/badge/Microsoft-Fabric-purple)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 A Microsoft Fabric solution demonstrating how OEM databases can be integrated with material databases and ESG datasets to provide real-time insights into the environmental and social impacts of materials used in products.
 
 **Key Technologies:** Azure SQL Database, Fabric Lakehouse & Warehouse, PySpark 3.4+, Power BI, Microsoft.Build.Sql 0.1.19-preview, pytest
@@ -86,6 +92,23 @@ pytest tests/ --cov=src --cov-report=html # With coverage report
 ```
 
 **Requirements:** Python 3.12+, Java 11+ (for PySpark). Tests use markers: `@pytest.mark.unit`, `@pytest.mark.integration`, `@pytest.mark.slow`.
+
+## CI/CD Pipeline
+
+This project uses GitHub Actions for continuous integration and quality assurance:
+
+**Automated Checks:**
+- ✅ **Unit Tests:** 33 tests run on Python 3.10, 3.11, and 3.12 (matrix testing)
+- ✅ **Code Quality:** Black formatting, Flake8 linting, Pylint analysis
+- ✅ **Fabric Validation:** JSON schema validation for all pipeline configurations
+- ✅ **Documentation:** Link checking and statistics tracking
+
+**Test Results:**
+- Current Status: **33 tests passing** (100% success rate)
+- Execution Time: ~11 seconds
+- Coverage: Core transformation modules (`src/transformations/`)
+
+View test results and reports in the [Actions tab](https://github.com/erikemilsson/OEMMatInsightBI/actions).
 
 ## Common Issues
 

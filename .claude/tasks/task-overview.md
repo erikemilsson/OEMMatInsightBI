@@ -1,7 +1,7 @@
 # Task Overview: OEMMatInsightBI Project
 
-**Last Updated:** 2025-11-17
-**Total Tasks:** 14
+**Last Updated:** 2026-01-15
+**Total Tasks:** 16
 **Status:** Active development
 
 ---
@@ -38,7 +38,9 @@ This project has 14 well-defined tasks spanning data engineering, BI development
 | 011 | Implement Error Handling & Retry Logic | P3 | 6 | Pending | Design complete (0/5 subtasks planned) |
 | 012 | Optimize Pipeline Performance | P3 | 7 | Pending | Not started (0/5 subtasks) |
 | 013 | Create Portfolio-Ready Power BI Visualizations | P1 | 5 | Finished | Completed ✅ (2025-11-16) |
-| 014 | Deploy Enhanced Semantic Model & Build Visuals | P1 | 4 | Pending | ⏸️ **PICK UP HERE** (2025-11-17) |
+| 014 | Deploy Enhanced Semantic Model & Build Visuals | P1 | 4 | In Progress | Partial: 4 KPI cards done, charts blocked |
+| 015 | Fix Semantic Model Relationships | P1 | 3 | Ready | Prerequisite for Task 016 |
+| 016 | Guided Power BI Dashboard Building | P1 | 3 | Ready | User-Claude collaboration workflow |
 
 ---
 
@@ -92,9 +94,29 @@ These tasks directly impact the quality and completeness of the portfolio demons
      2. Connect Power BI Desktop to updated model
      3. Build 2 portfolio pages (Executive Dashboard + Risk & Sustainability)
      4. Export screenshots and PDF
-   - **Status:** Pending (Ready to start)
+   - **Status:** In Progress (4 KPI cards done, charts need relationships)
    - **Effort:** 2-3 hours
    - **Owner:** Erik Emilsson
+
+7. **Task 015:** Fix Semantic Model Relationships (Difficulty: 3) 🔧 **NEW - PREREQUISITE**
+   - **NEW TASK:** Diagnose and fix relationship issues preventing cross-table visuals
+   - **Issue:** "Error fetching data" when combining measures with dimension columns
+   - **Likely Cause:** Missing relationships in relationships.tmdl
+   - **Status:** Ready (Prerequisite for Task 016)
+   - **Effort:** 30-60 minutes
+   - **Owner:** Claude + Erik
+
+8. **Task 016:** Guided Power BI Dashboard Building (Difficulty: 3) 🤝 **NEW - COLLABORATION**
+   - **NEW TASK:** Build dashboard pages through step-by-step user-Claude collaboration
+   - **Workflow:**
+     1. Claude provides specific instructions
+     2. User executes in Power BI
+     3. User returns to Claude
+     4. Claude takes screenshot and reviews
+     5. Claude provides feedback + next steps
+   - **Status:** Ready (Depends on Task 015)
+   - **Effort:** 1-2 hours (collaborative session)
+   - **Owner:** Erik (executor) + Claude (guide)
 
 ### P2 Tasks (Medium Priority - Technical Depth)
 These tasks demonstrate technical sophistication and engineering best practices:
@@ -229,12 +251,17 @@ These tasks have comprehensive design documentation and can be implemented immed
 ## Recommended Next Actions
 
 ### Immediate Priority (Today/This Week)
-1. **⏸️ Start Task 014** - Deploy semantic model and build visuals (2-3 hours)
-   - Highest ROI: Immediate portfolio deliverable
-   - No blockers, all resources ready
-   - Builds on work completed 2025-11-17
+1. **🔧 Complete Task 015** - Fix semantic model relationships (30-60 min)
+   - **PREREQUISITE** for all cross-table visuals
+   - Fixes "Error fetching data" issue in Power BI
+   - Claude can do this autonomously
 
-2. **Complete Task 008** - Mark unit testing task as finished (5 min)
+2. **🤝 Complete Task 016** - Guided dashboard building (1-2 hours collaborative)
+   - User-Claude collaboration workflow
+   - Build remaining charts and Page 2
+   - Export portfolio screenshots
+
+3. **Complete Task 008** - Mark unit testing task as finished (5 min)
    - Framework complete, optional work can be deferred
    - Easy win to increase completion rate
 
@@ -279,5 +306,30 @@ These tasks have comprehensive design documentation and can be implemented immed
 
 ---
 
-*Last Sync: 2025-11-17*
-*Next Recommended Action: Start Task 014 - Deploy Enhanced Semantic Model & Build Visuals*
+*Last Sync: 2026-01-15*
+*Next Recommended Action: Complete Task 015 (Fix Relationships) → Then Task 016 (Guided Dashboard Building)*
+
+---
+
+## Session Summary (2026-01-15)
+
+### Accomplished This Session:
+- ✅ Deployed semantic model to Fabric workspace
+- ✅ Fixed DirectLake connection issues (removed non-existent columns)
+- ✅ Created 4 KPI cards on Executive Dashboard:
+  - Total Spend EUR: 3M
+  - Supplier Countries Count: 10
+  - Materials Count: 11
+  - Transaction Count: 144
+- ✅ Report saved to Fabric workspace
+- 🔧 Discovered relationship issues blocking cross-table charts
+- 📋 Created Task 015 (Fix Relationships) and Task 016 (Guided Building)
+
+### Blocked:
+- ⚠️ Column/Donut charts fail with "Error fetching data for this visual"
+- Root cause: Missing relationships between fact and dimension tables
+- Solution: Task 015 will fix relationships.tmdl
+
+### Next Session:
+1. Run `/complete-task task-015` to fix relationships
+2. Run `/complete-task task-016` for guided dashboard building with user

@@ -1,0 +1,49 @@
+{
+  "id": "task-015",
+  "title": "Fix Semantic Model Relationships for Cross-Table Visuals",
+  "description": "Diagnose and fix relationship issues in the semantic model that prevent cross-table visuals from working. Current issue: 'Error fetching data for this visual' when combining measures with dimension table columns (e.g., Total Spend EUR by material_name_std).",
+  "status": "Ready",
+  "startDate": null,
+  "completionDate": null,
+  "priority": "P1",
+  "difficulty": 3,
+  "estimatedEffort": "30-60 minutes",
+  "owner": "Claude + Erik",
+  "dependencies": [],
+  "acceptanceCriteria": [
+    "Relationships between fact_procurement and dimension tables identified/documented",
+    "Missing relationships created in semantic model (relationships.tmdl)",
+    "Clustered column chart (Total Spend EUR by material_name_std) works without errors",
+    "Donut chart (Total Spend EUR by commodity_group) works without errors",
+    "Changes synced to Fabric workspace",
+    "Visual tests confirmed working in Power BI report"
+  ],
+  "relatedFiles": [
+    "/fabric/semantic_model_oeminsightbi.SemanticModel/definition/relationships.tmdl",
+    "/fabric/semantic_model_oeminsightbi.SemanticModel/definition/tables/fact_procurement.tmdl",
+    "/fabric/semantic_model_oeminsightbi.SemanticModel/definition/tables/gold_dim_material.tmdl",
+    "/fabric/semantic_model_oeminsightbi.SemanticModel/definition/tables/gold_dim_country.tmdl",
+    "/fabric/semantic_model_oeminsightbi.SemanticModel/definition/tables/gold_dim_date.tmdl"
+  ],
+  "notes": [
+    "ERROR ENCOUNTERED: 'Error fetching data for this visual' when adding material_name_std (from gold_dim_material) to X-axis of column chart with Total Spend EUR",
+    "ROOT CAUSE HYPOTHESIS: Missing relationship between fact_procurement.material_key and gold_dim_material.material_key",
+    "Similar issues likely exist for country dimensions and date dimension",
+    "DirectLake mode requires explicit relationships defined in TMDL files",
+    "This task must be completed BEFORE Task 016 (guided dashboard building)"
+  ],
+  "deliverables": [
+    "Updated relationships.tmdl with all required relationships",
+    "Working cross-table visuals (column chart, donut chart)",
+    "Documentation of relationship structure"
+  ],
+  "approach": [
+    "Step 1: Read current relationships.tmdl to see existing relationships",
+    "Step 2: Read fact_procurement.tmdl to identify foreign key columns",
+    "Step 3: Read dimension tables to identify primary key columns",
+    "Step 4: Create missing relationships in relationships.tmdl",
+    "Step 5: Sync changes to Fabric workspace (git push or manual)",
+    "Step 6: Refresh semantic model in Fabric portal",
+    "Step 7: Test cross-table visual in Power BI report"
+  ]
+}

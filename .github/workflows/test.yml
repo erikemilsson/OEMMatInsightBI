@@ -1,0 +1,143 @@
+name: Tests & Quality Checks
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Set up Java 11 (required for PySpark)
+      uses: actions/setup-java@v3
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements-test.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-test.txt
+
+    - name: Run tests with pytest
+      run: |
+        pytest tests/ -v --tb=short --color=yes
+
+    - name: Generate test report
+      run: |
+        pytest tests/ --junitxml=test-results.xml --html=test-report.html --self-contained-html
+      if: always()
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results-${{ matrix.python-version }}
+        path: |
+          test-results.xml
+          test-report.html
+
+    - name: Test Summary
+      uses: test-summary/action@v2
+      with:
+        paths: test-results.xml
+      if: always()
+
+  code-quality:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install linting tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install black flake8 pylint
+
+    - name: Check code formatting with black
+      run: |
+        black --check --diff src/ tests/
+      continue-on-error: true
+
+    - name: Lint with flake8
+      run: |
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 src/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Exit-zero treats all errors as warnings
+        flake8 src/ tests/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+      continue-on-error: true
+
+  validate-fabric-artifacts:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Validate JSON files in Fabric artifacts
+      run: |
+        echo "Validating Fabric JSON artifacts..."
+        for file in fabric/**/*.json; do
+          if [ -f "$file" ]; then
+            python -m json.tool "$file" > /dev/null || echo "Invalid JSON: $file"
+          fi
+        done
+
+    - name: Check for TMDL syntax
+      run: |
+        echo "Checking TMDL files..."
+        find fabric -name "*.tmdl" -type f | while read file; do
+          echo "Found TMDL: $file"
+          # Basic syntax check - ensure file has proper structure
+          grep -q "table\|measure\|relationship" "$file" || echo "Warning: $file may have issues"
+        done
+
+  documentation-check:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Check documentation links
+      run: |
+        echo "Checking for broken internal links..."
+        # Check that referenced files exist
+        grep -r "](/" --include="*.md" . | while read line; do
+          file=$(echo "$line" | sed 's/.*](//' | sed 's/).*//')
+          if [[ "$file" == /* ]] && [ ! -f ".$file" ]; then
+            echo "Broken link found: $file"
+          fi
+        done
+
+    - name: Documentation stats
+      run: |
+        echo "📊 Documentation Statistics:"
+        echo "Total markdown files: $(find . -name "*.md" | wc -l)"
+        echo "Total documentation lines: $(find . -name "*.md" -exec wc -l {} + | tail -1)"
+        echo "Context docs: $(find .claude/context -name "*.md" 2>/dev/null | wc -l)"
+        echo "Task files: $(find .claude/tasks -name "*.json" 2>/dev/null | wc -l)"
