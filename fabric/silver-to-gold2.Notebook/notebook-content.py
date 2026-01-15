@@ -1258,7 +1258,7 @@ spark.sql(f"""
         COUNT(DISTINCT country_key) as supplier_country_count,
         SUM(CASE WHEN share_pct > 30 THEN 1 ELSE 0 END) as high_concentration_countries,
         AVG(data_quality_score) as avg_data_quality,
-        SUM(has_unmapped_country) as unmapped_countries,
+        SUM(CASE WHEN has_unmapped_country THEN 1 ELSE 0 END) as unmapped_countries,
         CASE 
             WHEN MAX(share_pct) > 50 THEN 'Critical'
             WHEN MAX(share_pct) > 30 THEN 'High'
