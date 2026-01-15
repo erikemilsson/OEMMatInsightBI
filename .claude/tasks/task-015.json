@@ -2,8 +2,8 @@
   "id": "task-015",
   "title": "Fix Semantic Model Relationships for Cross-Table Visuals",
   "description": "Diagnose and fix relationship issues in the semantic model that prevent cross-table visuals from working. Current issue: 'Error fetching data for this visual' when combining measures with dimension table columns (e.g., Total Spend EUR by material_name_std).",
-  "status": "Ready",
-  "startDate": null,
+  "status": "In Progress",
+  "startDate": "2026-01-15",
   "completionDate": null,
   "priority": "P1",
   "difficulty": 3,
@@ -27,8 +27,10 @@
   ],
   "notes": [
     "ERROR ENCOUNTERED: 'Error fetching data for this visual' when adding material_name_std (from gold_dim_material) to X-axis of column chart with Total Spend EUR",
-    "ROOT CAUSE HYPOTHESIS: Missing relationship between fact_procurement.material_key and gold_dim_material.material_key",
-    "Similar issues likely exist for country dimensions and date dimension",
+    "ROOT CAUSE FOUND: Relationships were defined backwards (fact->dim instead of dim->fact)",
+    "FIX APPLIED: Reversed all relationships to go from dimension PK to fact FK",
+    "ALSO FIXED: Added toCardinality: many to all relationships",
+    "ALSO FIXED: Added inactive relationship for supplier_hq_country_key (role-playing dimension)",
     "DirectLake mode requires explicit relationships defined in TMDL files",
     "This task must be completed BEFORE Task 016 (guided dashboard building)"
   ],
