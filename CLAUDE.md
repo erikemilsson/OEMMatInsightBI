@@ -10,10 +10,44 @@ This document serves as a central router to help you navigate the project struct
 
 **New to this project?** Start here:
 
-1. **Project Overview**: See `/project_definition.md` (comprehensive 1600-line project spec)
-2. **Task Management**: See `/.claude/tasks/task-overview.md` (12 tasks with progress tracking)
-3. **Working on Tasks**: Use `/complete-task task-XXX` to start a task
+1. **Mission Control**: See `/MISSION_CONTROL.md` - **THE PRIMARY DASHBOARD** (single source of truth)
+2. **Project Overview**: See `/project_definition.md` (comprehensive 1600-line project spec)
+3. **Working on Tasks**: Check "Your Action Items" in MISSION_CONTROL.md
 4. **Syncing Progress**: Use `/sync-tasks` to update task status
+
+---
+
+## 🎛️ MISSION_CONTROL.md (Auto-Updated)
+
+**IMPORTANT: Claude must update `/MISSION_CONTROL.md` at the end of every work session.**
+
+### What to Update
+After completing work, update these sections in MISSION_CONTROL.md:
+1. **Progress Overview** - Update completion percentages and progress bars
+2. **Your Action Items** - Move completed items, add new ready items
+3. **Claude's Work Queue** - Update "Completed This Session" and "Next Up"
+4. **Task Decomposition Tables** - Mark step statuses (Done/Pending/Blocked)
+5. **Last Session Date** - Update timestamp at bottom
+
+### Update Trigger
+Update MISSION_CONTROL.md when:
+- A task step is completed
+- A new task is started
+- Blockers are identified or resolved
+- At the end of every conversation session
+
+### Format
+```markdown
+*Last Session: YYYY-MM-DD*
+*Next Action: [Brief description of what Erik should do next]*
+```
+
+### Purpose
+Erik uses MISSION_CONTROL.md as the **single interactive surface** for project oversight:
+- See what actions are ready for him (Fabric UI, Power BI Desktop)
+- Track Claude's progress on code/docs work
+- Understand blockers and dependencies
+- Access quick links to Fabric workspace
 
 ---
 
@@ -31,8 +65,8 @@ OEMMatInsightBI/
 │
 ├── .claude/                   # Claude Code environment (task management & context)
 │   ├── commands/              # Slash commands (/complete-task, /breakdown, /sync-tasks)
-│   ├── context/               # Project knowledge base (18 comprehensive docs)
-│   ├── tasks/                 # 12 tasks in JSON format + task-overview.md
+│   ├── context/               # Project knowledge base (10 context docs)
+│   ├── tasks/                 # 16 tasks in JSON format + task-overview.md
 │   └── reference/             # Reference materials (glossary, schemas, guides)
 │
 ├── tests/                     # pytest unit tests (framework complete)
@@ -133,7 +167,7 @@ OEMMatInsightBI/
 
 ---
 
-## 📚 Context Documents (18 Files)
+## 📚 Context Documents (10 Files)
 
 **Business & Requirements:**
 1. `business_requirements.md` - Stakeholder needs and success criteria
@@ -160,25 +194,20 @@ OEMMatInsightBI/
 14. `python_coding_standards.md` - PySpark best practices
 15. `git_workflow.md` - Branching strategy, commit conventions
 
-**Advanced Topics:**
-16. `medallion_pattern.md` - Bronze → Silver → Gold layering
-17. `alias_resolution_logic.md` - Country/material name matching with confidence scoring
-18. `row_level_security.md` - (See rls_security_strategy.md)
-
-**Total Context:** ~7,361 lines of comprehensive documentation
+**Note:** Context documents have been consolidated. See `.claude/context/` for the current list.
 
 ---
 
-## 🎯 Tasks Overview (12 Tasks)
+## 🎯 Tasks Overview (16 Tasks)
 
 | Status | Count | % |
 |--------|-------|---|
-| ✅ Finished | 1 | 8% |
-| 🚧 In Progress | 1 | 8% |
-| 📋 Design Complete | 5 | 42% |
-| ⏳ Pending | 5 | 42% |
+| ✅ Finished | 2 | 13% |
+| 🚧 In Progress | 2 | 13% |
+| 📋 Ready | 2 | 13% |
+| ⏳ Pending | 10 | 63% |
 
-**See:** `/.claude/tasks/task-overview.md` for full breakdown
+**See:** `/MISSION_CONTROL.md` for full breakdown with owner assignment (Claude vs Erik)
 
 ---
 
@@ -284,6 +313,21 @@ This project demonstrates:
 
 ---
 
-*Last Updated: 2025-11-16*
-*Project Status: Active Development (12 tasks, 8% complete)*
-*Next Priority: Complete Task 002 (DAX Measures) to unblock Task 003 (Power BI Report)*
+## 📊 Project Dashboard
+
+**Primary Dashboard:** [`/MISSION_CONTROL.md`](./MISSION_CONTROL.md) - Check this first!
+
+| Metric | Value |
+|--------|-------|
+| Total Tasks | 16 |
+| Completed | 2 (13%) |
+| In Progress | 2 |
+| Pending | 12 |
+
+**Immediate Priority:** Task 015 (Fix Relationships) → Task 016 (Guided Dashboard Building)
+
+---
+
+*Last Updated: 2026-01-15*
+*Project Status: Active Development (16 tasks, 13% complete)*
+*Next Priority: Task 015 (Fix Relationships) → Task 016 (Guided Dashboard Building)*
