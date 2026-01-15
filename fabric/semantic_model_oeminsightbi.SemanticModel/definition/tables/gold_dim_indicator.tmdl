@@ -103,17 +103,6 @@ table gold_dim_indicator
 
 		annotation SummarizationSetBy = Automatic
 
-	column parent_indicator_key
-		dataType: int64
-		formatString: 0
-		sourceProviderType: bigint
-		lineageTag: 735c0d1f-4d07-413a-a54a-cd149ba5f7fa
-		sourceLineageTag: parent_indicator_key
-		summarizeBy: none
-		sourceColumn: parent_indicator_key
-
-		annotation SummarizationSetBy = Automatic
-
 	partition gold_dim_indicator = entity
 		mode: directLake
 		source
