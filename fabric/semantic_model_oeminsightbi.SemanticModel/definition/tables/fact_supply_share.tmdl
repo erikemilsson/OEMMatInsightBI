@@ -56,16 +56,6 @@ table fact_supply_share
 
 		annotation SummarizationSetBy = Automatic
 
-	column intensity_t
-		dataType: string
-		sourceProviderType: varchar(8000)
-		lineageTag: d0329ec9-2ac2-42fb-a170-71f139e1da0b
-		sourceLineageTag: intensity_t
-		summarizeBy: none
-		sourceColumn: intensity_t
-
-		annotation SummarizationSetBy = Automatic
-
 	partition fact_supply_share = entity
 		mode: directLake
 		source
