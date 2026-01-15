@@ -22,10 +22,10 @@ Erik Work:      ██░░░░░░░░░░░░░░░░░░ 10%
 |--------|-------|
 | Finished | Task 009, Task 013 |
 | In Progress | Task 008, Task 014 |
-| Ready | Task 015 (Fix Relationships), Task 016 (Guided Dashboard) |
-| Waiting for Erik | Task 014 (deploy), Task 002 (deploy measures) |
+| Waiting for Erik | **Task 015** (sync relationships), Task 014 (build visuals) |
+| Ready | Task 016 (Guided Dashboard - after 015) |
 | Claude Ready | Task 001, 004, 005, 006, 007, 011 (design done) |
-| Pending | Task 003, 010, 012 |
+| Pending | Task 002, 003, 010, 012 |
 
 ---
 
@@ -63,16 +63,22 @@ flowchart LR
 
 ## Your Action Items
 
-### Ready Now
+### Ready Now (Task 015 - Prerequisite)
 
 | # | Task | Action | Time | Details |
 |---|------|--------|------|---------|
-| 1 | **Task 014** | Sync semantic model to Fabric | 5 min | `git push` then [Update from Git in Fabric](https://app.fabric.microsoft.com/groups/99e4cc6d-6ec3-49a7-aed9-b69b04a97aa9) |
-| 2 | **Task 014** | Verify measures in Fabric portal | 5 min | Open semantic model → Check _Measures table shows 18 measures |
-| 3 | **Task 014** | Open Power BI Desktop & connect | 5 min | Get Data → Power BI semantic models → semantic_model_oeminsightbi |
-| 4 | **Task 014** | Build Executive Dashboard page | 30 min | Follow [MEASURE_GUIDE.md](./docs/guides/MEASURE_GUIDE.md) Part 4 layout |
-| 5 | **Task 014** | Build Risk & Sustainability page | 30 min | Follow [MEASURE_GUIDE.md](./docs/guides/MEASURE_GUIDE.md) Part 4 layout |
-| 6 | **Task 014** | Export screenshots + PDF | 10 min | File → Export → PNG (1920x1080) + PDF |
+| 1 | **Task 015** | Sync to Fabric | 5 min | [Update from Git in Fabric](https://app.fabric.microsoft.com/groups/99e4cc6d-6ec3-49a7-aed9-b69b04a97aa9) |
+| 2 | **Task 015** | Verify relationships in Fabric | 5 min | Open semantic model → Model view → Check arrows go dim→fact |
+| 3 | **Task 015** | Test cross-table visual | 10 min | Create column chart: Total Spend EUR by material_name_std |
+
+### After Task 015 Complete (Task 014/016)
+
+| # | Task | Action | Time | Details |
+|---|------|--------|------|---------|
+| 4 | **Task 014** | Verify 18 measures appear | 5 min | Open semantic model → Check _Measures table |
+| 5 | **Task 016** | Build Executive Dashboard page | 30 min | Follow [MEASURE_GUIDE.md](./docs/guides/MEASURE_GUIDE.md) Part 4 layout |
+| 6 | **Task 016** | Build Risk & Sustainability page | 30 min | Follow [MEASURE_GUIDE.md](./docs/guides/MEASURE_GUIDE.md) Part 4 layout |
+| 7 | **Task 016** | Export screenshots + PDF | 10 min | File → Export → PNG (1920x1080) + PDF |
 
 ### After Claude Completes Next Batch
 
@@ -91,12 +97,13 @@ flowchart LR
 
 ## Claude's Work Queue
 
-### Completed This Session
-- [x] Created MISSION_CONTROL.md (task dashboard with full decomposition)
-- [x] Updated CLAUDE.md with auto-update instructions
-- [x] Researched MCP integrations for Power BI/Fabric
-- [x] Configured Git MCP server in ~/.claude/mcp.json
-- [x] Configured Playwright with persistent auth storage
+### Completed This Session (2026-01-15)
+- [x] Synced documentation files (CLAUDE.md, MISSION_CONTROL.md, docs/README.md)
+- [x] Reorganized docs structure and committed all pending changes
+- [x] **Task 015:** Diagnosed relationship issues (relationships were backwards)
+- [x] **Task 015:** Fixed relationships.tmdl (reversed direction, added cardinality)
+- [x] **Task 015:** Added supplier_hq_country_key relationship (role-playing dim)
+- [x] Pushed all changes to GitHub (3 commits)
 
 ### Currently Working On
 - [ ] (Session wrap-up)
@@ -363,15 +370,17 @@ flowchart LR
 ---
 
 ### Task 015: Fix Semantic Model Relationships
-**Priority:** P1 | **Total Steps:** 5 | **Status:** Ready (Prerequisite for Task 016)
+**Priority:** P1 | **Total Steps:** 5 | **Status:** Waiting for Erik (Claude done)
 
 | Step | Owner | Action | Time | Status |
 |------|-------|--------|------|--------|
-| 015.1 | Claude | Diagnose relationship issues in relationships.tmdl | 15 min | Pending |
-| 015.2 | Claude | Fix/add missing relationships | 20 min | Pending |
-| 015.3 | Erik | Sync updated TMDL to Fabric | 5 min | Pending |
-| 015.4 | Erik | Verify relationships in Fabric portal | 5 min | Pending |
-| 015.5 | Erik | Test cross-table visuals work | 10 min | Pending |
+| 015.1 | Claude | Diagnose relationship issues in relationships.tmdl | 15 min | **Done** |
+| 015.2 | Claude | Fix/add missing relationships | 20 min | **Done** |
+| 015.3 | Erik | Sync updated TMDL to Fabric | 5 min | **Ready** |
+| 015.4 | Erik | Verify relationships in Fabric portal | 5 min | **Ready** |
+| 015.5 | Erik | Test cross-table visuals work | 10 min | **Ready** |
+
+**Fix Applied:** Reversed all relationships to go dim→fact, added toCardinality: many, added supplier_hq_country_key relationship.
 
 ---
 
@@ -499,4 +508,4 @@ To enable Fabric portal automation:
 ---
 
 *Last Session: 2026-01-15*
-*Next Action: Complete Task 015 (Fix Relationships) → Task 016 (Guided Dashboard Building)*
+*Next Action: Erik syncs to Fabric and tests cross-table visuals (Task 015.3-015.5)*
