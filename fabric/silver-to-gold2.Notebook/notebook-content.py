@@ -557,14 +557,40 @@ write_tbl(material_lookup, "gold_dim_material_lookup")
 # CELL ********************
 
 # EPI indicators
-epi_vars = spark.table(f"{DB}.`silver_epi2024variables2024-12-11`").select(
-    F.lit("EPI").alias("source_system"),
-    "type",
-    F.col("abbreviation").alias("abbrev"),
-    F.col("variable").alias("variable_name"),
-    "policyobjective","issuecategory","weight","description",
-    F.lit(None).cast(StringType()).alias("indicator_code")
-).withColumn("indicator_key", stable_key(["source_system","abbrev","variable_name"]))
+# NOTE: silver_epi2024variables table may not exist in all environments
+# Create from EPI results columns if variables metadata table is unavailable
+try:
+    epi_vars = spark.table(f"{DB}.silver_epi2024variables").select(
+        F.lit("EPI").alias("source_system"),
+        "type",
+        F.col("abbreviation").alias("abbrev"),
+        F.col("variable").alias("variable_name"),
+        "policyobjective","issuecategory","weight","description",
+        F.lit(None).cast(StringType()).alias("indicator_code")
+    ).withColumn("indicator_key", stable_key(["source_system","abbrev","variable_name"]))
+    print("✓ Loaded EPI variables from silver_epi2024variables table")
+except Exception as e:
+    print(f"⚠️  EPI variables table not found, creating indicators from results columns: {e}")
+    # Derive indicator metadata from EPI results column names
+    epi_results = spark.table(f"{DB}.silver_epi2024results")
+    id_cols = {"code", "iso", "country"}
+    indicator_cols = [c for c in epi_results.columns if c not in id_cols]
+
+    epi_vars = spark.createDataFrame(
+        [(col,) for col in indicator_cols],
+        ["abbrev"]
+    ).select(
+        F.lit("EPI").alias("source_system"),
+        F.lit("indicator").alias("type"),
+        F.col("abbrev"),
+        F.col("abbrev").alias("variable_name"),  # Use abbreviation as name
+        F.lit(None).cast(StringType()).alias("policyobjective"),
+        F.lit(None).cast(StringType()).alias("issuecategory"),
+        F.lit(None).cast(FloatType()).alias("weight"),
+        F.lit(None).cast(StringType()).alias("description"),
+        F.lit(None).cast(StringType()).alias("indicator_code")
+    ).withColumn("indicator_key", stable_key(["source_system","abbrev","variable_name"]))
+    print(f"✓ Created {epi_vars.count()} EPI indicators from results columns")
 
 # WB indicators - NOTE: silver_WB table removed (World Bank ESG data not available)
 # Create empty WB indicators DataFrame with same schema for compatibility
