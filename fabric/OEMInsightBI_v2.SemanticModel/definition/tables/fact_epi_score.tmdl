@@ -2,6 +2,19 @@ table fact_epi_score
 	lineageTag: 8d0f0830-d118-46d6-9be3-ef290927d429
 	sourceLineageTag: [dbo].[fact_epi_score]
 
+	measure 'Avg EPI Score' = AVERAGE(fact_epi_score[score])
+		lineageTag: d6921160-8e35-4fc6-9d37-257c3e55f2a6
+
+		changedProperty = Name
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Countries with EPI Data' = DISTINCTCOUNT(fact_epi_score[country_key])
+		formatString: 0
+		lineageTag: ed48c5d2-d338-4916-a358-61d35f2d5f49
+
+		changedProperty = Name
+
 	column country_key
 		dataType: int64
 		formatString: 0
