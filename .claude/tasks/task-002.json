@@ -2,7 +2,7 @@
   "id": "task-002",
   "title": "Redesign Semantic Model & DAX Measures",
   "description": "Implement robust DAX measures library (40+ measures designed) to answer business questions effectively. Design phase complete with comprehensive measure library.",
-  "status": "In Progress",
+  "status": "Finished",
   "priority": "P1",
   "difficulty": 7,
   "estimatedEffort": "5 days total",
@@ -87,11 +87,12 @@
     {
       "id": "task-002-7",
       "title": "Erik: Sync and verify measures in Fabric",
-      "status": "Pending",
+      "status": "Finished",
+      "completionDate": "2026-01-16",
       "owner": "Erik",
       "estimatedEffort": "0.5 days",
-      "details": "Sync TMDL to Fabric, verify all 40 measures appear, test with sample visuals"
+      "details": "Synced TMDL to Fabric, verified 40+ measures appear, tested Total Spend EUR = 3,342,498"
     }
   ],
-  "progress": "Implementation Complete (6/7 subtasks). 40 measures added to TMDL. Waiting for Erik to sync and verify."
+  "progress": "COMPLETE (7/7 subtasks). 40+ measures verified working in Fabric. Total Spend EUR = 3,342,498."
 }

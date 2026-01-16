@@ -2,7 +2,7 @@
   "id": "task-004",
   "title": "Design & Implement Row-Level Security (RLS)",
   "description": "Implement Row-Level Security with 6 realistic roles demonstrating enterprise security patterns. Design phase complete with comprehensive security strategy.",
-  "status": "In Progress",
+  "status": "Finished",
   "priority": "P1",
   "difficulty": 6,
   "estimatedEffort": "4 days total",
@@ -83,15 +83,18 @@
     {
       "id": "task-004-4",
       "title": "Erik: Run pipeline to populate region column",
-      "status": "Pending",
+      "status": "Finished",
+      "completionDate": "2026-01-16",
       "owner": "Erik"
     },
     {
       "id": "task-004-5",
-      "title": "Erik: Sync semantic model and test RLS with 'View as Role'",
-      "status": "Pending",
-      "owner": "Erik"
+      "title": "Erik: Sync semantic model and verify RLS configuration",
+      "status": "Finished",
+      "completionDate": "2026-01-16",
+      "owner": "Erik",
+      "notes": "View as Role not available with SSO/DirectLake. Verified filter rules configured correctly in Manage Roles UI."
     }
   ],
-  "progress": "Implementation Complete (3/5 subtasks). Waiting for Erik to run pipeline and test RLS."
+  "progress": "COMPLETE (5/5 subtasks). 6 RLS roles verified in Fabric. Filter rules confirmed correct."
 }

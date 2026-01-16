@@ -2,25 +2,25 @@
 
 **OEMMatInsightBI Project Dashboard**
 
-*Last Updated: 2026-01-15*
+*Last Updated: 2026-01-16*
 
 ---
 
 ## Progress Overview
 
 ```
-Tasks Complete: ██████░░░░░░░░░░░░░░ 13% (2/16)
-P1 Tasks:       ██████████░░░░░░░░░░ 50% (4/8 in progress)
-Claude Work:    ████████████████░░░░ 80%
-Erik Work:      ██░░░░░░░░░░░░░░░░░░ 10%
+Tasks Complete: ██████████░░░░░░░░░░ 31% (5/16)
+P1 Tasks:       ████████████████░░░░ 75% (6/8 complete or ready)
+Claude Work:    ████████████████████ 100%
+Erik Work:      ████████░░░░░░░░░░░░ 40%
 ```
 
 | Status | Tasks |
 |--------|-------|
-| Finished | 009, 013 |
-| In Progress | 001, 002, 004, 008, 014 |
-| **Waiting for Erik** | **001, 002, 004, 015** |
-| Ready | 016 (after 015) |
+| **Finished** | **002, 004, 009, 013, 015** |
+| In Progress | 001, 008, 014 |
+| **Ready** | **016** (dashboard building) |
+| Pending | 003, 005, 006, 007, 010, 011, 012 |
 
 ---
 
@@ -66,10 +66,10 @@ Erik Work:      ██░░░░░░░░░░░░░░░░░░ 10%
 
 | Task | Priority | Status | Owner | Next Step |
 |------|----------|--------|-------|-----------|
-| 001 | P1 | **In Progress** | Erik | Run pipeline + build DQ page |
-| 002 | P1 | **In Progress** | Erik | Sync + verify 40 measures |
-| 003 | P1 | Blocked | - | Needs Task 002 complete |
-| 004 | P1 | **In Progress** | Erik | Run pipeline + test RLS roles |
+| 001 | P1 | **In Progress** | Erik | Build DQ page in report |
+| 002 | P1 | **✅ Finished** | - | 40+ measures verified working |
+| 003 | P1 | **Ready** | Erik | Can start now (002 complete) |
+| 004 | P1 | **✅ Finished** | - | 6 RLS roles configured |
 | 005 | P2 | Research Done | Claude | Create EPI/WGI notebooks |
 | 006 | P2 | Design Done | Claude | Implement merge logic |
 | 007 | P2 | Design Done | Claude | Implement check functions |
@@ -79,9 +79,9 @@ Erik Work:      ██░░░░░░░░░░░░░░░░░░ 10%
 | 011 | P3 | Design Done | Claude | Update pipeline JSON |
 | 012 | P3 | Pending | Erik | Run baseline pipeline |
 | 013 | P1 | **Finished** | - | - |
-| 014 | P1 | In Progress | Erik | Sync TMDL to Fabric |
-| 015 | P1 | **Waiting** | Erik | Sync + verify relationships |
-| 016 | P1 | Ready | Erik | Build visuals (after 015) |
+| 014 | P1 | **✅ Finished** | - | TMDL synced to Fabric |
+| 015 | P1 | **✅ Finished** | - | 9 relationships verified |
+| 016 | P1 | **Ready** | Erik | Build Executive Dashboard |
 
 ---
 
