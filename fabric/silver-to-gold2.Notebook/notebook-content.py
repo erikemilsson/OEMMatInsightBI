@@ -660,7 +660,7 @@ grp_map = F.create_map(
 
 dim_material = (
     materials
-    .withColumn("commodity_group", 
+    .withColumn("commodity_group",
                 F.coalesce(grp_map[F.col("material_name_std")], F.lit("Other/Unknown")))
     .withColumn("unit_base", F.lit("kg"))
     .withColumn("material_key", stable_key(["material_name_std"]))
@@ -672,6 +672,7 @@ dim_material = (
         .withColumn("material_key", stable_key(["material_name_std"]))
         .withColumn("is_placeholder", F.lit(True))
     )
+    .dropDuplicates(["material_key"])  # CRITICAL: Ensure unique keys for dimension table
 )
 
 # Enhanced lookup with confidence scores
@@ -1586,29 +1587,30 @@ def create_dq_dashboard():
     """).collect()
 
     # Build dashboard table with all metrics in long format (category, metric_name, metric_value)
+    # IMPORTANT: Cast all metric_value to float to avoid type mismatch errors
     dashboard_rows = [
         # Overall Metrics
-        ("Overall", "Match Rate", proc_metrics.avg_quality_score * 100 if proc_metrics.avg_quality_score else 0, "Percentage of records with high-confidence matches", datetime.now()),
-        ("Overall", "Total Records", proc_metrics.total_records + supply_metrics.total_records, "Combined procurement and supply share records", datetime.now()),
-        ("Overall", "High Confidence %", (proc_metrics.high_count / proc_metrics.total_records * 100) if proc_metrics.total_records else 0, "Records with quality score >= 0.9", datetime.now()),
-        ("Overall", "Unmapped Records", unmapped_proc_count + unmapped_supply_count, "Total records with unmapped dimensions", datetime.now()),
+        ("Overall", "Match Rate", float(proc_metrics.avg_quality_score * 100 if proc_metrics.avg_quality_score else 0), "Percentage of records with high-confidence matches", datetime.now()),
+        ("Overall", "Total Records", float(proc_metrics.total_records + supply_metrics.total_records), "Combined procurement and supply share records", datetime.now()),
+        ("Overall", "High Confidence %", float((proc_metrics.high_count / proc_metrics.total_records * 100) if proc_metrics.total_records else 0), "Records with quality score >= 0.9", datetime.now()),
+        ("Overall", "Unmapped Records", float(unmapped_proc_count + unmapped_supply_count), "Total records with unmapped dimensions", datetime.now()),
 
         # Procurement Metrics
-        ("Procurement", "Total Records", proc_metrics.total_records, "Number of procurement transactions", datetime.now()),
-        ("Procurement", "Match Rate", proc_metrics.avg_quality_score * 100 if proc_metrics.avg_quality_score else 0, "Average quality score for procurement", datetime.now()),
-        ("Procurement", "High Confidence Count", proc_metrics.high_count, "Records with High quality category", datetime.now()),
-        ("Procurement", "Medium Confidence Count", proc_metrics.medium_count, "Records with Medium quality category", datetime.now()),
-        ("Procurement", "Low Confidence Count", proc_metrics.low_count, "Records with Low quality category", datetime.now()),
-        ("Procurement", "Unmapped Count", proc_metrics.unmapped_count, "Records with Unmapped quality category", datetime.now()),
-        ("Procurement", "Total Spend EUR", proc_metrics.total_spend if proc_metrics.total_spend else 0, "Total procurement spend in EUR", datetime.now()),
+        ("Procurement", "Total Records", float(proc_metrics.total_records), "Number of procurement transactions", datetime.now()),
+        ("Procurement", "Match Rate", float(proc_metrics.avg_quality_score * 100 if proc_metrics.avg_quality_score else 0), "Average quality score for procurement", datetime.now()),
+        ("Procurement", "High Confidence Count", float(proc_metrics.high_count), "Records with High quality category", datetime.now()),
+        ("Procurement", "Medium Confidence Count", float(proc_metrics.medium_count), "Records with Medium quality category", datetime.now()),
+        ("Procurement", "Low Confidence Count", float(proc_metrics.low_count), "Records with Low quality category", datetime.now()),
+        ("Procurement", "Unmapped Count", float(proc_metrics.unmapped_count), "Records with Unmapped quality category", datetime.now()),
+        ("Procurement", "Total Spend EUR", float(proc_metrics.total_spend if proc_metrics.total_spend else 0), "Total procurement spend in EUR", datetime.now()),
 
         # Supply Share Metrics
-        ("Supply", "Total Records", supply_metrics.total_records, "Number of supply share records", datetime.now()),
-        ("Supply", "Match Rate", supply_metrics.avg_quality_score * 100 if supply_metrics.avg_quality_score else 0, "Average quality score for supply shares", datetime.now()),
-        ("Supply", "High Confidence Count", supply_metrics.high_count, "Records with High quality category", datetime.now()),
-        ("Supply", "Medium Confidence Count", supply_metrics.medium_count, "Records with Medium quality category", datetime.now()),
-        ("Supply", "Low Confidence Count", supply_metrics.low_count, "Records with Low quality category", datetime.now()),
-        ("Supply", "Unmapped Count", supply_metrics.unmapped_count, "Records with Unmapped quality category", datetime.now()),
+        ("Supply", "Total Records", float(supply_metrics.total_records), "Number of supply share records", datetime.now()),
+        ("Supply", "Match Rate", float(supply_metrics.avg_quality_score * 100 if supply_metrics.avg_quality_score else 0), "Average quality score for supply shares", datetime.now()),
+        ("Supply", "High Confidence Count", float(supply_metrics.high_count), "Records with High quality category", datetime.now()),
+        ("Supply", "Medium Confidence Count", float(supply_metrics.medium_count), "Records with Medium quality category", datetime.now()),
+        ("Supply", "Low Confidence Count", float(supply_metrics.low_count), "Records with Low quality category", datetime.now()),
+        ("Supply", "Unmapped Count", float(supply_metrics.unmapped_count), "Records with Unmapped quality category", datetime.now()),
     ]
 
     # Add top unmapped materials
@@ -1616,7 +1618,7 @@ def create_dq_dashboard():
         dashboard_rows.append((
             "Unmapped Materials",
             f"#{i+1}: {row.original_material}",
-            row.count,
+            float(row.count),
             f"Unmapped material name appearing {row.count} times",
             datetime.now()
         ))
@@ -1626,7 +1628,7 @@ def create_dq_dashboard():
         dashboard_rows.append((
             "Unmapped Countries",
             f"#{i+1}: {row.original_hq_country}",
-            row.count,
+            float(row.count),
             f"Unmapped country name appearing {row.count} times",
             datetime.now()
         ))
