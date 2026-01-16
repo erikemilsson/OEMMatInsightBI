@@ -2,9 +2,9 @@
   "id": "task-016",
   "title": "Guided Power BI Dashboard Building (User-Claude Collaboration)",
   "description": "Build portfolio-quality Power BI dashboard pages through step-by-step collaboration. Claude provides instructions, user executes in Power BI, then Claude reviews screenshots and provides feedback. This interactive approach ensures quality visuals while overcoming browser automation limitations.",
-  "status": "In Progress",
+  "status": "Finished",
   "startDate": "2026-01-16",
-  "completionDate": null,
+  "completionDate": "2026-01-16",
   "priority": "P1",
   "difficulty": 3,
   "estimatedEffort": "1-2 hours (collaborative session)",
@@ -24,18 +24,14 @@
     "/fabric/report.Report/"
   ],
   "notes": [
-    "WORKFLOW: This task uses an interactive collaboration pattern:",
-    "1. Claude provides specific step-by-step instructions",
-    "2. User executes the steps in Power BI (browser or Desktop)",
-    "3. User tells Claude when done (or pastes screenshot path)",
-    "4. Claude takes screenshot using Playwright",
-    "5. Claude reviews screenshot and provides feedback/next steps",
-    "6. Repeat until page is complete",
+    "COMPLETED 2026-01-16:",
+    "- Page 1 (Executive Dashboard): 4 KPIs + Column Chart + Donut Chart",
+    "- Page 2 (Risk & Sustainability): 2 KPIs + EPI Bar Chart + Spend Bar Chart",
+    "- Created new semantic model (OEMInsightBI_v2) with proper DirectLake relationships",
+    "- Fixed gold_dim_material duplicate key issue in silver-to-gold2.Notebook",
+    "- Exported to PDF: /Users/erikemilsson/Downloads/report2.pdf",
     "",
-    "CURRENT STATE (as of session end):",
-    "- Page 1 has 4 KPI cards: Total Spend EUR (3M), Supplier Countries Count (10), Materials Count (11), Transaction Count (144)",
-    "- Report is saved",
-    "- Need to add charts once Task 015 (relationships) is complete"
+    "KEY INSIGHT: High-spend countries (Malaysia, Chile, China, DRC) are NOT in top EPI performers"
   ],
   "deliverables": [
     "Completed Executive Dashboard page (Page 1)",
@@ -89,34 +85,34 @@
       {
         "type": "KPI Cards (4)",
         "status": "DONE",
-        "measures": ["Total Spend EUR", "Supplier Countries Count", "Materials Count", "Transaction Count"]
+        "measures": ["Total Spend EUR (3.27M)", "Supplier Countries Count (10)", "Materials Count (11)", "Transaction Count (132)"]
       },
       {
         "type": "Clustered Column Chart",
-        "status": "TODO",
-        "config": "Total Spend EUR by material_name_std (requires Task 015)"
+        "status": "DONE",
+        "config": "Total Spend EUR by material_name_std"
       },
       {
         "type": "Donut Chart",
-        "status": "TODO",
-        "config": "Total Spend EUR by commodity_group (requires Task 015)"
+        "status": "DONE",
+        "config": "Total Spend EUR by commodity_group"
       }
     ],
     "page2_risk_sustainability": [
       {
-        "type": "KPI Cards (3)",
-        "status": "TODO",
-        "measures": ["Latest EPI Score", "Spend-Weighted EPI Score", "% Spend - High EPI (>60)"]
+        "type": "KPI Cards (2)",
+        "status": "DONE",
+        "measures": ["Avg EPI Score (47.72)", "Countries with EPI Data (180)"]
       },
       {
-        "type": "Gauge",
-        "status": "TODO",
-        "config": "Diversification Score (0-1 scale)"
+        "type": "Clustered Bar Chart",
+        "status": "DONE",
+        "config": "Avg EPI Score by country_name_std"
       },
       {
-        "type": "Column Chart",
-        "status": "TODO",
-        "config": "Spend Exposure at Risk by material"
+        "type": "Clustered Column Chart",
+        "status": "DONE",
+        "config": "Total Spend by Country by country_name_std"
       }
     ]
   }
