@@ -1,0 +1,57 @@
+table gold_dim_material
+	lineageTag: 94a21498-41b8-416c-bc20-d0d9387d9e44
+	sourceLineageTag: [dbo].[gold_dim_material]
+
+	column material_key
+		dataType: int64
+		formatString: 0
+		lineageTag: 6ae058cc-6719-48dd-baee-9b0713461536
+		sourceLineageTag: material_key
+		summarizeBy: none
+		sourceColumn: material_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column material_name_std
+		dataType: string
+		lineageTag: 90779598-0cd8-4806-be1f-cbad50972fe9
+		sourceLineageTag: material_name_std
+		summarizeBy: none
+		sourceColumn: material_name_std
+
+		annotation SummarizationSetBy = Automatic
+
+	column commodity_group
+		dataType: string
+		lineageTag: 1d07e4b2-06ce-4d9d-8745-e6a41431ca18
+		sourceLineageTag: commodity_group
+		summarizeBy: none
+		sourceColumn: commodity_group
+
+		annotation SummarizationSetBy = Automatic
+
+	column unit_base
+		dataType: string
+		lineageTag: fcb64abb-63b1-40d1-ac91-bb26e35e4298
+		sourceLineageTag: unit_base
+		summarizeBy: none
+		sourceColumn: unit_base
+
+		annotation SummarizationSetBy = Automatic
+
+	column is_placeholder
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 3a276839-5ba0-411a-b4b0-4338d854252a
+		sourceLineageTag: is_placeholder
+		summarizeBy: none
+		sourceColumn: is_placeholder
+
+		annotation SummarizationSetBy = Automatic
+
+	partition gold_dim_material = entity
+		mode: directLake
+		source
+			entityName: gold_dim_material
+			expressionSource: 'DirectLake - oem_lh'
+

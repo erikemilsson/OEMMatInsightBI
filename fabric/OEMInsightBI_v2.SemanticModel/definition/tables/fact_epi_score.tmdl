@@ -1,0 +1,51 @@
+table fact_epi_score
+	lineageTag: 8d0f0830-d118-46d6-9be3-ef290927d429
+	sourceLineageTag: [dbo].[fact_epi_score]
+
+	column country_key
+		dataType: int64
+		formatString: 0
+		lineageTag: 3d580138-709c-415d-ae05-76818fdfef4a
+		sourceLineageTag: country_key
+		summarizeBy: none
+		sourceColumn: country_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column indicator_key
+		dataType: int64
+		formatString: 0
+		lineageTag: b46409b7-7c06-4f77-b252-46f2e76a5d66
+		sourceLineageTag: indicator_key
+		summarizeBy: none
+		sourceColumn: indicator_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column year
+		dataType: int64
+		formatString: 0
+		lineageTag: 49dd3af1-8a58-4ee9-b451-872397afca24
+		sourceLineageTag: year
+		summarizeBy: sum
+		sourceColumn: year
+
+		annotation SummarizationSetBy = Automatic
+
+	column score
+		dataType: double
+		lineageTag: 2e9b6778-64f1-434e-9829-cba36cf79789
+		sourceLineageTag: score
+		summarizeBy: sum
+		sourceColumn: score
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition fact_epi_score = entity
+		mode: directLake
+		source
+			entityName: fact_epi_score
+			expressionSource: 'DirectLake - oem_lh'
+

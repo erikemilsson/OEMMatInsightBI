@@ -1,0 +1,76 @@
+table gold_dim_country
+	lineageTag: 045ec25e-24b2-4a68-b128-d8eec28c3288
+	sourceLineageTag: [dbo].[gold_dim_country]
+
+	column country_key
+		dataType: int64
+		formatString: 0
+		lineageTag: 0d6d2c34-d7c1-4c6d-b684-2de15addf0d8
+		sourceLineageTag: country_key
+		summarizeBy: none
+		sourceColumn: country_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column iso3
+		dataType: string
+		lineageTag: 3164686e-b24c-4d93-8e9e-5ff59dc78afa
+		sourceLineageTag: iso3
+		summarizeBy: none
+		sourceColumn: iso3
+
+		annotation SummarizationSetBy = Automatic
+
+	column iso_numeric
+		dataType: int64
+		formatString: 0
+		lineageTag: c0b1d613-17e2-434d-99db-15e51beb8394
+		sourceLineageTag: iso_numeric
+		summarizeBy: sum
+		sourceColumn: iso_numeric
+
+		annotation SummarizationSetBy = Automatic
+
+	column wb_code
+		dataType: string
+		lineageTag: 1a1c69e9-ea9f-4c30-ac40-e0f046ac09a9
+		sourceLineageTag: wb_code
+		summarizeBy: none
+		sourceColumn: wb_code
+
+		annotation SummarizationSetBy = Automatic
+
+	column country_name_std
+		dataType: string
+		lineageTag: a093f0b9-c460-49cf-b7b9-53c1066bca27
+		sourceLineageTag: country_name_std
+		summarizeBy: none
+		sourceColumn: country_name_std
+
+		annotation SummarizationSetBy = Automatic
+
+	column region
+		dataType: string
+		lineageTag: b8628afe-336c-4de9-84f0-74b8d776b541
+		sourceLineageTag: region
+		summarizeBy: none
+		sourceColumn: region
+
+		annotation SummarizationSetBy = Automatic
+
+	column is_placeholder
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: e6959b62-e708-4471-b708-8aeb4dda942a
+		sourceLineageTag: is_placeholder
+		summarizeBy: none
+		sourceColumn: is_placeholder
+
+		annotation SummarizationSetBy = Automatic
+
+	partition gold_dim_country = entity
+		mode: directLake
+		source
+			entityName: gold_dim_country
+			expressionSource: 'DirectLake - oem_lh'
+

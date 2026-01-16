@@ -1,0 +1,113 @@
+table gold_dim_indicator
+	lineageTag: bb0f6565-2a24-4e1b-9d6e-6b4824d9106f
+	sourceLineageTag: [dbo].[gold_dim_indicator]
+
+	column indicator_key
+		dataType: int64
+		formatString: 0
+		lineageTag: e7430012-8c67-4af8-9275-ef6ad42a0bd8
+		sourceLineageTag: indicator_key
+		summarizeBy: none
+		sourceColumn: indicator_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column source_system
+		dataType: string
+		lineageTag: c5fb419f-d937-457b-af87-8202a7f6c19e
+		sourceLineageTag: source_system
+		summarizeBy: none
+		sourceColumn: source_system
+
+		annotation SummarizationSetBy = Automatic
+
+	column type
+		dataType: string
+		lineageTag: 749cac9e-4045-4b82-99f5-90cf823ff28f
+		sourceLineageTag: type
+		summarizeBy: none
+		sourceColumn: type
+
+		annotation SummarizationSetBy = Automatic
+
+	column abbrev
+		dataType: string
+		lineageTag: c0e68ff8-90ed-48cd-b718-8bf708ec3ed9
+		sourceLineageTag: abbrev
+		summarizeBy: none
+		sourceColumn: abbrev
+
+		annotation SummarizationSetBy = Automatic
+
+	column variable_name
+		dataType: string
+		lineageTag: 9051e8c3-20d3-40ea-906a-ba46c20c4572
+		sourceLineageTag: variable_name
+		summarizeBy: none
+		sourceColumn: variable_name
+
+		annotation SummarizationSetBy = Automatic
+
+	column policyobjective
+		dataType: string
+		lineageTag: c60ef9a7-10b2-486b-bac3-67958fd329ac
+		sourceLineageTag: policyobjective
+		summarizeBy: none
+		sourceColumn: policyobjective
+
+		annotation SummarizationSetBy = Automatic
+
+	column issuecategory
+		dataType: string
+		lineageTag: 73f41dc8-7d3b-4f88-a275-90c3ddbfa32a
+		sourceLineageTag: issuecategory
+		summarizeBy: none
+		sourceColumn: issuecategory
+
+		annotation SummarizationSetBy = Automatic
+
+	column indicator_code
+		dataType: string
+		lineageTag: 6bf7fab8-9aca-4d13-88fc-67098bf4386d
+		sourceLineageTag: indicator_code
+		summarizeBy: none
+		sourceColumn: indicator_code
+
+		annotation SummarizationSetBy = Automatic
+
+	column description
+		dataType: string
+		lineageTag: 11d4a248-f9a5-4b57-b4e7-e322fe2b287f
+		sourceLineageTag: description
+		summarizeBy: none
+		sourceColumn: description
+
+		annotation SummarizationSetBy = Automatic
+
+	column parent_indicator
+		dataType: int64
+		formatString: 0
+		lineageTag: eb2fa36a-150f-4dc5-8455-397c6ee5ae63
+		sourceLineageTag: parent_indicator
+		summarizeBy: none
+		sourceColumn: parent_indicator
+
+		annotation SummarizationSetBy = Automatic
+
+	column weight
+		dataType: double
+		lineageTag: 741b0042-abee-4a7b-8fec-484dee4a1128
+		sourceLineageTag: weight
+		summarizeBy: none
+		sourceColumn: weight
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition gold_dim_indicator = entity
+		mode: directLake
+		source
+			entityName: gold_dim_indicator
+			expressionSource: 'DirectLake - oem_lh'
+

@@ -1,0 +1,122 @@
+table fact_supply_share
+	lineageTag: f7ded50c-6645-4cbf-8a65-7f79dd7c9cba
+	sourceLineageTag: [dbo].[fact_supply_share]
+
+	column material_key
+		dataType: int64
+		formatString: 0
+		lineageTag: 7cbb08b2-4b38-4ca5-96af-096684732a70
+		sourceLineageTag: material_key
+		summarizeBy: none
+		sourceColumn: material_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column stage_key
+		dataType: int64
+		formatString: 0
+		lineageTag: 04d11680-674f-4ec1-947b-66c949e93871
+		sourceLineageTag: stage_key
+		summarizeBy: none
+		sourceColumn: stage_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column country_key
+		dataType: int64
+		formatString: 0
+		lineageTag: a6379b7d-a20d-4b76-91de-6f1b25fa6d29
+		sourceLineageTag: country_key
+		summarizeBy: none
+		sourceColumn: country_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column year
+		dataType: int64
+		formatString: 0
+		lineageTag: 10b3dedd-514e-4a69-bc7d-f52141b26330
+		sourceLineageTag: year
+		summarizeBy: sum
+		sourceColumn: year
+
+		annotation SummarizationSetBy = Automatic
+
+	column share_pct
+		dataType: double
+		lineageTag: bd33f78f-3c63-4b85-8d6a-440484cc2b02
+		sourceLineageTag: share_pct
+		summarizeBy: sum
+		sourceColumn: share_pct
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column data_quality_score
+		dataType: double
+		lineageTag: 17c22b24-e253-42c9-97ba-9ffcef58ce9f
+		sourceLineageTag: data_quality_score
+		summarizeBy: sum
+		sourceColumn: data_quality_score
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column quality_category
+		dataType: string
+		lineageTag: 6965a993-3227-431c-a6ce-e070fcef3343
+		sourceLineageTag: quality_category
+		summarizeBy: none
+		sourceColumn: quality_category
+
+		annotation SummarizationSetBy = Automatic
+
+	column has_unmapped_material
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 2c8a8cad-aa40-44b4-a01d-4315a421f68f
+		sourceLineageTag: has_unmapped_material
+		summarizeBy: none
+		sourceColumn: has_unmapped_material
+
+		annotation SummarizationSetBy = Automatic
+
+	column has_unmapped_country
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 2f3d8fd3-475d-4cec-af7a-5b623885934b
+		sourceLineageTag: has_unmapped_country
+		summarizeBy: none
+		sourceColumn: has_unmapped_country
+
+		annotation SummarizationSetBy = Automatic
+
+	column unmapped_impact_score
+		dataType: double
+		lineageTag: ae6cc388-c9c5-4da3-b740-b3d561fdaebc
+		sourceLineageTag: unmapped_impact_score
+		summarizeBy: sum
+		sourceColumn: unmapped_impact_score
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column source_row_id
+		dataType: int64
+		formatString: 0
+		lineageTag: 375b46b4-dcb3-4f88-a64c-428d499b3aad
+		sourceLineageTag: source_row_id
+		summarizeBy: sum
+		sourceColumn: source_row_id
+
+		annotation SummarizationSetBy = Automatic
+
+	partition fact_supply_share = entity
+		mode: directLake
+		source
+			entityName: fact_supply_share
+			expressionSource: 'DirectLake - oem_lh'
+

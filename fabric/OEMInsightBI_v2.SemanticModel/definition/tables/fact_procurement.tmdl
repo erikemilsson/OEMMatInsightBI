@@ -1,0 +1,138 @@
+table fact_procurement
+	lineageTag: 47ec15cc-7c3b-49da-a6f3-30e3d6a79dc9
+	sourceLineageTag: [dbo].[fact_procurement]
+
+	measure 'Total Spend EUR' = SUM(fact_procurement[spend_eur])
+		lineageTag: 28a0ce0d-2b21-4511-98bb-e193c18a1861
+
+		changedProperty = Name
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Transaction Count' = COUNTROWS(fact_procurement)
+		formatString: 0
+		lineageTag: d177beab-d5f7-4ac2-8a9c-1d1adaae323a
+
+		changedProperty = Name
+
+	measure 'Materials Count' = DISTINCTCOUNT(fact_procurement[material_key])
+		formatString: 0
+		lineageTag: af381278-45f0-4b89-9cf6-323752a1c5f1
+
+		changedProperty = Name
+
+	measure 'Supplier Countries Count' = DISTINCTCOUNT(fact_procurement[supplier_hq_country_key])
+		formatString: 0
+		lineageTag: acee4ac1-8f27-43cf-94f9-75845ed9ff5b
+
+		changedProperty = Name
+
+	column date_key
+		dataType: int64
+		formatString: 0
+		lineageTag: 7dccc436-8a1c-4a0d-a218-728c2e99ea54
+		sourceLineageTag: date_key
+		summarizeBy: none
+		sourceColumn: date_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column material_key
+		dataType: int64
+		formatString: 0
+		lineageTag: f022ca98-b6f7-4316-a3f7-ab634ecefdfa
+		sourceLineageTag: material_key
+		summarizeBy: none
+		sourceColumn: material_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column supplier_hq_country_key
+		dataType: int64
+		formatString: 0
+		lineageTag: 99028483-c450-4763-8e50-64cc7628c9ac
+		sourceLineageTag: supplier_hq_country_key
+		summarizeBy: sum
+		sourceColumn: supplier_hq_country_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column production_country_key
+		dataType: int64
+		formatString: 0
+		lineageTag: 31e82f66-e82a-457f-a6a1-795f3676b484
+		sourceLineageTag: production_country_key
+		summarizeBy: none
+		sourceColumn: production_country_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column quantity_base
+		dataType: double
+		lineageTag: c6556b57-adc7-4955-902b-5a55616e28a0
+		sourceLineageTag: quantity_base
+		summarizeBy: sum
+		sourceColumn: quantity_base
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column unitprice_eur
+		dataType: double
+		lineageTag: 570995d9-2385-4f05-a786-06a253e1d0a8
+		sourceLineageTag: unitprice_eur
+		summarizeBy: sum
+		sourceColumn: unitprice_eur
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column spend_eur
+		dataType: double
+		lineageTag: 691c8c7d-bcd9-4378-9bec-f0888262e671
+		sourceLineageTag: spend_eur
+		summarizeBy: sum
+		sourceColumn: spend_eur
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column data_quality_score
+		dataType: double
+		lineageTag: 62dfd3ef-2404-48e0-a2f4-56e5b28ba6a7
+		sourceLineageTag: data_quality_score
+		summarizeBy: sum
+		sourceColumn: data_quality_score
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column quality_category
+		dataType: string
+		lineageTag: bfdd9f11-5808-4f51-8942-84f1160f76b2
+		sourceLineageTag: quality_category
+		summarizeBy: none
+		sourceColumn: quality_category
+
+		annotation SummarizationSetBy = Automatic
+
+	column source_row_id
+		dataType: int64
+		formatString: 0
+		lineageTag: 69d3df04-99a8-44e8-b742-1ae369e942b2
+		sourceLineageTag: source_row_id
+		summarizeBy: sum
+		sourceColumn: source_row_id
+
+		annotation SummarizationSetBy = Automatic
+
+	partition fact_procurement = entity
+		mode: directLake
+		source
+			entityName: fact_procurement
+			expressionSource: 'DirectLake - oem_lh'
+

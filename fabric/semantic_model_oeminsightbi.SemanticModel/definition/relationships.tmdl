@@ -1,5 +1,4 @@
 relationship ea6da128-c672-d989-6c90-89e4e407df93
-	toCardinality: many
 	fromColumn: gold_dim_date.date_key
 	toColumn: fact_procurement.date_key
 

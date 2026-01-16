@@ -1,0 +1,32 @@
+relationship 2b5bb781-a2e6-a453-1e90-5c483666c9e0
+	fromColumn: fact_procurement.material_key
+	toColumn: gold_dim_material.material_key
+
+relationship 4f8a22a2-03cb-a17f-ec73-4b9c61e8679f
+	fromColumn: fact_supply_share.material_key
+	toColumn: gold_dim_material.material_key
+
+relationship 6fb6f1e4-174f-1424-963c-958530197768
+	fromColumn: fact_procurement.production_country_key
+	toColumn: gold_dim_country.country_key
+
+relationship 525ce815-0d87-e369-b831-c77b9bbf8203
+	fromColumn: fact_supply_share.country_key
+	toColumn: gold_dim_country.country_key
+
+relationship 959ab313-4bdc-80b1-3dae-32fa0e854173
+	fromColumn: fact_epi_score.country_key
+	toColumn: gold_dim_country.country_key
+
+relationship 76142718-4dec-acdd-4dc4-f208c6acd1ce
+	fromColumn: fact_procurement.date_key
+	toColumn: gold_dim_date.date_key
+
+relationship 142fc5ab-ab35-31f1-60ed-f39033638b0d
+	fromColumn: fact_epi_score.indicator_key
+	toColumn: gold_dim_indicator.indicator_key
+
+relationship 8c554383-902d-70cf-821c-bc48c1651ce2
+	fromColumn: fact_supply_share.stage_key
+	toColumn: gold_dim_stage.stage_key
+

@@ -1,0 +1,38 @@
+table gold_dim_stage
+	lineageTag: 803c0917-4b19-40b2-bace-8c5d57a467a5
+	sourceLineageTag: [dbo].[gold_dim_stage]
+
+	column stage_key
+		dataType: int64
+		formatString: 0
+		lineageTag: 06b831bc-331c-4e30-bfc2-47870f0b4e14
+		sourceLineageTag: stage_key
+		summarizeBy: none
+		sourceColumn: stage_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column stage_code
+		dataType: string
+		lineageTag: 868906e1-5747-42f3-bd09-3d89c5a04f9e
+		sourceLineageTag: stage_code
+		summarizeBy: none
+		sourceColumn: stage_code
+
+		annotation SummarizationSetBy = Automatic
+
+	column stage_name
+		dataType: string
+		lineageTag: ef56ccb7-8c23-4a29-8e91-7d18040102cb
+		sourceLineageTag: stage_name
+		summarizeBy: none
+		sourceColumn: stage_name
+
+		annotation SummarizationSetBy = Automatic
+
+	partition gold_dim_stage = entity
+		mode: directLake
+		source
+			entityName: gold_dim_stage
+			expressionSource: 'DirectLake - oem_lh'
+
