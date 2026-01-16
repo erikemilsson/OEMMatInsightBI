@@ -428,9 +428,6 @@ table _Measures
 			displayFolder: Advanced
 		lineageTag: 7da1bf28-4a69-41b8-8b4b-fc7c5abe8b04
 
-	/// DATA GAPS MEASURES (Task 001)
-	/// These measures show coverage gaps in sustainability indicator data
-
 	measure 'Countries with EPI Data' =
 			CALCULATE(
 			    DISTINCTCOUNT(gold_data_gaps[country_key]),
