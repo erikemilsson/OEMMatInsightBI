@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(contains a duplicate value\"\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+    ]
+  }
+}

@@ -580,7 +580,7 @@ materials = (
     .withColumn("match_type",
                 F.coalesce(F.col("match_type"), F.lit("original")))
     .select("material_name_std", "match_confidence", "match_type")
-    .distinct()
+    .dropDuplicates(["material_name_std"])  # Dedupe by material name only to avoid duplicate keys
 )
 
 # NEW: Add UNKNOWN placeholder materials for unmapped records
