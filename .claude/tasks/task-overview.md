@@ -11,14 +11,14 @@
 This project has 16 well-defined tasks spanning data engineering, BI development, and infrastructure optimization.
 
 **Key Metrics:**
-- **Completed:** 5 tasks (31%)
-- **In Progress:** 2 tasks (13%)
-- **Ready:** 2 tasks (13%)
-- **Pending:** 7 tasks (44%)
+- **Completed:** 6 tasks (38%)
+- **In Progress:** 3 tasks (19%)
+- **Ready:** 1 task (6%)
+- **Pending:** 6 tasks (38%)
 
 **Progress Bar:**
 ```
-████████████████░░░░░░░░░░░░░░░░ 31% Complete (5/16)
+████████████████████░░░░░░░░░░░░ 38% Complete (6/16)
 ```
 
 ---
@@ -40,9 +40,9 @@ This project has 16 well-defined tasks spanning data engineering, BI development
 | 011 | Implement Error Handling & Retry Logic | P3 | 6 | Pending | Design complete |
 | 012 | Optimize Pipeline Performance | P3 | 7 | Pending | Not started |
 | 013 | Create Portfolio-Ready Power BI Visualizations | P1 | 5 | **✅ Finished** | Completed |
-| 014 | Deploy Enhanced Semantic Model & Build Visuals | P1 | 4 | **✅ Finished** | TMDL synced |
+| 014 | Deploy Enhanced Semantic Model & Build Visuals | P1 | 4 | In Progress | Superseded by 016 |
 | 015 | Fix Semantic Model Relationships | P1 | 3 | **✅ Finished** | 9 relationships verified |
-| 016 | Guided Power BI Dashboard Building | P1 | 3 | **Ready** | Next priority |
+| 016 | Guided Power BI Dashboard Building | P1 | 3 | **✅ Finished** | 2 pages complete |
 
 ---
 
@@ -57,13 +57,13 @@ This project has 16 well-defined tasks spanning data engineering, BI development
 | 003 | Ready | Can start now (was blocked on 002) |
 | 004 | ✅ Finished | 6 RLS roles configured and verified |
 | 013 | ✅ Finished | Portfolio assets created |
-| 014 | ✅ Finished | Semantic model synced to Fabric |
+| 014 | In Progress | Superseded by Task 016 |
 | 015 | ✅ Finished | 9 relationships verified in star schema |
-| 016 | Ready | **NEXT PRIORITY** - Guided dashboard building |
+| 016 | ✅ Finished | **COMPLETED** - 2-page dashboard + PDF export |
 
 **P1 Progress: 6/8 complete (75%)**
 
-### P2 Tasks (Medium Priority - Technical Depth): 4 tasks
+### P2 Tasks (Medium Priority - Technical Depth): 5 tasks
 
 | Task | Status | Notes |
 |------|--------|-------|
@@ -89,32 +89,31 @@ This project has 16 well-defined tasks spanning data engineering, BI development
 
 ## Completed This Session (2026-01-16)
 
-### Task 002: DAX Measures ✅
-- **Verification:** 40+ measures synced to Fabric
-- **Test Result:** Total Spend EUR = 3,342,498
-- **Display Folders:** Procurement, Sustainability, Risk, Time Intelligence, Advanced, Data Quality
+### Task 016: Guided Power BI Dashboard Building ✅
+- **Page 1 (Executive Dashboard):**
+  - 4 KPI Cards: Total Spend EUR (3.27M), Supplier Countries (10), Materials (11), Transactions (132)
+  - Column Chart: Total Spend EUR by material_name_std
+  - Donut Chart: Total Spend EUR by commodity_group
 
-### Task 004: Row-Level Security ✅
-- **Verification:** 6 roles configured in Fabric
-- **Filter Rules:** Confirmed correct (region = "Americas", etc.)
-- **Note:** "View as Role" not available with DirectLake/SSO
+- **Page 2 (Risk & Sustainability):**
+  - 2 KPI Cards: Avg EPI Score (47.72), Countries with EPI Data (180)
+  - Bar Chart: Avg EPI Score by country
+  - Column Chart: Total Spend by Country
 
-### Task 015: Semantic Model Relationships ✅
-- **Verification:** 9 relationships visible in Model view
-- **Cardinality:** All 1:* (dimension to fact) correct
-- **Star Schema:** 5 dimensions, 3 facts properly connected
+- **Key Insight:** High-spend countries (Malaysia, Chile, China, DRC) are NOT in top EPI performers
+- **Export:** PDF saved to `/portfolio/OEMInsightBI_Dashboard.pdf`
+
+### Also Fixed This Session
+- **gold_dim_material duplicate key issue** in silver-to-gold2.Notebook
+- **Data quality dashboard type error** (mixed int/float in metric_value)
+- Created new semantic model **OEMInsightBI_v2** with proper DirectLake relationships
 
 ---
 
 ## Ready to Start (No Blockers)
 
 ### Immediate Priority
-1. **Task 016:** Guided Power BI Dashboard Building (P1, Difficulty: 3)
-   - User-Claude collaboration to build visuals
-   - Measures and relationships now working
-   - **Effort:** 1-2 hours
-
-2. **Task 003:** Redesign Power BI Report (P1, Difficulty: 8)
+1. **Task 003:** Redesign Power BI Report (P1, Difficulty: 8)
    - Now unblocked (Task 002 complete)
    - 5 report pages planned
    - **Effort:** 3-5 days
@@ -130,14 +129,10 @@ These have full design documentation and can be implemented:
 
 ## Dependency Analysis
 
-### Recently Unblocked
-✅ **Task 003:** Redesign Power BI Report
-- Was blocked by: Task 002
-- Now unblocked: Task 002 completed 2026-01-16
-
+### Recently Completed
 ✅ **Task 016:** Guided Dashboard Building
-- Was blocked by: Task 015
-- Now unblocked: Task 015 completed 2026-01-16
+- Completed: 2026-01-16
+- Deliverable: 2-page Power BI report with PDF export
 
 ### No Current Blockers
 All remaining tasks have no dependencies and can be started.
@@ -146,25 +141,24 @@ All remaining tasks have no dependencies and can be started.
 
 ## Recommended Next Actions
 
-### Today
-1. **Task 016:** Guided Power BI Dashboard Building
-   - Build Executive Dashboard visuals with Claude's guidance
-   - Effort: 1-2 hours
-   - High portfolio value
-
-### This Week
-2. **Task 001:** Complete Data Quality page in report
+### Short Term
+1. **Task 001:** Complete Data Quality page in report
    - Claude work done, Erik to build the page
    - Effort: 30 minutes
 
-3. **Task 008:** Mark unit tests as complete
+2. **Task 008:** Mark unit tests as complete
    - Framework done, optional enhancements remain
    - Easy win for progress
 
-### Next Week
-4. **Task 003:** Full Power BI Report Redesign
+### Medium Term
+3. **Task 003:** Full Power BI Report Redesign
    - Now unblocked, comprehensive 5-page report
    - Effort: 3-5 days
+
+### Optional Enhancements
+4. Enhance Task 016 dashboard with more advanced measures
+5. Add drill-through pages
+6. Implement slicers and filters
 
 ---
 
@@ -173,18 +167,18 @@ All remaining tasks have no dependencies and can be started.
 | Category | Count | Percentage |
 |----------|-------|------------|
 | Total Tasks | 16 | 100% |
-| Finished | 5 | 31% |
-| In Progress | 2 | 13% |
-| Ready | 2 | 13% |
-| Pending | 7 | 44% |
+| Finished | 6 | 38% |
+| In Progress | 3 | 19% |
+| Ready | 1 | 6% |
+| Pending | 6 | 38% |
 
 | Priority | Total | Complete | % |
 |----------|-------|----------|---|
-| P1 | 8 | 5 | 63% |
+| P1 | 8 | 6 | 75% |
 | P2 | 5 | 1 | 20% |
 | P3 | 3 | 0 | 0% |
 
 ---
 
-*Last Sync: 2026-01-16 10:00*
-*Next Recommended Action: Task 016 (Guided Dashboard Building)*
+*Last Sync: 2026-01-16*
+*Next Recommended Action: Task 001 (Complete DQ page) or Task 003 (Full Report Redesign)*
