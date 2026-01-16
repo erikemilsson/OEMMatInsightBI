@@ -1,0 +1,174 @@
+table gold_data_gaps
+	lineageTag: d1a2b3c4-e5f6-7890-abcd-ef1234567890
+	sourceLineageTag: [dbo].[gold_data_gaps]
+
+	measure 'Countries with EPI Data' =
+			CALCULATE(
+			    DISTINCTCOUNT(gold_data_gaps[country_key]),
+			    gold_data_gaps[has_epi_score] = TRUE
+			)
+		formatString: #,##0
+		displayFolder: Data Gaps
+		lineageTag: f1a2b3c4-0001-0001-0001-000000000001
+
+	measure 'Countries without EPI Data' =
+			CALCULATE(
+			    DISTINCTCOUNT(gold_data_gaps[country_key]),
+			    gold_data_gaps[has_epi_score] = FALSE
+			)
+		formatString: #,##0
+		displayFolder: Data Gaps
+		lineageTag: f1a2b3c4-0001-0001-0001-000000000002
+
+	measure 'Country Coverage %' =
+			VAR WithEPI = [Countries with EPI Data]
+			VAR WithoutEPI = [Countries without EPI Data]
+			VAR Total = WithEPI + WithoutEPI
+			RETURN
+			    DIVIDE(WithEPI, Total, 0)
+		formatString: 0.0%;-0.0%;0.0%
+		displayFolder: Data Gaps
+		lineageTag: f1a2b3c4-0001-0001-0001-000000000003
+
+	measure 'Spend with EPI Data' =
+			CALCULATE(
+			    SUM(gold_data_gaps[spend_eur]),
+			    gold_data_gaps[has_epi_score] = TRUE
+			)
+		formatString: €#,##0
+		displayFolder: Data Gaps
+		lineageTag: f1a2b3c4-0001-0001-0001-000000000004
+
+	measure 'Spend without EPI Data' =
+			CALCULATE(
+			    SUM(gold_data_gaps[spend_eur]),
+			    gold_data_gaps[has_epi_score] = FALSE
+			)
+		formatString: €#,##0
+		displayFolder: Data Gaps
+		lineageTag: f1a2b3c4-0001-0001-0001-000000000005
+
+	measure 'Spend Coverage %' =
+			VAR SpendWithEPI = [Spend with EPI Data]
+			VAR TotalSpend = SUM(gold_data_gaps[spend_eur])
+			RETURN
+			    DIVIDE(SpendWithEPI, TotalSpend, 0)
+		formatString: 0.0%;-0.0%;0.0%
+		displayFolder: Data Gaps
+		lineageTag: f1a2b3c4-0001-0001-0001-000000000006
+
+	measure 'Total Procurement Countries' =
+			DISTINCTCOUNT(gold_data_gaps[country_key])
+		formatString: #,##0
+		displayFolder: Data Gaps
+		lineageTag: f1a2b3c4-0001-0001-0001-000000000007
+
+	measure 'Data Gap Summary' =
+			VAR WithEPI = [Countries with EPI Data]
+			VAR Total = [Total Procurement Countries]
+			RETURN
+			    FORMAT(WithEPI, "#") & " of " & FORMAT(Total, "#") & " countries"
+		displayFolder: Data Gaps
+		lineageTag: f1a2b3c4-0001-0001-0001-000000000008
+
+	column country_key
+		dataType: int64
+		formatString: 0
+		lineageTag: d1a2b3c4-0001-0001-0001-000000000001
+		sourceLineageTag: country_key
+		summarizeBy: none
+		sourceColumn: country_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column country_name_std
+		dataType: string
+		lineageTag: d1a2b3c4-0001-0001-0001-000000000002
+		sourceLineageTag: country_name_std
+		summarizeBy: none
+		sourceColumn: country_name_std
+
+		annotation SummarizationSetBy = Automatic
+
+	column iso3
+		dataType: string
+		lineageTag: d1a2b3c4-0001-0001-0001-000000000003
+		sourceLineageTag: iso3
+		summarizeBy: none
+		sourceColumn: iso3
+
+		annotation SummarizationSetBy = Automatic
+
+	column region
+		dataType: string
+		lineageTag: d1a2b3c4-0001-0001-0001-000000000004
+		sourceLineageTag: region
+		summarizeBy: none
+		sourceColumn: region
+
+		annotation SummarizationSetBy = Automatic
+
+	column country_role
+		dataType: string
+		lineageTag: d1a2b3c4-0001-0001-0001-000000000005
+		sourceLineageTag: country_role
+		summarizeBy: none
+		sourceColumn: country_role
+
+		annotation SummarizationSetBy = Automatic
+
+	column has_epi_score
+		dataType: boolean
+		lineageTag: d1a2b3c4-0001-0001-0001-000000000006
+		sourceLineageTag: has_epi_score
+		summarizeBy: none
+		sourceColumn: has_epi_score
+
+		annotation SummarizationSetBy = Automatic
+
+	column spend_eur
+		dataType: double
+		lineageTag: d1a2b3c4-0001-0001-0001-000000000007
+		sourceLineageTag: spend_eur
+		summarizeBy: sum
+		sourceColumn: spend_eur
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column transaction_count
+		dataType: int64
+		formatString: 0
+		lineageTag: d1a2b3c4-0001-0001-0001-000000000008
+		sourceLineageTag: transaction_count
+		summarizeBy: sum
+		sourceColumn: transaction_count
+
+		annotation SummarizationSetBy = Automatic
+
+	column data_status
+		dataType: string
+		lineageTag: d1a2b3c4-0001-0001-0001-000000000009
+		sourceLineageTag: data_status
+		summarizeBy: none
+		sourceColumn: data_status
+
+		annotation SummarizationSetBy = Automatic
+
+	column calculated_at
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: d1a2b3c4-0001-0001-0001-000000000010
+		sourceLineageTag: calculated_at
+		summarizeBy: none
+		sourceColumn: calculated_at
+
+		annotation SummarizationSetBy = Automatic
+
+	partition gold_data_gaps = entity
+		mode: directLake
+		source
+			entityName: gold_data_gaps
+			expressionSource: 'DirectLake - oem_lh'
+

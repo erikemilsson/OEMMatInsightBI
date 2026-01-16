@@ -1,0 +1,58 @@
+table gold_data_gaps_summary
+	lineageTag: e2b3c4d5-f6a7-8901-bcde-f23456789012
+	sourceLineageTag: [dbo].[gold_data_gaps_summary]
+
+	column category
+		dataType: string
+		lineageTag: e2b3c4d5-0001-0001-0001-000000000001
+		sourceLineageTag: category
+		summarizeBy: none
+		sourceColumn: category
+
+		annotation SummarizationSetBy = Automatic
+
+	column metric_name
+		dataType: string
+		lineageTag: e2b3c4d5-0001-0001-0001-000000000002
+		sourceLineageTag: metric_name
+		summarizeBy: none
+		sourceColumn: metric_name
+
+		annotation SummarizationSetBy = Automatic
+
+	column metric_value
+		dataType: double
+		lineageTag: e2b3c4d5-0001-0001-0001-000000000003
+		sourceLineageTag: metric_value
+		summarizeBy: sum
+		sourceColumn: metric_value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column description
+		dataType: string
+		lineageTag: e2b3c4d5-0001-0001-0001-000000000004
+		sourceLineageTag: description
+		summarizeBy: none
+		sourceColumn: description
+
+		annotation SummarizationSetBy = Automatic
+
+	column calculated_at
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: e2b3c4d5-0001-0001-0001-000000000005
+		sourceLineageTag: calculated_at
+		summarizeBy: none
+		sourceColumn: calculated_at
+
+		annotation SummarizationSetBy = Automatic
+
+	partition gold_data_gaps_summary = entity
+		mode: directLake
+		source
+			entityName: gold_data_gaps_summary
+			expressionSource: 'DirectLake - oem_lh'
+
