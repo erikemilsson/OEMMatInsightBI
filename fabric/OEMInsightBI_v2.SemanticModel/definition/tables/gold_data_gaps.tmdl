@@ -71,6 +71,79 @@ table gold_data_gaps
 		displayFolder: Data Gaps
 		lineageTag: f1a2b3c4-0001-0001-0001-000000000008
 
+	measure 'Procurement Countries with WGI' =
+			CALCULATE(
+			    DISTINCTCOUNT(gold_data_gaps[country_key]),
+			    gold_data_gaps[has_wgi_score] = TRUE
+			)
+		formatString: #,##0
+		displayFolder: Data Gaps
+		lineageTag: f1a2b3c4-0001-0001-0001-000000000012
+
+	measure 'Procurement Countries without WGI' =
+			CALCULATE(
+			    DISTINCTCOUNT(gold_data_gaps[country_key]),
+			    gold_data_gaps[has_wgi_score] = FALSE
+			)
+		formatString: #,##0
+		displayFolder: Data Gaps
+		lineageTag: f1a2b3c4-0001-0001-0001-000000000013
+
+	measure 'WGI Country Coverage %' =
+			VAR WithWGI = [Procurement Countries with WGI]
+			VAR WithoutWGI = [Procurement Countries without WGI]
+			VAR Total = WithWGI + WithoutWGI
+			RETURN
+			    DIVIDE(WithWGI, Total, 0)
+		formatString: 0.0%;-0.0%;0.0%
+		displayFolder: Data Gaps
+		lineageTag: f1a2b3c4-0001-0001-0001-000000000014
+
+	measure 'Full Indicator Coverage' =
+			CALCULATE(
+			    DISTINCTCOUNT(gold_data_gaps[country_key]),
+			    gold_data_gaps[has_epi_score] = TRUE && gold_data_gaps[has_wgi_score] = TRUE
+			)
+		formatString: #,##0
+		displayFolder: Data Gaps
+		lineageTag: f1a2b3c4-0001-0001-0001-000000000015
+
+	measure 'Partial Coverage' =
+			CALCULATE(
+			    DISTINCTCOUNT(gold_data_gaps[country_key]),
+			    (gold_data_gaps[has_epi_score] = TRUE && gold_data_gaps[has_wgi_score] = FALSE) ||
+			    (gold_data_gaps[has_epi_score] = FALSE && gold_data_gaps[has_wgi_score] = TRUE)
+			)
+		formatString: #,##0
+		displayFolder: Data Gaps
+		lineageTag: f1a2b3c4-0001-0001-0001-000000000016
+
+	measure 'No Coverage' =
+			CALCULATE(
+			    DISTINCTCOUNT(gold_data_gaps[country_key]),
+			    gold_data_gaps[has_epi_score] = FALSE && gold_data_gaps[has_wgi_score] = FALSE
+			)
+		formatString: #,##0
+		displayFolder: Data Gaps
+		lineageTag: f1a2b3c4-0001-0001-0001-000000000017
+
+	measure 'Full Coverage %' =
+			VAR FullCoverage = [Full Indicator Coverage]
+			VAR Total = [Total Procurement Countries]
+			RETURN
+			    DIVIDE(FullCoverage, Total, 0)
+		formatString: 0.0%;-0.0%;0.0%
+		displayFolder: Data Gaps
+		lineageTag: f1a2b3c4-0001-0001-0001-000000000018
+
+	measure 'Coverage Summary' =
+			VAR Full = [Full Indicator Coverage]
+			VAR Total = [Total Procurement Countries]
+			RETURN
+			    FORMAT(Full, "#") & " of " & FORMAT(Total, "#") & " countries have full coverage"
+		displayFolder: Data Gaps
+		lineageTag: f1a2b3c4-0001-0001-0001-000000000019
+
 	column country_key
 		dataType: int64
 		formatString: 0
@@ -123,6 +196,15 @@ table gold_data_gaps
 		sourceLineageTag: has_epi_score
 		summarizeBy: none
 		sourceColumn: has_epi_score
+
+		annotation SummarizationSetBy = Automatic
+
+	column has_wgi_score
+		dataType: boolean
+		lineageTag: d1a2b3c4-0001-0001-0001-000000000011
+		sourceLineageTag: has_wgi_score
+		summarizeBy: none
+		sourceColumn: has_wgi_score
 
 		annotation SummarizationSetBy = Automatic
 

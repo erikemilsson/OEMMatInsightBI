@@ -1672,12 +1672,13 @@ def create_data_gaps_table():
     """
     Create a comprehensive data gaps table showing:
     1. Countries in procurement that have NO EPI scores
-    2. Coverage percentages for actionable reporting
-    3. Spend impact of missing data
+    2. Countries in procurement that have NO WGI scores
+    3. Coverage percentages for actionable reporting
+    4. Spend impact of missing data
 
     This enables the Data Gaps page in Power BI to show:
-    - "X of Y supplier countries have EPI data"
-    - "€Z spend is with suppliers in countries without sustainability data"
+    - "X of Y supplier countries have full indicator coverage (EPI + WGI)"
+    - "€Z spend is with suppliers in countries without sustainability/governance data"
     """
 
     # 1. Get distinct countries from procurement (both supplier HQ and production)
@@ -1699,7 +1700,16 @@ def create_data_gaps_table():
         WHERE score IS NOT NULL
     """)
 
-    # 3. Join to find gaps
+    # 3. Get countries that have WGI scores (World Governance Indicators)
+    # Join bronze_WGI to dim_country via ISO3 code
+    countries_with_wgi = spark.sql(f"""
+        SELECT DISTINCT dc.country_key
+        FROM {DB}.bronze_WGI bw
+        JOIN {DB}.gold_dim_country dc ON UPPER(bw.`Country Code`) = UPPER(dc.iso3)
+        WHERE bw.`Percentile Rank 2023` IS NOT NULL
+    """)
+
+    # 4. Join to find gaps (both EPI and WGI)
     gaps_detail = (
         procurement_countries
         .join(
@@ -1714,11 +1724,17 @@ def create_data_gaps_table():
             "country_key",
             "left"
         )
+        .join(
+            countries_with_wgi.withColumn("has_wgi_score", F.lit(True)),
+            "country_key",
+            "left"
+        )
         .withColumn("has_epi_score", F.coalesce(F.col("has_epi_score"), F.lit(False)))
+        .withColumn("has_wgi_score", F.coalesce(F.col("has_wgi_score"), F.lit(False)))
         .filter(~F.coalesce(F.col("is_placeholder"), F.lit(False)))  # Exclude placeholder countries
     )
 
-    # 4. Calculate spend impact for countries without EPI data
+    # 5. Calculate spend impact for countries without indicator data
     spend_by_country = spark.sql(f"""
         SELECT
             supplier_hq_country_key as country_key,
@@ -1728,7 +1744,7 @@ def create_data_gaps_table():
         GROUP BY supplier_hq_country_key
     """)
 
-    # 5. Create the final data gaps table
+    # 6. Create the final data gaps table
     data_gaps = (
         gaps_detail
         .join(spend_by_country, "country_key", "left")
@@ -1739,10 +1755,13 @@ def create_data_gaps_table():
             "region",
             "country_role",
             "has_epi_score",
+            "has_wgi_score",
             F.coalesce("total_spend_eur", F.lit(0.0)).alias("spend_eur"),
             F.coalesce("transaction_count", F.lit(0)).alias("transaction_count"),
-            F.when(F.col("has_epi_score"), "Has Indicator Data")
-             .otherwise("Missing Indicator Data").alias("data_status"),
+            F.when(F.col("has_epi_score") & F.col("has_wgi_score"), "Full Coverage")
+             .when(F.col("has_epi_score"), "EPI Only")
+             .when(F.col("has_wgi_score"), "WGI Only")
+             .otherwise("No Coverage").alias("data_status"),
             F.current_timestamp().alias("calculated_at")
         )
         .dropDuplicates(["country_key", "country_role"])
@@ -1750,26 +1769,58 @@ def create_data_gaps_table():
 
     write_tbl(data_gaps, "gold_data_gaps")
 
-    # 6. Create summary statistics table for KPI cards
+    # 7. Create summary statistics table for KPI cards
     total_countries = data_gaps.select("country_key").distinct().count()
+
+    # EPI coverage stats
     countries_with_epi_count = data_gaps.filter(F.col("has_epi_score")).select("country_key").distinct().count()
     countries_without_epi_count = data_gaps.filter(~F.col("has_epi_score")).select("country_key").distinct().count()
 
-    spend_with_epi = data_gaps.filter(F.col("has_epi_score")).agg(F.sum("spend_eur")).first()[0] or 0
-    spend_without_epi = data_gaps.filter(~F.col("has_epi_score")).agg(F.sum("spend_eur")).first()[0] or 0
-    total_spend = spend_with_epi + spend_without_epi
+    # WGI coverage stats
+    countries_with_wgi_count = data_gaps.filter(F.col("has_wgi_score")).select("country_key").distinct().count()
+    countries_without_wgi_count = data_gaps.filter(~F.col("has_wgi_score")).select("country_key").distinct().count()
 
-    coverage_pct = (countries_with_epi_count / total_countries * 100) if total_countries > 0 else 0
-    spend_coverage_pct = (spend_with_epi / total_spend * 100) if total_spend > 0 else 0
+    # Combined coverage stats
+    full_coverage_count = data_gaps.filter(F.col("has_epi_score") & F.col("has_wgi_score")).select("country_key").distinct().count()
+    partial_coverage_count = data_gaps.filter(
+        (F.col("has_epi_score") & ~F.col("has_wgi_score")) |
+        (~F.col("has_epi_score") & F.col("has_wgi_score"))
+    ).select("country_key").distinct().count()
+    no_coverage_count = data_gaps.filter(~F.col("has_epi_score") & ~F.col("has_wgi_score")).select("country_key").distinct().count()
+
+    # Spend calculations
+    spend_full_coverage = data_gaps.filter(F.col("has_epi_score") & F.col("has_wgi_score")).agg(F.sum("spend_eur")).first()[0] or 0
+    spend_with_epi = data_gaps.filter(F.col("has_epi_score")).agg(F.sum("spend_eur")).first()[0] or 0
+    spend_with_wgi = data_gaps.filter(F.col("has_wgi_score")).agg(F.sum("spend_eur")).first()[0] or 0
+    total_spend = data_gaps.agg(F.sum("spend_eur")).first()[0] or 0
+
+    # Coverage percentages
+    epi_coverage_pct = (countries_with_epi_count / total_countries * 100) if total_countries > 0 else 0
+    wgi_coverage_pct = (countries_with_wgi_count / total_countries * 100) if total_countries > 0 else 0
+    full_coverage_pct = (full_coverage_count / total_countries * 100) if total_countries > 0 else 0
+    spend_full_coverage_pct = (spend_full_coverage / total_spend * 100) if total_spend > 0 else 0
 
     # Create summary table
     summary_rows = [
-        ("Coverage", "Countries with EPI Data", float(countries_with_epi_count), f"{countries_with_epi_count} of {total_countries} supplier countries"),
-        ("Coverage", "Countries without EPI Data", float(countries_without_epi_count), f"Missing sustainability indicators"),
-        ("Coverage", "Country Coverage %", float(coverage_pct), f"Percentage of procurement countries with EPI data"),
-        ("Impact", "Spend with EPI Data (EUR)", float(spend_with_epi), f"Procurement spend where sustainability data exists"),
-        ("Impact", "Spend without EPI Data (EUR)", float(spend_without_epi), f"Procurement spend at risk - no sustainability data"),
-        ("Impact", "Spend Coverage %", float(spend_coverage_pct), f"Percentage of spend with sustainability data"),
+        # EPI Coverage
+        ("EPI Coverage", "Countries with EPI Data", float(countries_with_epi_count), f"{countries_with_epi_count} of {total_countries} supplier countries"),
+        ("EPI Coverage", "Countries without EPI Data", float(countries_without_epi_count), f"Missing EPI sustainability indicators"),
+        ("EPI Coverage", "EPI Country Coverage %", float(epi_coverage_pct), f"Percentage of procurement countries with EPI data"),
+        # WGI Coverage
+        ("WGI Coverage", "Countries with WGI Data", float(countries_with_wgi_count), f"{countries_with_wgi_count} of {total_countries} supplier countries"),
+        ("WGI Coverage", "Countries without WGI Data", float(countries_without_wgi_count), f"Missing WGI governance indicators"),
+        ("WGI Coverage", "WGI Country Coverage %", float(wgi_coverage_pct), f"Percentage of procurement countries with WGI data"),
+        # Combined Coverage
+        ("Combined Coverage", "Full Coverage (EPI + WGI)", float(full_coverage_count), f"Countries with both EPI and WGI data"),
+        ("Combined Coverage", "Partial Coverage", float(partial_coverage_count), f"Countries with either EPI or WGI (not both)"),
+        ("Combined Coverage", "No Coverage", float(no_coverage_count), f"Countries missing both EPI and WGI data"),
+        ("Combined Coverage", "Full Coverage %", float(full_coverage_pct), f"Percentage with complete indicator coverage"),
+        # Spend Impact
+        ("Spend Impact", "Spend with Full Coverage (EUR)", float(spend_full_coverage), f"Procurement spend with complete indicator data"),
+        ("Spend Impact", "Spend with EPI Data (EUR)", float(spend_with_epi), f"Procurement spend where EPI data exists"),
+        ("Spend Impact", "Spend with WGI Data (EUR)", float(spend_with_wgi), f"Procurement spend where WGI data exists"),
+        ("Spend Impact", "Full Coverage Spend %", float(spend_full_coverage_pct), f"Percentage of spend with complete coverage"),
+        # Summary
         ("Summary", "Total Procurement Countries", float(total_countries), f"Distinct countries in procurement data"),
         ("Summary", "Total Procurement Spend (EUR)", float(total_spend), f"Total procurement spend across all countries"),
     ]
@@ -1790,16 +1841,22 @@ print("\n" + "="*70)
 print("DATA GAPS VISIBILITY TABLE CREATED (Task 001)")
 print("="*70)
 
-print("\n📊 COVERAGE SUMMARY:")
-data_gaps_summary.filter(F.col("category") == "Coverage").show(truncate=False)
+print("\n📊 EPI COVERAGE:")
+data_gaps_summary.filter(F.col("category") == "EPI Coverage").show(truncate=False)
+
+print("\n🏛️ WGI COVERAGE:")
+data_gaps_summary.filter(F.col("category") == "WGI Coverage").show(truncate=False)
+
+print("\n📈 COMBINED COVERAGE:")
+data_gaps_summary.filter(F.col("category") == "Combined Coverage").show(truncate=False)
 
 print("\n💰 SPEND IMPACT:")
-data_gaps_summary.filter(F.col("category") == "Impact").show(truncate=False)
+data_gaps_summary.filter(F.col("category") == "Spend Impact").show(truncate=False)
 
-print("\n🔍 COUNTRIES WITHOUT EPI DATA (Action Required):")
+print("\n🔍 COUNTRIES BY COVERAGE STATUS:")
 (data_gaps
- .filter(~F.col("has_epi_score"))
- .select("country_name_std", "iso3", "region", "spend_eur", "transaction_count")
+ .select("country_key", "country_name_std", "iso3", "region", "data_status", "has_epi_score", "has_wgi_score", "spend_eur")
+ .dropDuplicates(["country_key"])
  .orderBy(F.desc("spend_eur"))
  .show(20, truncate=False))
 
