@@ -1,0 +1,93 @@
+table fact_procurement
+	lineageTag: 6777fb5e-6e9e-452b-aef7-a4824a303f63
+	sourceLineageTag: [dbo].[fact_procurement]
+
+	column date_key
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: 8c182b8a-728e-4e4d-a76b-172e5d3277cf
+		sourceLineageTag: date_key
+		summarizeBy: none
+		sourceColumn: date_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column material_key
+		dataType: int64
+		formatString: 0
+		sourceProviderType: bigint
+		lineageTag: 885321fd-7c9c-46a2-b7b5-c638a690d6f3
+		sourceLineageTag: material_key
+		summarizeBy: none
+		sourceColumn: material_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column supplier_hq_country_key
+		dataType: int64
+		formatString: 0
+		sourceProviderType: bigint
+		lineageTag: 196562e9-b284-4ce4-8fe8-50c8cd13e309
+		sourceLineageTag: supplier_hq_country_key
+		summarizeBy: sum
+		sourceColumn: supplier_hq_country_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column production_country_key
+		dataType: int64
+		formatString: 0
+		sourceProviderType: bigint
+		lineageTag: eb0731e5-0602-4e44-ad40-db84f4c36aa2
+		sourceLineageTag: production_country_key
+		summarizeBy: none
+		sourceColumn: production_country_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column quantity_base
+		dataType: double
+		sourceProviderType: float
+		lineageTag: ef407380-81a3-4603-9197-29e9fb234aad
+		sourceLineageTag: quantity_base
+		summarizeBy: sum
+		sourceColumn: quantity_base
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column unitprice_eur
+		dataType: double
+		sourceProviderType: float
+		lineageTag: 9b4835e5-03db-47f0-be77-5670e6446ed8
+		sourceLineageTag: unitprice_eur
+		summarizeBy: sum
+		sourceColumn: unitprice_eur
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column spend_eur
+		dataType: double
+		sourceProviderType: float
+		lineageTag: 40fcbbdd-895f-4698-9f6b-2491152fea98
+		sourceLineageTag: spend_eur
+		summarizeBy: sum
+		sourceColumn: spend_eur
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition fact_procurement = entity
+		mode: directLake
+		source
+			entityName: fact_procurement
+			schemaName: dbo
+			expressionSource: DatabaseQuery
+
+	annotation PBI_ResultType = Table
+

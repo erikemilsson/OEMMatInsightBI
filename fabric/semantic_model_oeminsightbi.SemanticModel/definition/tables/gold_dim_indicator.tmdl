@@ -1,0 +1,114 @@
+table gold_dim_indicator
+	lineageTag: 5b480381-2bed-41e1-8547-d1f602408e1c
+	sourceLineageTag: [dbo].[gold_dim_indicator]
+
+	column indicator_key
+		dataType: int64
+		formatString: 0
+		sourceProviderType: bigint
+		lineageTag: 1dcacaef-c9a7-4485-993e-ef6064235665
+		sourceLineageTag: indicator_key
+		summarizeBy: none
+		sourceColumn: indicator_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column source_system
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 74100556-d021-46ca-9f40-e8677a0bcdd8
+		sourceLineageTag: source_system
+		summarizeBy: none
+		sourceColumn: source_system
+
+		annotation SummarizationSetBy = Automatic
+
+	column type
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 0b1efdf0-a0af-49e8-ad3e-9c3b5aa85692
+		sourceLineageTag: type
+		summarizeBy: none
+		sourceColumn: type
+
+		annotation SummarizationSetBy = Automatic
+
+	column abbrev
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 131eb6a4-2fdc-4549-a11f-53ef523b7b9b
+		sourceLineageTag: abbrev
+		summarizeBy: none
+		sourceColumn: abbrev
+
+		annotation SummarizationSetBy = Automatic
+
+	column variable_name
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: ccee045f-04c5-4137-93a3-261542db9a73
+		sourceLineageTag: variable_name
+		summarizeBy: none
+		sourceColumn: variable_name
+
+		annotation SummarizationSetBy = Automatic
+
+	column policyobjective
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 5544b813-4f4e-4db9-b5ce-d3a173f00ad0
+		sourceLineageTag: policyobjective
+		summarizeBy: none
+		sourceColumn: policyobjective
+
+		annotation SummarizationSetBy = Automatic
+
+	column issuecategory
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: a74bc208-16c9-4552-830c-48413cc7abb1
+		sourceLineageTag: issuecategory
+		summarizeBy: none
+		sourceColumn: issuecategory
+
+		annotation SummarizationSetBy = Automatic
+
+	column indicator_code
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 882c0ab5-bfc4-4b0d-be25-db15785283ed
+		sourceLineageTag: indicator_code
+		summarizeBy: none
+		sourceColumn: indicator_code
+
+		annotation SummarizationSetBy = Automatic
+
+	column weight
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 1868818d-c7b1-46c3-a5b9-24c9b4ad9797
+		sourceLineageTag: weight
+		summarizeBy: none
+		sourceColumn: weight
+
+		annotation SummarizationSetBy = Automatic
+
+	column description
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: fa235f0b-49a2-40db-9acb-4bb6fb58742c
+		sourceLineageTag: description
+		summarizeBy: none
+		sourceColumn: description
+
+		annotation SummarizationSetBy = Automatic
+
+	partition gold_dim_indicator = entity
+		mode: directLake
+		source
+			entityName: gold_dim_indicator
+			schemaName: dbo
+			expressionSource: DatabaseQuery
+
+	annotation PBI_ResultType = Table
+

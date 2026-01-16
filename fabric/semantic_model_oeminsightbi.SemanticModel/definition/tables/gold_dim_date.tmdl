@@ -1,0 +1,78 @@
+table gold_dim_date
+	lineageTag: ebf2a09e-6e51-427c-9524-a5e624ae2565
+	sourceLineageTag: [dbo].[gold_dim_date]
+
+	column date_key
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: 595b6ee3-8d97-4779-8696-5e72cd3fe7ce
+		sourceLineageTag: date_key
+		summarizeBy: none
+		sourceColumn: date_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column date
+		dataType: dateTime
+		formatString: General Date
+		sourceProviderType: date
+		lineageTag: 8b09fb62-34c3-49c7-8b45-1835800d77a7
+		sourceLineageTag: date
+		summarizeBy: none
+		sourceColumn: date
+
+		annotation SummarizationSetBy = Automatic
+
+	column year
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: e2597a73-f49b-4a1e-85f3-c42c34843634
+		sourceLineageTag: year
+		summarizeBy: sum
+		sourceColumn: year
+
+		annotation SummarizationSetBy = Automatic
+
+	column month
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: 41933c57-9708-4dd3-a151-ffdb630c02b2
+		sourceLineageTag: month
+		summarizeBy: sum
+		sourceColumn: month
+
+		annotation SummarizationSetBy = Automatic
+
+	column day
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: a32387d6-6b1f-450b-977d-755202a8f0e7
+		sourceLineageTag: day
+		summarizeBy: sum
+		sourceColumn: day
+
+		annotation SummarizationSetBy = Automatic
+
+	column month_name
+		dataType: string
+		sourceProviderType: varchar(8000)
+		lineageTag: 75a640bd-53ac-4bb8-89ff-1ace46e0d93c
+		sourceLineageTag: month_name
+		summarizeBy: none
+		sourceColumn: month_name
+
+		annotation SummarizationSetBy = Automatic
+
+	partition gold_dim_date = entity
+		mode: directLake
+		source
+			entityName: gold_dim_date
+			schemaName: dbo
+			expressionSource: DatabaseQuery
+
+	annotation PBI_ResultType = Table
+
