@@ -2,7 +2,7 @@ table gold_data_gaps
 	lineageTag: d1a2b3c4-e5f6-7890-abcd-ef1234567890
 	sourceLineageTag: [dbo].[gold_data_gaps]
 
-	measure 'Countries with EPI Data' =
+	measure 'Procurement Countries with EPI' =
 			CALCULATE(
 			    DISTINCTCOUNT(gold_data_gaps[country_key]),
 			    gold_data_gaps[has_epi_score] = TRUE
@@ -11,7 +11,7 @@ table gold_data_gaps
 		displayFolder: Data Gaps
 		lineageTag: f1a2b3c4-0001-0001-0001-000000000001
 
-	measure 'Countries without EPI Data' =
+	measure 'Procurement Countries without EPI' =
 			CALCULATE(
 			    DISTINCTCOUNT(gold_data_gaps[country_key]),
 			    gold_data_gaps[has_epi_score] = FALSE
@@ -20,9 +20,9 @@ table gold_data_gaps
 		displayFolder: Data Gaps
 		lineageTag: f1a2b3c4-0001-0001-0001-000000000002
 
-	measure 'Country Coverage %' =
-			VAR WithEPI = [Countries with EPI Data]
-			VAR WithoutEPI = [Countries without EPI Data]
+	measure 'EPI Country Coverage %' =
+			VAR WithEPI = [Procurement Countries with EPI]
+			VAR WithoutEPI = [Procurement Countries without EPI]
 			VAR Total = WithEPI + WithoutEPI
 			RETURN
 			    DIVIDE(WithEPI, Total, 0)
@@ -30,7 +30,7 @@ table gold_data_gaps
 		displayFolder: Data Gaps
 		lineageTag: f1a2b3c4-0001-0001-0001-000000000003
 
-	measure 'Spend with EPI Data' =
+	measure 'Procurement Spend with EPI' =
 			CALCULATE(
 			    SUM(gold_data_gaps[spend_eur]),
 			    gold_data_gaps[has_epi_score] = TRUE
@@ -39,7 +39,7 @@ table gold_data_gaps
 		displayFolder: Data Gaps
 		lineageTag: f1a2b3c4-0001-0001-0001-000000000004
 
-	measure 'Spend without EPI Data' =
+	measure 'Procurement Spend without EPI' =
 			CALCULATE(
 			    SUM(gold_data_gaps[spend_eur]),
 			    gold_data_gaps[has_epi_score] = FALSE
@@ -48,8 +48,8 @@ table gold_data_gaps
 		displayFolder: Data Gaps
 		lineageTag: f1a2b3c4-0001-0001-0001-000000000005
 
-	measure 'Spend Coverage %' =
-			VAR SpendWithEPI = [Spend with EPI Data]
+	measure 'EPI Spend Coverage %' =
+			VAR SpendWithEPI = [Procurement Spend with EPI]
 			VAR TotalSpend = SUM(gold_data_gaps[spend_eur])
 			RETURN
 			    DIVIDE(SpendWithEPI, TotalSpend, 0)
@@ -63,8 +63,8 @@ table gold_data_gaps
 		displayFolder: Data Gaps
 		lineageTag: f1a2b3c4-0001-0001-0001-000000000007
 
-	measure 'Data Gap Summary' =
-			VAR WithEPI = [Countries with EPI Data]
+	measure 'EPI Gap Summary' =
+			VAR WithEPI = [Procurement Countries with EPI]
 			VAR Total = [Total Procurement Countries]
 			RETURN
 			    FORMAT(WithEPI, "#") & " of " & FORMAT(Total, "#") & " countries"
