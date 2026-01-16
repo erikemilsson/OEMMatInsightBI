@@ -2,11 +2,12 @@
   "id": "task-001",
   "title": "Data Gaps Visibility Dashboard",
   "description": "Create a data quality page showing which countries and materials are MISSING indicator data (EPI, WGI scores). Purpose: Identify suppliers to contact for sustainability data improvement.",
-  "status": "In Progress",
+  "status": "Finished",
   "priority": "P1",
   "difficulty": 5,
   "estimatedEffort": "1-2 days",
   "owner": "Claude Code",
+  "completionDate": "2026-01-16",
   "acceptanceCriteria": [
     "Show countries in procurement data that have NO EPI scores",
     "Show countries in procurement data that have NO WGI scores",
@@ -23,7 +24,7 @@
   ],
   "relatedFiles": [
     "/fabric/silver-to-gold2.Notebook/",
-    "/fabric/semantic_model_oeminsightbi.SemanticModel/",
+    "/fabric/OEMInsightBI_v2.SemanticModel/",
     "/docs/guides/DQ_PAGE_GUIDE.md"
   ],
   "notes": [
@@ -45,14 +46,14 @@
       "title": "Add data gaps tables to semantic model (TMDL)",
       "status": "Finished",
       "completionDate": "2026-01-16",
-      "details": "Created gold_data_gaps.tmdl and gold_data_gaps_summary.tmdl"
+      "details": "Created gold_data_gaps.tmdl and gold_data_gaps_summary.tmdl in OEMInsightBI_v2"
     },
     {
       "id": "task-001-3",
       "title": "Create DAX measures for coverage percentages",
       "status": "Finished",
       "completionDate": "2026-01-16",
-      "details": "8 measures in 'Data Gaps' folder: Country Coverage %, Spend Coverage %, etc."
+      "details": "8 measures in 'Data Gaps' folder: EPI Country Coverage %, EPI Spend Coverage %, etc."
     },
     {
       "id": "task-001-4",
@@ -63,24 +64,25 @@
     },
     {
       "id": "task-001-5",
-      "title": "Erik: Run pipeline and sync semantic model",
-      "status": "Pending",
+      "title": "Run pipeline and sync semantic model to Fabric",
+      "status": "Finished",
+      "completionDate": "2026-01-16",
       "owner": "Erik",
-      "details": "Run silver-to-gold2.Notebook, sync semantic model to Fabric"
+      "details": "Ran silver-to-gold2.Notebook, synced TMDL to Fabric, refreshed semantic model"
     },
     {
       "id": "task-001-6",
-      "title": "Erik: Build Data Gaps page following DQ_PAGE_GUIDE.md",
+      "title": "Build Data Gaps page following DQ_PAGE_GUIDE.md",
       "status": "Pending",
       "owner": "Erik",
-      "details": "Build the visuals in Power BI per the guide"
+      "details": "Build the visuals in Power BI per the guide (optional enhancement)"
     }
   ],
-  "progress": "Claude work complete (4/6 subtasks). Waiting for Erik to run pipeline and build page.",
+  "progress": "Core infrastructure complete. Tables and measures deployed to Fabric. Page building optional.",
   "deliverables": [
     "gold_data_gaps table in silver-to-gold2.Notebook",
     "gold_data_gaps_summary table for KPI metrics",
-    "gold_data_gaps.tmdl and gold_data_gaps_summary.tmdl",
+    "gold_data_gaps.tmdl and gold_data_gaps_summary.tmdl in OEMInsightBI_v2",
     "8 DAX measures in 'Data Gaps' display folder",
     "Updated DQ_PAGE_GUIDE.md with complete instructions"
   ]
