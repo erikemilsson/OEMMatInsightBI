@@ -433,8 +433,8 @@ table _Measures
 			    DISTINCTCOUNT(gold_data_gaps[country_key]),
 			    gold_data_gaps[has_epi_score] = TRUE
 			)
-			formatString: #,##0
-			displayFolder: Data Gaps
+		formatString: #,##0
+		displayFolder: Data Gaps
 		lineageTag: f1a2b3c4-0001-0001-0001-000000000001
 
 	measure 'Countries without EPI Data' =
@@ -442,8 +442,8 @@ table _Measures
 			    DISTINCTCOUNT(gold_data_gaps[country_key]),
 			    gold_data_gaps[has_epi_score] = FALSE
 			)
-			formatString: #,##0
-			displayFolder: Data Gaps
+		formatString: #,##0
+		displayFolder: Data Gaps
 		lineageTag: f1a2b3c4-0001-0001-0001-000000000002
 
 	measure 'Country Coverage %' =
@@ -452,8 +452,8 @@ table _Measures
 			VAR Total = WithEPI + WithoutEPI
 			RETURN
 			    DIVIDE(WithEPI, Total, 0)
-			formatString: 0.0%;-0.0%;0.0%
-			displayFolder: Data Gaps
+		formatString: 0.0%;-0.0%;0.0%
+		displayFolder: Data Gaps
 		lineageTag: f1a2b3c4-0001-0001-0001-000000000003
 
 	measure 'Spend with EPI Data' =
@@ -461,8 +461,8 @@ table _Measures
 			    SUM(gold_data_gaps[spend_eur]),
 			    gold_data_gaps[has_epi_score] = TRUE
 			)
-			formatString: €#,##0
-			displayFolder: Data Gaps
+		formatString: €#,##0
+		displayFolder: Data Gaps
 		lineageTag: f1a2b3c4-0001-0001-0001-000000000004
 
 	measure 'Spend without EPI Data' =
@@ -470,8 +470,8 @@ table _Measures
 			    SUM(gold_data_gaps[spend_eur]),
 			    gold_data_gaps[has_epi_score] = FALSE
 			)
-			formatString: €#,##0
-			displayFolder: Data Gaps
+		formatString: €#,##0
+		displayFolder: Data Gaps
 		lineageTag: f1a2b3c4-0001-0001-0001-000000000005
 
 	measure 'Spend Coverage %' =
@@ -479,14 +479,14 @@ table _Measures
 			VAR TotalSpend = SUM(gold_data_gaps[spend_eur])
 			RETURN
 			    DIVIDE(SpendWithEPI, TotalSpend, 0)
-			formatString: 0.0%;-0.0%;0.0%
-			displayFolder: Data Gaps
+		formatString: 0.0%;-0.0%;0.0%
+		displayFolder: Data Gaps
 		lineageTag: f1a2b3c4-0001-0001-0001-000000000006
 
 	measure 'Total Procurement Countries' =
 			DISTINCTCOUNT(gold_data_gaps[country_key])
-			formatString: #,##0
-			displayFolder: Data Gaps
+		formatString: #,##0
+		displayFolder: Data Gaps
 		lineageTag: f1a2b3c4-0001-0001-0001-000000000007
 
 	measure 'Data Gap Summary' =
@@ -494,7 +494,7 @@ table _Measures
 			VAR Total = [Total Procurement Countries]
 			RETURN
 			    FORMAT(WithEPI, "#") & " of " & FORMAT(Total, "#") & " countries"
-			displayFolder: Data Gaps
+		displayFolder: Data Gaps
 		lineageTag: f1a2b3c4-0001-0001-0001-000000000008
 
 	column 'Measure Placeholder'
