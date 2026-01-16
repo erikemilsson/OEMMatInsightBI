@@ -1662,8 +1662,8 @@ dq_dashboard.groupBy("category").count().orderBy("category").show()
 
 # MARKDOWN ********************
 
-# # Data Gaps Visibility Table (Task 001 - Revised)
-# # This table shows which countries/materials in procurement are MISSING indicator data (EPI scores).
+# # Data Gaps Visibility Table
+# This table shows which countries/materials in procurement are MISSING indicator data (EPI scores).
 # Purpose: Enable actionable insights like "Contact suppliers in these countries for sustainability data"
 
 # CELL ********************
