@@ -389,51 +389,6 @@ table _Measures
 		IF([Cumulative Spend %] <= 0.8, "Top 80%", "Remaining 20%")
 		displayFolder: Advanced
 
-	measure 'Overall Match Rate %' =
-		CALCULATE(
-		    AVERAGE(gold_data_quality_dashboard[metric_value]),
-		    gold_data_quality_dashboard[category] = "Overall",
-		    gold_data_quality_dashboard[metric_name] = "Match Rate"
-		)
-		formatString: 0.0%
-		displayFolder: Data Quality
-
-	measure 'Unmapped Records Count' =
-		CALCULATE(
-		    SUM(gold_data_quality_dashboard[metric_value]),
-		    gold_data_quality_dashboard[category] = "Overall",
-		    gold_data_quality_dashboard[metric_name] = "Unmapped Records"
-		)
-		formatString: #,##0
-		displayFolder: Data Quality
-
-	measure 'High Confidence Records %' =
-		CALCULATE(
-		    AVERAGE(gold_data_quality_dashboard[metric_value]),
-		    gold_data_quality_dashboard[category] = "Overall",
-		    gold_data_quality_dashboard[metric_name] = "High Confidence %"
-		)
-		formatString: 0.0%
-		displayFolder: Data Quality
-
-	measure 'Procurement Match Rate %' =
-		CALCULATE(
-		    AVERAGE(gold_data_quality_dashboard[metric_value]),
-		    gold_data_quality_dashboard[category] = "Procurement",
-		    gold_data_quality_dashboard[metric_name] = "Match Rate"
-		)
-		formatString: 0.0%
-		displayFolder: Data Quality
-
-	measure 'Supply Match Rate %' =
-		CALCULATE(
-		    AVERAGE(gold_data_quality_dashboard[metric_value]),
-		    gold_data_quality_dashboard[category] = "Supply",
-		    gold_data_quality_dashboard[metric_name] = "Match Rate"
-		)
-		formatString: 0.0%
-		displayFolder: Data Quality
-
 	partition _Measures = calculated
 		mode: import
 		source = ROW("Measure Placeholder", 1)
