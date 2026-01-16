@@ -1,0 +1,7 @@
+role 'Category Manager - Battery Metals'
+	modelPermission: read
+
+	tablePermission gold_dim_material = [commodity_group] = "Battery metals"
+
+	annotation PBI_Id = f237a5f5b54d488ab1202244ce44227c
+

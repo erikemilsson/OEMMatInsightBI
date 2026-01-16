@@ -1,0 +1,7 @@
+role 'Regional Manager - Europe'
+	modelPermission: read
+
+	tablePermission gold_dim_country = [region] = "Europe"
+
+	annotation PBI_Id = e9238531e9d44de1acf60354083883ae
+

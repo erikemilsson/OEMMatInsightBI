@@ -1,0 +1,7 @@
+role 'Category Manager - Base Metals'
+	modelPermission: read
+
+	tablePermission gold_dim_material = [commodity_group] = "Base metals"
+
+	annotation PBI_Id = d66358d909574d04b2ddea59dc9dec99
+

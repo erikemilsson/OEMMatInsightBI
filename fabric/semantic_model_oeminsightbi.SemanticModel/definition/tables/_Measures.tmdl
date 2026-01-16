@@ -1,396 +1,441 @@
 table _Measures
-	lineageTag: a1b2c3d4-e5f6-47a8-b9c0-d1e2f3a4b5c6
 	isHidden
+	lineageTag: a1b2c3d4-e5f6-47a8-b9c0-d1e2f3a4b5c6
 
 	measure 'Total Spend EUR' = SUM(fact_procurement[spend_eur])
 		formatString: #,##0
 		displayFolder: Procurement
+		lineageTag: d5a1254f-4aab-41ed-85b7-9879c7c98bc2
 
 	measure 'YoY Spend Growth %' =
-		VAR CurrentPeriod = [Total Spend EUR]
-		VAR PriorPeriod = CALCULATE([Total Spend EUR], SAMEPERIODLASTYEAR(gold_dim_date[date]))
-		RETURN
-		    DIVIDE(CurrentPeriod - PriorPeriod, PriorPeriod, 0)
-		formatString: 0.0%;-0.0%;0.0%
-		displayFolder: Procurement
+			VAR CurrentPeriod = [Total Spend EUR]
+			VAR PriorPeriod = CALCULATE([Total Spend EUR], SAMEPERIODLASTYEAR(gold_dim_date[date]))
+			RETURN
+			    DIVIDE(CurrentPeriod - PriorPeriod, PriorPeriod, 0)
+			formatString: 0.0%;-0.0%;0.0%
+			displayFolder: Procurement
+		lineageTag: 64c98359-7842-43cc-b10b-523fd1fb726c
 
 	measure 'Avg EPI Score' =
-		CALCULATE(
-		    AVERAGE(fact_epi_score[score]),
-		    gold_dim_indicator[source_system] = "EPI"
-		)
-		formatString: 0.0
-		displayFolder: Sustainability
+			CALCULATE(
+			    AVERAGE(fact_epi_score[score]),
+			    gold_dim_indicator[source_system] = "EPI"
+			)
+			formatString: 0.0
+			displayFolder: Sustainability
+		lineageTag: 5f85dfe0-67b3-4047-bbdf-c611c459d6f2
 
 	measure 'Spend-Weighted EPI Score' =
-		SUMX(
-		    SUMMARIZE(
-		        fact_procurement,
-		        fact_procurement[supplier_hq_country_key]
-		    ),
-		    VAR CountrySpend = CALCULATE([Total Spend EUR])
-		    VAR CountryEPI =
-		        CALCULATE(
-		            [Avg EPI Score],
-		            FILTER(
-		                fact_epi_score,
-		                fact_epi_score[country_key] = fact_procurement[supplier_hq_country_key]
-		            )
-		        )
-		    RETURN
-		        CountrySpend * CountryEPI
-		) / [Total Spend EUR]
-		formatString: 0.0
-		displayFolder: Sustainability
+			SUMX(
+			    SUMMARIZE(
+			        fact_procurement,
+			        fact_procurement[supplier_hq_country_key]
+			    ),
+			    VAR CountrySpend = CALCULATE([Total Spend EUR])
+			    VAR CountryEPI =
+			        CALCULATE(
+			            [Avg EPI Score],
+			            FILTER(
+			                fact_epi_score,
+			                fact_epi_score[country_key] = fact_procurement[supplier_hq_country_key]
+			            )
+			        )
+			    RETURN
+			        CountrySpend * CountryEPI
+			) / [Total Spend EUR]
+			formatString: 0.0
+			displayFolder: Sustainability
+		lineageTag: 40875fa0-51ea-4d06-9c7c-c29729b8d491
 
 	measure '% Spend - High EPI (>60)' =
-		VAR HighEPISpend =
-		    CALCULATE(
-		        [Total Spend EUR],
-		        FILTER(
-		            fact_epi_score,
-		            fact_epi_score[score] >= 60 &&
-		            RELATED(gold_dim_indicator[source_system]) = "EPI"
-		        )
-		    )
-		RETURN
-		    DIVIDE(HighEPISpend, [Total Spend EUR], 0)
-		formatString: 0.0%;-0.0%;0.0%
-		displayFolder: Sustainability
+			VAR HighEPISpend =
+			    CALCULATE(
+			        [Total Spend EUR],
+			        FILTER(
+			            fact_epi_score,
+			            fact_epi_score[score] >= 60 &&
+			            RELATED(gold_dim_indicator[source_system]) = "EPI"
+			        )
+			    )
+			RETURN
+			    DIVIDE(HighEPISpend, [Total Spend EUR], 0)
+			formatString: 0.0%;-0.0%;0.0%
+			displayFolder: Sustainability
+		lineageTag: 81d98065-aa03-4b8d-9505-402816af7477
 
 	measure 'Max Supply Concentration %' =
-		VAR MaxShare = MAXX(fact_supply_share, VALUE(fact_supply_share[share_pct]))
-		RETURN
-		    DIVIDE(MaxShare, 100, 0)
-		formatString: 0.0%;-0.0%;0.0%
-		displayFolder: Risk
+			VAR MaxShare = MAXX(fact_supply_share, VALUE(fact_supply_share[share_pct]))
+			RETURN
+			    DIVIDE(MaxShare, 100, 0)
+			formatString: 0.0%;-0.0%;0.0%
+			displayFolder: Risk
+		lineageTag: c25e0afe-8002-4c6f-b8b3-12c5bba445dd
 
 	measure 'HHI Index' =
-		SUMX(
-		    fact_supply_share,
-		    POWER(DIVIDE(VALUE(fact_supply_share[share_pct]), 100, 0), 2)
-		)
-		formatString: 0.000
-		displayFolder: Risk
+			SUMX(
+			    fact_supply_share,
+			    POWER(DIVIDE(VALUE(fact_supply_share[share_pct]), 100, 0), 2)
+			)
+			formatString: 0.000
+			displayFolder: Risk
+		lineageTag: cddfd9ec-3ad0-4849-98a7-574a3636663d
 
 	measure 'High Risk Material Count' =
-		CALCULATE(
-		    DISTINCTCOUNT(fact_supply_share[material_key]),
-		    VALUE(fact_supply_share[share_pct]) > 50
-		)
-		formatString: #,##0
-		displayFolder: Risk
+			CALCULATE(
+			    DISTINCTCOUNT(fact_supply_share[material_key]),
+			    VALUE(fact_supply_share[share_pct]) > 50
+			)
+			formatString: #,##0
+			displayFolder: Risk
+		lineageTag: 2018bc68-4817-4f02-b1f2-ef40227e79b9
 
 	measure 'Diversification Score' =
-		VAR HHI = [HHI Index]
-		RETURN
-		    1 - HHI
-		formatString: 0.000
-		displayFolder: Risk
+			VAR HHI = [HHI Index]
+			RETURN
+			    1 - HHI
+			formatString: 0.000
+			displayFolder: Risk
+		lineageTag: c27abc0d-54b9-4618-a90b-ec4b3a6e1142
 
 	measure 'Top 3 Countries Spend %' =
-		VAR Top3Spend =
-		    CALCULATE(
-		        [Total Spend EUR],
-		        TOPN(
-		            3,
-		            ALLSELECTED(gold_dim_country),
-		            [Total Spend EUR],
-		            DESC
-		        )
-		    )
-		RETURN
-		    DIVIDE(Top3Spend, CALCULATE([Total Spend EUR], ALLSELECTED(gold_dim_country)), 0)
-		formatString: 0.0%;-0.0%;0.0%
-		displayFolder: Risk
+			VAR Top3Spend =
+			    CALCULATE(
+			        [Total Spend EUR],
+			        TOPN(
+			            3,
+			            ALLSELECTED(gold_dim_country),
+			            [Total Spend EUR],
+			            DESC
+			        )
+			    )
+			RETURN
+			    DIVIDE(Top3Spend, CALCULATE([Total Spend EUR], ALLSELECTED(gold_dim_country)), 0)
+			formatString: 0.0%;-0.0%;0.0%
+			displayFolder: Risk
+		lineageTag: 286371da-0396-4213-ae3b-bf53ca688fae
 
 	measure 'Spend Exposure at Risk' =
-		SUMX(
-		    SUMMARIZE(
-		        fact_procurement,
-		        fact_procurement[supplier_hq_country_key],
-		        fact_procurement[material_key]
-		    ),
-		    VAR MaterialSpend = CALCULATE([Total Spend EUR])
-		    VAR SupplyConcentration =
-		        CALCULATE(
-		            MAXX(fact_supply_share, VALUE(fact_supply_share[share_pct]))
-		        ) / 100
-		    VAR EpiScore = CALCULATE([Avg EPI Score])
-		    VAR RiskFactor = SupplyConcentration * (1 - DIVIDE(EpiScore, 100, 0))
-		    RETURN
-		        MaterialSpend * RiskFactor
-		)
-		formatString: #,##0
-		displayFolder: Risk
+			SUMX(
+			    SUMMARIZE(
+			        fact_procurement,
+			        fact_procurement[supplier_hq_country_key],
+			        fact_procurement[material_key]
+			    ),
+			    VAR MaterialSpend = CALCULATE([Total Spend EUR])
+			    VAR SupplyConcentration =
+			        CALCULATE(
+			            MAXX(fact_supply_share, VALUE(fact_supply_share[share_pct]))
+			        ) / 100
+			    VAR EpiScore = CALCULATE([Avg EPI Score])
+			    VAR RiskFactor = SupplyConcentration * (1 - DIVIDE(EpiScore, 100, 0))
+			    RETURN
+			        MaterialSpend * RiskFactor
+			)
+			formatString: #,##0
+			displayFolder: Risk
+		lineageTag: 7b4f9341-7a3c-48dd-9623-6d38b243a5ba
 
 	measure 'Material Risk Index' =
-		VAR LatestSupplyYear = MAXX(fact_supply_share, fact_supply_share[year])
-		VAR LatestEPIYear = MAXX(fact_epi_score, fact_epi_score[year])
-		RETURN
-		    SUMX(
-		        SUMMARIZE(
-		            fact_supply_share,
-		            fact_supply_share[material_key],
-		            fact_supply_share[country_key]
-		        ),
-		        VAR SupplyShare =
-		            CALCULATE(
-		                VALUE(fact_supply_share[share_pct]) / 100,
-		                fact_supply_share[year] = LatestSupplyYear
-		            )
-		        VAR EPIScore =
-		            CALCULATE(
-		                [Avg EPI Score],
-		                fact_epi_score[year] = LatestEPIYear
-		            )
-		        VAR RiskScore = SupplyShare * (1 - DIVIDE(EPIScore, 100, 0))
-		        RETURN
-		            RiskScore
-		    )
-		formatString: 0.000
-		displayFolder: Risk
+			VAR LatestSupplyYear = MAXX(fact_supply_share, fact_supply_share[year])
+			VAR LatestEPIYear = MAXX(fact_epi_score, fact_epi_score[year])
+			RETURN
+			    SUMX(
+			        SUMMARIZE(
+			            fact_supply_share,
+			            fact_supply_share[material_key],
+			            fact_supply_share[country_key]
+			        ),
+			        VAR SupplyShare =
+			            CALCULATE(
+			                VALUE(fact_supply_share[share_pct]) / 100,
+			                fact_supply_share[year] = LatestSupplyYear
+			            )
+			        VAR EPIScore =
+			            CALCULATE(
+			                [Avg EPI Score],
+			                fact_epi_score[year] = LatestEPIYear
+			            )
+			        VAR RiskScore = SupplyShare * (1 - DIVIDE(EPIScore, 100, 0))
+			        RETURN
+			            RiskScore
+			    )
+			formatString: 0.000
+			displayFolder: Risk
+		lineageTag: 8077c437-1e7b-4b1f-8182-6b4bfafcc2fb
 
 	measure 'Total Quantity' = SUM(fact_procurement[quantity_base])
 		formatString: #,##0
 		displayFolder: Procurement
+		lineageTag: 317dc4dd-7749-4238-b1f6-33a160b236cf
 
 	measure 'Transaction Count' = COUNTROWS(fact_procurement)
 		formatString: #,##0
 		displayFolder: Procurement
+		lineageTag: 56bf6df9-6ae3-4776-b8ba-4c5b245d2c39
 
 	measure 'Supplier Countries Count' = DISTINCTCOUNT(fact_procurement[supplier_hq_country_key])
 		formatString: #,##0
 		displayFolder: Procurement
+		lineageTag: cc248ca1-e4d7-4807-838b-8686102164b9
 
 	measure 'Materials Count' = DISTINCTCOUNT(fact_procurement[material_key])
 		formatString: #,##0
 		displayFolder: Procurement
+		lineageTag: f6931a3b-e981-45fc-81c1-5c9f412cef5a
 
 	measure 'Avg Spend per Transaction' =
-		DIVIDE([Total Spend EUR], [Transaction Count], 0)
-		formatString: #,##0
-		displayFolder: Procurement
+			DIVIDE([Total Spend EUR], [Transaction Count], 0)
+			formatString: #,##0
+			displayFolder: Procurement
+		lineageTag: c1793093-a0fd-4576-bb3d-ee51c76c9717
 
 	measure 'Avg Unit Price EUR' =
-		VAR TotalSpend = [Total Spend EUR]
-		VAR TotalQty = [Total Quantity]
-		RETURN
-		    DIVIDE(TotalSpend, TotalQty, 0)
-		formatString: #,##0.00
-		displayFolder: Procurement
+			VAR TotalSpend = [Total Spend EUR]
+			VAR TotalQty = [Total Quantity]
+			RETURN
+			    DIVIDE(TotalSpend, TotalQty, 0)
+			formatString: #,##0.00
+			displayFolder: Procurement
+		lineageTag: 2fdbb10c-3a83-485e-b452-f7cbcf4a2586
 
 	measure 'Active Procurement Days' = DISTINCTCOUNT(fact_procurement[date_key])
 		formatString: #,##0
 		displayFolder: Procurement
+		lineageTag: c1562613-d184-4fd2-b777-938ab1a73d55
 
 	measure 'Latest EPI Score' =
-		VAR LatestYear = MAXX(fact_epi_score, fact_epi_score[year])
-		RETURN
-		    CALCULATE(
-		        AVERAGE(fact_epi_score[score]),
-		        fact_epi_score[year] = LatestYear,
-		        gold_dim_indicator[source_system] = "EPI"
-		    )
-		formatString: 0.0
-		displayFolder: Sustainability
+			VAR LatestYear = MAXX(fact_epi_score, fact_epi_score[year])
+			RETURN
+			    CALCULATE(
+			        AVERAGE(fact_epi_score[score]),
+			        fact_epi_score[year] = LatestYear,
+			        gold_dim_indicator[source_system] = "EPI"
+			    )
+			formatString: 0.0
+			displayFolder: Sustainability
+		lineageTag: 783456ea-b4b5-4f5f-a61f-e5e3240a7b9c
 
 	measure 'Total Spend LY' =
-		CALCULATE(
-		    [Total Spend EUR],
-		    SAMEPERIODLASTYEAR(gold_dim_date[date])
-		)
-		formatString: #,##0
-		displayFolder: Time Intelligence
+			CALCULATE(
+			    [Total Spend EUR],
+			    SAMEPERIODLASTYEAR(gold_dim_date[date])
+			)
+			formatString: #,##0
+			displayFolder: Time Intelligence
+		lineageTag: 8cd4bd0b-3122-4edb-b5b9-06e4b66687b6
 
 	measure 'Total Spend MTD' =
-		CALCULATE(
-		    [Total Spend EUR],
-		    DATESMTD(gold_dim_date[date])
-		)
-		formatString: #,##0
-		displayFolder: Time Intelligence
+			CALCULATE(
+			    [Total Spend EUR],
+			    DATESMTD(gold_dim_date[date])
+			)
+			formatString: #,##0
+			displayFolder: Time Intelligence
+		lineageTag: e69b2e52-10ee-41f0-ae04-8edf51ad031f
 
 	measure 'Total Spend YTD' =
-		CALCULATE(
-		    [Total Spend EUR],
-		    DATESYTD(gold_dim_date[date])
-		)
-		formatString: #,##0
-		displayFolder: Time Intelligence
+			CALCULATE(
+			    [Total Spend EUR],
+			    DATESYTD(gold_dim_date[date])
+			)
+			formatString: #,##0
+			displayFolder: Time Intelligence
+		lineageTag: 1fb48195-b383-4c5c-9b68-a74fba844b88
 
 	measure 'Total Spend LYTD' =
-		CALCULATE(
-		    [Total Spend YTD],
-		    SAMEPERIODLASTYEAR(gold_dim_date[date])
-		)
-		formatString: #,##0
-		displayFolder: Time Intelligence
+			CALCULATE(
+			    [Total Spend YTD],
+			    SAMEPERIODLASTYEAR(gold_dim_date[date])
+			)
+			formatString: #,##0
+			displayFolder: Time Intelligence
+		lineageTag: 9e4be5f8-274e-4da8-8540-74652c8c992d
 
 	measure 'YoY Spend Growth EUR' =
-		VAR CurrentPeriod = [Total Spend EUR]
-		VAR PriorPeriod = [Total Spend LY]
-		RETURN
-		    CurrentPeriod - PriorPeriod
-		formatString: #,##0
-		displayFolder: Time Intelligence
+			VAR CurrentPeriod = [Total Spend EUR]
+			VAR PriorPeriod = [Total Spend LY]
+			RETURN
+			    CurrentPeriod - PriorPeriod
+			formatString: #,##0
+			displayFolder: Time Intelligence
+		lineageTag: 80fbcdf1-8588-4530-ab3e-a1e8f6290b58
 
 	measure 'MoM Spend Growth %' =
-		VAR CurrentMonth = [Total Spend EUR]
-		VAR PriorMonth = CALCULATE([Total Spend EUR], DATEADD(gold_dim_date[date], -1, MONTH))
-		RETURN
-		    DIVIDE(CurrentMonth - PriorMonth, PriorMonth, 0)
-		formatString: 0.0%;-0.0%;0.0%
-		displayFolder: Time Intelligence
+			VAR CurrentMonth = [Total Spend EUR]
+			VAR PriorMonth = CALCULATE([Total Spend EUR], DATEADD(gold_dim_date[date], -1, MONTH))
+			RETURN
+			    DIVIDE(CurrentMonth - PriorMonth, PriorMonth, 0)
+			formatString: 0.0%;-0.0%;0.0%
+			displayFolder: Time Intelligence
+		lineageTag: 5abedff9-3a37-4644-a7f4-8830af94d86f
 
 	measure '3M Moving Avg Spend' =
-		VAR Last3Months =
-		    DATESINPERIOD(
-		        gold_dim_date[date],
-		        MAX(gold_dim_date[date]),
-		        -3,
-		        MONTH
-		    )
-		RETURN
-		    CALCULATE(
-		        DIVIDE([Total Spend EUR], 3, 0),
-		        Last3Months
-		    )
-		formatString: #,##0
-		displayFolder: Time Intelligence
+			VAR Last3Months =
+			    DATESINPERIOD(
+			        gold_dim_date[date],
+			        MAX(gold_dim_date[date]),
+			        -3,
+			        MONTH
+			    )
+			RETURN
+			    CALCULATE(
+			        DIVIDE([Total Spend EUR], 3, 0),
+			        Last3Months
+			    )
+			formatString: #,##0
+			displayFolder: Time Intelligence
+		lineageTag: 8e56d3e5-8e67-4bb6-8349-02b36bb26b26
 
 	measure 'Weighted EPI Score' =
-		VAR WeightedScores =
-		    SUMX(
-		        fact_epi_score,
-		        fact_epi_score[score] * RELATED(gold_dim_indicator[weight])
-		    )
-		VAR TotalWeights =
-		    CALCULATE(
-		        SUM(gold_dim_indicator[weight]),
-		        gold_dim_indicator[source_system] = "EPI"
-		    )
-		RETURN
-		    DIVIDE(WeightedScores, TotalWeights, 0)
-		formatString: 0.0
-		displayFolder: Sustainability
+			VAR WeightedScores =
+			    SUMX(
+			        fact_epi_score,
+			        fact_epi_score[score] * RELATED(gold_dim_indicator[weight])
+			    )
+			VAR TotalWeights =
+			    CALCULATE(
+			        SUM(gold_dim_indicator[weight]),
+			        gold_dim_indicator[source_system] = "EPI"
+			    )
+			RETURN
+			    DIVIDE(WeightedScores, TotalWeights, 0)
+			formatString: 0.0
+			displayFolder: Sustainability
+		lineageTag: 58a682b9-5d7a-4156-aba8-aa926e98ac93
 
 	measure '% Spend - Medium EPI (40-60)' =
-		VAR MediumEPISpend =
-		    CALCULATE(
-		        [Total Spend EUR],
-		        FILTER(
-		            fact_epi_score,
-		            fact_epi_score[score] >= 40 &&
-		            fact_epi_score[score] < 60 &&
-		            RELATED(gold_dim_indicator[source_system]) = "EPI"
-		        )
-		    )
-		RETURN
-		    DIVIDE(MediumEPISpend, [Total Spend EUR], 0)
-		formatString: 0.0%;-0.0%;0.0%
-		displayFolder: Sustainability
+			VAR MediumEPISpend =
+			    CALCULATE(
+			        [Total Spend EUR],
+			        FILTER(
+			            fact_epi_score,
+			            fact_epi_score[score] >= 40 &&
+			            fact_epi_score[score] < 60 &&
+			            RELATED(gold_dim_indicator[source_system]) = "EPI"
+			        )
+			    )
+			RETURN
+			    DIVIDE(MediumEPISpend, [Total Spend EUR], 0)
+			formatString: 0.0%;-0.0%;0.0%
+			displayFolder: Sustainability
+		lineageTag: 4d1bf59e-f103-48bb-a7c3-859d42bd744c
 
 	measure '% Spend - Low EPI (<40)' =
-		VAR LowEPISpend =
-		    CALCULATE(
-		        [Total Spend EUR],
-		        FILTER(
-		            fact_epi_score,
-		            fact_epi_score[score] < 40 &&
-		            RELATED(gold_dim_indicator[source_system]) = "EPI"
-		        )
-		    )
-		RETURN
-		    DIVIDE(LowEPISpend, [Total Spend EUR], 0)
-		formatString: 0.0%;-0.0%;0.0%
-		displayFolder: Sustainability
+			VAR LowEPISpend =
+			    CALCULATE(
+			        [Total Spend EUR],
+			        FILTER(
+			            fact_epi_score,
+			            fact_epi_score[score] < 40 &&
+			            RELATED(gold_dim_indicator[source_system]) = "EPI"
+			        )
+			    )
+			RETURN
+			    DIVIDE(LowEPISpend, [Total Spend EUR], 0)
+			formatString: 0.0%;-0.0%;0.0%
+			displayFolder: Sustainability
+		lineageTag: 584612c0-8df0-4278-8f29-457555106761
 
 	measure 'Avg WGI Score' =
-		CALCULATE(
-		    AVERAGE(fact_epi_score[score]),
-		    gold_dim_indicator[source_system] = "WB"
-		)
-		formatString: 0.00
-		displayFolder: Sustainability
+			CALCULATE(
+			    AVERAGE(fact_epi_score[score]),
+			    gold_dim_indicator[source_system] = "WB"
+			)
+			formatString: 0.00
+			displayFolder: Sustainability
+		lineageTag: a42de5da-ad7d-4536-9ccf-fe3bfdc4476b
 
 	measure 'HHI Category' =
-		VAR HHI = [HHI Index]
-		RETURN
-		    SWITCH(
-		        TRUE(),
-		        HHI < 0.15, "Low",
-		        HHI < 0.25, "Moderate",
-		        "High"
-		    )
-		displayFolder: Risk
+			VAR HHI = [HHI Index]
+			RETURN
+			    SWITCH(
+			        TRUE(),
+			        HHI < 0.15, "Low",
+			        HHI < 0.25, "Moderate",
+			        "High"
+			    )
+			displayFolder: Risk
+		lineageTag: 6794c4a1-89ec-46d4-8708-95be4f80cf7a
 
 	measure 'Composite Risk Score' =
-		VAR ConcentrationRisk = [HHI Index]
-		VAR SustainabilityRisk = 1 - DIVIDE([Spend-Weighted EPI Score], 100, 0)
-		RETURN
-		    (ConcentrationRisk * 0.5) + (SustainabilityRisk * 0.5)
-		formatString: 0.000
-		displayFolder: Risk
+			VAR ConcentrationRisk = [HHI Index]
+			VAR SustainabilityRisk = 1 - DIVIDE([Spend-Weighted EPI Score], 100, 0)
+			RETURN
+			    (ConcentrationRisk * 0.5) + (SustainabilityRisk * 0.5)
+			formatString: 0.000
+			displayFolder: Risk
+		lineageTag: 3e0dfc5b-4ecf-4309-b232-6a64c7de0978
 
 	measure 'Material Rank by Spend' =
-		RANKX(
-		    ALL(gold_dim_material[material_name_std]),
-		    [Total Spend EUR],
-		    ,
-		    DESC,
-		    DENSE
-		)
-		formatString: #,##0
-		displayFolder: Advanced
+			RANKX(
+			    ALL(gold_dim_material[material_name_std]),
+			    [Total Spend EUR],
+			    ,
+			    DESC,
+			    DENSE
+			)
+			formatString: #,##0
+			displayFolder: Advanced
+		lineageTag: 05e94656-af2f-49b8-8524-327c975aa31c
 
 	measure 'Top 10 Material Spend %' =
-		VAR Top10Spend =
-		    CALCULATE(
-		        [Total Spend EUR],
-		        TOPN(10, ALL(gold_dim_material[material_name_std]), [Total Spend EUR], DESC)
-		    )
-		RETURN
-		    DIVIDE(Top10Spend, CALCULATE([Total Spend EUR], ALL(gold_dim_material)), 0)
-		formatString: 0.0%;-0.0%;0.0%
-		displayFolder: Advanced
+			VAR Top10Spend =
+			    CALCULATE(
+			        [Total Spend EUR],
+			        TOPN(10, ALL(gold_dim_material[material_name_std]), [Total Spend EUR], DESC)
+			    )
+			RETURN
+			    DIVIDE(Top10Spend, CALCULATE([Total Spend EUR], ALL(gold_dim_material)), 0)
+			formatString: 0.0%;-0.0%;0.0%
+			displayFolder: Advanced
+		lineageTag: 22718c68-18b1-4275-93c6-61e79a7295df
 
 	measure 'Unit Price Volatility' =
-		STDEV.P(fact_procurement[unitprice_eur])
-		formatString: 0.00
-		displayFolder: Advanced
+			STDEV.P(fact_procurement[unitprice_eur])
+			formatString: 0.00
+			displayFolder: Advanced
+		lineageTag: ed14c9dc-5280-45b4-9929-7c3f836826a9
 
 	measure 'CV - Unit Price' =
-		VAR StdDev = [Unit Price Volatility]
-		VAR Mean = [Avg Unit Price EUR]
-		RETURN
-		    DIVIDE(StdDev, Mean, 0)
-		formatString: 0.00
-		displayFolder: Advanced
+			VAR StdDev = [Unit Price Volatility]
+			VAR Mean = [Avg Unit Price EUR]
+			RETURN
+			    DIVIDE(StdDev, Mean, 0)
+			formatString: 0.00
+			displayFolder: Advanced
+		lineageTag: d3cad4ad-c57b-43c8-b596-2a2ab3210710
 
 	measure 'Cumulative Spend %' =
-		VAR CurrentMaterialSpend = [Total Spend EUR]
-		VAR MaterialsUpToCurrent =
-		    FILTER(
-		        ALL(gold_dim_material[material_name_std]),
-		        [Total Spend EUR] >= CurrentMaterialSpend
-		    )
-		VAR CumulativeSpend =
-		    CALCULATE(
-		        [Total Spend EUR],
-		        MaterialsUpToCurrent
-		    )
-		RETURN
-		    DIVIDE(CumulativeSpend, CALCULATE([Total Spend EUR], ALL(gold_dim_material)), 0)
-		formatString: 0.0%;-0.0%;0.0%
-		displayFolder: Advanced
+			VAR CurrentMaterialSpend = [Total Spend EUR]
+			VAR MaterialsUpToCurrent =
+			    FILTER(
+			        ALL(gold_dim_material[material_name_std]),
+			        [Total Spend EUR] >= CurrentMaterialSpend
+			    )
+			VAR CumulativeSpend =
+			    CALCULATE(
+			        [Total Spend EUR],
+			        MaterialsUpToCurrent
+			    )
+			RETURN
+			    DIVIDE(CumulativeSpend, CALCULATE([Total Spend EUR], ALL(gold_dim_material)), 0)
+			formatString: 0.0%;-0.0%;0.0%
+			displayFolder: Advanced
+		lineageTag: 493ffa76-473b-4d6d-8ad0-e8b73f9544b0
 
 	measure 'Is Top 80% Spend' =
-		IF([Cumulative Spend %] <= 0.8, "Top 80%", "Remaining 20%")
-		displayFolder: Advanced
+			IF([Cumulative Spend %] <= 0.8, "Top 80%", "Remaining 20%")
+			displayFolder: Advanced
+		lineageTag: 7da1bf28-4a69-41b8-8b4b-fc7c5abe8b04
+
+	column 'Measure Placeholder'
+		lineageTag: 58b87966-3771-4c47-a80a-9a5dc703fb4b
+		isNameInferred
+		sourceColumn: [Measure Placeholder]
 
 	partition _Measures = calculated
 		mode: import
 		source = ROW("Measure Placeholder", 1)
 
 	annotation PBI_ResultType = Table
+

@@ -1,0 +1,5 @@
+role 'Global Executive'
+	modelPermission: read
+
+	annotation PBI_Id = c596ac978eb84f928defeed9ece7e379
+

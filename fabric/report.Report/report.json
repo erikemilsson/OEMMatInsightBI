@@ -1,5 +1,5 @@
 {
-  "config": "{\"version\":\"5.66\",\"themeCollection\":{\"baseTheme\":{\"name\":\"CY24SU10\",\"type\":2,\"version\":{\"visual\":\"1.8.95\",\"report\":\"2.0.95\",\"page\":\"1.3.95\"}}},\"activeSectionIndex\":0,\"defaultDrillFilterOtherVisuals\":true,\"linguisticSchemaSyncVersion\":0,\"settings\":{\"useNewFilterPaneExperience\":true,\"allowChangeFilterTypes\":true,\"useStylableVisualContainerHeader\":true,\"queryLimitOption\":6,\"useEnhancedTooltips\":true,\"exportDataMode\":1,\"useDefaultAggregateDisplayName\":true},\"objects\":{\"section\":[{\"properties\":{\"verticalAlignment\":{\"expr\":{\"Literal\":{\"Value\":\"'Top'\"}}}}}],\"outspacePane\":[{\"properties\":{\"expanded\":{\"expr\":{\"Literal\":{\"Value\":\"true\"}}}}}]}}",
+  "config": "{\"version\":\"5.68\",\"themeCollection\":{\"baseTheme\":{\"name\":\"CY24SU10\",\"type\":2,\"version\":{\"visual\":\"1.8.95\",\"report\":\"2.0.95\",\"page\":\"1.3.95\"}}},\"activeSectionIndex\":0,\"defaultDrillFilterOtherVisuals\":true,\"linguisticSchemaSyncVersion\":0,\"settings\":{\"useNewFilterPaneExperience\":true,\"allowChangeFilterTypes\":true,\"useStylableVisualContainerHeader\":true,\"queryLimitOption\":6,\"useEnhancedTooltips\":true,\"exportDataMode\":1,\"useDefaultAggregateDisplayName\":true},\"objects\":{\"section\":[{\"properties\":{\"verticalAlignment\":{\"expr\":{\"Literal\":{\"Value\":\"'Top'\"}}}}}],\"outspacePane\":[{\"properties\":{\"expanded\":{\"expr\":{\"Literal\":{\"Value\":\"true\"}}}}}]}}",
   "layoutOptimization": 0,
   "resourcePackages": [
     {
@@ -141,67 +141,58 @@
       "name": "e6e14b10023fbbeb6ed0",
       "visualContainers": [
         {
-          "config": "{\"name\":\"058f029b80d8ca1a1f9a\",\"layouts\":[{\"id\":0,\"position\":{\"x\":999.6920444824636,\"y\":510.2480752780154,\"z\":6000,\"width\":280.30795551753636,\"height\":124.8246364414029,\"tabOrder\":6000}}],\"singleVisual\":{\"visualType\":\"multiRowCard\",\"projections\":{\"Values\":[{\"queryRef\":\"fact_epi_score.Score (Selected Indicator)\"}]},\"prototypeQuery\":{\"Version\":2,\"From\":[{\"Name\":\"f\",\"Entity\":\"fact_epi_score\",\"Type\":0}],\"Select\":[{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"f\"}},\"Property\":\"Score (Selected Indicator)\"},\"Name\":\"fact_epi_score.Score (Selected Indicator)\",\"NativeReferenceName\":\"Score (Selected Indicator)\"}],\"OrderBy\":[{\"Direction\":2,\"Expression\":{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"f\"}},\"Property\":\"Score (Selected Indicator)\"}}}]},\"autoSelectVisualType\":false,\"drillFilterOtherVisuals\":true,\"hasDefaultSort\":true}}",
-          "filters": "[]",
-          "height": 124.82,
-          "width": 280.31,
-          "x": 999.69,
-          "y": 510.25,
-          "z": 6000.00
+          "config": "{\"name\":\"4dcb7faad0e485cd9d96\",\"layouts\":[{\"id\":0,\"position\":{\"x\":640,\"y\":207.37430167597765,\"z\":5,\"width\":640,\"height\":512.4767225325884,\"tabOrder\":5}}],\"singleVisual\":{\"visualType\":\"clusteredColumnChart\",\"projections\":{\"Y\":[{\"queryRef\":\"_Measures.Total Spend EUR\"}],\"Category\":[{\"queryRef\":\"gold_dim_material.commodity_group\",\"active\":true}]},\"prototypeQuery\":{\"Version\":2,\"From\":[{\"Name\":\"_\",\"Entity\":\"_Measures\",\"Type\":0},{\"Name\":\"g\",\"Entity\":\"gold_dim_material\",\"Type\":0}],\"Select\":[{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"_\"}},\"Property\":\"Total Spend EUR\"},\"Name\":\"_Measures.Total Spend EUR\",\"NativeReferenceName\":\"Total Spend EUR\"},{\"Column\":{\"Expression\":{\"SourceRef\":{\"Source\":\"g\"}},\"Property\":\"commodity_group\"},\"Name\":\"gold_dim_material.commodity_group\",\"NativeReferenceName\":\"commodity_group\"}],\"OrderBy\":[{\"Direction\":2,\"Expression\":{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"_\"}},\"Property\":\"Total Spend EUR\"}}}]},\"drillFilterOtherVisuals\":true,\"hasDefaultSort\":true}}",
+          "filters": "[{\"expression\":{\"Column\":{\"Expression\":{\"SourceRef\":{\"Entity\":\"gold_dim_material\"}},\"Property\":\"material_name_std\"}},\"filter\":{\"Version\":2,\"From\":[{\"Name\":\"subquery\",\"Expression\":{\"Subquery\":{\"Query\":{\"Version\":2,\"From\":[{\"Name\":\"g\",\"Entity\":\"gold_dim_material\",\"Type\":0},{\"Name\":\"_\",\"Entity\":\"_Measures\",\"Type\":0}],\"Select\":[{\"Column\":{\"Expression\":{\"SourceRef\":{\"Source\":\"g\"}},\"Property\":\"material_name_std\"},\"Name\":\"field\"}],\"OrderBy\":[{\"Direction\":2,\"Expression\":{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"_\"}},\"Property\":\"Total Spend EUR\"}}}],\"Top\":10}}},\"Type\":2},{\"Name\":\"g\",\"Entity\":\"gold_dim_material\",\"Type\":0}],\"Where\":[{\"Condition\":{\"In\":{\"Expressions\":[{\"Column\":{\"Expression\":{\"SourceRef\":{\"Source\":\"g\"}},\"Property\":\"material_name_std\"}}],\"Table\":{\"SourceRef\":{\"Source\":\"subquery\"}}}}}]},\"type\":\"TopN\",\"howCreated\":1,\"isHiddenInViewMode\":false}]",
+          "height": 512.48,
+          "width": 640.00,
+          "x": 640.00,
+          "y": 207.37,
+          "z": 5.00
         },
         {
-          "config": "{\"name\":\"3ece2c2fb1eaae3a5ff7\",\"layouts\":[{\"id\":0,\"position\":{\"x\":1000,\"y\":14.545454545454547,\"z\":1000,\"width\":280,\"height\":207.27272727272728,\"tabOrder\":1000}}],\"singleVisual\":{\"visualType\":\"kpi\",\"drillFilterOtherVisuals\":true}}",
+          "config": "{\"name\":\"a43eeab432602765993b\",\"layouts\":[{\"id\":0,\"position\":{\"x\":905.7728119180632,\"y\":0,\"z\":3,\"width\":265.7728119180633,\"height\":134.67411545623835,\"tabOrder\":3}}],\"singleVisual\":{\"visualType\":\"cardVisual\",\"projections\":{\"Data\":[{\"queryRef\":\"_Measures.Transaction Count\"}]},\"prototypeQuery\":{\"Version\":2,\"From\":[{\"Name\":\"_\",\"Entity\":\"_Measures\",\"Type\":0}],\"Select\":[{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"_\"}},\"Property\":\"Transaction Count\"},\"Name\":\"_Measures.Transaction Count\",\"NativeReferenceName\":\"Transaction Count\"}],\"OrderBy\":[{\"Direction\":2,\"Expression\":{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"_\"}},\"Property\":\"Transaction Count\"}}}]},\"drillFilterOtherVisuals\":true,\"hasDefaultSort\":true}}",
           "filters": "[]",
-          "height": 207.27,
-          "width": 280.00,
-          "x": 1000.00,
-          "y": 14.55,
-          "z": 1000.00
+          "height": 134.67,
+          "width": 265.77,
+          "x": 905.77,
+          "y": 0.00,
+          "z": 3.00
         },
         {
-          "config": "{\"name\":\"4cc13b76381dc342ba7d\",\"layouts\":[{\"id\":0,\"position\":{\"x\":999.6920444824636,\"y\":384.1445680068435,\"z\":5000,\"width\":280.30795551753636,\"height\":124.8246364414029,\"tabOrder\":5000}}],\"singleVisual\":{\"visualType\":\"multiRowCard\",\"projections\":{\"Values\":[{\"queryRef\":\"fact_supply_share.Supply Share % (2023)\"}]},\"prototypeQuery\":{\"Version\":2,\"From\":[{\"Name\":\"f\",\"Entity\":\"fact_supply_share\",\"Type\":0}],\"Select\":[{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"f\"}},\"Property\":\"Supply Share % (2023)\"},\"Name\":\"fact_supply_share.Supply Share % (2023)\",\"NativeReferenceName\":\"Supply Share % (2023)\"}],\"OrderBy\":[{\"Direction\":2,\"Expression\":{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"f\"}},\"Property\":\"Supply Share % (2023)\"}}}]},\"autoSelectVisualType\":false,\"drillFilterOtherVisuals\":true,\"hasDefaultSort\":true}}",
+          "config": "{\"name\":\"a9f349df20abded3151e\",\"layouts\":[{\"id\":0,\"position\":{\"x\":374.2271880819367,\"y\":0,\"z\":1,\"width\":265.7728119180633,\"height\":134.67411545623835,\"tabOrder\":1}}],\"singleVisual\":{\"visualType\":\"cardVisual\",\"projections\":{\"Data\":[{\"queryRef\":\"_Measures.Supplier Countries Count\"}]},\"prototypeQuery\":{\"Version\":2,\"From\":[{\"Name\":\"_\",\"Entity\":\"_Measures\",\"Type\":0}],\"Select\":[{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"_\"}},\"Property\":\"Supplier Countries Count\"},\"Name\":\"_Measures.Supplier Countries Count\",\"NativeReferenceName\":\"Supplier Countries Count\"}],\"OrderBy\":[{\"Direction\":2,\"Expression\":{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"_\"}},\"Property\":\"Supplier Countries Count\"}}}]},\"drillFilterOtherVisuals\":true,\"hasDefaultSort\":true}}",
           "filters": "[]",
-          "height": 124.82,
-          "width": 280.31,
-          "x": 999.69,
-          "y": 384.14,
-          "z": 5000.00
+          "height": 134.67,
+          "width": 265.77,
+          "x": 374.23,
+          "y": 0.00,
+          "z": 1.00
         },
         {
-          "config": "{\"name\":\"54ee0804f36fed6e1bdb\",\"layouts\":[{\"id\":0,\"position\":{\"x\":0,\"y\":13.333333333333334,\"z\":2000,\"width\":280,\"height\":207.27272727272728,\"tabOrder\":2000}}],\"singleVisual\":{\"visualType\":\"kpi\",\"projections\":{\"Indicator\":[{\"queryRef\":\"fact_procurement.Spend EUR (By Toggle)\"}]},\"prototypeQuery\":{\"Version\":2,\"From\":[{\"Name\":\"f\",\"Entity\":\"fact_procurement\",\"Type\":0}],\"Select\":[{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"f\"}},\"Property\":\"Spend EUR (By Toggle)\"},\"Name\":\"fact_procurement.Spend EUR (By Toggle)\",\"NativeReferenceName\":\"Spend EUR (By Toggle)\"}]},\"drillFilterOtherVisuals\":true}}",
-          "filters": "[]",
-          "height": 207.27,
-          "width": 280.00,
+          "config": "{\"name\":\"e951dc20c38bea2c205d\",\"layouts\":[{\"id\":0,\"position\":{\"x\":0,\"y\":207.37430167597765,\"z\":4,\"width\":640,\"height\":512.4767225325884,\"tabOrder\":4}}],\"singleVisual\":{\"visualType\":\"clusteredColumnChart\",\"projections\":{\"Y\":[{\"queryRef\":\"_Measures.Total Spend EUR\"}],\"Category\":[{\"queryRef\":\"gold_dim_material.material_name_std\",\"active\":true}]},\"prototypeQuery\":{\"Version\":2,\"From\":[{\"Name\":\"_\",\"Entity\":\"_Measures\",\"Type\":0},{\"Name\":\"g\",\"Entity\":\"gold_dim_material\",\"Type\":0}],\"Select\":[{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"_\"}},\"Property\":\"Total Spend EUR\"},\"Name\":\"_Measures.Total Spend EUR\",\"NativeReferenceName\":\"Total Spend EUR\"},{\"Column\":{\"Expression\":{\"SourceRef\":{\"Source\":\"g\"}},\"Property\":\"material_name_std\"},\"Name\":\"gold_dim_material.material_name_std\",\"NativeReferenceName\":\"material_name_std\"}],\"OrderBy\":[{\"Direction\":2,\"Expression\":{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"_\"}},\"Property\":\"Total Spend EUR\"}}}]},\"drillFilterOtherVisuals\":true,\"hasDefaultSort\":true}}",
+          "filters": "[{\"expression\":{\"Column\":{\"Expression\":{\"SourceRef\":{\"Entity\":\"gold_dim_material\"}},\"Property\":\"material_name_std\"}},\"filter\":{\"Version\":2,\"From\":[{\"Name\":\"subquery\",\"Expression\":{\"Subquery\":{\"Query\":{\"Version\":2,\"From\":[{\"Name\":\"g\",\"Entity\":\"gold_dim_material\",\"Type\":0},{\"Name\":\"_\",\"Entity\":\"_Measures\",\"Type\":0}],\"Select\":[{\"Column\":{\"Expression\":{\"SourceRef\":{\"Source\":\"g\"}},\"Property\":\"material_name_std\"},\"Name\":\"field\"}],\"OrderBy\":[{\"Direction\":2,\"Expression\":{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"_\"}},\"Property\":\"Total Spend EUR\"}}}],\"Top\":10}}},\"Type\":2},{\"Name\":\"g\",\"Entity\":\"gold_dim_material\",\"Type\":0}],\"Where\":[{\"Condition\":{\"In\":{\"Expressions\":[{\"Column\":{\"Expression\":{\"SourceRef\":{\"Source\":\"g\"}},\"Property\":\"material_name_std\"}}],\"Table\":{\"SourceRef\":{\"Source\":\"subquery\"}}}}}]},\"type\":\"TopN\",\"howCreated\":0,\"isHiddenInViewMode\":false}]",
+          "height": 512.48,
+          "width": 640.00,
           "x": 0.00,
-          "y": 13.33,
-          "z": 2000.00
+          "y": 207.37,
+          "z": 4.00
         },
         {
-          "config": "{\"name\":\"a9474becc801b52a921c\",\"layouts\":[{\"id\":0,\"position\":{\"x\":81.21212121212122,\"y\":307.8787878787879,\"z\":3000,\"width\":343.03030303030306,\"height\":265.4545454545455,\"tabOrder\":3000}}],\"singleVisual\":{\"visualType\":\"lineClusteredColumnComboChart\",\"projections\":{\"Category\":[{\"queryRef\":\"gold_dim_material.material_name_std\",\"active\":true}],\"Y\":[{\"queryRef\":\"fact_supply_share.Spend Exposure at Risk\"}]},\"prototypeQuery\":{\"Version\":2,\"From\":[{\"Name\":\"g\",\"Entity\":\"gold_dim_material\",\"Type\":0},{\"Name\":\"f\",\"Entity\":\"fact_supply_share\",\"Type\":0}],\"Select\":[{\"Column\":{\"Expression\":{\"SourceRef\":{\"Source\":\"g\"}},\"Property\":\"material_name_std\"},\"Name\":\"gold_dim_material.material_name_std\",\"NativeReferenceName\":\"material_name_std\"},{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"f\"}},\"Property\":\"Spend Exposure at Risk\"},\"Name\":\"fact_supply_share.Spend Exposure at Risk\",\"NativeReferenceName\":\"Spend Exposure at Risk\"}],\"OrderBy\":[{\"Direction\":2,\"Expression\":{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"f\"}},\"Property\":\"Spend Exposure at Risk\"}}}]},\"drillFilterOtherVisuals\":true,\"hasDefaultSort\":true}}",
+          "config": "{\"name\":\"f58ed70790017d5d71a7\",\"layouts\":[{\"id\":0,\"position\":{\"x\":640,\"y\":0,\"z\":2,\"width\":265.7728119180633,\"height\":134.67411545623835,\"tabOrder\":2}}],\"singleVisual\":{\"visualType\":\"cardVisual\",\"projections\":{\"Data\":[{\"queryRef\":\"_Measures.Materials Count\"}]},\"prototypeQuery\":{\"Version\":2,\"From\":[{\"Name\":\"_\",\"Entity\":\"_Measures\",\"Type\":0}],\"Select\":[{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"_\"}},\"Property\":\"Materials Count\"},\"Name\":\"_Measures.Materials Count\",\"NativeReferenceName\":\"Materials Count\"}],\"OrderBy\":[{\"Direction\":2,\"Expression\":{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"_\"}},\"Property\":\"Materials Count\"}}}]},\"drillFilterOtherVisuals\":true,\"hasDefaultSort\":true}}",
           "filters": "[]",
-          "height": 265.45,
-          "width": 343.03,
-          "x": 81.21,
-          "y": 307.88,
-          "z": 3000.00
+          "height": 134.67,
+          "width": 265.77,
+          "x": 640.00,
+          "y": 0.00,
+          "z": 2.00
         },
         {
-          "config": "{\"name\":\"ce96eea91ea8dc94afd3\",\"layouts\":[{\"id\":0,\"position\":{\"x\":467.87878787878793,\"y\":13.333333333333334,\"z\":0,\"width\":280,\"height\":207.27272727272728,\"tabOrder\":0}}],\"singleVisual\":{\"visualType\":\"kpi\",\"projections\":{\"Indicator\":[{\"queryRef\":\"fact_supply_share.Spend Exposure at Risk\"}]},\"prototypeQuery\":{\"Version\":2,\"From\":[{\"Name\":\"f\",\"Entity\":\"fact_supply_share\",\"Type\":0}],\"Select\":[{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"f\"}},\"Property\":\"Spend Exposure at Risk\"},\"Name\":\"fact_supply_share.Spend Exposure at Risk\",\"NativeReferenceName\":\"Spend Exposure at Risk\"}]},\"drillFilterOtherVisuals\":true}}",
+          "config": "{\"name\":\"f64ed5e2e559283720c6\",\"layouts\":[{\"id\":0,\"position\":{\"x\":108.45437616387336,\"y\":0,\"z\":0,\"width\":265.7728119180633,\"height\":134.67411545623835,\"tabOrder\":0}}],\"singleVisual\":{\"visualType\":\"cardVisual\",\"projections\":{\"Data\":[{\"queryRef\":\"_Measures.Total Spend EUR\"}]},\"prototypeQuery\":{\"Version\":2,\"From\":[{\"Name\":\"_\",\"Entity\":\"_Measures\",\"Type\":0}],\"Select\":[{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"_\"}},\"Property\":\"Total Spend EUR\"},\"Name\":\"_Measures.Total Spend EUR\",\"NativeReferenceName\":\"Total Spend EUR\"}],\"OrderBy\":[{\"Direction\":2,\"Expression\":{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"_\"}},\"Property\":\"Total Spend EUR\"}}}]},\"drillFilterOtherVisuals\":true,\"hasDefaultSort\":true}}",
           "filters": "[]",
-          "height": 207.27,
-          "width": 280.00,
-          "x": 467.88,
-          "y": 13.33,
+          "height": 134.67,
+          "width": 265.77,
+          "x": 108.45,
+          "y": 0.00,
           "z": 0.00
-        },
-        {
-          "config": "{\"name\":\"ceed7f7a2d7926391343\",\"layouts\":[{\"id\":0,\"position\":{\"x\":999.6920444824636,\"y\":261.50983746792133,\"z\":4000,\"width\":280.30795551753636,\"height\":122.63473053892216,\"tabOrder\":4000}}],\"singleVisual\":{\"visualType\":\"multiRowCard\",\"projections\":{\"Values\":[{\"queryRef\":\"fact_procurement.Spend EUR\"}]},\"prototypeQuery\":{\"Version\":2,\"From\":[{\"Name\":\"f\",\"Entity\":\"fact_procurement\",\"Type\":0}],\"Select\":[{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"f\"}},\"Property\":\"Spend EUR\"},\"Name\":\"fact_procurement.Spend EUR\",\"NativeReferenceName\":\"Spend EUR\"}],\"OrderBy\":[{\"Direction\":2,\"Expression\":{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"f\"}},\"Property\":\"Spend EUR\"}}}]},\"autoSelectVisualType\":false,\"drillFilterOtherVisuals\":true,\"hasDefaultSort\":true,\"objects\":{}}}",
-          "filters": "[]",
-          "height": 122.63,
-          "width": 280.31,
-          "x": 999.69,
-          "y": 261.51,
-          "z": 4000.00
         }
       ],
       "width": 1280.00

@@ -1,0 +1,7 @@
+role 'Regional Manager - Asia-Pacific'
+	modelPermission: read
+
+	tablePermission gold_dim_country = [region] = "Asia-Pacific"
+
+	annotation PBI_Id = 0ef14efe07914e5084d53e36f34fe71d
+

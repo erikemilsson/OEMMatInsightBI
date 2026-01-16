@@ -23,3 +23,10 @@ ref table gold_dim_country
 ref table gold_dim_date
 ref table _Measures
 
+ref role 'Global Executive'
+ref role 'Regional Manager - Americas'
+ref role 'Regional Manager - Europe'
+ref role 'Regional Manager - Asia-Pacific'
+ref role 'Category Manager - Battery Metals'
+ref role 'Category Manager - Base Metals'
+
