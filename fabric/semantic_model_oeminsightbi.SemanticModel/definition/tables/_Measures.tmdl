@@ -2,7 +2,6 @@ table _Measures
 	lineageTag: a1b2c3d4-e5f6-47a8-b9c0-d1e2f3a4b5c6
 	isHidden
 
-	/// Procurement Measures
 	measure 'Total Spend EUR' = SUM(fact_procurement[spend_eur])
 		formatString: #,##0
 		displayFolder: Procurement
@@ -15,7 +14,6 @@ table _Measures
 		formatString: 0.0%;-0.0%;0.0%
 		displayFolder: Procurement
 
-	/// Sustainability Measures
 	measure 'Avg EPI Score' =
 		CALCULATE(
 		    AVERAGE(fact_epi_score[score]),
@@ -60,7 +58,6 @@ table _Measures
 		formatString: 0.0%;-0.0%;0.0%
 		displayFolder: Sustainability
 
-	/// Risk Measures
 	measure 'Max Supply Concentration %' =
 		VAR MaxShare = MAXX(fact_supply_share, VALUE(fact_supply_share[share_pct]))
 		RETURN
@@ -154,7 +151,6 @@ table _Measures
 		formatString: 0.000
 		displayFolder: Risk
 
-	/// Operational Measures
 	measure 'Total Quantity' = SUM(fact_procurement[quantity_base])
 		formatString: #,##0
 		displayFolder: Procurement
@@ -188,7 +184,6 @@ table _Measures
 		formatString: #,##0
 		displayFolder: Procurement
 
-	/// Time Intelligence Measures
 	measure 'Latest EPI Score' =
 		VAR LatestYear = MAXX(fact_epi_score, fact_epi_score[year])
 		RETURN
@@ -264,7 +259,6 @@ table _Measures
 		formatString: #,##0
 		displayFolder: Time Intelligence
 
-	/// Additional Sustainability Measures
 	measure 'Weighted EPI Score' =
 		VAR WeightedScores =
 		    SUMX(
@@ -320,7 +314,6 @@ table _Measures
 		formatString: 0.00
 		displayFolder: Sustainability
 
-	/// Additional Risk Measures
 	measure 'HHI Category' =
 		VAR HHI = [HHI Index]
 		RETURN
@@ -340,7 +333,6 @@ table _Measures
 		formatString: 0.000
 		displayFolder: Risk
 
-	/// Advanced Measures
 	measure 'Material Rank by Spend' =
 		RANKX(
 		    ALL(gold_dim_material[material_name_std]),
@@ -397,7 +389,6 @@ table _Measures
 		IF([Cumulative Spend %] <= 0.8, "Top 80%", "Remaining 20%")
 		displayFolder: Advanced
 
-	/// Data Quality Measures
 	measure 'Overall Match Rate %' =
 		CALCULATE(
 		    AVERAGE(gold_data_quality_dashboard[metric_value]),
@@ -448,4 +439,3 @@ table _Measures
 		source = ROW("Measure Placeholder", 1)
 
 	annotation PBI_ResultType = Table
-
