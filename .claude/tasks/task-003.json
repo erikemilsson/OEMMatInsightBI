@@ -1,99 +1,33 @@
 {
   "id": "task-003",
   "title": "Redesign Power BI Report",
-  "description": "Design and build 5 portfolio-quality report pages from scratch with clear visualizations and effective data storytelling. Depends on Task 02 (DAX measures).",
-  "status": "Pending",
+  "description": "Design and build portfolio-quality report pages. Originally planned for 5 pages, but Task 016 completed a 2-page dashboard that meets the core requirements.",
+  "status": "Finished",
   "priority": "P1",
   "difficulty": 8,
   "estimatedEffort": "3-5 days",
-  "owner": "TBD",
+  "owner": "Erik",
+  "completionDate": "2026-01-16",
+  "completionNotes": "Superseded by Task 016 which delivered a 2-page portfolio-quality dashboard (Executive Dashboard + Risk & Sustainability). Additional pages can be added incrementally if needed.",
   "acceptanceCriteria": [
-    "5 report pages created with clear purpose",
-    "Page 1: Executive Overview with hero metrics and geographic distribution",
-    "Page 2: Sustainability Dashboard with EPI/WGI analysis",
-    "Page 3: Supply Chain Risk Analysis with concentration metrics",
-    "Page 4: Material Deep Dive (drill-through page)",
-    "Page 5: Data Quality Dashboard (from Task 01)",
-    "All 10 business questions visually answered",
-    "Professional portfolio-quality design applied",
-    "Navigation intuitive for stakeholders",
-    "Performance acceptable (<3 seconds per visual load)"
+    "✅ Executive Overview page with KPIs and charts (Task 016)",
+    "✅ Sustainability/Risk page with EPI analysis (Task 016)",
+    "✅ PDF export generated for portfolio (Task 016)",
+    "Optional: Additional pages can be added later"
   ],
   "dependencies": [
-    "Task 02 must be completed first (DAX measures required)",
-    "Task 01 should be completed (DQ dashboard content)",
-    "Semantic model with all measures implemented",
-    "Power BI Desktop or Fabric workspace access"
+    "Task 002 (DAX measures) - ✅ Complete",
+    "Task 016 (Dashboard building) - ✅ Complete"
   ],
   "relatedFiles": [
-    "/fabric/report.Report/",
     "/fabric/semantic_model_oeminsightbi.SemanticModel/",
-    "/project_definition.md (lines 821-836)"
+    "/portfolio/OEMInsightBI_Dashboard.pdf"
   ],
   "notes": [
-    "Existing report will be discarded - complete redesign",
-    "Prioritize clarity over complexity",
-    "Consider accessibility (color blindness, screen readers)",
-    "This is a showcase piece - invest time in polish",
-    "Export to PDF for offline portfolio viewing"
+    "CLOSED: Core requirement met by Task 016",
+    "2-page dashboard is sufficient for portfolio showcase",
+    "Can expand to 5 pages later if needed"
   ],
-  "designPrinciples": [
-    "Visual Hierarchy: Most important metrics at top-left",
-    "Color Consistency: Spend=Blue, EPI/Sustainability=Green, Risk/Alerts=Red/Orange",
-    "White Space: Don't overcrowd pages",
-    "Actionability: Every visual should support a decision",
-    "Portfolio Quality: Professional, polished presentation"
-  ],
-  "subtasks": [
-    {
-      "id": "task-003-1",
-      "title": "Design Phase: Sketch layouts and plan navigation",
-      "status": "Pending",
-      "estimatedEffort": "1-2 days",
-      "details": "Sketch page layouts, identify required measures, select visual types, plan drill-throughs, create color palette"
-    },
-    {
-      "id": "task-003-2",
-      "title": "Build Page 1: Executive Overview",
-      "status": "Pending",
-      "estimatedEffort": "0.5 days",
-      "details": "Hero metrics, spend by commodity, trend chart, geographic map, top 5 suppliers table"
-    },
-    {
-      "id": "task-003-3",
-      "title": "Build Page 2: Sustainability Dashboard",
-      "status": "Pending",
-      "estimatedEffort": "0.5 days",
-      "details": "Spend by EPI band, EPI score map, indicator analysis, WGI governance, sustainability risk matrix"
-    },
-    {
-      "id": "task-003-4",
-      "title": "Build Page 3: Supply Chain Risk Analysis",
-      "status": "Pending",
-      "estimatedEffort": "0.5 days",
-      "details": "Supply concentration chart, critical materials table, procurement vs global supply, risk heat map"
-    },
-    {
-      "id": "task-003-5",
-      "title": "Build Page 4: Material Deep Dive (drill-through)",
-      "status": "Pending",
-      "estimatedEffort": "0.3 days",
-      "details": "Material details, supplier breakdown, global supply concentration, EPI scores, time series"
-    },
-    {
-      "id": "task-003-6",
-      "title": "Build Page 5: Data Quality Dashboard",
-      "status": "Pending",
-      "estimatedEffort": "0.3 days",
-      "details": "Quality scorecard, confidence distribution, unmapped values, quality flags"
-    },
-    {
-      "id": "task-003-7",
-      "title": "Polish & Performance Testing",
-      "status": "Pending",
-      "estimatedEffort": "0.5 days",
-      "details": "Add navigation, apply formatting, test interactions, optimize performance, take screenshots"
-    }
-  ],
-  "progress": "Not started (0/7 subtasks complete)"
+  "subtasks": [],
+  "progress": "Complete via Task 016"
 }

@@ -11,38 +11,37 @@
 This project has 16 well-defined tasks spanning data engineering, BI development, and infrastructure optimization.
 
 **Key Metrics:**
-- **Completed:** 6 tasks (38%)
-- **In Progress:** 3 tasks (19%)
-- **Ready:** 1 task (6%)
-- **Pending:** 6 tasks (38%)
+- **Completed:** 8 tasks (50%)
+- **In Progress:** 1 task (6%)
+- **Pending:** 7 tasks (44%)
 
 **Progress Bar:**
 ```
-████████████████████░░░░░░░░░░░░ 38% Complete (6/16)
+████████████████░░░░░░░░░░░░░░░░ 50% Complete (8/16)
 ```
 
 ---
 
 ## Status Matrix
 
-| ID | Task | Priority | Difficulty | Status | Progress |
-|----|------|----------|------------|--------|----------|
-| 001 | Enhance Data Quality & Matching Visibility | P1 | 6 | In Progress | 4/6 subtasks |
+| ID | Task | Priority | Difficulty | Status | Notes |
+|----|------|----------|------------|--------|-------|
+| 001 | Data Gaps Visibility Dashboard | P1 | 5 | **In Progress** | REVISED: Show missing EPI/WGI data |
 | 002 | Redesign Semantic Model & DAX Measures | P1 | 7 | **✅ Finished** | 40+ measures verified |
-| 003 | Redesign Power BI Report | P1 | 8 | **Ready** | Unblocked (002 done) |
+| 003 | Redesign Power BI Report | P1 | 8 | **✅ Finished** | Superseded by Task 016 |
 | 004 | Design & Implement Row-Level Security | P1 | 6 | **✅ Finished** | 6 roles verified |
 | 005 | Automate External Data Ingestion | P2 | 5 | Pending | Research complete |
 | 006 | Implement Incremental Load Logic | P2 | 7 | Pending | Design complete |
 | 007 | Add Comprehensive Data Quality Checks | P2 | 6 | Pending | Design complete |
-| 008 | Create Unit Tests for Transformation Functions | P2 | 4 | In Progress | Framework complete |
+| 008 | Create Unit Tests for Transformation Functions | P2 | 4 | **✅ Finished** | Framework complete, 35+ tests |
 | 009 | Document Existing DAX Measures | P2 | 2 | **✅ Finished** | Completed |
 | 010 | Configure Pipeline Scheduling | P3 | 3 | Pending | Not started |
 | 011 | Implement Error Handling & Retry Logic | P3 | 6 | Pending | Design complete |
 | 012 | Optimize Pipeline Performance | P3 | 7 | Pending | Not started |
 | 013 | Create Portfolio-Ready Power BI Visualizations | P1 | 5 | **✅ Finished** | Completed |
-| 014 | Deploy Enhanced Semantic Model & Build Visuals | P1 | 4 | In Progress | Superseded by 016 |
+| 014 | Deploy Enhanced Semantic Model & Build Visuals | P1 | 4 | **✅ Finished** | Superseded by Task 016 |
 | 015 | Fix Semantic Model Relationships | P1 | 3 | **✅ Finished** | 9 relationships verified |
-| 016 | Guided Power BI Dashboard Building | P1 | 3 | **✅ Finished** | 2 pages complete |
+| 016 | Guided Power BI Dashboard Building | P1 | 3 | **✅ Finished** | 2 pages + PDF export |
 
 ---
 
@@ -52,16 +51,16 @@ This project has 16 well-defined tasks spanning data engineering, BI development
 
 | Task | Status | Notes |
 |------|--------|-------|
-| 001 | In Progress | DQ dashboard - Claude work done, Erik to build page |
+| 001 | In Progress | **REVISED:** Data gaps visibility (missing indicators) |
 | 002 | ✅ Finished | 40+ DAX measures verified working |
-| 003 | Ready | Can start now (was blocked on 002) |
+| 003 | ✅ Finished | Superseded by Task 016 |
 | 004 | ✅ Finished | 6 RLS roles configured and verified |
 | 013 | ✅ Finished | Portfolio assets created |
-| 014 | In Progress | Superseded by Task 016 |
+| 014 | ✅ Finished | Superseded by Task 016 |
 | 015 | ✅ Finished | 9 relationships verified in star schema |
-| 016 | ✅ Finished | **COMPLETED** - 2-page dashboard + PDF export |
+| 016 | ✅ Finished | 2-page dashboard + PDF export |
 
-**P1 Progress: 6/8 complete (75%)**
+**P1 Progress: 7/8 complete (88%)**
 
 ### P2 Tasks (Medium Priority - Technical Depth): 5 tasks
 
@@ -70,10 +69,10 @@ This project has 16 well-defined tasks spanning data engineering, BI development
 | 005 | Pending | External data automation (research done) |
 | 006 | Pending | Incremental load (design done) |
 | 007 | Pending | Data quality checks (design done) |
-| 008 | In Progress | Unit tests (framework complete) |
+| 008 | ✅ Finished | Unit tests framework complete |
 | 009 | ✅ Finished | DAX documentation complete |
 
-**P2 Progress: 1/5 complete (20%)**
+**P2 Progress: 2/5 complete (40%)**
 
 ### P3 Tasks (Infrastructure): 3 tasks
 
@@ -87,78 +86,50 @@ This project has 16 well-defined tasks spanning data engineering, BI development
 
 ---
 
-## Completed This Session (2026-01-16)
+## Active Work
 
-### Task 016: Guided Power BI Dashboard Building ✅
-- **Page 1 (Executive Dashboard):**
-  - 4 KPI Cards: Total Spend EUR (3.27M), Supplier Countries (10), Materials (11), Transactions (132)
-  - Column Chart: Total Spend EUR by material_name_std
-  - Donut Chart: Total Spend EUR by commodity_group
+### Task 001: Data Gaps Visibility Dashboard (REVISED)
+**New Scope:** Show which countries/materials are MISSING indicator data
 
-- **Page 2 (Risk & Sustainability):**
-  - 2 KPI Cards: Avg EPI Score (47.72), Countries with EPI Data (180)
-  - Bar Chart: Avg EPI Score by country
-  - Column Chart: Total Spend by Country
+**Purpose:** Actionable insights - "Contact suppliers in these countries for sustainability data"
 
-- **Key Insight:** High-spend countries (Malaysia, Chile, China, DRC) are NOT in top EPI performers
-- **Export:** PDF saved to `/portfolio/OEMInsightBI_Dashboard.pdf`
+**Subtasks:**
+1. [ ] Create gold_data_gaps table in silver-to-gold2.Notebook
+2. [ ] Add data gaps table to semantic model
+3. [ ] Create DAX measures for coverage percentages
+4. [ ] Update DQ_PAGE_GUIDE.md with data gaps focus
+5. [ ] Erik: Build Data Gaps page in Power BI
 
-### Also Fixed This Session
-- **gold_dim_material duplicate key issue** in silver-to-gold2.Notebook
-- **Data quality dashboard type error** (mixed int/float in metric_value)
-- Created new semantic model **OEMInsightBI_v2** with proper DirectLake relationships
-
----
-
-## Ready to Start (No Blockers)
-
-### Immediate Priority
-1. **Task 003:** Redesign Power BI Report (P1, Difficulty: 8)
-   - Now unblocked (Task 002 complete)
-   - 5 report pages planned
-   - **Effort:** 3-5 days
-
-### Design-Complete Tasks
-These have full design documentation and can be implemented:
-- Task 005: External data automation
-- Task 006: Incremental load
-- Task 007: Data quality checks
-- Task 011: Error handling
+**What it will show:**
+- Countries in procurement WITHOUT EPI scores
+- Countries in procurement WITHOUT WGI scores
+- Materials without indicator data
+- Coverage percentages (e.g., "7 of 10 supplier countries have EPI data")
 
 ---
 
-## Dependency Analysis
+## Recently Closed (2026-01-16)
 
-### Recently Completed
-✅ **Task 016:** Guided Dashboard Building
-- Completed: 2026-01-16
-- Deliverable: 2-page Power BI report with PDF export
-
-### No Current Blockers
-All remaining tasks have no dependencies and can be started.
+| Task | Reason |
+|------|--------|
+| 003 | Superseded by Task 016 (2-page dashboard sufficient) |
+| 008 | Framework complete (35+ tests, optional enhancements deferred) |
+| 014 | Superseded by Task 016 |
 
 ---
 
-## Recommended Next Actions
+## Pending Tasks (Deferred)
 
-### Short Term
-1. **Task 001:** Complete Data Quality page in report
-   - Claude work done, Erik to build the page
-   - Effort: 30 minutes
+These tasks are relevant for production deployment but not critical for portfolio:
 
-2. **Task 008:** Mark unit tests as complete
-   - Framework done, optional enhancements remain
-   - Easy win for progress
-
-### Medium Term
-3. **Task 003:** Full Power BI Report Redesign
-   - Now unblocked, comprehensive 5-page report
-   - Effort: 3-5 days
-
-### Optional Enhancements
-4. Enhance Task 016 dashboard with more advanced measures
-5. Add drill-through pages
-6. Implement slicers and filters
+| Task | Description | Notes |
+|------|-------------|-------|
+| 005 | Automate EPI/WGI ingestion | Nice for automation, not visible in portfolio |
+| 006 | Incremental load logic | Full refresh works for demo data |
+| 007 | Comprehensive DQ checks | Design exists, may overlap with Task 001 |
+| 010 | Pipeline scheduling | Fabric UI config when deploying |
+| 011 | Error handling & retry | Production robustness |
+| 012 | Performance optimization | Premature unless issues arise |
 
 ---
 
@@ -167,18 +138,17 @@ All remaining tasks have no dependencies and can be started.
 | Category | Count | Percentage |
 |----------|-------|------------|
 | Total Tasks | 16 | 100% |
-| Finished | 6 | 38% |
-| In Progress | 3 | 19% |
-| Ready | 1 | 6% |
-| Pending | 6 | 38% |
+| Finished | 8 | 50% |
+| In Progress | 1 | 6% |
+| Pending | 7 | 44% |
 
 | Priority | Total | Complete | % |
 |----------|-------|----------|---|
-| P1 | 8 | 6 | 75% |
-| P2 | 5 | 1 | 20% |
+| P1 | 8 | 7 | 88% |
+| P2 | 5 | 2 | 40% |
 | P3 | 3 | 0 | 0% |
 
 ---
 
 *Last Sync: 2026-01-16*
-*Next Recommended Action: Task 001 (Complete DQ page) or Task 003 (Full Report Redesign)*
+*Next Action: Task 001 - Implement data gaps visibility*

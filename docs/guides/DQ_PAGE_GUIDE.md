@@ -1,20 +1,24 @@
-# Data Quality Page Guide
+# Data Gaps Page Guide
 
-**Purpose:** Step-by-step instructions for building the Data Quality page in Power BI.
+**Purpose:** Step-by-step instructions for building the Data Gaps page in Power BI, showing which countries/materials are MISSING sustainability indicator data.
+
+**Business Value:** Actionable insights like "Contact suppliers in these countries for sustainability data" and "€X spend is at risk due to missing indicator data."
 
 **Prerequisites:**
-- Task 015 complete (relationships fixed)
 - Pipeline run complete (`silver-to-gold2.Notebook` executed)
-- Semantic model synced with `gold_data_quality_dashboard` table visible
+- Semantic model synced with `gold_data_gaps` and `gold_data_gaps_summary` tables visible
+- `_Measures` table showing new "Data Gaps" folder measures
 
 ---
 
 ## Page Overview
 
-The Data Quality page provides transparency into data matching confidence and highlights areas needing attention. It answers:
-- What is our overall data quality score?
-- Which records have low confidence matches?
-- Which unmapped values need mapping rules added?
+The Data Gaps page provides transparency into sustainability data coverage. It answers:
+- How many of our supplier countries have EPI data?
+- How much spend is with suppliers where we lack sustainability data?
+- Which specific countries need follow-up for data collection?
+
+**Key Insight:** This page helps identify suppliers to contact for sustainability data improvement.
 
 ---
 
@@ -22,25 +26,25 @@ The Data Quality page provides transparency into data matching confidence and hi
 
 ```
 +------------------------------------------------------------------+
-|  Page Title: "Data Quality Dashboard"                             |
+|  Page Title: "Data Gaps - Sustainability Coverage"                |
 +------------------------------------------------------------------+
 |                                                                   |
 |  +------------------+  +------------------+  +------------------+ |
-|  |   OVERALL MATCH  |  |  HIGH CONFIDENCE |  |    UNMAPPED      | |
-|  |      RATE %      |  |    RECORDS %     |  |    RECORDS       | |
+|  | COUNTRY COVERAGE |  |  SPEND COVERAGE  |  |    COUNTRIES     | |
+|  |        %         |  |        %         |  |  WITHOUT DATA    | |
 |  |      [KPI]       |  |      [KPI]       |  |     [KPI]        | |
 |  +------------------+  +------------------+  +------------------+ |
 |                                                                   |
 |  +----------------------------------+  +------------------------+ |
-|  |     CONFIDENCE DISTRIBUTION     |  |   MATCH RATE BY SOURCE | |
-|  |         [Pie Chart]             |  |     [Bar Chart]        | |
-|  |  High / Medium / Low / Unmapped |  | Procurement vs Supply  | |
+|  |   COVERAGE BY STATUS            |  |  SPEND BY DATA STATUS  | |
+|  |      [Donut Chart]              |  |     [Bar Chart]        | |
+|  | Has Data vs Missing Data        |  | EUR with/without data  | |
 |  +----------------------------------+  +------------------------+ |
 |                                                                   |
 |  +------------------------------------------------------------------+
-|  |               TOP UNMAPPED VALUES                               |
+|  |     COUNTRIES WITHOUT EPI DATA (Action Required)                 |
 |  |                   [Table]                                        |
-|  | Category | Value | Count | Action Needed                        |
+|  | Country | Region | Spend EUR | Transactions | Action Needed     |
 |  +------------------------------------------------------------------+
 |                                                                   |
 +------------------------------------------------------------------+
@@ -54,149 +58,162 @@ The Data Quality page provides transparency into data matching confidence and hi
 
 1. Open the Power BI report in Fabric portal or Power BI Desktop
 2. Add a new page (right-click on page tabs > "New page")
-3. Rename the page to "Data Quality"
-4. Set page size: 16:9 (standard) or Custom (1280 x 720)
+3. Rename the page to "Data Gaps"
+4. Set page size: 16:9 (standard)
 
 ---
 
 ### Step 2: Add Page Title
 
 1. Insert > Text box
-2. Type: **"Data Quality Dashboard"**
+2. Type: **"Data Gaps - Sustainability Coverage"**
 3. Format:
    - Font: Segoe UI Semibold, 24pt
    - Color: #333333
    - Position: Top left corner
+4. Add subtitle: "Identify suppliers needing sustainability data follow-up"
+   - Font: Segoe UI, 12pt, #666666
 
 ---
 
-### Step 3: Create KPI Card - Overall Match Rate
+### Step 3: Create KPI Card - Country Coverage %
 
 1. Insert > Visualizations > Card
 2. Fields:
-   - Value: `_Measures[Overall Match Rate %]`
+   - Value: `_Measures[Country Coverage %]`
 3. Format:
-   - Title: "Overall Match Rate"
+   - Title: "Country Coverage"
+   - Subtitle: "% of procurement countries with EPI data"
    - Callout value:
-     - Font size: 36pt
+     - Font size: 40pt
      - Color: Use conditional formatting:
-       - Green (#107C10) if >= 90%
-       - Yellow (#FFB900) if >= 70%
-       - Red (#D13438) if < 70%
-   - Size: 200px wide x 120px tall
+       - Green (#107C10) if >= 80%
+       - Yellow (#FFB900) if >= 50%
+       - Red (#D13438) if < 50%
+   - Size: 220px wide x 140px tall
    - Position: Top row, left
 
-**Tip:** If measure shows BLANK, the `gold_data_quality_dashboard` table may not have loaded. Re-run the pipeline.
-
 ---
 
-### Step 4: Create KPI Card - High Confidence Records
+### Step 4: Create KPI Card - Spend Coverage %
 
 1. Insert > Visualizations > Card
 2. Fields:
-   - Value: `_Measures[High Confidence Records %]`
+   - Value: `_Measures[Spend Coverage %]`
 3. Format:
-   - Title: "High Confidence Records"
+   - Title: "Spend Coverage"
+   - Subtitle: "% of spend with sustainability data"
    - Callout value: Same conditional formatting as Step 3
-   - Size: 200px wide x 120px tall
+   - Size: 220px wide x 140px tall
    - Position: Top row, center
 
 ---
 
-### Step 5: Create KPI Card - Unmapped Records
+### Step 5: Create KPI Card - Countries Without Data
 
 1. Insert > Visualizations > Card
 2. Fields:
-   - Value: `_Measures[Unmapped Records Count]`
+   - Value: `_Measures[Countries without EPI Data]`
 3. Format:
-   - Title: "Unmapped Records"
+   - Title: "Countries Without Data"
+   - Subtitle: "Require follow-up"
    - Callout value:
-     - Font size: 36pt
-     - Color: Conditional formatting (reverse):
-       - Green if < 100
-       - Yellow if < 500
-       - Red if >= 500
-   - Size: 200px wide x 120px tall
+     - Font size: 40pt
+     - Color: Conditional formatting (reverse - lower is better):
+       - Green if = 0
+       - Yellow if <= 3
+       - Red if > 3
+   - Size: 220px wide x 140px tall
    - Position: Top row, right
 
 ---
 
-### Step 6: Create Confidence Distribution Pie Chart
+### Step 6: Create Coverage Donut Chart
 
-1. Insert > Visualizations > Pie chart
+1. Insert > Visualizations > Donut chart
 2. Fields:
-   - Legend: `gold_data_quality_dashboard[metric_name]`
-   - Values: `gold_data_quality_dashboard[metric_value]`
-3. Filter:
-   - `gold_data_quality_dashboard[category]` = "Procurement"
-   - `gold_data_quality_dashboard[metric_name]` IN ("High Confidence Count", "Medium Confidence Count", "Low Confidence Count", "Unmapped Count")
-4. Format:
-   - Title: "Procurement Confidence Distribution"
+   - Legend: `gold_data_gaps[data_status]`
+   - Values: `gold_data_gaps[country_key]` (Count Distinct)
+3. Format:
+   - Title: "Countries by Data Status"
    - Legend: Show at right
    - Colors:
-     - High Confidence: Green (#107C10)
-     - Medium Confidence: Yellow (#FFB900)
-     - Low Confidence: Orange (#FF8C00)
-     - Unmapped: Red (#D13438)
-   - Size: 300px wide x 250px tall
+     - "Has Indicator Data": Green (#107C10)
+     - "Missing Indicator Data": Red (#D13438)
+   - Size: 320px wide x 280px tall
    - Position: Second row, left
 
 ---
 
-### Step 7: Create Match Rate by Source Bar Chart
+### Step 7: Create Spend Impact Bar Chart
 
 1. Insert > Visualizations > Clustered bar chart
 2. Fields:
-   - Y-axis: `gold_data_quality_dashboard[category]`
-   - X-axis: `gold_data_quality_dashboard[metric_value]`
-3. Filter:
-   - `gold_data_quality_dashboard[metric_name]` = "Match Rate"
-   - `gold_data_quality_dashboard[category]` IN ("Procurement", "Supply")
+   - Y-axis: `gold_data_gaps[data_status]`
+   - X-axis: `_Measures[Spend with EPI Data]` AND `_Measures[Spend without EPI Data]`
+3. **Alternative (simpler):**
+   - Y-axis: `gold_data_gaps[data_status]`
+   - X-axis: `gold_data_gaps[spend_eur]` (Sum)
 4. Format:
-   - Title: "Match Rate by Data Source"
-   - Data labels: On
-   - X-axis: Format as percentage (0.0%)
-   - Size: 280px wide x 250px tall
+   - Title: "Procurement Spend by Data Availability"
+   - Data labels: On (show EUR values)
+   - X-axis: Format as currency (€#,##0)
+   - Colors:
+     - "Has Indicator Data": Green (#107C10)
+     - "Missing Indicator Data": Red (#D13438)
+   - Size: 350px wide x 280px tall
    - Position: Second row, right
 
 ---
 
-### Step 8: Create Top Unmapped Values Table
+### Step 8: Create Action Table - Countries Without Data
+
+**This is the most important visual - it shows which countries need follow-up.**
 
 1. Insert > Visualizations > Table
-2. Fields:
-   - `gold_data_quality_dashboard[category]`
-   - `gold_data_quality_dashboard[metric_name]`
-   - `gold_data_quality_dashboard[metric_value]`
-   - `gold_data_quality_dashboard[description]`
+2. Fields (in this order):
+   - `gold_data_gaps[country_name_std]`
+   - `gold_data_gaps[iso3]`
+   - `gold_data_gaps[region]`
+   - `gold_data_gaps[spend_eur]`
+   - `gold_data_gaps[transaction_count]`
 3. Filter:
-   - `gold_data_quality_dashboard[category]` IN ("Unmapped Materials", "Unmapped Countries")
+   - `gold_data_gaps[has_epi_score]` = FALSE
 4. Sort:
-   - By `metric_value` descending
+   - By `spend_eur` descending (highest impact first)
 5. Format:
-   - Title: "Top Unmapped Values (Prioritize for Mapping)"
-   - Headers: Bold, dark background (#F5F5F5)
-   - Alternating rows: Light gray
-   - Size: Full width, 200px tall
-   - Position: Bottom row
+   - Title: "Countries Without EPI Data (Action Required)"
+   - Headers: Bold, red background (#FDE7E9)
+   - Column widths:
+     - Country: 200px
+     - ISO3: 60px
+     - Region: 100px
+     - Spend EUR: 120px (format as €#,##0)
+     - Transactions: 100px
+   - Size: Full width, 220px tall
+   - Position: Bottom section
 
 ---
 
-### Step 9: Add Insights Text Box
+### Step 9: Add Insights/Action Text Box
 
 1. Insert > Text box
 2. Position: Below the table
 3. Content:
    ```
    **How to use this page:**
-   - GREEN indicators = healthy data quality
-   - YELLOW/RED indicators = action needed
-   - Review "Top Unmapped Values" table for mapping rule additions
-   - Contact Data Engineering to add new mapping rules
+
+   1. Countries in the RED table are missing sustainability indicator data
+   2. Prioritize by spend - contact suppliers in high-spend countries first
+   3. Request EPI/sustainability data from suppliers or research public sources
+   4. Once data is collected, update the EPI source table and re-run pipeline
+
+   **Goal:** Achieve 100% coverage of procurement spend with sustainability data
    ```
 4. Format:
-   - Font: Segoe UI, 10pt
-   - Background: Light blue (#E6F2FF)
+   - Font: Segoe UI, 11pt
+   - Background: Light yellow (#FFF8E1)
+   - Border: 1px solid #FFB900
 
 ---
 
@@ -204,12 +221,22 @@ The Data Quality page provides transparency into data matching confidence and hi
 
 After building the page, verify:
 
-- [ ] Overall Match Rate shows a percentage (e.g., 87.5%)
-- [ ] High Confidence shows a percentage (e.g., 75.2%)
-- [ ] Unmapped Records shows a count (e.g., 234)
-- [ ] Pie chart shows 4 segments with correct colors
-- [ ] Bar chart shows Procurement and Supply bars
-- [ ] Table shows unmapped materials and countries with counts
+- [ ] Country Coverage % shows a percentage (e.g., 70.0%)
+- [ ] Spend Coverage % shows a percentage (e.g., 85.2%)
+- [ ] Countries Without Data shows a count (e.g., 3)
+- [ ] Donut chart shows two segments: green and red
+- [ ] Bar chart shows spend amounts with green/red bars
+- [ ] Table shows ONLY countries where `has_epi_score = FALSE`
+- [ ] Table is sorted by spend (highest first)
+
+---
+
+## Expected Results
+
+Based on your current data, you should see:
+- **Country Coverage:** ~70-80% (most procurement countries have EPI data)
+- **Spend Coverage:** Higher than country coverage (major suppliers typically have data)
+- **Action Table:** 2-5 countries typically missing data
 
 ---
 
@@ -218,20 +245,36 @@ After building the page, verify:
 | Issue | Solution |
 |-------|----------|
 | All measures show BLANK | Re-run `silver-to-gold2.Notebook` and refresh semantic model |
-| Table shows no data | Check filter is set to "Unmapped Materials" / "Unmapped Countries" |
-| Pie chart shows only 1 segment | Check filter on `metric_name` includes all confidence categories |
-| Colors not showing conditionally | Apply conditional formatting in Format > Callout value > Color |
+| Table shows no countries | Check filter is set to `has_epi_score = FALSE` |
+| Coverage % shows 100% | All procurement countries have EPI data - great! Consider showing materials instead |
+| Donut chart shows only 1 segment | Either all data is present or all is missing - check the filter |
 
 ---
 
-## Alternative: Simple Version
+## Alternative: Quick Version (15 minutes)
 
-If you want a simpler page, use just:
+If you want a simpler page:
 
-1. **3 KPI cards** (Match Rate, High Confidence %, Unmapped Count)
-2. **1 Table** showing the full `gold_data_quality_dashboard` table with slicers for category
+1. **2 KPI cards:** Country Coverage %, Spend Coverage %
+2. **1 Table:** Full `gold_data_gaps` table filtered to `has_epi_score = FALSE`
+3. Add a slicer for `data_status` to toggle between views
 
-This takes ~10 minutes vs the full version (~30 minutes).
+---
+
+## DAX Measures Available
+
+These measures are in the `_Measures` table under "Data Gaps" folder:
+
+| Measure | Description |
+|---------|-------------|
+| `Countries with EPI Data` | Count of procurement countries with EPI scores |
+| `Countries without EPI Data` | Count of countries MISSING EPI data |
+| `Country Coverage %` | Percentage of countries with data |
+| `Spend with EPI Data` | EUR spend where sustainability data exists |
+| `Spend without EPI Data` | EUR spend at risk (no data) |
+| `Spend Coverage %` | Percentage of spend with data |
+| `Total Procurement Countries` | Total distinct countries |
+| `Data Gap Summary` | Text: "X of Y countries" |
 
 ---
 
@@ -239,9 +282,11 @@ This takes ~10 minutes vs the full version (~30 minutes).
 
 After completing this page:
 1. Export a screenshot (PNG) for portfolio documentation
-2. Add a bookmark to navigate from Executive Dashboard to DQ page
-3. Consider adding a "Data Quality" filter to other pages
+2. Add a navigation button from Executive Dashboard to Data Gaps page
+3. Share the "Action Required" table with procurement team
+4. Set up a monthly review cadence to improve coverage
 
 ---
 
-*Created for Task 001: Enhance Data Quality & Matching Visibility*
+*Created for Task 001: Data Gaps Visibility Dashboard (Revised)*
+*Last Updated: 2026-01-16*

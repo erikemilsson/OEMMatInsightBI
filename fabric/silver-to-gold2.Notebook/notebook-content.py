@@ -1659,3 +1659,154 @@ dq_dashboard.groupBy("category").count().orderBy("category").show()
 # META   "language": "python",
 # META   "language_group": "synapse_pyspark"
 # META }
+
+# MARKDOWN ********************
+
+# # Data Gaps Visibility Table (Task 001 - Revised)
+#
+# This table shows which countries/materials in procurement are MISSING indicator data (EPI scores).
+# Purpose: Enable actionable insights like "Contact suppliers in these countries for sustainability data"
+
+# CELL ********************
+
+def create_data_gaps_table():
+    """
+    Create a comprehensive data gaps table showing:
+    1. Countries in procurement that have NO EPI scores
+    2. Coverage percentages for actionable reporting
+    3. Spend impact of missing data
+
+    This enables the Data Gaps page in Power BI to show:
+    - "X of Y supplier countries have EPI data"
+    - "€Z spend is with suppliers in countries without sustainability data"
+    """
+
+    # 1. Get distinct countries from procurement (both supplier HQ and production)
+    procurement_countries = spark.sql(f"""
+        SELECT DISTINCT supplier_hq_country_key as country_key, 'Supplier HQ' as country_role
+        FROM {DB}.fact_procurement
+        WHERE supplier_hq_country_key IS NOT NULL
+        UNION
+        SELECT DISTINCT production_country_key as country_key, 'Production' as country_role
+        FROM {DB}.fact_procurement
+        WHERE production_country_key IS NOT NULL
+    """)
+
+    # 2. Get countries that have EPI scores (using the main EPI indicator)
+    # We'll check for the presence of ANY EPI score for each country
+    countries_with_epi = spark.sql(f"""
+        SELECT DISTINCT country_key
+        FROM {DB}.fact_epi_score
+        WHERE score IS NOT NULL
+    """)
+
+    # 3. Join to find gaps
+    gaps_detail = (
+        procurement_countries
+        .join(
+            spark.table(f"{DB}.gold_dim_country").select(
+                "country_key", "country_name_std", "iso3", "region", "is_placeholder"
+            ),
+            "country_key",
+            "left"
+        )
+        .join(
+            countries_with_epi.withColumn("has_epi_score", F.lit(True)),
+            "country_key",
+            "left"
+        )
+        .withColumn("has_epi_score", F.coalesce(F.col("has_epi_score"), F.lit(False)))
+        .filter(~F.coalesce(F.col("is_placeholder"), F.lit(False)))  # Exclude placeholder countries
+    )
+
+    # 4. Calculate spend impact for countries without EPI data
+    spend_by_country = spark.sql(f"""
+        SELECT
+            supplier_hq_country_key as country_key,
+            SUM(spend_eur) as total_spend_eur,
+            COUNT(*) as transaction_count
+        FROM {DB}.fact_procurement
+        GROUP BY supplier_hq_country_key
+    """)
+
+    # 5. Create the final data gaps table
+    data_gaps = (
+        gaps_detail
+        .join(spend_by_country, "country_key", "left")
+        .select(
+            "country_key",
+            "country_name_std",
+            "iso3",
+            "region",
+            "country_role",
+            "has_epi_score",
+            F.coalesce("total_spend_eur", F.lit(0.0)).alias("spend_eur"),
+            F.coalesce("transaction_count", F.lit(0)).alias("transaction_count"),
+            F.when(F.col("has_epi_score"), "Has Indicator Data")
+             .otherwise("Missing Indicator Data").alias("data_status"),
+            F.current_timestamp().alias("calculated_at")
+        )
+        .dropDuplicates(["country_key", "country_role"])
+    )
+
+    write_tbl(data_gaps, "gold_data_gaps")
+
+    # 6. Create summary statistics table for KPI cards
+    total_countries = data_gaps.select("country_key").distinct().count()
+    countries_with_epi_count = data_gaps.filter(F.col("has_epi_score")).select("country_key").distinct().count()
+    countries_without_epi_count = data_gaps.filter(~F.col("has_epi_score")).select("country_key").distinct().count()
+
+    spend_with_epi = data_gaps.filter(F.col("has_epi_score")).agg(F.sum("spend_eur")).first()[0] or 0
+    spend_without_epi = data_gaps.filter(~F.col("has_epi_score")).agg(F.sum("spend_eur")).first()[0] or 0
+    total_spend = spend_with_epi + spend_without_epi
+
+    coverage_pct = (countries_with_epi_count / total_countries * 100) if total_countries > 0 else 0
+    spend_coverage_pct = (spend_with_epi / total_spend * 100) if total_spend > 0 else 0
+
+    # Create summary table
+    summary_rows = [
+        ("Coverage", "Countries with EPI Data", float(countries_with_epi_count), f"{countries_with_epi_count} of {total_countries} supplier countries"),
+        ("Coverage", "Countries without EPI Data", float(countries_without_epi_count), f"Missing sustainability indicators"),
+        ("Coverage", "Country Coverage %", float(coverage_pct), f"Percentage of procurement countries with EPI data"),
+        ("Impact", "Spend with EPI Data (EUR)", float(spend_with_epi), f"Procurement spend where sustainability data exists"),
+        ("Impact", "Spend without EPI Data (EUR)", float(spend_without_epi), f"Procurement spend at risk - no sustainability data"),
+        ("Impact", "Spend Coverage %", float(spend_coverage_pct), f"Percentage of spend with sustainability data"),
+        ("Summary", "Total Procurement Countries", float(total_countries), f"Distinct countries in procurement data"),
+        ("Summary", "Total Procurement Spend (EUR)", float(total_spend), f"Total procurement spend across all countries"),
+    ]
+
+    data_gaps_summary = spark.createDataFrame(
+        summary_rows,
+        ["category", "metric_name", "metric_value", "description"]
+    ).withColumn("calculated_at", F.current_timestamp())
+
+    write_tbl(data_gaps_summary, "gold_data_gaps_summary")
+
+    return data_gaps, data_gaps_summary
+
+# Execute data gaps table creation
+data_gaps, data_gaps_summary = create_data_gaps_table()
+
+print("\n" + "="*70)
+print("DATA GAPS VISIBILITY TABLE CREATED (Task 001)")
+print("="*70)
+
+print("\n📊 COVERAGE SUMMARY:")
+data_gaps_summary.filter(F.col("category") == "Coverage").show(truncate=False)
+
+print("\n💰 SPEND IMPACT:")
+data_gaps_summary.filter(F.col("category") == "Impact").show(truncate=False)
+
+print("\n🔍 COUNTRIES WITHOUT EPI DATA (Action Required):")
+(data_gaps
+ .filter(~F.col("has_epi_score"))
+ .select("country_name_std", "iso3", "region", "spend_eur", "transaction_count")
+ .orderBy(F.desc("spend_eur"))
+ .show(20, truncate=False))
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }

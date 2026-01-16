@@ -9,108 +9,109 @@
 ## Progress Overview
 
 ```
-Tasks Complete: ██████████░░░░░░░░░░ 31% (5/16)
-P1 Tasks:       ████████████████░░░░ 75% (6/8 complete or ready)
-Claude Work:    ████████████████████ 100%
-Erik Work:      ████████░░░░░░░░░░░░ 40%
+Tasks Complete: ████████████████░░░░░░░░░░░░░░░░ 50% (8/16)
+P1 Tasks:       █████████████████████████████░░░ 88% (7/8 complete)
+Claude Work:    ████████████████████ 100% (all code tasks done)
 ```
 
 | Status | Tasks |
 |--------|-------|
-| **Finished** | **002, 004, 009, 013, 015** |
-| In Progress | 001, 008, 014 |
-| **Ready** | **016** (dashboard building) |
-| Pending | 003, 005, 006, 007, 010, 011, 012 |
+| **Finished** | **002, 003, 004, 008, 009, 013, 014, 015, 016** |
+| In Progress | 001 (Claude done, Erik to build page) |
+| Pending | 005, 006, 007, 010, 011, 012 |
 
 ---
 
-## Your Action Items
+## Your Action Items (Erik)
 
 | # | Task | Action | Time |
 |---|------|--------|------|
-| 1 | **ALL** | `git pull` to get Claude's changes | 1 min |
-| 2 | **001,002,004** | Run `silver-to-gold2.Notebook` in Fabric | 5 min |
-| 3 | **ALL** | [Sync semantic model to Fabric](https://app.fabric.microsoft.com/groups/99e4cc6d-6ec3-49a7-aed9-b69b04a97aa9) | 2 min |
-| 4 | **002** | Verify 40+ measures appear in _Measures table | 5 min |
-| 5 | **004** | Test RLS: View as Role for each of 6 roles | 10 min |
-| 6 | **001** | Build DQ page following [DQ_PAGE_GUIDE.md](./docs/guides/DQ_PAGE_GUIDE.md) | 30 min |
-| 7 | **015** | Verify relationships (Model view → arrows go dim→fact) | 5 min |
-| 8 | **016** | Build Executive Dashboard per [MEASURE_GUIDE.md](./docs/guides/MEASURE_GUIDE.md) | 30 min |
+| 1 | **ALL** | `git pull` to get today's changes | 1 min |
+| 2 | **001** | Run `silver-to-gold2.Notebook` in Fabric | 5 min |
+| 3 | **001** | Sync semantic model (new tables: gold_data_gaps, gold_data_gaps_summary) | 2 min |
+| 4 | **001** | Build Data Gaps page per [DQ_PAGE_GUIDE.md](./docs/guides/DQ_PAGE_GUIDE.md) | 20 min |
 
 ---
 
-## Claude's Completed Work This Session
+## Task 001: Data Gaps Visibility (Claude Work Complete)
 
-### Task 001: Data Quality Visibility
-- [x] Added `gold_data_quality_dashboard` table creation to `silver-to-gold2.Notebook`
-- [x] Created `gold_data_quality_dashboard.tmdl` in semantic model
-- [x] Added 5 DQ measures: Overall Match Rate %, Unmapped Records Count, High Confidence %, Procurement/Supply Match Rate %
-- [x] Created [DQ_PAGE_GUIDE.md](./docs/guides/DQ_PAGE_GUIDE.md) with step-by-step visual building instructions
+### What Was Built
 
-### Task 002: DAX Measures (40 total)
-- [x] Added 22 new measures to `_Measures.tmdl` (now 40 total)
-- [x] New display folders: Time Intelligence, Advanced, Data Quality
-- [x] Measures include: Time intelligence (YoY, MoM, YTD), Statistical (volatility, CV), Pareto analysis
+**New Tables:**
+- `gold_data_gaps` - Shows each procurement country with `has_epi_score` boolean and spend impact
+- `gold_data_gaps_summary` - Pre-calculated metrics for KPI cards
 
-### Task 004: Row-Level Security
-- [x] Added region mapping (150+ countries) to `silver-to-gold2.Notebook`
-- [x] Updated `gold_dim_country.tmdl` with region column
-- [x] Created `roles.tmdl` with 6 RLS roles:
-  - Global Executive (full access)
-  - Regional Manager - Americas/Europe/Asia-Pacific
-  - Category Manager - Battery Metals/Base Metals
+**New DAX Measures (8 total in "Data Gaps" folder):**
+| Measure | Purpose |
+|---------|---------|
+| `Countries with EPI Data` | Count of countries with sustainability data |
+| `Countries without EPI Data` | Countries needing follow-up |
+| `Country Coverage %` | % of procurement countries with EPI data |
+| `Spend with EPI Data` | EUR spend where data exists |
+| `Spend without EPI Data` | EUR spend at risk |
+| `Spend Coverage %` | % of spend with sustainability data |
+| `Total Procurement Countries` | Total distinct countries |
+| `Data Gap Summary` | Text: "X of Y countries" |
 
----
+**Updated Guide:**
+- [DQ_PAGE_GUIDE.md](./docs/guides/DQ_PAGE_GUIDE.md) - Complete step-by-step instructions
 
-## Task Summary
+### What You'll Build
 
-| Task | Priority | Status | Owner | Next Step |
-|------|----------|--------|-------|-----------|
-| 001 | P1 | **In Progress** | Erik | Build DQ page in report |
-| 002 | P1 | **✅ Finished** | - | 40+ measures verified working |
-| 003 | P1 | **Ready** | Erik | Can start now (002 complete) |
-| 004 | P1 | **✅ Finished** | - | 6 RLS roles configured |
-| 005 | P2 | Research Done | Claude | Create EPI/WGI notebooks |
-| 006 | P2 | Design Done | Claude | Implement merge logic |
-| 007 | P2 | Design Done | Claude | Implement check functions |
-| 008 | P2 | In Progress | Erik | Run pytest locally |
-| 009 | P2 | **Finished** | - | - |
-| 010 | P3 | Pending | Claude | Write scheduling instructions |
-| 011 | P3 | Design Done | Claude | Update pipeline JSON |
-| 012 | P3 | Pending | Erik | Run baseline pipeline |
-| 013 | P1 | **Finished** | - | - |
-| 014 | P1 | **✅ Finished** | - | TMDL synced to Fabric |
-| 015 | P1 | **✅ Finished** | - | 9 relationships verified |
-| 016 | P1 | **Ready** | Erik | Build Executive Dashboard |
+A Power BI page showing:
+1. **KPI Cards:** Country Coverage %, Spend Coverage %, Countries Without Data
+2. **Donut Chart:** Countries by data status (Has Data vs Missing)
+3. **Bar Chart:** Spend by data availability (green/red)
+4. **Action Table:** Countries without EPI data, sorted by spend
+
+**Business Value:** "These 3 countries (€500K spend) need sustainability data follow-up"
 
 ---
 
-## Files Changed This Session
+## Completed This Session
+
+### Task 001 (Claude Work)
+- [x] Created `gold_data_gaps` table in silver-to-gold2.Notebook
+- [x] Created `gold_data_gaps_summary` table for metrics
+- [x] Added `gold_data_gaps.tmdl` to semantic model
+- [x] Added `gold_data_gaps_summary.tmdl` to semantic model
+- [x] Updated model.tmdl with new table references
+- [x] Created 8 DAX measures in "Data Gaps" folder
+- [x] Updated DQ_PAGE_GUIDE.md with new focus
+
+### Also Updated
+- Closed Task 003 (superseded by Task 016)
+- Closed Task 008 (test framework complete)
+- Closed Task 014 (superseded by Task 016)
+
+---
+
+## Files Changed
 
 | File | Change |
 |------|--------|
-| `fabric/silver-to-gold2.Notebook/notebook-content.py` | +Region mapping, +DQ dashboard table |
-| `fabric/semantic_model_oeminsightbi.SemanticModel/definition/tables/_Measures.tmdl` | +22 measures (40 total) |
-| `fabric/semantic_model_oeminsightbi.SemanticModel/definition/tables/gold_dim_country.tmdl` | +region column |
-| `fabric/semantic_model_oeminsightbi.SemanticModel/definition/tables/gold_data_quality_dashboard.tmdl` | NEW |
-| `fabric/semantic_model_oeminsightbi.SemanticModel/definition/roles.tmdl` | NEW (6 RLS roles) |
-| `fabric/semantic_model_oeminsightbi.SemanticModel/definition/model.tmdl` | +DQ table reference |
-| `docs/guides/DQ_PAGE_GUIDE.md` | NEW (step-by-step DQ page instructions) |
+| `fabric/silver-to-gold2.Notebook/notebook-content.py` | +Data gaps table creation |
+| `fabric/semantic_model_oeminsightbi.SemanticModel/definition/tables/gold_data_gaps.tmdl` | NEW |
+| `fabric/semantic_model_oeminsightbi.SemanticModel/definition/tables/gold_data_gaps_summary.tmdl` | NEW |
+| `fabric/semantic_model_oeminsightbi.SemanticModel/definition/tables/_Measures.tmdl` | +8 Data Gaps measures |
+| `fabric/semantic_model_oeminsightbi.SemanticModel/definition/model.tmdl` | +2 table refs |
+| `docs/guides/DQ_PAGE_GUIDE.md` | Complete rewrite for data gaps |
+| `.claude/tasks/task-001.json` | Updated progress |
+| `.claude/tasks/task-003.json` | Marked Finished |
+| `.claude/tasks/task-008.json` | Marked Finished |
+| `.claude/tasks/task-014.json` | Marked Finished |
 
 ---
 
-## RLS Roles Testing Guide
+## Project Summary
 
-After syncing to Fabric, test each role using "View as Role":
-
-| Role | Expected Filter |
-|------|-----------------|
-| Global Executive | All data visible |
-| Regional Manager - Americas | Only Americas countries in slicers |
-| Regional Manager - Europe | Only Europe countries in slicers |
-| Regional Manager - Asia-Pacific | Only Asia-Pacific countries in slicers |
-| Category Manager - Battery Metals | Only Battery metals materials |
-| Category Manager - Base Metals | Only Base metals materials |
+| Metric | Value |
+|--------|-------|
+| Total Tasks | 16 |
+| Completed | 8 (50%) |
+| In Progress | 1 (Task 001 - Erik's turn) |
+| Pending | 7 |
+| P1 Progress | 88% (7/8) |
 
 ---
 
@@ -119,21 +120,18 @@ After syncing to Fabric, test each role using "View as Role":
 **Fabric Workspace:**
 - [Open Workspace](https://app.fabric.microsoft.com/groups/99e4cc6d-6ec3-49a7-aed9-b69b04a97aa9)
 - [Lakehouse (oem_lh)](https://app.fabric.microsoft.com/groups/99e4cc6d-6ec3-49a7-aed9-b69b04a97aa9/lakehouses/488fb9f8-e635-4683-90c4-ba4fee9dfadb)
-- [Warehouse (oem_wh)](https://app.fabric.microsoft.com/groups/99e4cc6d-6ec3-49a7-aed9-b69b04a97aa9/warehouses/b1cb7506-8d2d-4e4a-97cc-2b580da8eda0)
 
 **Guides:**
-- [DQ_PAGE_GUIDE.md](./docs/guides/DQ_PAGE_GUIDE.md) - Build the Data Quality page
-- [MEASURE_GUIDE.md](./docs/guides/MEASURE_GUIDE.md) - Build the Executive Dashboard
-- [DAX Library](./.claude/context/dax_measure_library.md) - Full measure reference
+- [DQ_PAGE_GUIDE.md](./docs/guides/DQ_PAGE_GUIDE.md) - Build the Data Gaps page
+- [MEASURE_GUIDE.md](./docs/guides/MEASURE_GUIDE.md) - DAX measures reference
 
 **Commands:**
 ```bash
-git pull                                          # Get Claude's changes
-git add . && git commit -m "Update" && git push   # Sync to Fabric
-pytest tests/ -v                                   # Run tests
+git pull                  # Get today's changes
+pytest tests/ -v          # Run tests (optional)
 ```
 
 ---
 
-*Auto-updated by Claude after each work session*
-*Session: 2026-01-15 - Tasks 001, 002, 004 implementation complete*
+*Last Session: 2026-01-16*
+*Next Action: Erik runs pipeline and builds Data Gaps page*

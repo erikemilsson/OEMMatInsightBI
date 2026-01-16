@@ -1,75 +1,87 @@
 {
   "id": "task-001",
-  "title": "Enhance Data Quality & Matching Visibility",
-  "description": "Create centralized data quality dashboard to view unmapped values, assess match confidence, and understand impact of mapping decisions on final results.",
+  "title": "Data Gaps Visibility Dashboard",
+  "description": "Create a data quality page showing which countries and materials are MISSING indicator data (EPI, WGI scores). Purpose: Identify suppliers to contact for sustainability data improvement.",
   "status": "In Progress",
   "priority": "P1",
-  "difficulty": 6,
-  "estimatedEffort": "2-3 days",
+  "difficulty": 5,
+  "estimatedEffort": "1-2 days",
   "owner": "Claude Code",
   "acceptanceCriteria": [
-    "Data Quality Notebook created (/fabric/notebooks/data_quality_report.Notebook)",
-    "Quality summary statistics calculated (match rates by source system)",
-    "Top 10 unmapped countries and materials identified by impact",
-    "New table created: gold_data_quality_dashboard",
-    "Power BI DQ Page created in existing report",
-    "Overall quality scorecard with match rates and unmapped counts",
-    "Confidence distribution chart (High/Medium/Low/Unmapped)",
-    "Unmapped values table with impact assessment",
-    "Documentation updated in /fabric/Readme.md"
+    "Show countries in procurement data that have NO EPI scores",
+    "Show countries in procurement data that have NO WGI scores",
+    "Show materials without indicator data",
+    "Display coverage percentages (e.g., '7 of 10 supplier countries have EPI data')",
+    "Actionable insight: Which suppliers/countries need follow-up",
+    "Power BI page with clear data gap visualizations"
   ],
   "dependencies": [
-    "Existing audit tables: gold_unmapped_procurement_audit, gold_unmapped_supply_audit",
-    "Access to silver-to-gold2.Notebook transformation logic",
-    "Power BI report edit permissions"
+    "gold_fact_procurement (supplier countries)",
+    "gold_dim_country (with EPI/WGI data)",
+    "gold_dim_material (with indicator data if any)",
+    "Semantic model deployed to Fabric"
   ],
   "relatedFiles": [
     "/fabric/silver-to-gold2.Notebook/",
-    "/fabric/report.Report/",
-    "/project_definition.md (lines 972-973)"
+    "/fabric/semantic_model_oeminsightbi.SemanticModel/",
+    "/docs/guides/DQ_PAGE_GUIDE.md"
   ],
   "notes": [
-    "This task directly addresses the main technical debt identified in project_definition.md",
-    "Focus on clarity and portfolio value - this will be a showcase feature",
-    "Consider using Fabric's built-in data profiling features if available"
+    "REVISED SCOPE: Changed from match rate visibility to DATA GAPS visibility",
+    "Purpose is actionable: 'Contact these suppliers for sustainability data'",
+    "Shows what's MISSING, not what's matched",
+    "Portfolio showcase: demonstrates data quality awareness"
   ],
   "subtasks": [
     {
       "id": "task-001-1",
-      "title": "Add DQ dashboard table creation to silver-to-gold2.Notebook",
+      "title": "Create gold_data_gaps table in silver-to-gold2.Notebook",
       "status": "Finished",
-      "completionDate": "2026-01-15"
+      "completionDate": "2026-01-16",
+      "details": "LEFT JOIN procurement countries to EPI data, identify NULLs"
     },
     {
       "id": "task-001-2",
-      "title": "Create gold_data_quality_dashboard.tmdl in semantic model",
+      "title": "Add data gaps tables to semantic model (TMDL)",
       "status": "Finished",
-      "completionDate": "2026-01-15"
+      "completionDate": "2026-01-16",
+      "details": "Created gold_data_gaps.tmdl and gold_data_gaps_summary.tmdl"
     },
     {
       "id": "task-001-3",
-      "title": "Add 5 DQ measures to _Measures.tmdl",
+      "title": "Create DAX measures for coverage percentages",
       "status": "Finished",
-      "completionDate": "2026-01-15"
+      "completionDate": "2026-01-16",
+      "details": "8 measures in 'Data Gaps' folder: Country Coverage %, Spend Coverage %, etc."
     },
     {
       "id": "task-001-4",
-      "title": "Create DQ_PAGE_GUIDE.md with step-by-step instructions",
+      "title": "Update DQ_PAGE_GUIDE.md with data gaps focus",
       "status": "Finished",
-      "completionDate": "2026-01-15"
+      "completionDate": "2026-01-16",
+      "details": "Complete step-by-step guide for building the Data Gaps page"
     },
     {
       "id": "task-001-5",
       "title": "Erik: Run pipeline and sync semantic model",
       "status": "Pending",
-      "owner": "Erik"
+      "owner": "Erik",
+      "details": "Run silver-to-gold2.Notebook, sync semantic model to Fabric"
     },
     {
       "id": "task-001-6",
-      "title": "Erik: Build DQ page following DQ_PAGE_GUIDE.md",
+      "title": "Erik: Build Data Gaps page following DQ_PAGE_GUIDE.md",
       "status": "Pending",
-      "owner": "Erik"
+      "owner": "Erik",
+      "details": "Build the visuals in Power BI per the guide"
     }
   ],
-  "progress": "Claude work complete (4/6 subtasks). Waiting for Erik to run pipeline and build DQ page."
+  "progress": "Claude work complete (4/6 subtasks). Waiting for Erik to run pipeline and build page.",
+  "deliverables": [
+    "gold_data_gaps table in silver-to-gold2.Notebook",
+    "gold_data_gaps_summary table for KPI metrics",
+    "gold_data_gaps.tmdl and gold_data_gaps_summary.tmdl",
+    "8 DAX measures in 'Data Gaps' display folder",
+    "Updated DQ_PAGE_GUIDE.md with complete instructions"
+  ]
 }

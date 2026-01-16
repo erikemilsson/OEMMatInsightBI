@@ -22,6 +22,8 @@ ref table gold_dim_indicator
 ref table gold_dim_country
 ref table gold_dim_date
 ref table _Measures
+ref table gold_data_gaps
+ref table gold_data_gaps_summary
 
 ref role 'Global Executive'
 ref role 'Regional Manager - Americas'
