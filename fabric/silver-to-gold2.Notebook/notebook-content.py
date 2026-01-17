@@ -1702,13 +1702,15 @@ def create_data_gaps_table():
 
     # 3. Get countries that have WGI scores (World Governance Indicators)
     # Join bronze_WGI to dim_country via Country Code (ISO3)
-    # The WGI table has: Country Name, Country Code, Series Name
-    # Filter to specific indicator for more granular coverage check
+    # Require ALL 5 WGI indicators for "complete" governance coverage
+    # This creates authentic gaps - countries with partial WGI data don't qualify
     countries_with_wgi = spark.sql(f"""
-        SELECT DISTINCT dc.country_key
+        SELECT dc.country_key
         FROM {DB}.bronze_WGI bw
         JOIN {DB}.gold_dim_country dc ON UPPER(bw.`Country Code`) = UPPER(dc.iso3)
-        WHERE bw.`Series Name` = 'Control of Corruption'
+        WHERE bw.`Series Name` IS NOT NULL
+        GROUP BY dc.country_key
+        HAVING COUNT(DISTINCT bw.`Series Name`) >= 5
     """)
 
     # 4. Join to find gaps (both EPI and WGI)
