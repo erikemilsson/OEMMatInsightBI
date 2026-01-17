@@ -1704,12 +1704,11 @@ def create_data_gaps_table():
     # Join bronze_WGI to dim_country via Country Code (ISO3)
     # The WGI table has: Country Name, Country Code, Series Name
     # Filter to specific indicator for more granular coverage check
-    # This creates authentic gaps - not all countries have all indicators
     countries_with_wgi = spark.sql(f"""
         SELECT DISTINCT dc.country_key
         FROM {DB}.bronze_WGI bw
         JOIN {DB}.gold_dim_country dc ON UPPER(bw.`Country Code`) = UPPER(dc.iso3)
-        WHERE bw.`Series Name` = 'Control of Corruption: Percentile Rank'
+        WHERE bw.`Series Name` = 'Control of Corruption'
     """)
 
     # 4. Join to find gaps (both EPI and WGI)
