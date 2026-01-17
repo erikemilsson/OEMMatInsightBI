@@ -10,8 +10,8 @@ This document explains how data flows through the OEMMatInsightBI pipeline, high
 flowchart TB
     subgraph SOURCE["📦 Source Data"]
         PROC[("fact_procurement<br/>~1000 rows")]
-        EPI[("bronze_EPI_2024<br/>~180 countries")]
-        WGI[("bronze_WGI<br/>~200 countries")]
+        EPI[("silver_epi2024results<br/>~180 countries")]
+        WGI[("silver_wgi<br/>~200 countries")]
     end
 
     subgraph DIM["📐 Dimension Tables"]
@@ -111,10 +111,11 @@ WHERE epi_score IS NOT NULL
 -- 3. Government Effectiveness
 -- 4. Regulatory Quality
 -- 5. Control of Corruption
-SELECT country_key
-FROM gold_fact_wgi
-GROUP BY country_key
-HAVING COUNT(DISTINCT indicator_name) = 5
+SELECT dc.country_key
+FROM silver_wgi sw
+JOIN gold_dim_country dc ON sw.country_iso3 = UPPER(dc.iso3)
+GROUP BY dc.country_key
+HAVING COUNT(DISTINCT sw.indicator_name) >= 5
 ```
 
 ### Step 4: Determine Coverage Status
@@ -195,3 +196,4 @@ The current sample data shows 100% coverage because all 12 procurement countries
 
 *Last Updated: 2026-01-17*
 *Purpose: Visualize data flow and identify coverage risks*
+*Note: Diagram updated to reflect corrected medallion architecture (bronze → silver → gold)*

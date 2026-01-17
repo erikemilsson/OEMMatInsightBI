@@ -206,4 +206,40 @@ df_dropped.write.format("delta").mode("overwrite").saveAsTable('silver_procureme
 
 # MARKDOWN ********************
 
-# ##
+# ## WGI (World Governance Indicators): bronze --> silver
+
+# CELL ********************
+
+# Load WGI data and standardize columns
+df_wgi = spark.sql("SELECT * FROM oem_lh.bronze_WGI")
+
+# Standardize columns: snake_case names, UPPER ISO3, cast percentile to DOUBLE
+df_wgi_clean = df_wgi.select(
+    F.upper(F.trim(F.col("`Country Code`"))).alias("country_iso3"),
+    F.trim(F.col("`Country Name`")).alias("country_name"),
+    F.trim(F.col("`Series Name`")).alias("indicator_name"),
+    F.col("`Percentile Rank 2023`").cast(DoubleType()).alias("percentile_rank_2023")
+).filter(
+    (F.col("country_iso3").isNotNull()) &
+    (F.col("indicator_name").isNotNull())
+)
+
+display(df_wgi_clean)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+df_wgi_clean.write.format("delta").mode("overwrite").saveAsTable("silver_wgi")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
