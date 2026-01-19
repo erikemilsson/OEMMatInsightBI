@@ -66,7 +66,7 @@ OEMMatInsightBI/
 ├── .claude/                   # Claude Code environment (task management & context)
 │   ├── commands/              # Slash commands (/complete-task, /breakdown, /sync-tasks)
 │   ├── context/               # Project knowledge base (10 context docs)
-│   ├── tasks/                 # 16 tasks in JSON format + task-overview.md
+│   ├── tasks/                 # 18 tasks in JSON format + task-overview.md
 │   └── reference/             # Reference materials (glossary, schemas, guides)
 │
 ├── tests/                     # pytest unit tests (framework complete)
@@ -198,14 +198,13 @@ OEMMatInsightBI/
 
 ---
 
-## 🎯 Tasks Overview (16 Tasks)
+## 🎯 Tasks Overview (18 Tasks)
 
 | Status | Count | % |
 |--------|-------|---|
-| ✅ Finished | 2 | 13% |
-| 🚧 In Progress | 2 | 13% |
-| 📋 Ready | 2 | 13% |
-| ⏳ Pending | 10 | 63% |
+| ✅ Finished | 8 | 44% |
+| 🚧 In Progress | 2 | 11% |
+| ⏳ Pending | 8 | 44% |
 
 **See:** `/MISSION_CONTROL.md` for full breakdown with owner assignment (Claude vs Erik)
 
@@ -319,15 +318,15 @@ This project demonstrates:
 
 | Metric | Value |
 |--------|-------|
-| Total Tasks | 16 |
-| Completed | 2 (13%) |
+| Total Tasks | 18 |
+| Completed | 8 (44%) |
 | In Progress | 2 |
-| Pending | 12 |
+| Pending | 8 |
 
-**Immediate Priority:** Task 015 (Fix Relationships) → Task 016 (Guided Dashboard Building)
+**Current Focus:** Task 018 (Quality Observability Tables) → Task 001 (Data Gaps Page)
 
 ---
 
-*Last Updated: 2026-01-15*
-*Project Status: Active Development (16 tasks, 13% complete)*
-*Next Priority: Task 015 (Fix Relationships) → Task 016 (Guided Dashboard Building)*
+*Last Updated: 2026-01-19*
+*Project Status: Active Development (18 tasks, 44% complete)*
+*Next Priority: Erik tests Task 018 in Fabric, builds Task 001 Data Gaps page*
