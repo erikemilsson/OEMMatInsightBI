@@ -483,8 +483,7 @@ table _Measures
 		displayFolder: Data Gaps
 		lineageTag: f1a2b3c4-0001-0001-0001-000000000006
 
-	measure 'Total Procurement Countries' =
-			DISTINCTCOUNT(gold_data_gaps[country_key])
+	measure 'Total Procurement Countries' = DISTINCTCOUNT(gold_data_gaps[country_key])
 		formatString: #,##0
 		displayFolder: Data Gaps
 		lineageTag: f1a2b3c4-0001-0001-0001-000000000007
