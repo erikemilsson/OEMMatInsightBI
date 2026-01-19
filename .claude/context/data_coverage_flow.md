@@ -147,17 +147,28 @@ Procurement Countries (12 in sample)
 
 ---
 
-## Why Sample Data Shows 100% Coverage
+## Current Coverage Results (2026-01-19)
 
-The current sample data shows 100% coverage because all 12 procurement countries are **major economies** with complete external data:
+All 12 procurement countries have **Full Coverage** (both EPI and WGI data):
 
-| Country | EPI Status | WGI Status | Notes |
-|---------|------------|------------|-------|
-| Germany | ✅ Complete | ✅ All 5 indicators | Major EU economy |
-| China | ✅ Complete | ✅ All 5 indicators | Major global supplier |
-| USA | ✅ Complete | ✅ All 5 indicators | Major economy |
-| Japan | ✅ Complete | ✅ All 5 indicators | Major economy |
-| ... | ... | ... | ... |
+| Country | ISO3 | Region | EPI | WGI | Spend (EUR) |
+|---------|------|--------|-----|-----|-------------|
+| Singapore | SGP | Asia-Pacific | ✅ | ✅ | €1,784,153 |
+| Canada | CAN | Americas | ✅ | ✅ | €626,781 |
+| Germany | DEU | Europe | ✅ | ✅ | €267,204 |
+| Dem. Rep. Congo | COD | Africa | ✅ | ✅ | €137,371 |
+| China | CHN | Asia-Pacific | ✅ | ✅ | €126,388 |
+| Chile | CHL | Americas | ✅ | ✅ | €97,086 |
+| United States | USA | Americas | ✅ | ✅ | €85,598 |
+| France | FRA | Europe | ✅ | ✅ | €68,722 |
+| Sweden | SWE | Europe | ✅ | ✅ | €40,461 |
+| Netherlands | NLD | Europe | ✅ | ✅ | €40,012 |
+| Mexico | MEX | Americas | ✅ | ✅ | €0 |
+| Malaysia | MYS | Asia-Pacific | ✅ | ✅ | €0 |
+
+**Summary:**
+- **Total Spend with Full Coverage:** €4,051,020
+- **Coverage Rate:** 100%
 
 **Real-world scenarios where gaps would appear:**
 - Emerging markets (some smaller African/Asian countries)
@@ -186,6 +197,30 @@ The current sample data shows 100% coverage because all 12 procurement countries
 
 ---
 
+## Medallion Architecture (Corrected 2026-01-19)
+
+The data flow now correctly follows the medallion pattern:
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   BRONZE    │ ──► │   SILVER    │ ──► │    GOLD     │
+│  (Raw Data) │     │ (Cleaned)   │     │ (Analytics) │
+└─────────────┘     └─────────────┘     └─────────────┘
+
+bronze_WGI ──► silver_wgi ──► gold_data_gaps  ✓ CORRECT
+```
+
+**Previous Issue (Fixed):**
+- The gold layer was reading directly from `bronze_WGI`, bypassing silver
+- This violated the medallion architecture principle
+
+**Fix Applied:**
+1. Created `silver_wgi` table in `bronze-to-silver.Notebook`
+2. Updated `silver-to-gold2.Notebook` to read from `silver_wgi`
+3. All data now flows: bronze → silver → gold
+
+---
+
 ## Related Documents
 
 - [Data Quality Framework](./data_quality_framework.md) - ISO 25012 quality dimensions
@@ -194,6 +229,6 @@ The current sample data shows 100% coverage because all 12 procurement countries
 
 ---
 
-*Last Updated: 2026-01-17*
+*Last Updated: 2026-01-19*
 *Purpose: Visualize data flow and identify coverage risks*
-*Note: Diagram updated to reflect corrected medallion architecture (bronze → silver → gold)*
+*Architecture: Corrected medallion pattern (bronze → silver → gold)*
