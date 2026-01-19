@@ -1,234 +1,119 @@
-# Data Coverage Flow Visualization
+# Data Coverage Dashboard
 
-This document explains how data flows through the OEMMatInsightBI pipeline, highlighting where joins occur, where data might be lost, and the business impact of each loss point.
+## Status Summary
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  COVERAGE STATUS                                         │
+├──────────────────────────────────────────────────────────┤
+│  Coverage Rate    100%        Total Spend    €4,051,020  │
+│  Countries        12/12       Last Run       2026-01-19  │
+│  EPI Coverage     100%        WGI Coverage   100%        │
+│  Status           HEALTHY                                │
+└──────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Data Flow Diagram
+## Coverage by Country
+
+| Country | ISO3 | Region | EPI | WGI | Spend (EUR) | % of Total |
+|---------|------|--------|:---:|:---:|------------:|------------|
+| Singapore | SGP | Asia-Pacific | ✅ | ✅ | €1,784,153 | 44.0% |
+| Canada | CAN | Americas | ✅ | ✅ | €626,781 | 15.5% |
+| Germany | DEU | Europe | ✅ | ✅ | €267,204 | 6.6% |
+| Dem. Rep. Congo | COD | Africa | ✅ | ✅ | €137,371 | 3.4% |
+| China | CHN | Asia-Pacific | ✅ | ✅ | €126,388 | 3.1% |
+| Chile | CHL | Americas | ✅ | ✅ | €97,086 | 2.4% |
+| United States | USA | Americas | ✅ | ✅ | €85,598 | 2.1% |
+| France | FRA | Europe | ✅ | ✅ | €68,722 | 1.7% |
+| Sweden | SWE | Europe | ✅ | ✅ | €40,461 | 1.0% |
+| Netherlands | NLD | Europe | ✅ | ✅ | €40,012 | 1.0% |
+| Mexico | MEX | Americas | ✅ | ✅ | €0 | 0% |
+| Malaysia | MYS | Asia-Pacific | ✅ | ✅ | €0 | 0% |
+
+**Coverage Status Key:**
+- **Full Coverage** = EPI + WGI (all 5 indicators)
+- **EPI Only** = Environmental data, no governance
+- **WGI Only** = Governance data, no environmental
+- **No Coverage** = Neither dataset available
+
+---
+
+## Data Flow
 
 ```mermaid
-flowchart TB
-    subgraph SOURCE["📦 Source Data"]
-        PROC[("fact_procurement<br/>~1000 rows")]
-        EPI[("silver_epi2024results<br/>~180 countries")]
-        WGI[("silver_wgi<br/>~200 countries")]
+flowchart LR
+    subgraph BRONZE["Bronze"]
+        B1[("bronze_procurement")]
+        B2[("bronze_epi")]
+        B3[("bronze_wgi")]
     end
 
-    subgraph DIM["📐 Dimension Tables"]
-        DIM_C[("gold_dim_country<br/>ISO3 codes")]
-        DIM_M[("gold_dim_material<br/>material names")]
+    subgraph SILVER["Silver"]
+        S1[("silver_procurement")]
+        S2[("silver_epi")]
+        S3[("silver_wgi")]
     end
 
-    subgraph JOINS["🔗 Join Points"]
-        J1["JOIN 1: Procurement → Material<br/>LEFT JOIN on material_name"]
-        J2["JOIN 2: Procurement → Country (HQ)<br/>LEFT JOIN on country_name"]
-        J3["JOIN 3: Procurement → Country (Prod)<br/>LEFT JOIN on country_name"]
-        J4["JOIN 4: EPI → Country<br/>LEFT JOIN on iso3"]
-        J5["JOIN 5: WGI → Country<br/>INNER JOIN on iso3<br/>+ HAVING COUNT >= 5"]
+    subgraph GOLD["Gold"]
+        G1[("fact_procurement")]
+        G2[("fact_epi")]
+        G3[("dim_country")]
+        G4[("dim_material")]
+        G5[("data_gaps")]
     end
 
-    subgraph LOSS["⚠️ Data Loss Points"]
-        L1["DLP1: Unmapped Materials<br/>→ Assigned 'Unknown Material'<br/>IMPACT: 0 loss, low confidence"]
-        L2["DLP2: Unmapped Countries<br/>→ Assigned 'Unknown Country'<br/>IMPACT: 0 loss, low confidence"]
-        L3["DLP3: EPI Country Mismatch<br/>→ Records DROPPED<br/>IMPACT: ~5-20 countries lost"]
-        L4["DLP4: WGI Partial Coverage<br/>→ Requires ALL 5 indicators<br/>IMPACT: Partial = No Coverage"]
-    end
+    B1 --> S1 --> G1
+    B2 --> S2 --> G2
+    B3 --> S3 --> G5
 
-    subgraph COVERAGE["📊 Coverage Analysis"]
-        GAP["gold_data_gaps table"]
-        OVERLAP["Coverage Status:<br/>• Full Coverage (EPI + WGI)<br/>• EPI Only<br/>• WGI Only<br/>• No Coverage"]
-    end
-
-    %% Flows
-    PROC --> J1
-    DIM_M --> J1
-    J1 --> L1
-    L1 --> J2
-
-    DIM_C --> J2
-    J2 --> L2
-    L2 --> J3
-    J3 --> PROCFINAL["fact_procurement<br/>(all rows retained)"]
-
-    EPI --> J4
-    DIM_C --> J4
-    J4 --> L3
-    L3 --> EPIFINAL["countries_with_epi<br/>(only matched)"]
-
-    WGI --> J5
-    DIM_C --> J5
-    J5 --> L4
-    L4 --> WGIFINAL["countries_with_wgi<br/>(only complete)"]
-
-    PROCFINAL --> GAP
-    EPIFINAL --> GAP
-    WGIFINAL --> GAP
-    GAP --> OVERLAP
-
-    %% Styling
-    style L1 fill:#fff3cd,stroke:#856404
-    style L2 fill:#fff3cd,stroke:#856404
-    style L3 fill:#f8d7da,stroke:#721c24
-    style L4 fill:#f8d7da,stroke:#721c24
-    style OVERLAP fill:#d4edda,stroke:#155724
+    G3 --> G1
+    G3 --> G2
+    G3 --> G5
+    G4 --> G1
 ```
 
 ---
 
-## Data Loss Points Explained
+## Risk Points
 
-| Point | Location | What Happens | Records Lost | Business Impact |
-|-------|----------|--------------|--------------|-----------------|
-| **DLP1** | Procurement → Material | Unmatched materials get `material_key = NULL` → Replaced with "Unknown Material" | **0** | No loss, but €X spend has unknown material classification |
-| **DLP2** | Procurement → Country | Unmatched countries get `country_key = NULL` → Replaced with "Unknown Country" | **0** | No loss, but €X spend has unknown country risk |
-| **DLP3** | EPI → Country | EPI ISO codes that don't match `dim_country.iso3` are **dropped** | **5-20** | Countries with EPI data excluded from sustainability analysis |
-| **DLP4** | WGI → Country | Countries with <5 WGI indicators marked as "No WGI" | **Variable** | Partial governance data treated as no governance data |
+| Risk | Location | Impact | Current Status |
+|------|----------|--------|----------------|
+| Unmapped Materials | Procurement → Material join | Unknown classification for some spend | ⚠️ Monitor `unmapped_materials` |
+| Unmapped Countries | Procurement → Country join | Unknown risk for some spend | ⚠️ Monitor `unmapped_countries` |
+| EPI Mismatch | EPI → Country join | Countries dropped from sustainability | ✅ 0 countries affected |
+| WGI Partial | WGI requires 5/5 indicators | Partial data = no coverage | ✅ All countries have 5/5 |
 
----
-
-## How Coverage is Calculated
-
-The `gold_data_gaps` table determines coverage status for each country used in procurement:
-
-### Step 1: Identify Procurement Countries
-```sql
--- All unique countries from fact_procurement (HQ + Production)
-SELECT DISTINCT country_key FROM fact_procurement
-```
-
-### Step 2: Check EPI Coverage
-```sql
--- Countries that have EPI data joined via ISO3
-SELECT country_key FROM gold_fact_epi
-WHERE epi_score IS NOT NULL
-```
-
-### Step 3: Check WGI Coverage (Strict)
-```sql
--- Countries must have ALL 5 WGI indicators:
--- 1. Voice and Accountability
--- 2. Political Stability and Absence of Violence/Terrorism
--- 3. Government Effectiveness
--- 4. Regulatory Quality
--- 5. Control of Corruption
-SELECT dc.country_key
-FROM silver_wgi sw
-JOIN gold_dim_country dc ON sw.country_iso3 = UPPER(dc.iso3)
-GROUP BY dc.country_key
-HAVING COUNT(DISTINCT sw.indicator_name) >= 5
-```
-
-### Step 4: Determine Coverage Status
-```
-Coverage Status = CASE
-    WHEN has_epi AND has_wgi_complete THEN 'Full Coverage'
-    WHEN has_epi AND NOT has_wgi_complete THEN 'EPI Only'
-    WHEN NOT has_epi AND has_wgi_complete THEN 'WGI Only'
-    ELSE 'No Coverage'
-END
-```
+**WGI Required Indicators:**
+1. Voice and Accountability
+2. Political Stability
+3. Government Effectiveness
+4. Regulatory Quality
+5. Control of Corruption
 
 ---
 
-## Key Insight: The Coverage Overlap
-
-The `gold_data_gaps` table answers: **"For each procurement country, do we have EPI and WGI data?"**
+## Architecture
 
 ```
-Procurement Countries (12 in sample)
-├── Countries with EPI: 12 (100%) ← All matched
-├── Countries with WGI (all 5 indicators): 12 (100%) ← All matched
-└── Coverage Status:
-    ├── Full Coverage: 12 (100%)
-    ├── EPI Only: 0
-    ├── WGI Only: 0
-    └── No Coverage: 0
+Bronze (Raw) ──► Silver (Cleaned) ──► Gold (Analytics)
 ```
+
+| Layer | Tables | Purpose |
+|-------|--------|---------|
+| Bronze | `bronze_*` | Raw ingestion from sources |
+| Silver | `silver_*` | Cleaned, standardized, typed |
+| Gold | `gold_*`, `fact_*`, `dim_*` | Star schema for analytics |
 
 ---
 
-## Current Coverage Results (2026-01-19)
+## Related Documentation
 
-All 12 procurement countries have **Full Coverage** (both EPI and WGI data):
-
-| Country | ISO3 | Region | EPI | WGI | Spend (EUR) |
-|---------|------|--------|-----|-----|-------------|
-| Singapore | SGP | Asia-Pacific | ✅ | ✅ | €1,784,153 |
-| Canada | CAN | Americas | ✅ | ✅ | €626,781 |
-| Germany | DEU | Europe | ✅ | ✅ | €267,204 |
-| Dem. Rep. Congo | COD | Africa | ✅ | ✅ | €137,371 |
-| China | CHN | Asia-Pacific | ✅ | ✅ | €126,388 |
-| Chile | CHL | Americas | ✅ | ✅ | €97,086 |
-| United States | USA | Americas | ✅ | ✅ | €85,598 |
-| France | FRA | Europe | ✅ | ✅ | €68,722 |
-| Sweden | SWE | Europe | ✅ | ✅ | €40,461 |
-| Netherlands | NLD | Europe | ✅ | ✅ | €40,012 |
-| Mexico | MEX | Americas | ✅ | ✅ | €0 |
-| Malaysia | MYS | Asia-Pacific | ✅ | ✅ | €0 |
-
-**Summary:**
-- **Total Spend with Full Coverage:** €4,051,020
-- **Coverage Rate:** 100%
-
-**Real-world scenarios where gaps would appear:**
-- Emerging markets (some smaller African/Asian countries)
-- Disputed territories (Taiwan, Kosovo)
-- Micro-states (Monaco, San Marino)
-- Recently independent nations
-
----
-
-## Impact Analysis by Data Loss Point
-
-### DLP1 & DLP2: Unmapped Values (Low Risk)
-- **No data loss** - records are retained with fallback keys
-- **Impact**: Reduced analytical confidence
-- **Mitigation**: Review `unmapped_countries` / `unmapped_materials` tables regularly
-
-### DLP3: EPI Country Mismatch (Medium Risk)
-- **Data loss**: Countries in EPI data that don't exist in dim_country
-- **Impact**: Sustainability scores unavailable for some procurement origins
-- **Mitigation**: Expand country alias mappings in `country_alias_mapping.md`
-
-### DLP4: WGI Partial Coverage (Medium-High Risk)
-- **Data loss**: Countries with 1-4 WGI indicators treated as having NO governance data
-- **Impact**: Binary "all or nothing" - partial data provides no value
-- **Mitigation**: Consider relaxing to "3+ indicators" or "core indicators only"
-
----
-
-## Medallion Architecture (Corrected 2026-01-19)
-
-The data flow now correctly follows the medallion pattern:
-
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   BRONZE    │ ──► │   SILVER    │ ──► │    GOLD     │
-│  (Raw Data) │     │ (Cleaned)   │     │ (Analytics) │
-└─────────────┘     └─────────────┘     └─────────────┘
-
-bronze_WGI ──► silver_wgi ──► gold_data_gaps  ✓ CORRECT
-```
-
-**Previous Issue (Fixed):**
-- The gold layer was reading directly from `bronze_WGI`, bypassing silver
-- This violated the medallion architecture principle
-
-**Fix Applied:**
-1. Created `silver_wgi` table in `bronze-to-silver.Notebook`
-2. Updated `silver-to-gold2.Notebook` to read from `silver_wgi`
-3. All data now flows: bronze → silver → gold
-
----
-
-## Related Documents
-
-- [Data Quality Framework](./data_quality_framework.md) - ISO 25012 quality dimensions
-- [Business Requirements](./business_requirements.md) - Stakeholder expectations for data coverage
+- [Data Quality Framework](./data_quality_framework.md) - Quality dimensions and checks
 - [External Data Automation](./external_data_automation.md) - EPI/WGI source details
+- [Business Requirements](./business_requirements.md) - Stakeholder expectations
 
 ---
 
 *Last Updated: 2026-01-19*
-*Purpose: Visualize data flow and identify coverage risks*
-*Architecture: Corrected medallion pattern (bronze → silver → gold)*
