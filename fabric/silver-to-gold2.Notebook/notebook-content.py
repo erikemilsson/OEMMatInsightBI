@@ -2376,7 +2376,8 @@ def populate_low_confidence_audit():
 
     if low_conf_count > 0:
         # Overwrite table with current state (point-in-time snapshot)
-        all_low_conf.write.format("delta").mode("overwrite").saveAsTable(f"{DB}.gold_low_confidence_audit")
+        # Use overwriteSchema to handle any column type changes
+        all_low_conf.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(f"{DB}.gold_low_confidence_audit")
         print(f"✓ Captured {low_conf_count} low confidence matches to gold_low_confidence_audit")
         return all_low_conf
     else:
