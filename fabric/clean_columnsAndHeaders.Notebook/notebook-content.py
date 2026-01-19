@@ -213,12 +213,13 @@ df_dropped.write.format("delta").mode("overwrite").saveAsTable('silver_procureme
 # Load WGI data and standardize columns
 df_wgi = spark.sql("SELECT * FROM oem_lh.bronze_WGI")
 
-# Standardize columns: snake_case names, UPPER ISO3, cast percentile to DOUBLE
+# Standardize columns: snake_case names, UPPER ISO3
+# Note: bronze_WGI has 3 columns: Country Name, Country Code, Series Name
+# (Score column not present in current dataflow - used for coverage check only)
 df_wgi_clean = df_wgi.select(
     F.upper(F.trim(F.col("`Country Code`"))).alias("country_iso3"),
     F.trim(F.col("`Country Name`")).alias("country_name"),
-    F.trim(F.col("`Series Name`")).alias("indicator_name"),
-    F.col("`Percentile Rank 2023`").cast(DoubleType()).alias("percentile_rank_2023")
+    F.trim(F.col("`Series Name`")).alias("indicator_name")
 ).filter(
     (F.col("country_iso3").isNotNull()) &
     (F.col("indicator_name").isNotNull())
