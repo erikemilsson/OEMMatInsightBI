@@ -2,7 +2,7 @@
   "id": "task-018",
   "title": "Implement Quality Observability Tables in Notebook",
   "description": "Add table creation and population logic for gold_quality_history, gold_gap_registry, and gold_low_confidence_audit to the silver-to-gold2 notebook.",
-  "status": "Pending",
+  "status": "In Progress",
   "priority": "P2",
   "difficulty": 5,
   "estimatedEffort": "1-2 days",
@@ -39,37 +39,43 @@
     {
       "id": "task-018-1",
       "title": "Add gold_quality_history table creation",
-      "status": "Pending",
+      "status": "Finished",
+      "completedDate": "2026-01-19",
       "details": "CREATE TABLE IF NOT EXISTS with schema from architecture doc"
     },
     {
       "id": "task-018-2",
       "title": "Add gold_gap_registry table creation",
-      "status": "Pending",
+      "status": "Finished",
+      "completedDate": "2026-01-19",
       "details": "CREATE TABLE IF NOT EXISTS with schema from architecture doc"
     },
     {
       "id": "task-018-3",
       "title": "Add gold_low_confidence_audit table creation",
-      "status": "Pending",
+      "status": "Finished",
+      "completedDate": "2026-01-19",
       "details": "CREATE TABLE IF NOT EXISTS with schema from architecture doc"
     },
     {
       "id": "task-018-4",
       "title": "Implement Quality History append logic",
-      "status": "Pending",
+      "status": "Finished",
+      "completedDate": "2026-01-19",
       "details": "After each run, INSERT metrics: coverage_rate, match_rate, unmapped_count, etc."
     },
     {
       "id": "task-018-5",
       "title": "Implement Gap Registry MERGE logic",
-      "status": "Pending",
+      "status": "Finished",
+      "completedDate": "2026-01-19",
       "details": "MERGE pattern: update last_seen/occurrences for existing, insert new, mark resolved"
     },
     {
       "id": "task-018-6",
       "title": "Implement Low Confidence Audit capture",
-      "status": "Pending",
+      "status": "Finished",
+      "completedDate": "2026-01-19",
       "details": "Filter fact_procurement for records with any confidence < 0.95, aggregate and insert"
     },
     {

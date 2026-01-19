@@ -1869,3 +1869,597 @@ print("\n🔍 COUNTRIES BY COVERAGE STATUS:")
 # META   "language": "python",
 # META   "language_group": "synapse_pyspark"
 # META }
+
+# MARKDOWN ********************
+
+# # Quality Observability Tables (Task 018)
+# Three tables for tracking data quality over time:
+# 1. **gold_quality_history** - Append-only metrics per pipeline run (trending)
+# 2. **gold_gap_registry** - SCD tracking of unmapped values with lifecycle management
+# 3. **gold_low_confidence_audit** - Fuzzy matches below 0.95 confidence for review
+
+# CELL ********************
+
+# =============================================================================
+# QUALITY OBSERVABILITY INFRASTRUCTURE
+# =============================================================================
+# These tables enable:
+# - Trending quality metrics over time ("coverage improved from 85% to 100%")
+# - Gap lifecycle tracking ("this gap has been open for 3 months")
+# - Surfacing fuzzy matches for manual review
+# =============================================================================
+
+from delta.tables import DeltaTable
+
+# -----------------------------------------------------------------------------
+# 1. CREATE TABLE: gold_quality_history (append-only)
+# -----------------------------------------------------------------------------
+# Schema matches data_quality_architecture.md
+spark.sql(f"""
+    CREATE TABLE IF NOT EXISTS {DB}.gold_quality_history (
+        refresh_timestamp TIMESTAMP,
+        layer STRING,
+        entity STRING,
+        metric_name STRING,
+        metric_value DOUBLE,
+        threshold DOUBLE,
+        breach_flag BOOLEAN
+    )
+    USING DELTA
+    COMMENT 'Append-only quality metrics per pipeline run for trending analysis'
+""")
+print("✓ Created table: gold_quality_history")
+
+# -----------------------------------------------------------------------------
+# 2. CREATE TABLE: gold_gap_registry (SCD with MERGE)
+# -----------------------------------------------------------------------------
+spark.sql(f"""
+    CREATE TABLE IF NOT EXISTS {DB}.gold_gap_registry (
+        gap_id BIGINT,
+        gap_natural_key STRING,
+        entity STRING,
+        gap_type STRING,
+        first_seen TIMESTAMP,
+        last_seen TIMESTAMP,
+        total_occurrences INT,
+        current_status STRING,
+        estimated_impact DOUBLE,
+        resolution_date TIMESTAMP,
+        resolution_notes STRING
+    )
+    USING DELTA
+    COMMENT 'SCD tracking of unmapped values with lifecycle management'
+""")
+print("✓ Created table: gold_gap_registry")
+
+# -----------------------------------------------------------------------------
+# 3. CREATE TABLE: gold_low_confidence_audit
+# -----------------------------------------------------------------------------
+spark.sql(f"""
+    CREATE TABLE IF NOT EXISTS {DB}.gold_low_confidence_audit (
+        source_value STRING,
+        matched_to STRING,
+        confidence DOUBLE,
+        entity STRING,
+        match_type STRING,
+        frequency INT,
+        spend_impact DOUBLE,
+        last_seen TIMESTAMP
+    )
+    USING DELTA
+    COMMENT 'Fuzzy matches with confidence < 0.95 for manual review'
+""")
+print("✓ Created table: gold_low_confidence_audit")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ## Populate Quality History (Append)
+# Captures metrics from the current pipeline run
+
+# CELL ********************
+
+def populate_quality_history():
+    """
+    Append quality metrics from the current pipeline run.
+    This builds up historical data for trend analysis.
+    """
+
+    # Collect metrics from current run
+    metrics_to_insert = []
+
+    # --- Procurement Metrics ---
+    proc_stats = spark.sql(f"""
+        SELECT
+            COUNT(*) as total_records,
+            AVG(data_quality_score) as avg_quality_score,
+            SUM(CASE WHEN quality_category = 'High' THEN 1 ELSE 0 END) as high_count,
+            SUM(CASE WHEN quality_category = 'Unmapped' THEN 1 ELSE 0 END) as unmapped_count,
+            SUM(spend_eur) as total_spend
+        FROM {DB}.fact_procurement
+    """).first()
+
+    if proc_stats.total_records and proc_stats.total_records > 0:
+        # Coverage rate (High quality as % of total)
+        coverage_rate = (proc_stats.high_count / proc_stats.total_records) * 100
+        metrics_to_insert.append(("Gold", "fact_procurement", "coverage_rate", float(coverage_rate), 90.0, coverage_rate < 90.0))
+
+        # Match rate (avg quality score)
+        match_rate = (proc_stats.avg_quality_score or 0) * 100
+        metrics_to_insert.append(("Gold", "fact_procurement", "match_rate", float(match_rate), 85.0, match_rate < 85.0))
+
+        # Unmapped count
+        unmapped_count = float(proc_stats.unmapped_count or 0)
+        metrics_to_insert.append(("Gold", "fact_procurement", "unmapped_count", unmapped_count, 10.0, unmapped_count > 10.0))
+
+        # Total records
+        metrics_to_insert.append(("Gold", "fact_procurement", "total_records", float(proc_stats.total_records), None, False))
+
+    # --- Supply Share Metrics ---
+    supply_stats = spark.sql(f"""
+        SELECT
+            COUNT(*) as total_records,
+            AVG(data_quality_score) as avg_quality_score,
+            SUM(CASE WHEN quality_category = 'High' THEN 1 ELSE 0 END) as high_count,
+            SUM(CASE WHEN has_unmapped_country OR has_unmapped_material THEN 1 ELSE 0 END) as unmapped_count
+        FROM {DB}.fact_supply_share
+    """).first()
+
+    if supply_stats.total_records and supply_stats.total_records > 0:
+        coverage_rate = (supply_stats.high_count / supply_stats.total_records) * 100
+        metrics_to_insert.append(("Gold", "fact_supply_share", "coverage_rate", float(coverage_rate), 90.0, coverage_rate < 90.0))
+
+        match_rate = (supply_stats.avg_quality_score or 0) * 100
+        metrics_to_insert.append(("Gold", "fact_supply_share", "match_rate", float(match_rate), 85.0, match_rate < 85.0))
+
+        unmapped_count = float(supply_stats.unmapped_count or 0)
+        metrics_to_insert.append(("Gold", "fact_supply_share", "unmapped_count", unmapped_count, 50.0, unmapped_count > 50.0))
+
+    # --- Data Gaps Coverage ---
+    gaps_stats = spark.sql(f"""
+        SELECT
+            COUNT(DISTINCT country_key) as total_countries,
+            SUM(CASE WHEN has_epi_score AND has_wgi_score THEN 1 ELSE 0 END) as full_coverage_count,
+            SUM(spend_eur) as total_spend
+        FROM {DB}.gold_data_gaps
+    """).first()
+
+    if gaps_stats.total_countries and gaps_stats.total_countries > 0:
+        external_coverage = (gaps_stats.full_coverage_count / gaps_stats.total_countries) * 100
+        metrics_to_insert.append(("Gold", "gold_data_gaps", "external_coverage_rate", float(external_coverage), 80.0, external_coverage < 80.0))
+
+    # --- Dimension Health ---
+    dim_country_count = spark.table(f"{DB}.gold_dim_country").filter(~F.col("is_placeholder")).count()
+    metrics_to_insert.append(("Gold", "gold_dim_country", "active_countries", float(dim_country_count), None, False))
+
+    dim_material_count = spark.table(f"{DB}.gold_dim_material").filter(~F.col("is_placeholder")).count()
+    metrics_to_insert.append(("Gold", "gold_dim_material", "active_materials", float(dim_material_count), None, False))
+
+    # Create DataFrame and append
+    if metrics_to_insert:
+        history_df = spark.createDataFrame(
+            [(pipeline_run_ts, layer, entity, metric, value, threshold, breach)
+             for layer, entity, metric, value, threshold, breach in metrics_to_insert],
+            ["refresh_timestamp", "layer", "entity", "metric_name", "metric_value", "threshold", "breach_flag"]
+        )
+
+        # Append to history table
+        history_df.write.format("delta").mode("append").saveAsTable(f"{DB}.gold_quality_history")
+
+        print(f"✓ Appended {len(metrics_to_insert)} metrics to gold_quality_history")
+        return history_df
+
+    return None
+
+# Execute quality history population
+quality_history_df = populate_quality_history()
+
+# Show what was captured
+print("\nQuality metrics captured this run:")
+if quality_history_df:
+    quality_history_df.show(truncate=False)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ## Populate Gap Registry (MERGE)
+# Uses SCD pattern to track gap lifecycle: new gaps inserted, existing gaps updated
+
+# CELL ********************
+
+def populate_gap_registry():
+    """
+    MERGE pattern for gap lifecycle tracking:
+    1. Existing gaps: Update last_seen, increment total_occurrences
+    2. New gaps: Insert with first_seen = now, status = Open
+    3. Resolved gaps: Mark status = Resolved if value now has an alias match
+
+    Note: Resolution detection requires comparing against alias tables.
+    """
+
+    # Collect current unmapped values from audit tables
+    current_gaps_procurement = spark.sql(f"""
+        SELECT
+            COALESCE(original_material, original_hq_country, original_prod_country) as unmapped_value,
+            CASE
+                WHEN original_material IS NOT NULL AND original_hq_country IS NULL AND original_prod_country IS NULL THEN 'material'
+                WHEN original_hq_country IS NOT NULL THEN 'country'
+                WHEN original_prod_country IS NOT NULL THEN 'country'
+                ELSE 'unknown'
+            END as unmapped_type,
+            'procurement' as entity,
+            COUNT(*) as occurrence_count
+        FROM {DB}.gold_unmapped_procurement_audit
+        WHERE COALESCE(original_material, original_hq_country, original_prod_country) IS NOT NULL
+        GROUP BY 1, 2
+    """)
+
+    current_gaps_supply = spark.sql(f"""
+        SELECT
+            COALESCE(original_material, original_country) as unmapped_value,
+            unmapped_dimension as unmapped_type,
+            'supply_share' as entity,
+            COUNT(*) as occurrence_count
+        FROM {DB}.gold_unmapped_supply_audit
+        WHERE COALESCE(original_material, original_country) IS NOT NULL
+        GROUP BY 1, 2
+    """)
+
+    # Union all current gaps
+    current_gaps = (
+        current_gaps_procurement
+        .unionByName(current_gaps_supply, allowMissingColumns=True)
+        .withColumn("gap_natural_key", F.col("unmapped_value"))
+        .withColumn("gap_type", F.lower(F.col("unmapped_type")))
+    )
+
+    current_gap_count = current_gaps.count()
+
+    if current_gap_count == 0:
+        print("✓ No unmapped values found - gap registry unchanged")
+        return None
+
+    # Check if gap_registry has data
+    existing_count = spark.table(f"{DB}.gold_gap_registry").count()
+
+    if existing_count == 0:
+        # First run: Insert all as new gaps
+        new_gaps = (
+            current_gaps
+            .withColumn("gap_id", stable_key(["gap_natural_key", "entity", "gap_type"]))
+            .withColumn("first_seen", F.lit(pipeline_run_ts))
+            .withColumn("last_seen", F.lit(pipeline_run_ts))
+            .withColumn("total_occurrences", F.col("occurrence_count").cast("int"))
+            .withColumn("current_status", F.lit("Open"))
+            .withColumn("estimated_impact", F.lit(None).cast("double"))
+            .withColumn("resolution_date", F.lit(None).cast("timestamp"))
+            .withColumn("resolution_notes", F.lit(None).cast("string"))
+            .select(
+                "gap_id", "gap_natural_key", "entity", "gap_type",
+                "first_seen", "last_seen", "total_occurrences", "current_status",
+                "estimated_impact", "resolution_date", "resolution_notes"
+            )
+        )
+
+        new_gaps.write.format("delta").mode("append").saveAsTable(f"{DB}.gold_gap_registry")
+        print(f"✓ Initialized gap_registry with {current_gap_count} gaps")
+        return new_gaps
+
+    else:
+        # Subsequent runs: MERGE logic
+        # Prepare source data with computed gap_id
+        source_gaps = (
+            current_gaps
+            .withColumn("gap_id", stable_key(["gap_natural_key", "entity", "gap_type"]))
+            .withColumn("occurrence_count_int", F.col("occurrence_count").cast("int"))
+        )
+
+        # Get Delta table reference
+        gap_registry_delta = DeltaTable.forName(spark, f"{DB}.gold_gap_registry")
+
+        # MERGE: Update existing, insert new
+        gap_registry_delta.alias("target").merge(
+            source_gaps.alias("source"),
+            "target.gap_id = source.gap_id"
+        ).whenMatchedUpdate(
+            condition="target.current_status != 'Resolved'",
+            set={
+                "last_seen": F.lit(pipeline_run_ts),
+                "total_occurrences": F.col("target.total_occurrences") + F.col("source.occurrence_count_int")
+            }
+        ).whenNotMatchedInsert(
+            values={
+                "gap_id": "source.gap_id",
+                "gap_natural_key": "source.gap_natural_key",
+                "entity": "source.entity",
+                "gap_type": "source.gap_type",
+                "first_seen": F.lit(pipeline_run_ts),
+                "last_seen": F.lit(pipeline_run_ts),
+                "total_occurrences": "source.occurrence_count_int",
+                "current_status": F.lit("Open"),
+                "estimated_impact": F.lit(None).cast("double"),
+                "resolution_date": F.lit(None).cast("timestamp"),
+                "resolution_notes": F.lit(None).cast("string")
+            }
+        ).execute()
+
+        # Check for resolved gaps (gaps in registry but NOT in current unmapped)
+        # These are gaps that now have alias mappings
+        current_gap_ids = source_gaps.select("gap_id").distinct()
+
+        resolved_count = spark.sql(f"""
+            UPDATE {DB}.gold_gap_registry
+            SET current_status = 'Resolved',
+                resolution_date = current_timestamp(),
+                resolution_notes = 'Auto-resolved: value now has alias mapping'
+            WHERE current_status = 'Open'
+            AND gap_id NOT IN (SELECT gap_id FROM {source_gaps.createOrReplaceTempView('_current_gaps') or '_current_gaps'})
+        """)
+
+        print(f"✓ Gap registry MERGE complete: {current_gap_count} active gaps")
+        return source_gaps
+
+# Execute gap registry population
+gap_registry_result = populate_gap_registry()
+
+# Show gap registry summary
+print("\nGap Registry Summary:")
+spark.sql(f"""
+    SELECT
+        current_status,
+        gap_type,
+        COUNT(*) as count,
+        MIN(first_seen) as oldest_gap,
+        MAX(last_seen) as newest_update,
+        SUM(total_occurrences) as total_occurrences
+    FROM {DB}.gold_gap_registry
+    GROUP BY current_status, gap_type
+    ORDER BY current_status, gap_type
+""").show(truncate=False)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ## Populate Low Confidence Audit
+# Captures matches with confidence < 0.95 for manual review
+
+# CELL ********************
+
+def populate_low_confidence_audit():
+    """
+    Capture fuzzy matches that succeeded but have confidence < 0.95.
+    These are "good enough" matches that should be surfaced for verification.
+
+    Example: "Singpaore" → "Singapore" at 0.85 confidence
+    """
+
+    # Get low confidence matches from fact_procurement
+    # We need to go back to the raw join to get confidence scores
+    low_conf_procurement = spark.sql(f"""
+        WITH procurement_with_confidence AS (
+            SELECT
+                p.materialname as source_value,
+                m.material_name_std as matched_to,
+                m.match_confidence as confidence,
+                'procurement' as entity,
+                'material' as match_type,
+                COUNT(*) as frequency,
+                SUM(p.quantity * p.unitpriceeur) as spend_impact
+            FROM {DB}.silver_procurement p
+            LEFT JOIN {DB}.gold_dim_material_lookup m
+                ON INITCAP(TRIM(p.materialname)) = m.lookup_name
+            WHERE m.match_confidence IS NOT NULL
+              AND m.match_confidence < 0.95
+              AND m.match_confidence > 0  -- Exclude exact matches that somehow got 0
+            GROUP BY p.materialname, m.material_name_std, m.match_confidence
+
+            UNION ALL
+
+            SELECT
+                p.headquarterscountry as source_value,
+                c.country_name_std as matched_to,
+                c.match_confidence as confidence,
+                'procurement' as entity,
+                'hq_country' as match_type,
+                COUNT(*) as frequency,
+                SUM(p.quantity * p.unitpriceeur) as spend_impact
+            FROM {DB}.silver_procurement p
+            LEFT JOIN {DB}.gold_dim_country_lookup c
+                ON TRIM(p.headquarterscountry) = c.lookup_name
+            WHERE c.match_confidence IS NOT NULL
+              AND c.match_confidence < 0.95
+              AND c.match_confidence > 0
+            GROUP BY p.headquarterscountry, c.country_name_std, c.match_confidence
+
+            UNION ALL
+
+            SELECT
+                p.productioncountry as source_value,
+                c.country_name_std as matched_to,
+                c.match_confidence as confidence,
+                'procurement' as entity,
+                'prod_country' as match_type,
+                COUNT(*) as frequency,
+                SUM(p.quantity * p.unitpriceeur) as spend_impact
+            FROM {DB}.silver_procurement p
+            LEFT JOIN {DB}.gold_dim_country_lookup c
+                ON TRIM(p.productioncountry) = c.lookup_name
+            WHERE c.match_confidence IS NOT NULL
+              AND c.match_confidence < 0.95
+              AND c.match_confidence > 0
+            GROUP BY p.productioncountry, c.country_name_std, c.match_confidence
+        )
+        SELECT * FROM procurement_with_confidence
+        WHERE source_value IS NOT NULL
+    """)
+
+    # Get low confidence matches from supply shares
+    low_conf_supply = spark.sql(f"""
+        SELECT
+            s.material as source_value,
+            m.material_name_std as matched_to,
+            m.match_confidence as confidence,
+            'supply_share' as entity,
+            'material' as match_type,
+            COUNT(*) as frequency,
+            CAST(NULL as DOUBLE) as spend_impact
+        FROM {DB}.silver_globalsupplyshares s
+        LEFT JOIN {DB}.gold_dim_material_lookup m
+            ON INITCAP(TRIM(s.material)) = m.lookup_name
+        WHERE m.match_confidence IS NOT NULL
+          AND m.match_confidence < 0.95
+          AND m.match_confidence > 0
+        GROUP BY s.material, m.material_name_std, m.match_confidence
+
+        UNION ALL
+
+        SELECT
+            s.country as source_value,
+            c.country_name_std as matched_to,
+            c.match_confidence as confidence,
+            'supply_share' as entity,
+            'country' as match_type,
+            COUNT(*) as frequency,
+            CAST(NULL as DOUBLE) as spend_impact
+        FROM {DB}.silver_globalsupplyshares s
+        LEFT JOIN {DB}.gold_dim_country_lookup c
+            ON TRIM(s.country) = c.lookup_name
+        WHERE c.match_confidence IS NOT NULL
+          AND c.match_confidence < 0.95
+          AND c.match_confidence > 0
+        GROUP BY s.country, c.country_name_std, c.match_confidence
+    """)
+
+    # Combine all low confidence matches
+    all_low_conf = (
+        low_conf_procurement
+        .unionByName(low_conf_supply, allowMissingColumns=True)
+        .withColumn("last_seen", F.lit(pipeline_run_ts))
+        .select(
+            "source_value", "matched_to", "confidence", "entity",
+            "match_type", "frequency", "spend_impact", "last_seen"
+        )
+    )
+
+    low_conf_count = all_low_conf.count()
+
+    if low_conf_count > 0:
+        # Overwrite table with current state (point-in-time snapshot)
+        all_low_conf.write.format("delta").mode("overwrite").saveAsTable(f"{DB}.gold_low_confidence_audit")
+        print(f"✓ Captured {low_conf_count} low confidence matches to gold_low_confidence_audit")
+        return all_low_conf
+    else:
+        print("✓ No low confidence matches found")
+        return None
+
+# Execute low confidence audit
+low_conf_result = populate_low_confidence_audit()
+
+# Show top low confidence matches by spend impact
+print("\nTop Low Confidence Matches (by frequency):")
+if low_conf_result:
+    low_conf_result.orderBy(F.desc("frequency")).show(15, truncate=False)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ## Quality Observability Summary
+
+# CELL ********************
+
+# Print final summary of observability tables
+print("\n" + "="*70)
+print("QUALITY OBSERVABILITY TABLES - PIPELINE RUN COMPLETE")
+print("="*70)
+
+print(f"\nPipeline Run Timestamp: {pipeline_run_ts}")
+
+# Quality History stats
+history_count = spark.table(f"{DB}.gold_quality_history").count()
+history_runs = spark.sql(f"SELECT COUNT(DISTINCT refresh_timestamp) FROM {DB}.gold_quality_history").first()[0]
+print(f"\n📊 gold_quality_history: {history_count} total metrics across {history_runs} pipeline runs")
+
+# Gap Registry stats
+registry_stats = spark.sql(f"""
+    SELECT
+        current_status,
+        COUNT(*) as count
+    FROM {DB}.gold_gap_registry
+    GROUP BY current_status
+""").collect()
+print(f"\n🔍 gold_gap_registry:")
+for row in registry_stats:
+    print(f"   - {row.current_status}: {row.count} gaps")
+
+# Low Confidence Audit stats
+low_conf_count = spark.table(f"{DB}.gold_low_confidence_audit").count()
+print(f"\n⚠️  gold_low_confidence_audit: {low_conf_count} fuzzy matches for review")
+
+# Actionable insights
+print("\n" + "-"*70)
+print("ACTIONABLE INSIGHTS")
+print("-"*70)
+
+# Show oldest open gaps
+print("\n🚨 Oldest Open Gaps (prioritize for alias mapping):")
+spark.sql(f"""
+    SELECT
+        gap_natural_key,
+        entity,
+        gap_type,
+        first_seen,
+        total_occurrences,
+        DATEDIFF(current_date(), first_seen) as days_open
+    FROM {DB}.gold_gap_registry
+    WHERE current_status = 'Open'
+    ORDER BY first_seen ASC
+    LIMIT 10
+""").show(truncate=False)
+
+# Show highest impact low confidence matches
+print("\n💰 Highest Impact Low Confidence Matches (verify mappings):")
+spark.sql(f"""
+    SELECT
+        source_value,
+        matched_to,
+        confidence,
+        entity,
+        match_type,
+        frequency,
+        spend_impact
+    FROM {DB}.gold_low_confidence_audit
+    WHERE spend_impact IS NOT NULL
+    ORDER BY spend_impact DESC
+    LIMIT 10
+""").show(truncate=False)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
