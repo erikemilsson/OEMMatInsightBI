@@ -76,3 +76,4 @@ Desktop.ini
 *.tmp
 *.temp
 .pytest_cache/
+.claude/settings.local.json
