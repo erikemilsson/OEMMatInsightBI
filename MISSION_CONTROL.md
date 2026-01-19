@@ -22,6 +22,72 @@ Claude Work:    █████████████████████�
 
 ---
 
+## Visual Overview
+
+### Task Dependencies
+
+```mermaid
+graph LR
+    subgraph Finished["✅ Finished"]
+        T002[002: DAX Measures]
+        T003[003: Report]
+        T004[004: RLS]
+        T008[008: Unit Tests]
+        T009[009: DAX Docs]
+        T013[013: Visuals]
+        T014[014: Deploy]
+        T015[015: Relationships]
+        T016[016: Dashboard]
+    end
+
+    subgraph InProgress["🚧 In Progress"]
+        T018[018: Quality Tables]
+        T001[001: Data Gaps Page]
+    end
+
+    subgraph Pending["⏳ Pending"]
+        T017[017: Sample Data]
+        T005[005: Automation]
+        T006[006: Incremental]
+        T007[007: DQ Checks]
+        T010[010: Scheduling]
+        T011[011: Error Handling]
+        T012[012: Performance]
+    end
+
+    T018 --> T017
+    T017 --> T001
+    T002 --> T003
+```
+
+### Quality Observability Data Flow (Task 018)
+
+```mermaid
+flowchart TB
+    subgraph Pipeline["🔄 Pipeline Run (silver-to-gold2)"]
+        direction TB
+        FP[fact_procurement<br/>fact_supply_share]
+        UM[Orphan Tables<br/>unmapped values]
+        LC[Lookup Tables<br/>confidence scores]
+    end
+
+    subgraph NewTables["📊 Quality Observability Tables (NEW)"]
+        QH[gold_quality_history<br/>Append metrics per run]
+        GR[gold_gap_registry<br/>MERGE gap lifecycle]
+        LCA[gold_low_confidence_audit<br/>Overwrite < 0.95]
+    end
+
+    FP -->|coverage_rate<br/>match_rate| QH
+    UM -->|first_seen<br/>last_seen| GR
+    LC -->|confidence < 0.95| LCA
+
+    QH --> PBI[📈 Power BI<br/>Trending Charts]
+    GR --> PBI
+    LCA --> PBI
+```
+
+---
+
 ## Your Action Items (Erik)
 
 | # | Task | Action | Time |

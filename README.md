@@ -43,6 +43,61 @@ tests/                  # Unit tests with pytest (requires Python 3.12+, Java 11
 
 ## Architecture
 
+```mermaid
+flowchart LR
+    subgraph Sources["📥 Data Sources"]
+        AZ[(Azure SQL<br/>ERP Data)]
+        EPI[📄 EPI Dataset<br/>Environmental]
+        WGI[📄 WGI Dataset<br/>Governance]
+        CRM[📄 EU CRM List<br/>Critical Materials]
+    end
+
+    subgraph Bronze["🥉 Bronze Layer"]
+        B1[bronze_procurement]
+        B2[bronze_suppliers]
+        B3[bronze_materials]
+        B4[bronze_epi]
+        B5[bronze_wgi]
+    end
+
+    subgraph Silver["🥈 Silver Layer"]
+        S1[silver_procurement]
+        S2[silver_suppliers]
+        S3[silver_materials]
+        S4[silver_epi]
+        S5[silver_wgi]
+    end
+
+    subgraph Gold["🥇 Gold Layer"]
+        F1[fact_procurement]
+        F2[fact_supply_share]
+        D1[dim_country]
+        D2[dim_material]
+        D3[dim_supplier]
+        D4[dim_date]
+        QH[gold_quality_history]
+        GR[gold_gap_registry]
+    end
+
+    AZ --> B1 & B2 & B3
+    EPI --> B4
+    WGI --> B5
+    CRM --> B3
+
+    B1 --> S1
+    B2 --> S2
+    B3 --> S3
+    B4 --> S4
+    B5 --> S5
+
+    S1 & S2 & S3 --> F1
+    S4 & S5 --> D1
+    S3 --> D2
+
+    Gold --> WH[(oem_wh<br/>Warehouse)]
+    WH --> PBI[📊 Power BI<br/>DirectLake]
+```
+
 ### Medallion Lakehouse (bronze → silver → gold)
 
 **Bronze:** Raw ingestion from Azure SQL (procurement data) and files (ESG indicators)
