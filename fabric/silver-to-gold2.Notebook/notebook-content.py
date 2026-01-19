@@ -2197,15 +2197,28 @@ def populate_gap_registry():
 
         # Check for resolved gaps (gaps in registry but NOT in current unmapped)
         # These are gaps that now have alias mappings
-        current_gap_ids = source_gaps.select("gap_id").distinct()
+        source_gaps.createOrReplaceTempView('_current_gaps')
 
-        resolved_count = spark.sql(f"""
-            UPDATE {DB}.gold_gap_registry
-            SET current_status = 'Resolved',
+        # Get list of gap_ids that are resolved (exist in registry but not in current gaps)
+        # Using LEFT JOIN instead of subquery (Delta Lake doesn't support subqueries in UPDATE)
+        resolved_gaps = spark.sql(f"""
+            SELECT r.gap_id
+            FROM {DB}.gold_gap_registry r
+            LEFT JOIN _current_gaps c ON r.gap_id = c.gap_id
+            WHERE r.current_status = 'Open' AND c.gap_id IS NULL
+        """)
+
+        resolved_gaps.createOrReplaceTempView('_resolved_gaps')
+
+        # Update resolved gaps using MERGE
+        spark.sql(f"""
+            MERGE INTO {DB}.gold_gap_registry AS target
+            USING _resolved_gaps AS resolved
+            ON target.gap_id = resolved.gap_id
+            WHEN MATCHED THEN UPDATE SET
+                current_status = 'Resolved',
                 resolution_date = current_timestamp(),
                 resolution_notes = 'Auto-resolved: value now has alias mapping'
-            WHERE current_status = 'Open'
-            AND gap_id NOT IN (SELECT gap_id FROM {source_gaps.createOrReplaceTempView('_current_gaps') or '_current_gaps'})
         """)
 
         print(f"✓ Gap registry MERGE complete: {current_gap_count} active gaps")
