@@ -195,8 +195,8 @@ This project uses Claude Code task management:
 
 ### View Tasks
 ```bash
-# View all tasks
-cat .claude/tasks/task-overview.md
+# View current status and action items
+cat MISSION_CONTROL.md
 
 # View specific task
 cat .claude/tasks/task-014.json

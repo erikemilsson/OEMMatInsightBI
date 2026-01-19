@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Migrated tasks from markdown-only to JSON format with subtask support
-- Enhanced task-overview.md with status matrix and progress tracking
+- Consolidated task tracking to MISSION_CONTROL.md
 
 ---
 
@@ -78,4 +78,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-*For detailed task status, see `/.claude/tasks/task-overview.md`*
+*For detailed task status, see `/MISSION_CONTROL.md`*

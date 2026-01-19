@@ -9,7 +9,7 @@
 **A:** Microsoft Fabric (Lakehouse, Pipeline, Semantic Model, Power BI), PySpark, Delta Lake, SQL Warehouse, Python, DAX.
 
 ### Q: What is the current project status?
-**A:** Active development - 12 tasks defined, 1 completed, 5 with design complete. See `/.claude/tasks/task-overview.md`.
+**A:** Active development - 18 tasks defined, 8 completed (44%). See `/MISSION_CONTROL.md` for current status.
 
 ---
 
@@ -25,7 +25,7 @@
 **A:** Run `/breakdown task-XXX`. The system will guide you through creating 5-10 subtasks with clear deliverables.
 
 ### Q: How do I track my progress?
-**A:** Run `/sync-tasks` daily. This updates all task statuses, recalculates progress, and regenerates `task-overview.md`.
+**A:** Check `/MISSION_CONTROL.md` for current status. Run `/sync-tasks` to update progress after completing work.
 
 ### Q: Can I work on multiple tasks simultaneously?
 **A:** Yes, but not recommended for complex tasks (difficulty ≥7). Focus on one at a time to avoid context switching.
@@ -103,7 +103,7 @@
 **A:** The task has difficulty ≥7. Run `/breakdown task-XXX` to create subtasks, then retry `/complete-task`.
 
 ### Q: How do I unblock a task?
-**A:** Complete its dependencies first. Check `task-overview.md` "Blocked Tasks" section to see what's blocking it.
+**A:** Complete its dependencies first. Check `/MISSION_CONTROL.md` to see what's blocking it.
 
 ### Q: Task JSON file seems corrupted?
 **A:** Run `/sync-tasks` to validate all JSON files. It will report any schema errors.
@@ -134,10 +134,10 @@
 ## Getting Help
 
 ### Q: Where do I start if I'm new?
-**A:** 1) Read `/project_definition.md`, 2) Review `CLAUDE.md` (navigation router), 3) Check `/.claude/tasks/task-overview.md`, 4) Run `/complete-task task-XXX` to start a task.
+**A:** 1) Read `/MISSION_CONTROL.md` for current status, 2) Review `CLAUDE.md` (navigation router), 3) Run `/complete-task task-XXX` to start a task.
 
 ### Q: I'm stuck on a task - what should I do?
-**A:** 1) Check task's `relatedFiles` in JSON, 2) Review relevant `/.claude/context/` docs, 3) Check `/.claude/reference/workflow-patterns.md`, 4) Run `/sync-tasks` to see dependencies.
+**A:** 1) Check task's `relatedFiles` in JSON, 2) Review relevant `/.claude/context/` docs, 3) Check `/.claude/reference/task-workflow.md`, 4) Run `/sync-tasks` to see dependencies.
 
 ### Q: How do I report issues?
 **A:** Currently a portfolio project - no formal issue tracking. Document blockers in task notes within JSON files.

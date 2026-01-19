@@ -76,7 +76,7 @@ Error: Missing required field 'difficulty'
 **Solution:**
 ```bash
 /sync-tasks
-# This recalculates all progress and updates task-overview.md
+# This recalculates all progress and updates MISSION_CONTROL.md
 ```
 
 **Note:** Progress is not real-time - run `/sync-tasks` after each subtask completion.
@@ -377,8 +377,8 @@ RETURN
 ## Getting Additional Help
 
 **For Task Management:**
-- See `/.claude/reference/workflow-patterns.md`
-- See `/.claude/reference/task-management-rules.md`
+- See `/MISSION_CONTROL.md` for current status
+- See `/.claude/reference/task-workflow.md` for workflow guide
 
 **For Technical Issues:**
 - See relevant `/.claude/context/` documentation

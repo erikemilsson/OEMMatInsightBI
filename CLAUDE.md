@@ -2,39 +2,32 @@
 
 **Welcome to the OEMMatInsightBI Project!**
 
-This document serves as a central router to help you navigate the project structure and find relevant information quickly.
+This document helps Claude navigate the project structure and find relevant information.
 
 ---
 
-## 🎯 Quick Start
+## Quick Start
 
-**New to this project?** Start here:
-
-1. **Mission Control**: See `/MISSION_CONTROL.md` - **THE PRIMARY DASHBOARD** (single source of truth)
-2. **Project Overview**: See `/project_definition.md` (comprehensive 1600-line project spec)
-3. **Working on Tasks**: Check "Your Action Items" in MISSION_CONTROL.md
-4. **Syncing Progress**: Use `/sync-tasks` to update task status
+1. **Current Status**: Check `/MISSION_CONTROL.md` first (single source of truth for tasks)
+2. **Project Overview**: See `/project_definition.md` (comprehensive spec)
+3. **Working on Tasks**: Use `/complete-task task-XXX` to start
 
 ---
 
-## 🎛️ MISSION_CONTROL.md (Auto-Updated)
+## MISSION_CONTROL.md (Primary Dashboard)
 
 **IMPORTANT: Claude must update `/MISSION_CONTROL.md` at the end of every work session.**
 
 ### What to Update
-After completing work, update these sections in MISSION_CONTROL.md:
-1. **Progress Overview** - Update completion percentages and progress bars
-2. **Your Action Items** - Move completed items, add new ready items
-3. **Claude's Work Queue** - Update "Completed This Session" and "Next Up"
-4. **Task Decomposition Tables** - Mark step statuses (Done/Pending/Blocked)
-5. **Last Session Date** - Update timestamp at bottom
+- Progress bars and percentages
+- Task status lists (Finished/In Progress/Pending)
+- "Your Action Items" section for Erik
+- "Last Session" date and "Next Action" summary
 
-### Update Trigger
-Update MISSION_CONTROL.md when:
-- A task step is completed
-- A new task is started
-- Blockers are identified or resolved
-- At the end of every conversation session
+### Keep It Clean
+- Remove completed session details after a few days
+- Keep action items current (remove done items)
+- Focus on what matters now, not history
 
 ### Format
 ```markdown
@@ -42,291 +35,117 @@ Update MISSION_CONTROL.md when:
 *Next Action: [Brief description of what Erik should do next]*
 ```
 
-### Purpose
-Erik uses MISSION_CONTROL.md as the **single interactive surface** for project oversight:
-- See what actions are ready for him (Fabric UI, Power BI Desktop)
-- Track Claude's progress on code/docs work
-- Understand blockers and dependencies
-- Access quick links to Fabric workspace
-
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 OEMMatInsightBI/
+├── MISSION_CONTROL.md         # Task status dashboard (update this!)
+├── project_definition.md      # Complete project specification
 ├── fabric/                    # Microsoft Fabric artifacts
-│   ├── *.DataPipeline/        # Orchestrator pipeline (bronze → silver → gold)
 │   ├── *.Notebook/            # PySpark transformation notebooks
-│   ├── *.Dataflow/            # Power Query dataflows (bronze ingestion)
-│   ├── *.SemanticModel/       # Power BI semantic model (star schema)
-│   ├── *.Report/              # Power BI report (to be redesigned)
-│   └── oem_wh.Warehouse/      # SQL warehouse for serving layer
-│
-├── .claude/                   # Claude Code environment (task management & context)
-│   ├── commands/              # Slash commands (/complete-task, /breakdown, /sync-tasks)
-│   ├── context/               # Project knowledge base (10 context docs)
-│   ├── tasks/                 # 18 tasks in JSON format + task-overview.md
-│   └── reference/             # Reference materials (glossary, schemas, guides)
-│
-├── tests/                     # pytest unit tests (framework complete)
-├── src/transformations/       # Extracted testable modules (key_generation, data_quality)
-├── project_definition.md      # 📌 START HERE - Complete project specification
-├── CLAUDE.md                  # This file - Navigation router
-└── README.md                  # User-facing project documentation
+│   ├── *.SemanticModel/       # Power BI semantic model
+│   └── *.DataPipeline/        # Orchestrator pipeline
+├── .claude/
+│   ├── tasks/                 # Task JSON files (task-001.json to task-018.json)
+│   ├── context/               # Project knowledge base
+│   ├── reference/             # Reference materials
+│   └── commands/              # Slash command definitions
+├── src/transformations/       # Testable Python modules
+└── tests/                     # pytest unit tests
 ```
 
 ---
 
-## 🔍 Finding Information
+## Context Documents
 
-### By Topic
+Located in `/.claude/context/`:
 
-**Architecture & Design:**
-- 📐 Overall architecture: `/project_definition.md` (lines 113-181)
-- 🎨 Semantic model: `/.claude/context/semantic_model_design.md`
-- 📊 DAX measures library: `/.claude/context/dax_measure_library.md` (40+ measures designed)
-- 🔐 RLS security strategy: `/.claude/context/rls_security_strategy.md` (6 roles)
+**Architecture:**
+- `architecture/medallion_architecture.md` - Bronze/Silver/Gold layers
+- `architecture/semantic_model.md` - Star schema design
+- `architecture/data_sources.md` - 5 data sources
+- `architecture/orchestration.md` - Pipeline design
 
 **Data Engineering:**
-- 🔄 Pipeline orchestration: `/project_definition.md` (lines 589-720)
-- 📦 Incremental load strategy: `/.claude/context/incremental_load_strategy.md`
-- ✅ Data quality framework: `/.claude/context/data_quality_framework.md` (ISO 25012)
-- 🔌 External data automation: `/.claude/context/external_data_automation.md` (EPI, WGI)
+- `incremental_load_strategy.md` - Delta MERGE patterns
+- `data_quality_framework.md` - ISO 25012 quality checks
+- `data_quality_architecture.md` - Quality observability tables
+- `external_data_automation.md` - EPI/WGI automation
 
-**Operational Excellence:**
-- 🚨 Error handling strategy: `/.claude/context/error_handling_strategy.md`
-- ⚙️  Pipeline configuration: `/project_definition.md` (lines 588-720)
+**BI & Security:**
+- `dax_measure_library.md` - 40+ DAX measures
+- `rls_security_strategy.md` - 6 security roles
 
-**Business Context:**
-- 🎯 Business requirements: `/.claude/context/business_requirements.md`
-- 📚 Glossary: `/.claude/reference/glossary.md` (98 terms)
-- 🏗️ Architecture decisions: `/.claude/context/architecture_overview.md`
-
-**Development Standards:**
-- 📝 Naming conventions: `/.claude/context/naming_conventions.md`
-- 🐍 Python coding standards: `/.claude/context/python_coding_standards.md`
-- 💾 SQL coding standards: `/.claude/context/sql_coding_standards.md`
-- 📊 Git workflow: `/.claude/context/git_workflow.md`
-
-### By Task Priority
-
-**P1 Tasks (Portfolio Showcase):**
-- Task 001: Data Quality Visibility → `/.claude/tasks/task-001.json`
-- Task 002: DAX Measures Implementation → `/.claude/tasks/task-002.json` (Broken Down - 7 subtasks)
-- Task 003: Power BI Report Redesign → `/.claude/tasks/task-003.json` (Depends on Task 002)
-- Task 004: RLS Security → `/.claude/tasks/task-004.json` (Design complete)
-
-**P2 Tasks (Technical Depth):**
-- Task 005-009: See `/.claude/tasks/task-overview.md`
-
-**P3 Tasks (Infrastructure):**
-- Task 010-012: See `/.claude/tasks/task-overview.md`
+**Standards:**
+- `standards/coding_standards.md` - Python best practices
+- `standards/sql_standards.md` - SQL style guide
+- `standards/naming_standards.md` - Naming conventions
 
 ---
 
-## 🎮 Common Commands
+## Reference Materials
+
+Located in `/.claude/reference/`:
+
+- `glossary.md` - 98 terms defined
+- `task-workflow.md` - Task management workflow
+- `difficulty-guide.md` - Difficulty scoring (1-10)
+- `schemas/bronze_tables.md` - Bronze layer schema
+- `schemas/gold_tables.md` - Gold layer schema
+
+---
+
+## Common Commands
 
 ### Task Management
 ```bash
-# Start working on a task
-/complete-task task-002
-
-# Break down complex task into subtasks
-/breakdown task-003
-
-# Sync all task progress and update overview
-/sync-tasks
+/complete-task task-XXX   # Start working on a task
+/breakdown task-XXX       # Decompose complex task (difficulty ≥7)
+/sync-tasks               # Update progress and validate
 ```
 
-### Pipeline Execution (Fabric Workspace)
+### Pipeline Operations
 ```bash
-# View bronze to gold pipeline definition
-# Location: /fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/
-
-# Custom slash commands for pipeline operations:
-/run-bronze          # Run bronze layer ingestion
-/run-silver          # Run silver transformations
-/run-gold            # Run gold layer creation
-/run-full-pipeline   # Run complete bronze → gold → warehouse
+/run-bronze              # Run bronze layer ingestion
+/run-silver              # Run silver transformations
+/run-gold                # Run gold layer creation
+/run-full-pipeline       # Run complete pipeline
 ```
 
-### Data Validation
+### Data Quality
 ```bash
 /check-quality           # Run data quality checks
 /validate-schema         # Validate table schemas
-/view-unmapped           # View unmapped country/material values
-/review-transformations  # Review transformation logic
-```
-
-### Fabric Integration
-```bash
-/sync-from-fabric    # Pull latest artifacts from Fabric workspace
-/sync-to-fabric      # Push local changes to Fabric workspace
+/view-unmapped           # View unmapped values
 ```
 
 ---
 
-## 📚 Context Documents (10 Files)
+## Getting Started with a Task
 
-**Business & Requirements:**
-1. `business_requirements.md` - Stakeholder needs and success criteria
-2. `data_sources.md` - 5 data sources (Azure SQL, EPI, WGI, EU CRM)
-
-**Architecture & Design:**
-3. `architecture_overview.md` - Medallion pattern, orchestration, semantic model
-4. `semantic_model_design.md` - Star schema with 3 facts + 5 dimensions
-5. `dax_measure_library.md` - 40+ measures designed across 5 categories
-6. `rls_security_strategy.md` - 6 security roles with DAX filters
-
-**Data Engineering Strategies:**
-7. `incremental_load_strategy.md` - High-water mark, Delta MERGE patterns
-8. `data_quality_framework.md` - ISO 25012 quality dimensions, 9 check functions
-9. `external_data_automation.md` - EPI/WGI automation research
-
-**Operational Excellence:**
-10. `error_handling_strategy.md` - Retry logic, error categorization, alerting
-11. `orchestration_strategy.md` - Pipeline design patterns
-
-**Standards & Guidelines:**
-12. `naming_conventions.md` - File, table, column naming standards
-13. `sql_coding_standards.md` - SQL style guide
-14. `python_coding_standards.md` - PySpark best practices
-15. `git_workflow.md` - Branching strategy, commit conventions
-
-**Note:** Context documents have been consolidated. See `.claude/context/` for the current list.
+1. Check `/MISSION_CONTROL.md` for current priorities
+2. Read the task JSON: `/.claude/tasks/task-XXX.json`
+3. Review related context docs (listed in task's `relatedFiles`)
+4. Use `/complete-task task-XXX` to begin
+5. Update MISSION_CONTROL.md when done
 
 ---
 
-## 🎯 Tasks Overview (18 Tasks)
-
-| Status | Count | % |
-|--------|-------|---|
-| ✅ Finished | 8 | 44% |
-| 🚧 In Progress | 2 | 11% |
-| ⏳ Pending | 8 | 44% |
-
-**See:** `/MISSION_CONTROL.md` for full breakdown with owner assignment (Claude vs Erik)
-
----
-
-## 🔧 Reference Materials
-
-**Glossary:** `/.claude/reference/glossary.md` (98 terms)
-- OEM, EPI, WGI, CRM, RLS, DirectLake, V-Order, etc.
-
-**Schema References:**
-- Bronze schema: `/.claude/reference/bronze_schema_reference.md`
-- Gold schema: `/.claude/reference/gold_schema_reference.md`
-- DAX measures: `/.claude/reference/dax_measures.md` (legacy, see context/dax_measure_library.md)
-
-**Alias Mappings:**
-- Country aliases: `/.claude/reference/country_alias_mapping.md`
-- Material aliases: `/.claude/reference/material_alias_mapping.md`
-
-**Task Management:**
-- Difficulty scoring: `/.claude/reference/difficulty-guide.md` (1-10 scale, breakdown at ≥7)
-- Workflow patterns: `/.claude/reference/workflow-patterns.md` (task lifecycle, best practices)
-- Management rules: `/.claude/reference/task-management-rules.md` (automation rules)
-
----
-
-## 🚀 Getting Started with Development
-
-### 1. **Understand the Project**
-   - Read `/project_definition.md` (comprehensive spec)
-   - Review `/.claude/context/architecture_overview.md`
-   - Check `/.claude/tasks/task-overview.md` for current priorities
-
-### 2. **Pick a Task**
-   - See `/.claude/tasks/task-overview.md` for available tasks
-   - P1 tasks are highest priority (portfolio showcase)
-   - Design-complete tasks (002, 004, 005, 006, 007, 011) are ready to implement
-
-### 3. **Start Work**
-   ```bash
-   # Example: Start DAX Measures task
-   /complete-task task-002
-   ```
-
-### 4. **Track Progress**
-   ```bash
-   # Daily sync to update progress
-   /sync-tasks
-   ```
-
----
-
-## 🎨 Portfolio Highlights
-
-This project demonstrates:
-
-**Data Engineering:**
-- ✅ Medallion architecture (bronze → silver → gold)
-- ✅ Delta Lake with MERGE operations (incremental load)
-- ✅ PySpark transformations with unit tests
-- ✅ Data quality framework (ISO 25012)
-
-**BI Development:**
-- ✅ Star schema semantic model (DirectLake)
-- ✅ 40+ DAX measures (time intelligence, sustainability, risk)
-- ✅ Row-level security (6 roles)
-- ✅ Report design (5 pages planned)
-
-**Operational Excellence:**
-- ✅ Error handling & retry logic
-- ✅ Pipeline orchestration
-- ✅ Automated testing (pytest framework)
-- ✅ Comprehensive documentation
-
----
-
-## 📞 Navigation Tips
+## Navigation Tips
 
 **Looking for a specific file?**
-- Use Glob tool: `**/*.ipynb` for notebooks, `**/*.tmdl` for semantic model
-- Check `/project_definition.md` for file locations (lines 183-584)
+- Use Glob tool with patterns like `**/*.ipynb` or `**/*.tmdl`
 
 **Need to understand a concept?**
 - Check `/.claude/reference/glossary.md` first
 - Then relevant context doc in `/.claude/context/`
 
-**Starting a task?**
-- Always use `/complete-task task-XXX` (enforces validation rules)
-- Check `/.claude/tasks/task-XXX.json` for details
-- Review related context docs before starting
-
 **Blocked or confused?**
-- Run `/sync-tasks` to see overall project status
-- Check `/.claude/reference/workflow-patterns.md` for guidance
-- Review task dependencies in task-overview.md
-
----
-
-## 🆘 Need Help?
-
-- **Task management questions**: See `/.claude/reference/workflow-patterns.md`
-- **Technical questions**: See relevant `/.claude/context/` docs
-- **Project scope questions**: See `/project_definition.md`
-- **Terminology questions**: See `/.claude/reference/glossary.md`
-
----
-
-## 📊 Project Dashboard
-
-**Primary Dashboard:** [`/MISSION_CONTROL.md`](./MISSION_CONTROL.md) - Check this first!
-
-| Metric | Value |
-|--------|-------|
-| Total Tasks | 18 |
-| Completed | 8 (44%) |
-| In Progress | 2 |
-| Pending | 8 |
-
-**Current Focus:** Task 018 (Quality Observability Tables) → Task 001 (Data Gaps Page)
+- Check MISSION_CONTROL.md for current status
+- Review `/.claude/reference/task-workflow.md` for guidance
 
 ---
 
 *Last Updated: 2026-01-19*
-*Project Status: Active Development (18 tasks, 44% complete)*
-*Next Priority: Erik tests Task 018 in Fabric, builds Task 001 Data Gaps page*

@@ -305,7 +305,7 @@ Difficulty scores can be adjusted based on:
 1. Document reason for change in task notes
 2. Update difficulty score in task JSON
 3. Re-evaluate whether breakdown is needed (if crossing ≥7 threshold)
-4. Update task-overview.md to reflect new score
+4. Run `/sync-tasks` to update MISSION_CONTROL.md
 
 ---
 

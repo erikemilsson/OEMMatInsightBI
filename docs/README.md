@@ -31,8 +31,8 @@ Welcome to the comprehensive documentation for the OEMMatInsightBI project. This
 - [CHANGELOG](../CHANGELOG.md) - Version history and updates
 
 ### Claude Code Environment
-- [Task Overview](../.claude/tasks/task-overview.md) - Current task status (16 tasks)
-- [Context Docs](../.claude/context/) - 10 context documents
+- [MISSION_CONTROL](../MISSION_CONTROL.md) - Current task status and action items
+- [Context Docs](../.claude/context/) - Project context documents
 - [Reference Materials](../.claude/reference/) - Glossary, schemas, and guides
 
 ### Fabric Artifacts

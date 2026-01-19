@@ -345,7 +345,7 @@ See: /.claude/reference/difficulty-guide.md for details
 
 **Files You Will Need:**
 - Task JSON: `/.claude/tasks/task-XXX.json` (read & write)
-- Task overview: `/.claude/tasks/task-overview.md` (read for context)
+- Mission Control: `/MISSION_CONTROL.md` (update at session end)
 - Reference docs: `/.claude/reference/` (for rules and patterns)
 
 **Output Format:**
