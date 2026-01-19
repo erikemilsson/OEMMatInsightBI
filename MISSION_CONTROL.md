@@ -2,23 +2,23 @@
 
 **OEMMatInsightBI Project Dashboard**
 
-*Last Updated: 2026-01-16*
+*Last Updated: 2026-01-19*
 
 ---
 
 ## Progress Overview
 
 ```
-Tasks Complete: ████████████████░░░░░░░░░░░░░░░░ 50% (8/16)
+Tasks Complete: ████████████████░░░░░░░░░░░░░░░░ 44% (8/18)
 P1 Tasks:       █████████████████████████████░░░ 88% (7/8 complete)
-Claude Work:    ████████████████████ 100% (all code tasks done)
+Claude Work:    ████████████████████████████░░░░ 86% (Task 018 testing pending)
 ```
 
 | Status | Tasks |
 |--------|-------|
-| **Finished** | **002, 003, 004, 008, 009, 013, 014, 015, 016** |
-| In Progress | 001 (Claude done, Erik to build page) |
-| Pending | 005, 006, 007, 010, 011, 012 |
+| **Finished** | 002, 003, 004, 008, 009, 013, 014, 015, 016 |
+| **In Progress** | 001 (Erik: build DQ page), **018** (Erik: test in Fabric) |
+| **Pending** | 005, 006, 007, 010, 011, 012, **017** |
 
 ---
 
@@ -26,80 +26,97 @@ Claude Work:    ████████████████████ 100
 
 | # | Task | Action | Time |
 |---|------|--------|------|
-| 1 | **ALL** | `git pull` to get today's changes | 1 min |
-| 2 | **001** | Run `silver-to-gold2.Notebook` in Fabric | 5 min |
-| 3 | **001** | Sync semantic model (new tables: gold_data_gaps, gold_data_gaps_summary) | 2 min |
-| 4 | **001** | Build Data Gaps page per [DQ_PAGE_GUIDE.md](./docs/guides/DQ_PAGE_GUIDE.md) | 20 min |
+| 1 | **ALL** | `git pull` to get today's changes (commit `154232b`) | 1 min |
+| 2 | **018** | Sync Fabric workspace from Git | 2 min |
+| 3 | **018** | Run `silver-to-gold2.Notebook` in Fabric | 5 min |
+| 4 | **018** | Verify 3 new tables have data (see queries below) | 3 min |
+| 5 | **001** | Build Data Gaps page per [DQ_PAGE_GUIDE.md](./docs/guides/DQ_PAGE_GUIDE.md) | 20 min |
+
+### Verification Queries for Task 018
+
+After running the notebook, check these tables exist and have data:
+
+```sql
+-- Quality History (should have ~10 metrics from this run)
+SELECT * FROM oem_lh.gold_quality_history;
+
+-- Gap Registry (unmapped values with lifecycle tracking)
+SELECT * FROM oem_lh.gold_gap_registry;
+
+-- Low Confidence Audit (fuzzy matches < 0.95 confidence)
+SELECT * FROM oem_lh.gold_low_confidence_audit;
+```
 
 ---
 
-## Task 001: Data Gaps Visibility (Claude Work Complete)
+## Task 018: Quality Observability Tables (NEW)
 
-### What Was Built
+### What Was Built (Claude Complete - 6/7 Subtasks)
 
-**New Tables:**
-- `gold_data_gaps` - Shows each procurement country with `has_epi_score` boolean and spend impact
-- `gold_data_gaps_summary` - Pre-calculated metrics for KPI cards
+**New Tables (Delta format for MERGE support):**
+| Table | Purpose | Population Method |
+|-------|---------|-------------------|
+| `gold_quality_history` | Track quality metrics over time | Append per pipeline run |
+| `gold_gap_registry` | SCD tracking of unmapped values | MERGE (update existing, insert new) |
+| `gold_low_confidence_audit` | Fuzzy matches for manual review | Overwrite with current state |
 
-**New DAX Measures (8 total in "Data Gaps" folder):**
-| Measure | Purpose |
-|---------|---------|
-| `Countries with EPI Data` | Count of countries with sustainability data |
-| `Countries without EPI Data` | Countries needing follow-up |
-| `Country Coverage %` | % of procurement countries with EPI data |
-| `Spend with EPI Data` | EUR spend where data exists |
-| `Spend without EPI Data` | EUR spend at risk |
-| `Spend Coverage %` | % of spend with sustainability data |
-| `Total Procurement Countries` | Total distinct countries |
-| `Data Gap Summary` | Text: "X of Y countries" |
+**Functions Added to Notebook:**
+- `populate_quality_history()` - Captures coverage_rate, match_rate, unmapped_count per entity
+- `populate_gap_registry()` - MERGE pattern for gap lifecycle (first_seen, last_seen, occurrences)
+- `populate_low_confidence_audit()` - Captures matches with confidence < 0.95
 
-**Updated Guide:**
-- [DQ_PAGE_GUIDE.md](./docs/guides/DQ_PAGE_GUIDE.md) - Complete step-by-step instructions
+**Business Value:**
+- "Coverage improved from 85% to 100% over 3 pipeline runs" (trending)
+- "This gap has been open for 3 months affecting €50K" (gap lifecycle)
+- "Review these fuzzy matches: Singpaore → Singapore at 85% confidence" (audit)
 
-### What You'll Build
+### What You'll Test
 
-A Power BI page showing:
-1. **KPI Cards:** Country Coverage %, Spend Coverage %, Countries Without Data
-2. **Donut Chart:** Countries by data status (Has Data vs Missing)
-3. **Bar Chart:** Spend by data availability (green/red)
-4. **Action Table:** Countries without EPI data, sorted by spend
-
-**Business Value:** "These 3 countries (€500K spend) need sustainability data follow-up"
+1. Run notebook once → tables created and populated
+2. Run notebook again (optional) → verify MERGE updates (not duplicates)
 
 ---
 
-## Completed This Session
+## Task 017: Sample Data for Demo (Pending)
 
-### Task 001 (Claude Work)
-- [x] Created `gold_data_gaps` table in silver-to-gold2.Notebook
-- [x] Created `gold_data_gaps_summary` table for metrics
-- [x] Added `gold_data_gaps.tmdl` to semantic model
-- [x] Added `gold_data_gaps_summary.tmdl` to semantic model
-- [x] Updated model.tmdl with new table references
-- [x] Created 8 DAX measures in "Data Gaps" folder
-- [x] Updated DQ_PAGE_GUIDE.md with new focus
+**Depends on:** Task 018 verified working
 
-### Also Updated
-- Closed Task 003 (superseded by Task 016)
-- Closed Task 008 (test framework complete)
-- Closed Task 014 (superseded by Task 016)
+**Purpose:** Populate quality_history and gap_registry with backdated sample data to demonstrate trending before organic data accumulates.
+
+**Why:** Without historical data, can't demo:
+- "Coverage improved from 85% to 100%"
+- "This gap has been open for 3 months"
 
 ---
 
-## Files Changed
+## Completed This Session (2026-01-19)
+
+### Task 018 Implementation
+- [x] Created `gold_quality_history` table definition
+- [x] Created `gold_gap_registry` table definition
+- [x] Created `gold_low_confidence_audit` table definition
+- [x] Implemented Quality History append logic
+- [x] Implemented Gap Registry MERGE logic
+- [x] Implemented Low Confidence Audit capture
+- [ ] **Erik:** Test in Fabric and verify tables populate
+
+### Documentation Updates
+- [x] Updated `data_quality_architecture.md` with refined scope
+- [x] Refactored `data_coverage_flow.md` to dashboard format
+- [x] Created Task 017 (sample data population)
+- [x] Created Task 018 (quality observability tables)
+
+---
+
+## Files Changed (This Session)
 
 | File | Change |
 |------|--------|
-| `fabric/silver-to-gold2.Notebook/notebook-content.py` | +Data gaps table creation |
-| `fabric/semantic_model_oeminsightbi.SemanticModel/definition/tables/gold_data_gaps.tmdl` | NEW |
-| `fabric/semantic_model_oeminsightbi.SemanticModel/definition/tables/gold_data_gaps_summary.tmdl` | NEW |
-| `fabric/semantic_model_oeminsightbi.SemanticModel/definition/tables/_Measures.tmdl` | +8 Data Gaps measures |
-| `fabric/semantic_model_oeminsightbi.SemanticModel/definition/model.tmdl` | +2 table refs |
-| `docs/guides/DQ_PAGE_GUIDE.md` | Complete rewrite for data gaps |
-| `.claude/tasks/task-001.json` | Updated progress |
-| `.claude/tasks/task-003.json` | Marked Finished |
-| `.claude/tasks/task-008.json` | Marked Finished |
-| `.claude/tasks/task-014.json` | Marked Finished |
+| `fabric/silver-to-gold2.Notebook/notebook-content.py` | +600 lines: Quality Observability Tables section |
+| `.claude/context/data_quality_architecture.md` | Refined scope, added table schemas |
+| `.claude/context/data_coverage_flow.md` | Refactored to dashboard format |
+| `.claude/tasks/task-017.json` | NEW: Sample data population task |
+| `.claude/tasks/task-018.json` | NEW: Quality observability tables task |
 
 ---
 
@@ -107,10 +124,10 @@ A Power BI page showing:
 
 | Metric | Value |
 |--------|-------|
-| Total Tasks | 16 |
-| Completed | 8 (50%) |
-| In Progress | 1 (Task 001 - Erik's turn) |
-| Pending | 7 |
+| Total Tasks | 18 |
+| Completed | 8 (44%) |
+| In Progress | 2 (001, 018) |
+| Pending | 8 |
 | P1 Progress | 88% (7/8) |
 
 ---
@@ -123,7 +140,7 @@ A Power BI page showing:
 
 **Guides:**
 - [DQ_PAGE_GUIDE.md](./docs/guides/DQ_PAGE_GUIDE.md) - Build the Data Gaps page
-- [MEASURE_GUIDE.md](./docs/guides/MEASURE_GUIDE.md) - DAX measures reference
+- [data_quality_architecture.md](./.claude/context/data_quality_architecture.md) - Quality observability design
 
 **Commands:**
 ```bash
@@ -133,5 +150,5 @@ pytest tests/ -v          # Run tests (optional)
 
 ---
 
-*Last Session: 2026-01-16*
-*Next Action: Erik runs pipeline and builds Data Gaps page*
+*Last Session: 2026-01-19*
+*Next Action: Erik tests Task 018 in Fabric (run notebook, verify tables)*
