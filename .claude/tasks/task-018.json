@@ -1,0 +1,95 @@
+{
+  "id": "task-018",
+  "title": "Implement Quality Observability Tables in Notebook",
+  "description": "Add table creation and population logic for gold_quality_history, gold_gap_registry, and gold_low_confidence_audit to the silver-to-gold2 notebook.",
+  "status": "Pending",
+  "priority": "P2",
+  "difficulty": 5,
+  "estimatedEffort": "1-2 days",
+  "owner": "Claude Code",
+  "reasoning": {
+    "why": "Table schemas are designed in data_quality_architecture.md but don't exist in Fabric yet. Without the tables, we can't capture quality metrics or track gap lifecycle.",
+    "businessValue": [
+      "Enable trending quality metrics over time (Quality History)",
+      "Track how long gaps have existed and when they're resolved (Gap Registry)",
+      "Surface fuzzy matches for manual review (Low Confidence Audit)",
+      "Foundation for DQ Dashboard reporting"
+    ],
+    "prerequisite": "This task creates the infrastructure; Task 017 populates it with sample data for demo purposes"
+  },
+  "acceptanceCriteria": [
+    "gold_quality_history table created in Fabric lakehouse",
+    "gold_gap_registry table created in Fabric lakehouse",
+    "gold_low_confidence_audit table created in Fabric lakehouse",
+    "Quality History: Append logic captures metrics after each pipeline run",
+    "Gap Registry: MERGE logic updates existing gaps, inserts new ones",
+    "Low Confidence Audit: Captures matches with confidence < 0.95",
+    "Tables are Delta format for MERGE support"
+  ],
+  "dependencies": [
+    "data_quality_architecture.md (table schemas)",
+    "silver-to-gold2.Notebook (where logic will be added)",
+    "Existing quality scoring logic (source for low confidence matches)"
+  ],
+  "relatedFiles": [
+    "/.claude/context/data_quality_architecture.md",
+    "/fabric/silver-to-gold2.Notebook/notebook-content.py"
+  ],
+  "subtasks": [
+    {
+      "id": "task-018-1",
+      "title": "Add gold_quality_history table creation",
+      "status": "Pending",
+      "details": "CREATE TABLE IF NOT EXISTS with schema from architecture doc"
+    },
+    {
+      "id": "task-018-2",
+      "title": "Add gold_gap_registry table creation",
+      "status": "Pending",
+      "details": "CREATE TABLE IF NOT EXISTS with schema from architecture doc"
+    },
+    {
+      "id": "task-018-3",
+      "title": "Add gold_low_confidence_audit table creation",
+      "status": "Pending",
+      "details": "CREATE TABLE IF NOT EXISTS with schema from architecture doc"
+    },
+    {
+      "id": "task-018-4",
+      "title": "Implement Quality History append logic",
+      "status": "Pending",
+      "details": "After each run, INSERT metrics: coverage_rate, match_rate, unmapped_count, etc."
+    },
+    {
+      "id": "task-018-5",
+      "title": "Implement Gap Registry MERGE logic",
+      "status": "Pending",
+      "details": "MERGE pattern: update last_seen/occurrences for existing, insert new, mark resolved"
+    },
+    {
+      "id": "task-018-6",
+      "title": "Implement Low Confidence Audit capture",
+      "status": "Pending",
+      "details": "Filter fact_procurement for records with any confidence < 0.95, aggregate and insert"
+    },
+    {
+      "id": "task-018-7",
+      "title": "Test in Fabric and verify tables populate",
+      "status": "Pending",
+      "owner": "Erik",
+      "details": "Run pipeline, check tables have data, verify MERGE works on second run"
+    }
+  ],
+  "tableSchemas": {
+    "gold_quality_history": "refresh_timestamp, layer, entity, metric_name, metric_value, threshold, breach_flag",
+    "gold_gap_registry": "gap_id, gap_natural_key, entity, gap_type, first_seen, last_seen, total_occurrences, current_status, estimated_impact, resolution_date, resolution_notes",
+    "gold_low_confidence_audit": "source_value, matched_to, confidence, entity, match_type, frequency, spend_impact, last_seen"
+  },
+  "notes": [
+    "Schema definitions are in /.claude/context/data_quality_architecture.md",
+    "Use Delta format for MERGE support on Gap Registry",
+    "Quality History is append-only (simple INSERT)",
+    "Low Confidence Audit can be overwrite or append depending on preference",
+    "Task 017 will populate with sample data after tables exist"
+  ]
+}
