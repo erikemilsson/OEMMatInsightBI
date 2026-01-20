@@ -1,0 +1,123 @@
+table gold_quality_history
+	lineageTag: a1b2c3d4-0019-0001-0001-000000000001
+	sourceLineageTag: [dbo].[gold_quality_history]
+
+	measure 'Latest Coverage Rate' =
+			VAR LatestRun = MAXX(gold_quality_history, gold_quality_history[refresh_timestamp])
+			RETURN
+			    CALCULATE(
+			        AVERAGE(gold_quality_history[metric_value]),
+			        gold_quality_history[refresh_timestamp] = LatestRun,
+			        gold_quality_history[metric_name] = "coverage_rate"
+			    )
+		formatString: 0.0%;-0.0%;0.0%
+		displayFolder: Quality Observability
+		lineageTag: a1b2c3d4-0019-0001-0001-000000000101
+
+	measure 'Latest Match Rate' =
+			VAR LatestRun = MAXX(gold_quality_history, gold_quality_history[refresh_timestamp])
+			RETURN
+			    CALCULATE(
+			        AVERAGE(gold_quality_history[metric_value]),
+			        gold_quality_history[refresh_timestamp] = LatestRun,
+			        gold_quality_history[metric_name] = "match_rate"
+			    )
+		formatString: 0.0%;-0.0%;0.0%
+		displayFolder: Quality Observability
+		lineageTag: a1b2c3d4-0019-0001-0001-000000000102
+
+	measure 'Pipeline Runs Count' =
+			DISTINCTCOUNT(gold_quality_history[refresh_timestamp])
+		formatString: #,##0
+		displayFolder: Quality Observability
+		lineageTag: a1b2c3d4-0019-0001-0001-000000000103
+
+	measure 'Threshold Breaches' =
+			CALCULATE(
+			    COUNTROWS(gold_quality_history),
+			    gold_quality_history[breach_flag] = TRUE
+			)
+		formatString: #,##0
+		displayFolder: Quality Observability
+		lineageTag: a1b2c3d4-0019-0001-0001-000000000104
+
+	measure 'Quality Metrics Count' =
+			COUNTROWS(gold_quality_history)
+		formatString: #,##0
+		displayFolder: Quality Observability
+		lineageTag: a1b2c3d4-0019-0001-0001-000000000105
+
+	column refresh_timestamp
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: a1b2c3d4-0019-0001-0001-000000000011
+		sourceLineageTag: refresh_timestamp
+		summarizeBy: none
+		sourceColumn: refresh_timestamp
+
+		annotation SummarizationSetBy = Automatic
+
+	column layer
+		dataType: string
+		lineageTag: a1b2c3d4-0019-0001-0001-000000000012
+		sourceLineageTag: layer
+		summarizeBy: none
+		sourceColumn: layer
+
+		annotation SummarizationSetBy = Automatic
+
+	column entity
+		dataType: string
+		lineageTag: a1b2c3d4-0019-0001-0001-000000000013
+		sourceLineageTag: entity
+		summarizeBy: none
+		sourceColumn: entity
+
+		annotation SummarizationSetBy = Automatic
+
+	column metric_name
+		dataType: string
+		lineageTag: a1b2c3d4-0019-0001-0001-000000000014
+		sourceLineageTag: metric_name
+		summarizeBy: none
+		sourceColumn: metric_name
+
+		annotation SummarizationSetBy = Automatic
+
+	column metric_value
+		dataType: double
+		lineageTag: a1b2c3d4-0019-0001-0001-000000000015
+		sourceLineageTag: metric_value
+		summarizeBy: average
+		sourceColumn: metric_value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column threshold
+		dataType: double
+		lineageTag: a1b2c3d4-0019-0001-0001-000000000016
+		sourceLineageTag: threshold
+		summarizeBy: none
+		sourceColumn: threshold
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column breach_flag
+		dataType: boolean
+		lineageTag: a1b2c3d4-0019-0001-0001-000000000017
+		sourceLineageTag: breach_flag
+		summarizeBy: none
+		sourceColumn: breach_flag
+
+		annotation SummarizationSetBy = Automatic
+
+	partition gold_quality_history = entity
+		mode: directLake
+		source
+			entityName: gold_quality_history
+			expressionSource: 'DirectLake - oem_lh'
+

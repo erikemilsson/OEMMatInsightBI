@@ -20,4 +20,7 @@ ref table fact_epi_score
 ref table gold_dim_indicator
 ref table fact_procurement
 ref table fact_supply_share
+ref table gold_quality_history
+ref table gold_gap_registry
+ref table gold_low_confidence_audit
 

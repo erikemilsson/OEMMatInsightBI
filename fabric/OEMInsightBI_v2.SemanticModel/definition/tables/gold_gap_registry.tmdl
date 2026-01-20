@@ -1,0 +1,170 @@
+table gold_gap_registry
+	lineageTag: a1b2c3d4-0019-0002-0001-000000000001
+	sourceLineageTag: [dbo].[gold_gap_registry]
+
+	measure 'Open Gaps Count' =
+			CALCULATE(
+			    COUNTROWS(gold_gap_registry),
+			    gold_gap_registry[current_status] = "Open"
+			)
+		formatString: #,##0
+		displayFolder: Quality Observability
+		lineageTag: a1b2c3d4-0019-0002-0001-000000000101
+
+	measure 'Resolved Gaps Count' =
+			CALCULATE(
+			    COUNTROWS(gold_gap_registry),
+			    gold_gap_registry[current_status] = "Resolved"
+			)
+		formatString: #,##0
+		displayFolder: Quality Observability
+		lineageTag: a1b2c3d4-0019-0002-0001-000000000102
+
+	measure 'Total Gaps Count' =
+			COUNTROWS(gold_gap_registry)
+		formatString: #,##0
+		displayFolder: Quality Observability
+		lineageTag: a1b2c3d4-0019-0002-0001-000000000103
+
+	measure 'Gap Resolution Rate' =
+			VAR Resolved = [Resolved Gaps Count]
+			VAR Total = [Total Gaps Count]
+			RETURN
+			    DIVIDE(Resolved, Total, 0)
+		formatString: 0.0%;-0.0%;0.0%
+		displayFolder: Quality Observability
+		lineageTag: a1b2c3d4-0019-0002-0001-000000000104
+
+	measure 'Avg Gap Age Days' =
+			AVERAGEX(
+			    FILTER(gold_gap_registry, gold_gap_registry[current_status] = "Open"),
+			    DATEDIFF(gold_gap_registry[first_seen], TODAY(), DAY)
+			)
+		formatString: #,##0
+		displayFolder: Quality Observability
+		lineageTag: a1b2c3d4-0019-0002-0001-000000000105
+
+	measure 'Total Gap Occurrences' =
+			SUM(gold_gap_registry[total_occurrences])
+		formatString: #,##0
+		displayFolder: Quality Observability
+		lineageTag: a1b2c3d4-0019-0002-0001-000000000106
+
+	measure 'Estimated Gap Impact' =
+			SUM(gold_gap_registry[estimated_impact])
+		formatString: €#,##0
+		displayFolder: Quality Observability
+		lineageTag: a1b2c3d4-0019-0002-0001-000000000107
+
+	column gap_id
+		dataType: int64
+		formatString: 0
+		lineageTag: a1b2c3d4-0019-0002-0001-000000000011
+		sourceLineageTag: gap_id
+		summarizeBy: none
+		sourceColumn: gap_id
+
+		annotation SummarizationSetBy = Automatic
+
+	column gap_natural_key
+		dataType: string
+		lineageTag: a1b2c3d4-0019-0002-0001-000000000012
+		sourceLineageTag: gap_natural_key
+		summarizeBy: none
+		sourceColumn: gap_natural_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column entity
+		dataType: string
+		lineageTag: a1b2c3d4-0019-0002-0001-000000000013
+		sourceLineageTag: entity
+		summarizeBy: none
+		sourceColumn: entity
+
+		annotation SummarizationSetBy = Automatic
+
+	column gap_type
+		dataType: string
+		lineageTag: a1b2c3d4-0019-0002-0001-000000000014
+		sourceLineageTag: gap_type
+		summarizeBy: none
+		sourceColumn: gap_type
+
+		annotation SummarizationSetBy = Automatic
+
+	column first_seen
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: a1b2c3d4-0019-0002-0001-000000000015
+		sourceLineageTag: first_seen
+		summarizeBy: none
+		sourceColumn: first_seen
+
+		annotation SummarizationSetBy = Automatic
+
+	column last_seen
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: a1b2c3d4-0019-0002-0001-000000000016
+		sourceLineageTag: last_seen
+		summarizeBy: none
+		sourceColumn: last_seen
+
+		annotation SummarizationSetBy = Automatic
+
+	column total_occurrences
+		dataType: int64
+		formatString: 0
+		lineageTag: a1b2c3d4-0019-0002-0001-000000000017
+		sourceLineageTag: total_occurrences
+		summarizeBy: sum
+		sourceColumn: total_occurrences
+
+		annotation SummarizationSetBy = Automatic
+
+	column current_status
+		dataType: string
+		lineageTag: a1b2c3d4-0019-0002-0001-000000000018
+		sourceLineageTag: current_status
+		summarizeBy: none
+		sourceColumn: current_status
+
+		annotation SummarizationSetBy = Automatic
+
+	column estimated_impact
+		dataType: double
+		lineageTag: a1b2c3d4-0019-0002-0001-000000000019
+		sourceLineageTag: estimated_impact
+		summarizeBy: sum
+		sourceColumn: estimated_impact
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column resolution_date
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: a1b2c3d4-0019-0002-0001-000000000020
+		sourceLineageTag: resolution_date
+		summarizeBy: none
+		sourceColumn: resolution_date
+
+		annotation SummarizationSetBy = Automatic
+
+	column resolution_notes
+		dataType: string
+		lineageTag: a1b2c3d4-0019-0002-0001-000000000021
+		sourceLineageTag: resolution_notes
+		summarizeBy: none
+		sourceColumn: resolution_notes
+
+		annotation SummarizationSetBy = Automatic
+
+	partition gold_gap_registry = entity
+		mode: directLake
+		source
+			entityName: gold_gap_registry
+			expressionSource: 'DirectLake - oem_lh'
+

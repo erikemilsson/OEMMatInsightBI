@@ -9,23 +9,23 @@
 ## Progress Overview
 
 ```
-Tasks Complete: ██████████████████░░░░░░░░░░░░░░ 56% (10/18)
+Tasks Complete: ███████████████████░░░░░░░░░░░░░ 58% (11/19)
 P1 Tasks:       ████████████████████████████████ 100% (8/8 complete)
-Claude Work:    ████████████████████████████░░░░ 86% (Task 018 testing pending)
+Claude Work:    ████████████████████████████████ 100% (Ready for Task 019)
 ```
 
 | Status | Tasks |
 |--------|-------|
-| **Finished** | 001, 002, 003, 004, 008, 009, 013, 014, 015, 016 |
-| **In Progress** | **018** (Erik: test in Fabric) |
-| **Pending** | 005, 006, 007, 010, 011, 012, **017**, **019** (NEW) |
+| **Finished** | 001, 002, 003, 004, 008, 009, 013, 014, 015, 016, **018** |
+| **In Progress** | **019** (Erik: sync semantic model) |
+| **Pending** | 005, 006, 007, 010, 011, 012, 017 |
 
 ### Task Ownership (Pending Tasks)
 
 | Task | Claude Does | Erik Does |
 |------|-------------|-----------|
-| **018** | ✅ Done | Test in Fabric |
-| **019** | Write TMDL + DAX | Sync & refresh model |
+| **018** | ✅ Done | ✅ Verified |
+| **019** | ✅ Done (3 TMDL + 17 DAX) | Sync & refresh model |
 | **017** | Write sample data script | Run in Fabric |
 | **005** | Write Copy Activity + API notebook | Deploy & test |
 | **006** | Write MERGE logic + parameters | Deploy & test loads |
@@ -35,7 +35,7 @@ Claude Work:    █████████████████████�
 | **012** | Write optimization code | **Run baselines & validate** |
 
 **Ready for Claude now:** 019, 017, 005, 006, 007, 011
-**Blocked until Erik tests 018:** 019, 017, 007
+**No longer blocked:** 019, 017, 007 (Task 018 verified ✅)
 **Primarily Erik tasks:** 010, 012
 
 ---
@@ -111,33 +111,30 @@ flowchart TB
 
 ## Your Action Items (Erik)
 
-| # | Task | Action | Time |
-|---|------|--------|------|
-| 1 | **ALL** | `git pull` to get today's changes | 1 min |
-| 2 | **018** | Sync Fabric workspace from Git | 2 min |
-| 3 | **018** | Run `silver-to-gold2.Notebook` in Fabric | 5 min |
-| 4 | **018** | Verify 3 new tables have data (see queries below) | 3 min |
+| # | Task | Action |
+|---|------|--------|
+| 1 | **ALL** | `git pull` to get new TMDL files |
+| 2 | **019** | Sync semantic model from Git to Fabric |
+| 3 | **019** | Refresh semantic model in Fabric |
+| 4 | **019** | Verify 3 new tables appear in Power BI (see below) |
 
-### Verification Queries for Task 018
+### Task 019 Verification
 
-After running the notebook, check these tables exist and have data:
+After syncing and refreshing the semantic model, you should see these new tables:
 
-```sql
--- Quality History (should have ~10 metrics from this run)
-SELECT * FROM oem_lh.gold_quality_history;
+| Table | Columns | DAX Measures |
+|-------|---------|--------------|
+| gold_quality_history | 7 | 5 (Latest Coverage Rate, Latest Match Rate, etc.) |
+| gold_gap_registry | 11 | 7 (Open Gaps Count, Resolved Gaps Count, etc.) |
+| gold_low_confidence_audit | 8 | 5 (Low Confidence Matches Count, etc.) |
 
--- Gap Registry (unmapped values with lifecycle tracking)
-SELECT * FROM oem_lh.gold_gap_registry;
-
--- Low Confidence Audit (fuzzy matches < 0.95 confidence)
-SELECT * FROM oem_lh.gold_low_confidence_audit;
-```
+All measures are in the "Quality Observability" display folder.
 
 ---
 
-## Task 018: Quality Observability Tables (NEW)
+## Task 018: Quality Observability Tables ✅ COMPLETE
 
-### What Was Built (Claude Complete - 6/7 Subtasks)
+### What Was Built
 
 **New Tables (Delta format for MERGE support):**
 | Table | Purpose | Population Method |
@@ -156,10 +153,13 @@ SELECT * FROM oem_lh.gold_low_confidence_audit;
 - "This gap has been open for 3 months affecting €50K" (gap lifecycle)
 - "Review these fuzzy matches: Singpaore → Singapore at 85% confidence" (audit)
 
-### What You'll Test
+### Verification Results (2026-01-20)
 
-1. Run notebook once → tables created and populated
-2. Run notebook again (optional) → verify MERGE updates (not duplicates)
+| Table | Rows | Status |
+|-------|------|--------|
+| gold_quality_history | 40 | ✅ 4 pipeline runs captured |
+| gold_gap_registry | 37 | ✅ MERGE working (first_seen/last_seen tracked) |
+| gold_low_confidence_audit | 4 | ✅ Low confidence matches captured |
 
 ---
 
@@ -175,16 +175,23 @@ SELECT * FROM oem_lh.gold_low_confidence_audit;
 
 ---
 
-## Completed This Session (2026-01-19)
+## Completed This Session (2026-01-20)
 
-### Task 018 Implementation
+### Task 018 Implementation ✅ VERIFIED
 - [x] Created `gold_quality_history` table definition
 - [x] Created `gold_gap_registry` table definition
 - [x] Created `gold_low_confidence_audit` table definition
 - [x] Implemented Quality History append logic
 - [x] Implemented Gap Registry MERGE logic
 - [x] Implemented Low Confidence Audit capture
-- [ ] **Erik:** Test in Fabric and verify tables populate
+- [x] **Erik:** Tested in Fabric - all 3 tables verified with data
+
+### Task 019 Semantic Model (Claude Complete)
+- [x] Created `gold_quality_history.tmdl` (7 columns, 5 DAX measures)
+- [x] Created `gold_gap_registry.tmdl` (11 columns, 7 DAX measures)
+- [x] Created `gold_low_confidence_audit.tmdl` (8 columns, 5 DAX measures)
+- [x] Added table references to `model.tmdl`
+- [ ] **Erik:** Sync semantic model to Fabric and verify tables
 
 ### Documentation Updates
 - [x] Updated `data_quality_architecture.md` with refined scope
@@ -211,9 +218,9 @@ SELECT * FROM oem_lh.gold_low_confidence_audit;
 | Metric | Value |
 |--------|-------|
 | Total Tasks | 19 |
-| Completed | 10 (53%) |
-| In Progress | 1 (018) |
-| Pending | 8 |
+| Completed | 11 (58%) |
+| In Progress | 1 (019) |
+| Pending | 7 |
 | P1 Progress | 100% (8/8) |
 
 ---
@@ -237,4 +244,4 @@ pytest tests/ -v          # Run tests (optional)
 ---
 
 *Last Session: 2026-01-20*
-*Next Action: Erik tests Task 018 in Fabric (run notebook, verify tables)*
+*Next Action: Erik syncs semantic model and verifies Task 019 tables in Power BI*

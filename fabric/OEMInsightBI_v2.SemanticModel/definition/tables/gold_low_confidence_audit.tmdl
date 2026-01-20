@@ -1,0 +1,121 @@
+table gold_low_confidence_audit
+	lineageTag: a1b2c3d4-0019-0003-0001-000000000001
+	sourceLineageTag: [dbo].[gold_low_confidence_audit]
+
+	measure 'Low Confidence Matches Count' =
+			COUNTROWS(gold_low_confidence_audit)
+		formatString: #,##0
+		displayFolder: Quality Observability
+		lineageTag: a1b2c3d4-0019-0003-0001-000000000101
+
+	measure 'Avg Match Confidence' =
+			AVERAGE(gold_low_confidence_audit[confidence])
+		formatString: 0.00
+		displayFolder: Quality Observability
+		lineageTag: a1b2c3d4-0019-0003-0001-000000000102
+
+	measure 'Low Confidence Spend Impact' =
+			SUM(gold_low_confidence_audit[spend_impact])
+		formatString: €#,##0
+		displayFolder: Quality Observability
+		lineageTag: a1b2c3d4-0019-0003-0001-000000000103
+
+	measure 'Low Confidence Frequency' =
+			SUM(gold_low_confidence_audit[frequency])
+		formatString: #,##0
+		displayFolder: Quality Observability
+		lineageTag: a1b2c3d4-0019-0003-0001-000000000104
+
+	measure 'Critical Low Confidence Count' =
+			CALCULATE(
+			    COUNTROWS(gold_low_confidence_audit),
+			    gold_low_confidence_audit[confidence] < 0.80
+			)
+		formatString: #,##0
+		displayFolder: Quality Observability
+		lineageTag: a1b2c3d4-0019-0003-0001-000000000105
+
+	column source_value
+		dataType: string
+		lineageTag: a1b2c3d4-0019-0003-0001-000000000011
+		sourceLineageTag: source_value
+		summarizeBy: none
+		sourceColumn: source_value
+
+		annotation SummarizationSetBy = Automatic
+
+	column matched_to
+		dataType: string
+		lineageTag: a1b2c3d4-0019-0003-0001-000000000012
+		sourceLineageTag: matched_to
+		summarizeBy: none
+		sourceColumn: matched_to
+
+		annotation SummarizationSetBy = Automatic
+
+	column confidence
+		dataType: double
+		lineageTag: a1b2c3d4-0019-0003-0001-000000000013
+		sourceLineageTag: confidence
+		summarizeBy: average
+		sourceColumn: confidence
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column entity
+		dataType: string
+		lineageTag: a1b2c3d4-0019-0003-0001-000000000014
+		sourceLineageTag: entity
+		summarizeBy: none
+		sourceColumn: entity
+
+		annotation SummarizationSetBy = Automatic
+
+	column match_type
+		dataType: string
+		lineageTag: a1b2c3d4-0019-0003-0001-000000000015
+		sourceLineageTag: match_type
+		summarizeBy: none
+		sourceColumn: match_type
+
+		annotation SummarizationSetBy = Automatic
+
+	column frequency
+		dataType: int64
+		formatString: 0
+		lineageTag: a1b2c3d4-0019-0003-0001-000000000016
+		sourceLineageTag: frequency
+		summarizeBy: sum
+		sourceColumn: frequency
+
+		annotation SummarizationSetBy = Automatic
+
+	column spend_impact
+		dataType: double
+		lineageTag: a1b2c3d4-0019-0003-0001-000000000017
+		sourceLineageTag: spend_impact
+		summarizeBy: sum
+		sourceColumn: spend_impact
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column last_seen
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: a1b2c3d4-0019-0003-0001-000000000018
+		sourceLineageTag: last_seen
+		summarizeBy: none
+		sourceColumn: last_seen
+
+		annotation SummarizationSetBy = Automatic
+
+	partition gold_low_confidence_audit = entity
+		mode: directLake
+		source
+			entityName: gold_low_confidence_audit
+			expressionSource: 'DirectLake - oem_lh'
+

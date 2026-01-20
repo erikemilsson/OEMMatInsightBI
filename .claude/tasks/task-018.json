@@ -2,7 +2,8 @@
   "id": "task-018",
   "title": "Implement Quality Observability Tables in Notebook",
   "description": "Add table creation and population logic for gold_quality_history, gold_gap_registry, and gold_low_confidence_audit to the silver-to-gold2 notebook.",
-  "status": "In Progress",
+  "status": "Finished",
+  "completionDate": "2026-01-20",
   "priority": "P2",
   "difficulty": 5,
   "estimatedEffort": "1-2 days",
@@ -81,7 +82,8 @@
     {
       "id": "task-018-7",
       "title": "Test in Fabric and verify tables populate",
-      "status": "Pending",
+      "status": "Finished",
+      "completedDate": "2026-01-20",
       "owner": "Erik",
       "details": "Run pipeline, check tables have data, verify MERGE works on second run"
     }
