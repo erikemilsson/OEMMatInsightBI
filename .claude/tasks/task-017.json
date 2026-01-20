@@ -2,7 +2,7 @@
   "id": "task-017",
   "title": "Populate Quality History & Gap Registry with Sample Data",
   "description": "Create realistic sample data for gold_quality_history and gold_gap_registry tables to demonstrate their value before organic data accumulates.",
-  "status": "Pending",
+  "status": "In Progress",
   "priority": "P2",
   "difficulty": 4,
   "estimatedEffort": "0.5-1 day",
@@ -36,32 +36,37 @@
   ],
   "relatedFiles": [
     "/.claude/context/data_quality_architecture.md",
-    "/fabric/silver-to-gold2.Notebook/"
+    "/fabric/silver-to-gold2.Notebook/",
+    "/fabric/sample-quality-data.Notebook/"
   ],
   "subtasks": [
     {
       "id": "task-017-1",
       "title": "Design sample data scenarios",
-      "status": "Pending",
+      "status": "Finished",
+      "completedDate": "2026-01-20",
       "details": "Define 5 simulated pipeline runs with realistic metric progression"
     },
     {
       "id": "task-017-2",
       "title": "Create SQL/PySpark script to insert sample quality_history rows",
-      "status": "Pending",
-      "details": "Backdated metrics: coverage_rate, match_rate, unmapped_count per run"
+      "status": "Finished",
+      "completedDate": "2026-01-20",
+      "details": "25 rows: 5 metrics x 5 runs spanning Jan 1-18, showing coverage 85%->99%"
     },
     {
       "id": "task-017-3",
       "title": "Create SQL/PySpark script to insert sample gap_registry rows",
-      "status": "Pending",
-      "details": "Show gaps appearing, persisting, and being resolved over time"
+      "status": "Finished",
+      "completedDate": "2026-01-20",
+      "details": "12 gaps: 7 resolved + 5 open, with lifecycle from Jan 1-18"
     },
     {
       "id": "task-017-4",
       "title": "Validate sample data renders correctly in reports",
       "status": "Pending",
-      "details": "Build simple trend chart to verify the data tells a coherent story"
+      "owner": "Erik",
+      "details": "Run notebook in Fabric, build trend chart to verify the story"
     }
   ],
   "sampleDataScenarios": {

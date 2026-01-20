@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "sample-quality-data",
+    "description": "Task 017: Populate quality tables with backdated sample data for demo purposes"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "sample-quality-data-017"
+  }
+}

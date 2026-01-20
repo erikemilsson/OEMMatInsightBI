@@ -9,23 +9,23 @@
 ## Progress Overview
 
 ```
-Tasks Complete: ███████████████████░░░░░░░░░░░░░ 58% (11/19)
+Tasks Complete: ████████████████████░░░░░░░░░░░░ 63% (12/19)
 P1 Tasks:       ████████████████████████████████ 100% (8/8 complete)
-Claude Work:    ████████████████████████████████ 100% (Ready for Task 019)
+Claude Work:    ████████████████████████████████ 100% (Ready for next task)
 ```
 
 | Status | Tasks |
 |--------|-------|
-| **Finished** | 001, 002, 003, 004, 008, 009, 013, 014, 015, 016, **018** |
-| **In Progress** | **019** (Erik: sync semantic model) |
-| **Pending** | 005, 006, 007, 010, 011, 012, 017 |
+| **Finished** | 001, 002, 003, 004, 008, 009, 013, 014, 015, 016, **018**, **019** |
+| **In Progress** | **017** (Claude done, Erik to run) |
+| **Pending** | 005, 006, 007, 010, 011, 012 |
 
 ### Task Ownership (Pending Tasks)
 
 | Task | Claude Does | Erik Does |
 |------|-------------|-----------|
 | **018** | ✅ Done | ✅ Verified |
-| **019** | ✅ Done (3 TMDL + 17 DAX) | Sync & refresh model |
+| **019** | ✅ Done (3 TMDL + 17 DAX) | ✅ Verified |
 | **017** | Write sample data script | Run in Fabric |
 | **005** | Write Copy Activity + API notebook | Deploy & test |
 | **006** | Write MERGE logic + parameters | Deploy & test loads |
@@ -34,8 +34,8 @@ Claude Work:    █████████████████████�
 | **010** | Write docs | **Configure in Fabric UI** |
 | **012** | Write optimization code | **Run baselines & validate** |
 
-**Ready for Claude now:** 019, 017, 005, 006, 007, 011
-**No longer blocked:** 019, 017, 007 (Task 018 verified ✅)
+**Ready for Claude now:** 005, 006, 007, 011
+**Waiting for Erik:** 017 (run sample-quality-data notebook)
 **Primarily Erik tasks:** 010, 012
 
 ---
@@ -111,24 +111,13 @@ flowchart TB
 
 ## Your Action Items (Erik)
 
+*Task 017 sample data script ready! Run notebook to seed demo data.*
+
 | # | Task | Action |
 |---|------|--------|
-| 1 | **ALL** | `git pull` to get new TMDL files |
-| 2 | **019** | Sync semantic model from Git to Fabric |
-| 3 | **019** | Refresh semantic model in Fabric |
-| 4 | **019** | Verify 3 new tables appear in Power BI (see below) |
-
-### Task 019 Verification
-
-After syncing and refreshing the semantic model, you should see these new tables:
-
-| Table | Columns | DAX Measures |
-|-------|---------|--------------|
-| gold_quality_history | 7 | 5 (Latest Coverage Rate, Latest Match Rate, etc.) |
-| gold_gap_registry | 11 | 7 (Open Gaps Count, Resolved Gaps Count, etc.) |
-| gold_low_confidence_audit | 8 | 5 (Low Confidence Matches Count, etc.) |
-
-All measures are in the "Quality Observability" display folder.
+| 1 | **017** | **Run `sample-quality-data` notebook in Fabric** |
+| 2 | **010** | Configure pipeline scheduling in Fabric UI |
+| 3 | **012** | Run performance baselines |
 
 ---
 
@@ -163,15 +152,22 @@ All measures are in the "Quality Observability" display folder.
 
 ---
 
-## Task 017: Sample Data for Demo (Pending)
+## Task 017: Sample Data for Demo (In Progress - Erik to run)
 
-**Depends on:** Task 018 verified working
+**Notebook:** `fabric/sample-quality-data.Notebook`
 
-**Purpose:** Populate quality_history and gap_registry with backdated sample data to demonstrate trending before organic data accumulates.
+**What it inserts:**
+| Table | Rows | Data |
+|-------|------|------|
+| gold_quality_history | 25 | 5 runs (Jan 1-18), coverage 85%→99% |
+| gold_gap_registry | 12 | 7 resolved + 5 open gaps |
 
-**Why:** Without historical data, can't demo:
-- "Coverage improved from 85% to 100%"
-- "This gap has been open for 3 months"
+**Story demonstrated:**
+- Coverage improved from 85% (Jan 1) to 99% (Jan 18)
+- 7 gaps resolved through alias mappings
+- 5 gaps still open (prioritized by impact)
+
+**Sample data is marked with `[SAMPLE]` in resolution_notes for easy identification.**
 
 ---
 
@@ -186,12 +182,12 @@ All measures are in the "Quality Observability" display folder.
 - [x] Implemented Low Confidence Audit capture
 - [x] **Erik:** Tested in Fabric - all 3 tables verified with data
 
-### Task 019 Semantic Model (Claude Complete)
+### Task 019 Semantic Model ✅ VERIFIED
 - [x] Created `gold_quality_history.tmdl` (7 columns, 5 DAX measures)
 - [x] Created `gold_gap_registry.tmdl` (11 columns, 7 DAX measures)
 - [x] Created `gold_low_confidence_audit.tmdl` (8 columns, 5 DAX measures)
 - [x] Added table references to `model.tmdl`
-- [ ] **Erik:** Sync semantic model to Fabric and verify tables
+- [x] **Erik:** Synced semantic model to Fabric and verified tables
 
 ### Documentation Updates
 - [x] Updated `data_quality_architecture.md` with refined scope
@@ -218,8 +214,8 @@ All measures are in the "Quality Observability" display folder.
 | Metric | Value |
 |--------|-------|
 | Total Tasks | 19 |
-| Completed | 11 (58%) |
-| In Progress | 1 (019) |
+| Completed | 12 (63%) |
+| In Progress | 0 |
 | Pending | 7 |
 | P1 Progress | 100% (8/8) |
 
@@ -244,4 +240,4 @@ pytest tests/ -v          # Run tests (optional)
 ---
 
 *Last Session: 2026-01-20*
-*Next Action: Erik syncs semantic model and verifies Task 019 tables in Power BI*
+*Next Action: Run `sample-quality-data` notebook in Fabric to seed demo data*
