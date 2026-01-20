@@ -87,42 +87,44 @@ from datetime import datetime, timedelta
 # =============================================================================
 
 # Define 5 simulated pipeline runs with progressive improvement
+# NOTE: coverage_rate, match_rate, high_quality_pct use WHOLE PERCENTAGES (85 = 85%)
+#       to match the format used by the real populate_quality_history() function
 sample_runs = [
     # (timestamp, layer, entity, metric_name, metric_value, threshold, breach_flag)
 
     # --- Run 1: Jan 1, 2026 - Initial baseline (85% coverage) ---
-    ("2026-01-01 08:00:00", "Gold", "fact_procurement", "coverage_rate", 0.85, 0.95, True),
-    ("2026-01-01 08:00:00", "Gold", "fact_procurement", "match_rate", 0.92, 0.95, True),
+    ("2026-01-01 08:00:00", "Gold", "fact_procurement", "coverage_rate", 85.0, 95.0, True),
+    ("2026-01-01 08:00:00", "Gold", "fact_procurement", "match_rate", 92.0, 95.0, True),
     ("2026-01-01 08:00:00", "Gold", "fact_procurement", "unmapped_count", 15.0, 5.0, True),
-    ("2026-01-01 08:00:00", "Gold", "fact_procurement", "high_quality_pct", 0.78, 0.80, True),
+    ("2026-01-01 08:00:00", "Gold", "fact_procurement", "high_quality_pct", 78.0, 80.0, True),
     ("2026-01-01 08:00:00", "Gold", "gold_dim_country", "active_countries", 45.0, None, False),
 
     # --- Run 2: Jan 5, 2026 - Added country aliases (88% coverage) ---
-    ("2026-01-05 09:30:00", "Gold", "fact_procurement", "coverage_rate", 0.88, 0.95, True),
-    ("2026-01-05 09:30:00", "Gold", "fact_procurement", "match_rate", 0.93, 0.95, True),
+    ("2026-01-05 09:30:00", "Gold", "fact_procurement", "coverage_rate", 88.0, 95.0, True),
+    ("2026-01-05 09:30:00", "Gold", "fact_procurement", "match_rate", 93.0, 95.0, True),
     ("2026-01-05 09:30:00", "Gold", "fact_procurement", "unmapped_count", 12.0, 5.0, True),
-    ("2026-01-05 09:30:00", "Gold", "fact_procurement", "high_quality_pct", 0.82, 0.80, False),
+    ("2026-01-05 09:30:00", "Gold", "fact_procurement", "high_quality_pct", 82.0, 80.0, False),
     ("2026-01-05 09:30:00", "Gold", "gold_dim_country", "active_countries", 48.0, None, False),
 
     # --- Run 3: Jan 10, 2026 - Material cleanup (92% coverage) ---
-    ("2026-01-10 10:15:00", "Gold", "fact_procurement", "coverage_rate", 0.92, 0.95, True),
-    ("2026-01-10 10:15:00", "Gold", "fact_procurement", "match_rate", 0.95, 0.95, False),
+    ("2026-01-10 10:15:00", "Gold", "fact_procurement", "coverage_rate", 92.0, 95.0, True),
+    ("2026-01-10 10:15:00", "Gold", "fact_procurement", "match_rate", 95.0, 95.0, False),
     ("2026-01-10 10:15:00", "Gold", "fact_procurement", "unmapped_count", 8.0, 5.0, True),
-    ("2026-01-10 10:15:00", "Gold", "fact_procurement", "high_quality_pct", 0.87, 0.80, False),
+    ("2026-01-10 10:15:00", "Gold", "fact_procurement", "high_quality_pct", 87.0, 80.0, False),
     ("2026-01-10 10:15:00", "Gold", "gold_dim_material", "active_materials", 125.0, None, False),
 
     # --- Run 4: Jan 15, 2026 - Major cleanup sprint (96% coverage) ---
-    ("2026-01-15 11:00:00", "Gold", "fact_procurement", "coverage_rate", 0.96, 0.95, False),
-    ("2026-01-15 11:00:00", "Gold", "fact_procurement", "match_rate", 0.97, 0.95, False),
+    ("2026-01-15 11:00:00", "Gold", "fact_procurement", "coverage_rate", 96.0, 95.0, False),
+    ("2026-01-15 11:00:00", "Gold", "fact_procurement", "match_rate", 97.0, 95.0, False),
     ("2026-01-15 11:00:00", "Gold", "fact_procurement", "unmapped_count", 4.0, 5.0, False),
-    ("2026-01-15 11:00:00", "Gold", "fact_procurement", "high_quality_pct", 0.92, 0.80, False),
+    ("2026-01-15 11:00:00", "Gold", "fact_procurement", "high_quality_pct", 92.0, 80.0, False),
     ("2026-01-15 11:00:00", "Gold", "gold_dim_country", "active_countries", 52.0, None, False),
 
     # --- Run 5: Jan 18, 2026 - Near complete (99% coverage) ---
-    ("2026-01-18 14:30:00", "Gold", "fact_procurement", "coverage_rate", 0.99, 0.95, False),
-    ("2026-01-18 14:30:00", "Gold", "fact_procurement", "match_rate", 0.99, 0.95, False),
+    ("2026-01-18 14:30:00", "Gold", "fact_procurement", "coverage_rate", 99.0, 95.0, False),
+    ("2026-01-18 14:30:00", "Gold", "fact_procurement", "match_rate", 99.0, 95.0, False),
     ("2026-01-18 14:30:00", "Gold", "fact_procurement", "unmapped_count", 2.0, 5.0, False),
-    ("2026-01-18 14:30:00", "Gold", "fact_procurement", "high_quality_pct", 0.96, 0.80, False),
+    ("2026-01-18 14:30:00", "Gold", "fact_procurement", "high_quality_pct", 96.0, 80.0, False),
     ("2026-01-18 14:30:00", "Gold", "gold_dim_material", "active_materials", 132.0, None, False),
 ]
 
