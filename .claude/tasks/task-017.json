@@ -28,9 +28,11 @@
     "Can build a trend chart showing quality improvement over time"
   ],
   "dependencies": [
-    "gold_quality_history table created (from data_quality_architecture.md)",
-    "gold_gap_registry table created (from data_quality_architecture.md)",
-    "Table schemas finalized"
+    "task-018",
+    "task-019",
+    "gold_quality_history table created (from Task 018)",
+    "gold_gap_registry table created (from Task 018)",
+    "Semantic model updated with quality tables (from Task 019)"
   ],
   "relatedFiles": [
     "/.claude/context/data_quality_architecture.md",
@@ -76,8 +78,13 @@
     ]
   },
   "notes": [
+    "DEPENDENCIES: Task 018 (creates tables) and Task 019 (adds to semantic model)",
+    "Task 019 required so sample data can be visualized in Power BI dashboards",
     "This task exists because quality infrastructure without demo data is hard to validate",
     "Real data will supplement/replace sample data as pipeline runs accumulate",
-    "Sample data should be realistic but not attempt to match actual procurement values"
+    "Sample data should be realistic but not attempt to match actual procurement values",
+    "--- HANDOFF ---",
+    "CLAUDE: Write PySpark/SQL script with backdated sample data inserts",
+    "ERIK: Run script in Fabric, verify data appears in Power BI, build trend chart"
   ]
 }

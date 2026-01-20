@@ -1,0 +1,75 @@
+{
+  "id": "task-019",
+  "title": "Add Quality Observability Tables to Semantic Model",
+  "description": "Add gold_quality_history, gold_gap_registry, and gold_low_confidence_audit tables to OEMInsightBI_v2 semantic model so Power BI can query them for quality dashboards.",
+  "status": "Pending",
+  "priority": "P2",
+  "difficulty": 4,
+  "estimatedEffort": "0.5-1 day",
+  "owner": "Claude Code",
+  "reasoning": {
+    "why": "Task 018 creates 3 quality tables in the lakehouse, but without semantic model definitions, Power BI cannot query these tables. This task bridges that gap.",
+    "businessValue": [
+      "Enables Power BI dashboards to show quality trends",
+      "Allows building the quality monitoring dashboard",
+      "Completes the data-to-visualization pipeline for quality observability"
+    ]
+  },
+  "acceptanceCriteria": [
+    "gold_quality_history.tmdl added to semantic model",
+    "gold_gap_registry.tmdl added to semantic model",
+    "gold_low_confidence_audit.tmdl added to semantic model",
+    "Appropriate relationships defined (date dimension, etc.)",
+    "3-5 DAX measures for quality reporting created",
+    "Tables visible in Power BI after semantic model refresh"
+  ],
+  "dependencies": [
+    "task-018"
+  ],
+  "relatedFiles": [
+    "/fabric/OEMInsightBI_v2.SemanticModel/",
+    "/.claude/context/data_quality_architecture.md",
+    "/fabric/silver-to-gold2.Notebook/"
+  ],
+  "notes": [
+    "Gap identified: Task 018 creates lakehouse tables but doesn't add them to semantic model",
+    "Pattern: Follow existing .tmdl files in OEMInsightBI_v2.SemanticModel for structure",
+    "DAX measures to create: Quality Score Trend, Gaps Open Count, Gaps Resolved Count, Low Confidence Match Count, Coverage Trend",
+    "--- HANDOFF ---",
+    "CLAUDE: Write TMDL table definitions, relationship config, DAX measures",
+    "ERIK: Sync semantic model to Fabric, refresh model, verify tables appear in Power BI"
+  ],
+  "subtasks": [
+    {
+      "id": "task-019-1",
+      "title": "Create gold_quality_history.tmdl",
+      "status": "Pending",
+      "details": "Define table structure with columns: pipeline_run_id, run_timestamp, entity_name, metric_name, metric_value"
+    },
+    {
+      "id": "task-019-2",
+      "title": "Create gold_gap_registry.tmdl",
+      "status": "Pending",
+      "details": "Define table structure with columns: gap_id, entity_type, unmapped_value, first_seen, last_seen, status, occurrences"
+    },
+    {
+      "id": "task-019-3",
+      "title": "Create gold_low_confidence_audit.tmdl",
+      "status": "Pending",
+      "details": "Define table structure with columns: audit_id, source_value, matched_value, confidence_score, entity_type"
+    },
+    {
+      "id": "task-019-4",
+      "title": "Define relationships to date dimension",
+      "status": "Pending",
+      "details": "Link run_timestamp/first_seen/last_seen to dim_date for time intelligence"
+    },
+    {
+      "id": "task-019-5",
+      "title": "Create quality DAX measures",
+      "status": "Pending",
+      "details": "Quality Score Trend, Gaps Open, Gaps Resolved, Low Confidence Count, Coverage % measures"
+    }
+  ],
+  "progress": "Not started"
+}

@@ -15,6 +15,7 @@
     "Power BI reports refresh automatically after pipeline run"
   ],
   "dependencies": [
+    "task-011",
     "Pipeline must be fully tested and working",
     "Source systems must be available at scheduled time (6:00 AM)",
     "Fabric workspace must have capacity for scheduled execution",
@@ -26,11 +27,16 @@
     "/project_definition.md (line 697)"
   ],
   "notes": [
+    "DEPENDENCY: Task 011 (Error Handling) should be complete before scheduling",
+    "Rationale: Automated pipeline needs proper error handling and retry logic in place",
     "Pipeline currently has no schedule configured - runs manually",
     "Recommended: Daily at 6:00 AM Europe/Stockholm (after nightly Azure SQL batch)",
     "Expected pipeline runtime: 15-30 minutes",
     "Schedule can be paused for maintenance periods",
-    "For portfolio showcase, document that scheduling is configured"
+    "For portfolio showcase, document that scheduling is configured",
+    "--- HANDOFF ---",
+    "CLAUDE: Document schedule configuration steps, write pipeline_schedule.md",
+    "ERIK: Configure schedule in Fabric UI (this is primarily an Erik task)"
   ],
   "recommendedSchedule": {
     "frequency": "Daily",

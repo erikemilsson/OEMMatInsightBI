@@ -36,7 +36,9 @@
     "Expected time savings: 94% (9 min → 30 sec) for incremental loads",
     "Focus on procurement data only - highest value for incremental load",
     "External datasets (EPI, WGI, EU) remain full refresh (annual updates)",
-    "Implementation deferred until Fabric workspace access is available"
+    "--- HANDOFF ---",
+    "CLAUDE: Write dataflow modifications, notebook MERGE logic, pipeline parameter wiring",
+    "ERIK: Deploy to Fabric, run test loads (full + incremental), verify no duplicates"
   ],
   "tableStrategy": {
     "incremental": [

@@ -12,13 +12,14 @@
   "acceptanceCriteria": [
     "Data quality framework notebook created with 9+ check functions",
     "DQ checks integrated into pipeline (after bronze, silver, gold activities)",
-    "DQ results table (gold_quality_audit) populated with check history",
+    "DQ check results written to gold_quality_history table (created by Task 018)",
     "Zero false positives in production runs",
     "Quality scoring system implemented (0-100 scale with categorization)",
     "Alert strategy configured by severity (Excellent to Critical)",
     "Documentation complete in data_quality_framework.md"
   ],
   "dependencies": [
+    "task-018",
     "Pipeline edit permissions",
     "Ability to create new notebook artifact",
     "Access to all bronze/silver/gold tables",
@@ -34,8 +35,12 @@
   "notes": [
     "Design phase ✅ COMPLETE - ISO 25012 framework, 9 check functions, scoring system",
     "Quality dimensions: Completeness, Accuracy, Consistency, Timeliness, Validity, Uniqueness",
-    "Implementation deferred until Fabric workspace access is available",
-    "This complements Task 01 (DQ visibility) by generating the underlying quality data"
+    "DEPENDENCY: Task 018 must be complete first (creates gold_quality_history table)",
+    "DQ check results should be written to gold_quality_history table for trend tracking",
+    "This complements Task 001 (DQ visibility) by generating the underlying quality data",
+    "--- HANDOFF ---",
+    "CLAUDE: Write DQ notebook with 9 check functions, scoring logic, pipeline integration code",
+    "ERIK: Deploy notebook to Fabric, add to pipeline, test alert notifications"
   ],
   "qualityDimensions": [
     "Completeness: Null rate, row count, field population",

@@ -33,8 +33,10 @@
   "notes": [
     "Design phase ✅ COMPLETE - Error categorization, retry config, logging, notifications",
     "Current: Fail-fast with 0 retries on all activities",
-    "Implementation deferred until Fabric workspace access is available",
-    "Balance retries vs fail-fast: don't mask real issues with excessive retries"
+    "Balance retries vs fail-fast: don't mask real issues with excessive retries",
+    "--- HANDOFF ---",
+    "CLAUDE: Write retry config JSON, error logging notebook, notification setup docs",
+    "ERIK: Deploy to Fabric, configure email notifications, test with simulated failures"
   ],
   "errorCategories": [
     {

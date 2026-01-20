@@ -2,23 +2,41 @@
 
 **OEMMatInsightBI Project Dashboard**
 
-*Last Updated: 2026-01-19*
+*Last Updated: 2026-01-20*
 
 ---
 
 ## Progress Overview
 
 ```
-Tasks Complete: ████████████████░░░░░░░░░░░░░░░░ 44% (8/18)
-P1 Tasks:       █████████████████████████████░░░ 88% (7/8 complete)
+Tasks Complete: ██████████████████░░░░░░░░░░░░░░ 56% (10/18)
+P1 Tasks:       ████████████████████████████████ 100% (8/8 complete)
 Claude Work:    ████████████████████████████░░░░ 86% (Task 018 testing pending)
 ```
 
 | Status | Tasks |
 |--------|-------|
-| **Finished** | 002, 003, 004, 008, 009, 013, 014, 015, 016 |
-| **In Progress** | 001 (Erik: build DQ page), **018** (Erik: test in Fabric) |
-| **Pending** | 005, 006, 007, 010, 011, 012, **017** |
+| **Finished** | 001, 002, 003, 004, 008, 009, 013, 014, 015, 016 |
+| **In Progress** | **018** (Erik: test in Fabric) |
+| **Pending** | 005, 006, 007, 010, 011, 012, **017**, **019** (NEW) |
+
+### Task Ownership (Pending Tasks)
+
+| Task | Claude Does | Erik Does |
+|------|-------------|-----------|
+| **018** | ✅ Done | Test in Fabric |
+| **019** | Write TMDL + DAX | Sync & refresh model |
+| **017** | Write sample data script | Run in Fabric |
+| **005** | Write Copy Activity + API notebook | Deploy & test |
+| **006** | Write MERGE logic + parameters | Deploy & test loads |
+| **007** | Write DQ notebook (9 checks) | Deploy & test alerts |
+| **011** | Write retry config + logging | Deploy & test failures |
+| **010** | Write docs | **Configure in Fabric UI** |
+| **012** | Write optimization code | **Run baselines & validate** |
+
+**Ready for Claude now:** 019, 017, 005, 006, 007, 011
+**Blocked until Erik tests 018:** 019, 017, 007
+**Primarily Erik tasks:** 010, 012
 
 ---
 
@@ -29,6 +47,7 @@ Claude Work:    █████████████████████�
 ```mermaid
 graph LR
     subgraph Finished["✅ Finished"]
+        T001[001: Data Gaps Page]
         T002[002: DAX Measures]
         T003[003: Report]
         T004[004: RLS]
@@ -42,10 +61,10 @@ graph LR
 
     subgraph InProgress["🚧 In Progress"]
         T018[018: Quality Tables]
-        T001[001: Data Gaps Page]
     end
 
     subgraph Pending["⏳ Pending"]
+        T019[019: Semantic Model Update]
         T017[017: Sample Data]
         T005[005: Automation]
         T006[006: Incremental]
@@ -55,8 +74,10 @@ graph LR
         T012[012: Performance]
     end
 
-    T018 --> T017
-    T017 --> T001
+    T018 --> T019
+    T018 --> T007
+    T019 --> T017
+    T011 --> T010
     T002 --> T003
 ```
 
@@ -92,11 +113,10 @@ flowchart TB
 
 | # | Task | Action | Time |
 |---|------|--------|------|
-| 1 | **ALL** | `git pull` to get today's changes (commit `154232b`) | 1 min |
+| 1 | **ALL** | `git pull` to get today's changes | 1 min |
 | 2 | **018** | Sync Fabric workspace from Git | 2 min |
 | 3 | **018** | Run `silver-to-gold2.Notebook` in Fabric | 5 min |
 | 4 | **018** | Verify 3 new tables have data (see queries below) | 3 min |
-| 5 | **001** | Build Data Gaps page per [DQ_PAGE_GUIDE.md](./docs/guides/DQ_PAGE_GUIDE.md) | 20 min |
 
 ### Verification Queries for Task 018
 
@@ -190,11 +210,11 @@ SELECT * FROM oem_lh.gold_low_confidence_audit;
 
 | Metric | Value |
 |--------|-------|
-| Total Tasks | 18 |
-| Completed | 8 (44%) |
-| In Progress | 2 (001, 018) |
+| Total Tasks | 19 |
+| Completed | 10 (53%) |
+| In Progress | 1 (018) |
 | Pending | 8 |
-| P1 Progress | 88% (7/8) |
+| P1 Progress | 100% (8/8) |
 
 ---
 
@@ -216,5 +236,5 @@ pytest tests/ -v          # Run tests (optional)
 
 ---
 
-*Last Session: 2026-01-19*
+*Last Session: 2026-01-20*
 *Next Action: Erik tests Task 018 in Fabric (run notebook, verify tables)*

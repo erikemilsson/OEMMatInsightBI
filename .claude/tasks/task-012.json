@@ -36,7 +36,11 @@
     "Measure before optimizing - avoid premature optimization",
     "V-Order is specific to Microsoft Fabric (not standard Delta Lake)",
     "Balance optimization effort with actual performance gains",
-    "For portfolio, demonstrate systematic performance optimization approach"
+    "For portfolio, demonstrate systematic performance optimization approach",
+    "--- HANDOFF ---",
+    "CLAUDE: Write partitioning code, V-Order config, broadcast hints, index DDL",
+    "ERIK: Run baseline measurements, deploy optimizations, validate performance gains",
+    "NOTE: This task is Erik-heavy due to baseline measurement and Fabric-specific testing"
   ],
   "optimizationTechniques": [
     {

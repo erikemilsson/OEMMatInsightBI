@@ -33,8 +33,10 @@
     "Research phase ✅ COMPLETE - Both datasets can be fully automated",
     "EPI: Direct CSV downloads at https://epi.yale.edu/downloads/ (CC BY-NC-SA 4.0)",
     "WGI: World Bank REST API at https://api.worldbank.org/v2/ (Open Data)",
-    "Implementation deferred until Fabric workspace access is available",
-    "License compliance documented (EPI non-commercial only, WGI commercial OK)"
+    "License compliance documented (EPI non-commercial only, WGI commercial OK)",
+    "--- HANDOFF ---",
+    "CLAUDE: Write EPI Copy Activity JSON, WGI API notebook code, pipeline updates",
+    "ERIK: Deploy to Fabric, test HTTP connectivity, verify data flows through pipeline"
   ],
   "dataSources": [
     {
@@ -61,6 +63,42 @@
       "updateFrequency": "Annual"
     }
   ],
-  "subtasks": [],
-  "progress": "Research complete, implementation pending"
+  "subtasks": [
+    {
+      "id": "task-005-1",
+      "title": "Implement EPI HTTP Copy Activity",
+      "status": "Pending",
+      "estimatedEffort": "0.5 days",
+      "details": "Create HTTP Copy Activity to download EPI CSV from https://epi.yale.edu/downloads/ directly to bronze layer"
+    },
+    {
+      "id": "task-005-2",
+      "title": "Implement WGI API Notebook",
+      "status": "Pending",
+      "estimatedEffort": "1 day",
+      "details": "Create Python notebook to call World Bank API (https://api.worldbank.org/v2/) and write WGI data to bronze layer"
+    },
+    {
+      "id": "task-005-3",
+      "title": "Update pipeline orchestration",
+      "status": "Pending",
+      "estimatedEffort": "0.5 days",
+      "details": "Add EPI Copy Activity and WGI notebook to orchestrator_pipeline_bronze_to_gold, configure proper sequencing"
+    },
+    {
+      "id": "task-005-4",
+      "title": "Test end-to-end automated ingestion",
+      "status": "Pending",
+      "estimatedEffort": "0.5 days",
+      "details": "Run full pipeline, verify EPI and WGI data flows through bronze->silver->gold without manual upload"
+    },
+    {
+      "id": "task-005-5",
+      "title": "Update documentation",
+      "status": "Pending",
+      "estimatedEffort": "0.5 days",
+      "details": "Update external_data_automation.md with implementation details, add runbook for troubleshooting"
+    }
+  ],
+  "progress": "Research complete (5/5 subtasks planned, 0/5 implemented)"
 }
