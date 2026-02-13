@@ -28,7 +28,7 @@
     "To create: /fabric/pipeline_error_handler.Notebook/",
     "/.claude/support/documents/error_handling_strategy.md (comprehensive design)",
     "To create: /.claude/support/documents/error_recovery_playbook.md",
-    "/project_definition.md (lines 699-715)"
+    "/.claude/spec_v1.md (lines 699-715)"
   ],
   "notes": [
     "Design phase ✅ COMPLETE - Error categorization, retry config, logging, notifications",

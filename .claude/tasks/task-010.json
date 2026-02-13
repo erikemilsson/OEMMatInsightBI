@@ -24,7 +24,7 @@
   "relatedFiles": [
     "/fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/",
     "To create: /.claude/support/documents/pipeline_schedule.md",
-    "/project_definition.md (line 697)"
+    "/.claude/spec_v1.md (line 697)"
   ],
   "notes": [
     "DEPENDENCY: Task 011 (Error Handling) should be complete before scheduling",

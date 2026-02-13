@@ -23,7 +23,7 @@
   "relatedFiles": [
     "/fabric/report.Report/",
     "/fabric/semantic_model_oeminsightbi.SemanticModel/",
-    "/.claude/context/dax_measure_library.md (reference for measure ideas)"
+    "/.claude/support/documents/dax_measure_library.md (reference for measure ideas)"
   ],
   "notes": [
     "SCOPE REDUCTION: This is a streamlined 'portfolio shortcut' approach",

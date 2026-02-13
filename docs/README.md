@@ -31,9 +31,9 @@ Welcome to the comprehensive documentation for the OEMMatInsightBI project. This
 - [CHANGELOG](../CHANGELOG.md) - Version history and updates
 
 ### Claude Code Environment
-- [MISSION_CONTROL](../MISSION_CONTROL.md) - Current task status and action items
-- [Context Docs](../.claude/context/) - Project context documents
-- [Reference Materials](../.claude/reference/) - Glossary, schemas, and guides
+- [Dashboard](../.claude/dashboard.md) - Current task status and action items
+- [Domain Knowledge](../.claude/support/documents/) - Architecture, schemas, and standards
+- [Reference Materials](../.claude/support/reference/) - Workflow guides and templates
 
 ### Fabric Artifacts
 - [Semantic Model](../fabric/semantic_model_oeminsightbi.SemanticModel/) - Star schema with 18 DAX measures
@@ -43,7 +43,7 @@ Welcome to the comprehensive documentation for the OEMMatInsightBI project. This
 ## 📊 Documentation Statistics
 
 - **Total Documentation**: 80+ markdown files
-- **Context Documentation**: 10 files in .claude/context/
+- **Domain Knowledge**: 24 files in .claude/support/documents/
 - **Task Definitions**: 32 files (16 JSON + 16 MD)
 - **Reference Materials**: 8 comprehensive guides
 - **User Guides**: 4 detailed guides

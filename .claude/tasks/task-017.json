@@ -36,7 +36,7 @@
     "Semantic model updated with quality tables (from Task 019)"
   ],
   "relatedFiles": [
-    "/.claude/context/data_quality_architecture.md",
+    "/.claude/support/documents/data_quality_architecture.md",
     "/fabric/silver-to-gold2.Notebook/",
     "/fabric/sample-quality-data.Notebook/"
   ],

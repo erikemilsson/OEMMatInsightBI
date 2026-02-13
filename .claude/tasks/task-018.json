@@ -33,7 +33,7 @@
     "Existing quality scoring logic (source for low confidence matches)"
   ],
   "relatedFiles": [
-    "/.claude/context/data_quality_architecture.md",
+    "/.claude/support/documents/data_quality_architecture.md",
     "/fabric/silver-to-gold2.Notebook/notebook-content.py"
   ],
   "subtasks": [
@@ -94,7 +94,7 @@
     "gold_low_confidence_audit": "source_value, matched_to, confidence, entity, match_type, frequency, spend_impact, last_seen"
   },
   "notes": [
-    "Schema definitions are in /.claude/context/data_quality_architecture.md",
+    "Schema definitions are in /.claude/support/documents/data_quality_architecture.md",
     "Use Delta format for MERGE support on Gap Registry",
     "Quality History is append-only (simple INSERT)",
     "Low Confidence Audit can be overwrite or append depending on preference",

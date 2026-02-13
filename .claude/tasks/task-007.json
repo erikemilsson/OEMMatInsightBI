@@ -30,7 +30,7 @@
     "/fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/",
     "/fabric/silver-to-gold2.Notebook/ (existing gold layer DQ logic)",
     "/.claude/support/documents/data_quality_framework.md (comprehensive design)",
-    "/project_definition.md (lines 1054-1125)"
+    "/.claude/spec_v1.md (lines 1054-1125)"
   ],
   "notes": [
     "Design phase ✅ COMPLETE - ISO 25012 framework, 9 check functions, scoring system",

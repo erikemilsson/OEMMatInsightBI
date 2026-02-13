@@ -382,7 +382,7 @@ CREATE TABLE gold_low_confidence_audit (
 - `/src/transformations/data_quality.py` - Quality functions
 
 **Design Documents:**
-- `/.claude/context/data_coverage_flow.md` - Coverage dashboard
+- `/.claude/support/documents/data_coverage_flow.md` - Coverage dashboard
 
 **Tasks:**
 - Task 001 - Enhance Data Quality Visibility

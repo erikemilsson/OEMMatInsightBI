@@ -80,7 +80,7 @@
 ---
 
 ### 4. Full DAX Measure Design Document
-**File:** `/.claude/context/dax_measure_library.md`
+**File:** `/.claude/support/documents/dax_measure_library.md`
 **Status:** ✅ Complete (40+ measures designed, 8 implemented)
 
 **Contents:**
@@ -285,7 +285,7 @@
 | Case Study | `/fabric/report.Report/CASE_STUDY.md` | ✅ Complete |
 | Design Specs | `/fabric/report.Report/PORTFOLIO_DESIGN.md` | ✅ Complete |
 | DAX Measures (Implemented) | `/fabric/semantic_model/.../tables/_Measures.tmdl` | ✅ Complete |
-| DAX Measures (Full Design) | `/.claude/context/dax_measure_library.md` | ✅ Complete |
+| DAX Measures (Full Design) | `/.claude/support/documents/dax_measure_library.md` | ✅ Complete |
 | Report JSON | `/fabric/report.Report/report.json` | ⏳ Needs update |
 | Screenshots | N/A | ⏳ Pending |
 | PDF Export | N/A | ⏳ Pending |

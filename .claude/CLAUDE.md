@@ -29,6 +29,7 @@ OEMMatInsightBI/
 │   ├── tasks/                 # Task JSON files (task-001 to task-019)
 │   │   └── archive/           # Archived completed tasks
 │   ├── commands/              # Slash command definitions (19 commands)
+│   ├── vision/                # Vision documents and future direction
 │   └── support/
 │       ├── documents/         # Domain knowledge (architecture, schemas, standards)
 │       ├── reference/         # Template workflow docs
@@ -131,10 +132,14 @@ Located in `.claude/support/documents/`:
 - `standards/coding_standards.md` - Python best practices
 - `standards/sql_standards.md` - SQL style guide
 - `standards/naming_standards.md` - Naming conventions
+- `standards/git_workflow.md` - Git workflow conventions
 
 **Schemas:**
 - `schemas/bronze_tables.md` - Bronze layer schema
 - `schemas/gold_tables.md` - Gold layer schema
+
+**Transformations:**
+- `transformations/alias_mappings.md` - Country/material alias resolution
 
 **Reference:**
 - `glossary.md` - 98 terms defined

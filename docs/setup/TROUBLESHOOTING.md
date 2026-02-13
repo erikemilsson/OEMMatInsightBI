@@ -196,7 +196,7 @@ RETURN
 **Diagnosis:** Check alias resolution logic
 
 **Solution:**
-1. Review aliases: `/.claude/reference/country_alias_mapping.md`
+1. Review aliases: `/.claude/support/documents/transformations/alias_mappings.md`
 2. Add missing aliases to lookup tables
 3. Re-run silver-to-gold transformation
 
@@ -377,15 +377,15 @@ RETURN
 ## Getting Additional Help
 
 **For Task Management:**
-- See `/MISSION_CONTROL.md` for current status
-- See `/.claude/reference/task-workflow.md` for workflow guide
+- See `/.claude/dashboard.md` for current status
+- See `/.claude/support/reference/task-workflow.md` for workflow guide
 
 **For Technical Issues:**
-- See relevant `/.claude/context/` documentation
-- Check `/project_definition.md` for architecture details
+- See relevant `/.claude/support/documents/` documentation
+- Check `/.claude/spec_v1.md` for architecture details
 
 **For Data Issues:**
-- See `/.claude/context/data_quality_framework.md`
+- See `/.claude/support/documents/data_quality_framework.md`
 - Check audit tables in gold layer
 
 ---

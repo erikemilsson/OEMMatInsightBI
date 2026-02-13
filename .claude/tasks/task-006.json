@@ -29,7 +29,7 @@
     "/fabric/clean_columnsAndHeaders.Notebook/",
     "/fabric/silver-to-gold2.Notebook/",
     "/.claude/support/documents/incremental_load_strategy.md (comprehensive design)",
-    "/project_definition.md (lines 689-695)"
+    "/.claude/spec_v1.md (lines 689-695)"
   ],
   "notes": [
     "Design phase ✅ COMPLETE - 17 tables analyzed, merge strategies defined",

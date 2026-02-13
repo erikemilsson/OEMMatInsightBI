@@ -29,7 +29,7 @@
     "/fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/",
     "To create: /.claude/support/documents/performance_baseline.md",
     "To create: /.claude/support/documents/performance_optimized.md",
-    "/project_definition.md (lines 1262-1289)"
+    "/.claude/spec_v1.md (lines 1262-1289)"
   ],
   "notes": [
     "Current pipeline runtime: Unknown (needs measurement)",

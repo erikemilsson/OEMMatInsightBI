@@ -27,7 +27,7 @@
     "/fabric/WGI_file2table.Dataflow/",
     "/fabric/bronzecopy_EUSupplyShares.CopyJob/ (example to follow)",
     "/.claude/support/documents/external_data_automation.md (research document)",
-    "/project_definition.md (lines 191-278)"
+    "/.claude/spec_v1.md (lines 191-278)"
   ],
   "notes": [
     "Research phase ✅ COMPLETE - Both datasets can be fully automated",

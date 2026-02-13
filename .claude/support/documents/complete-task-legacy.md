@@ -328,7 +328,7 @@ Run `/breakdown task-012` to decompose this task into subtasks first.
 **Rationale:**
 Tasks with difficulty ≥7 have high error risk. Breaking down into smaller units (5-10 subtasks) improves success rate and enables progress tracking.
 
-See: /.claude/reference/difficulty-guide.md for details
+See: /.claude/support/reference/difficulty-guide.md for details
 ```
 
 ---
@@ -346,7 +346,7 @@ See: /.claude/reference/difficulty-guide.md for details
 **Files You Will Need:**
 - Task JSON: `/.claude/tasks/task-XXX.json` (read & write)
 - Mission Control: `/MISSION_CONTROL.md` (update at session end)
-- Reference docs: `/.claude/reference/` (for rules and patterns)
+- Reference docs: `/.claude/support/reference/` (for rules and patterns)
 
 **Output Format:**
 - Use clear markdown formatting

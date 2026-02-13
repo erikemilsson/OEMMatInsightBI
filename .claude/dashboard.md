@@ -11,7 +11,8 @@
 ```
 Tasks Complete: █████████████████████░░░░░░░░░░░ 68% (13/19)
 P1 Tasks:       ████████████████████████████████ 100% (8/8)
-P2 Tasks:       ██████████████████░░░░░░░░░░░░░░ 56% (5/9 — includes 017-019)
+P2 Tasks:       ████████████████████░░░░░░░░░░░░ 62% (5/8)
+P3 Tasks:       ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  0% (0/3)
 Pending:        6 tasks remaining
 ```
 
@@ -27,14 +28,14 @@ Pending:        6 tasks remaining
 
 ### Pending Task Details
 
-| Task | Title | Owner | Difficulty |
-|------|-------|-------|------------|
-| 005 | Automate External Data Ingestion | both | 7 |
-| 006 | Implement Incremental Load Logic | both | 7 |
-| 007 | Add Comprehensive Data Quality Checks | both | 6 |
-| 010 | Configure Pipeline Scheduling | erik | 4 |
-| 011 | Implement Error Handling & Retry Logic | both | 6 |
-| 012 | Optimize Pipeline Performance | both | 5 |
+| Task | Title | Owner | Difficulty | Priority |
+|------|-------|-------|------------|----------|
+| 005 | Automate External Data Ingestion | Claude Code | 5 | P2 |
+| 006 | Implement Incremental Load Logic | Claude Code | 7 | P2 |
+| 007 | Add Comprehensive Data Quality Checks | Claude Code | 6 | P2 |
+| 010 | Configure Pipeline Scheduling | TBD | 3 | P3 |
+| 011 | Implement Error Handling & Retry Logic | Claude Code | 6 | P3 |
+| 012 | Optimize Pipeline Performance | TBD | 7 | P3 |
 
 ### Task Ownership Matrix
 
