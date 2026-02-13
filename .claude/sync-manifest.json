@@ -1,0 +1,72 @@
+{
+  "manifest_version": "1.0.0",
+  "categories": {
+    "sync": [
+      ".claude/commands/work.md",
+      ".claude/commands/iterate.md",
+      ".claude/commands/status.md",
+      ".claude/commands/research.md",
+      ".claude/commands/feedback.md",
+      ".claude/commands/health-check.md",
+      ".claude/commands/breakdown.md",
+      ".claude/agents/*.md",
+      ".claude/support/reference/shared-definitions.md",
+      ".claude/support/reference/task-schema.md",
+      ".claude/support/reference/workflow.md",
+      ".claude/support/reference/spec-checklist.md",
+      ".claude/support/reference/decisions.md",
+      ".claude/support/reference/extension-patterns.md",
+      ".claude/support/reference/dashboard-regeneration.md",
+      ".claude/support/reference/drift-reconciliation.md",
+      ".claude/support/reference/parallel-execution.md",
+      ".claude/support/reference/session-recovery.md",
+      ".claude/support/reference/phase-decision-gates.md",
+      ".claude/support/reference/decomposition.md",
+      ".claude/support/reference/paths.md",
+      ".claude/support/reference/setup-checklist.md",
+      ".claude/support/reference/desktop-project-prompt.md",
+      ".claude/support/reference/README.md",
+      ".claude/support/learnings/README.md",
+      ".claude/support/workspace/README.md",
+      ".claude/support/previous_specifications/README.md",
+      ".claude/vision/README.md",
+      ".claude/support/feedback/README.md"
+    ],
+    "customize": [
+      ".claude/CLAUDE.md",
+      ".claude/README.md",
+      ".claude/support/questions/questions.md",
+      ".claude/support/questions/README.md",
+      ".claude/support/documents/README.md"
+    ],
+    "domain": [
+      ".claude/commands/check-quality.md",
+      ".claude/commands/validate-schema.md",
+      ".claude/commands/view-unmapped.md",
+      ".claude/commands/review-transformations.md",
+      ".claude/commands/run-bronze.md",
+      ".claude/commands/run-silver.md",
+      ".claude/commands/run-gold.md",
+      ".claude/commands/run-full-pipeline.md",
+      ".claude/commands/sync-from-fabric.md",
+      ".claude/commands/sync-to-fabric.md"
+    ],
+    "ignore": [
+      ".claude/tasks/*.json",
+      ".claude/dashboard.md",
+      ".claude/verification-result.json",
+      ".claude/version.json",
+      ".claude/sync-manifest.json",
+      ".claude/support/decisions/decision-*.md",
+      ".claude/support/decisions/.archive/*",
+      ".claude/support/learnings/*",
+      ".claude/support/previous_specifications/*.md",
+      ".claude/vision/*.md",
+      ".claude/dashboard-state.json",
+      ".claude/tasks/.last-clean-exit.json",
+      ".claude/support/feedback/feedback.md",
+      ".claude/support/feedback/archive.md"
+    ]
+  },
+  "notes": "Paths relative to project root. Domain commands are project-specific and not synced from template."
+}

@@ -1,0 +1,9 @@
+{
+  "template_version": "1.5.0",
+  "template_release_date": "2026-01-26",
+  "template_repo": "https://github.com/user/claude_code_environment",
+  "project_version": "1.0.0",
+  "project_initialized": "2026-02-13",
+  "migrated_from": "custom-claude-environment",
+  "notes": "Migrated from organic .claude/ structure to template v1.5.0. Original project started 2025-11-14."
+}
