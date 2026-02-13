@@ -26,8 +26,8 @@
   "relatedFiles": [
     "/fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/",
     "To create: /fabric/pipeline_error_handler.Notebook/",
-    "/.claude/context/error_handling_strategy.md (comprehensive design)",
-    "To create: /.claude/reference/error_recovery_playbook.md",
+    "/.claude/support/documents/error_handling_strategy.md (comprehensive design)",
+    "To create: /.claude/support/documents/error_recovery_playbook.md",
     "/project_definition.md (lines 699-715)"
   ],
   "notes": [

@@ -27,8 +27,8 @@
     "/fabric/clean_columnsAndHeaders.Notebook/",
     "/fabric/silver-to-gold2.Notebook/",
     "/fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/",
-    "To create: /.claude/reference/performance_baseline.md",
-    "To create: /.claude/reference/performance_optimized.md",
+    "To create: /.claude/support/documents/performance_baseline.md",
+    "To create: /.claude/support/documents/performance_optimized.md",
     "/project_definition.md (lines 1262-1289)"
   ],
   "notes": [

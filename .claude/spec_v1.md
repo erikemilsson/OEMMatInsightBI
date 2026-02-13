@@ -1,4 +1,9 @@
-> **DEPRECATED:** Superseded by `.claude/spec_v1.md`. Kept for Git history.
+---
+version: 1
+status: active
+created: 2025-11-14
+updated: 2026-02-13
+---
 
 # OEMMatInsightBI - Project Definition for Claude Code
 

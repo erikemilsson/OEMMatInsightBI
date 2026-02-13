@@ -28,7 +28,7 @@
     "/fabric/bronze_azureSQLdb2table.Dataflow/",
     "/fabric/clean_columnsAndHeaders.Notebook/",
     "/fabric/silver-to-gold2.Notebook/",
-    "/.claude/context/incremental_load_strategy.md (comprehensive design)",
+    "/.claude/support/documents/incremental_load_strategy.md (comprehensive design)",
     "/project_definition.md (lines 689-695)"
   ],
   "notes": [

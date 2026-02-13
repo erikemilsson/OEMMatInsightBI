@@ -29,7 +29,7 @@
     "To create: /fabric/data_quality_checks.Notebook/",
     "/fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/",
     "/fabric/silver-to-gold2.Notebook/ (existing gold layer DQ logic)",
-    "/.claude/context/data_quality_framework.md (comprehensive design)",
+    "/.claude/support/documents/data_quality_framework.md (comprehensive design)",
     "/project_definition.md (lines 1054-1125)"
   ],
   "notes": [
