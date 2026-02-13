@@ -262,4 +262,4 @@ null_counts_material.show()
 - `/.claude/tasks/01_enhance_data_quality_visibility.md`
 - `/.claude/tasks/07_add_data_quality_checks.md`
 - `/fabric/silver-to-gold2.Notebook/` - Quality scoring logic
-- `/.claude/reference/transformations/alias_mappings.md`
+- `/.claude/support/documents/transformations/alias_mappings.md`

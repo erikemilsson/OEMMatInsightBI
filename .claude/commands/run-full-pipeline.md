@@ -209,7 +209,7 @@ After successful pipeline execution:
 ## Related Files
 
 - `/fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/`
-- `/.claude/context/architecture/orchestration.md`
+- `/.claude/support/documents/architecture/orchestration.md`
 - `/.claude/tasks/10_configure_pipeline_scheduling.md`
 - `/.claude/tasks/11_implement_error_handling.md`
 - `/.claude/tasks/12_optimize_performance.md`

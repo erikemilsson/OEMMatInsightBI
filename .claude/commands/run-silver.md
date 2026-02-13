@@ -164,5 +164,5 @@ After silver transformation succeeds:
 ## Related Files
 
 - `/fabric/clean_columnsAndHeaders.Notebook/`
-- `/.claude/context/architecture/medallion_architecture.md`
-- `/.claude/reference/schemas/silver_tables.md`
+- `/.claude/support/documents/architecture/medallion_architecture.md`
+- `/.claude/support/documents/schemas/silver_tables.md`

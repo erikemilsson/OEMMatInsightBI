@@ -238,7 +238,7 @@ After syncing from Fabric:
 
 - `/.claude/commands/sync-to-fabric.md` - Push local changes to Fabric
 - `/project_definition.md` - Lines 979-1014 (Development Workflow)
-- `/.claude/context/architecture/fabric_workspace.md`
+- `/.claude/support/documents/architecture/fabric_workspace.md`
 
 ## Related Tasks
 

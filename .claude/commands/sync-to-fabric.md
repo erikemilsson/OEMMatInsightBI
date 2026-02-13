@@ -344,7 +344,7 @@ After syncing to Fabric:
 - `/.claude/commands/sync-from-fabric.md` - Pull changes from Fabric
 - `/project_definition.md` - Lines 979-1014 (Development Workflow)
 - `/.gitignore` - Files excluded from Git
-- `/.claude/context/architecture/fabric_workspace.md`
+- `/.claude/support/documents/architecture/fabric_workspace.md`
 
 ## Troubleshooting Checklist
 

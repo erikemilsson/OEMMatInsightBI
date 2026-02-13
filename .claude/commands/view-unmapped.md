@@ -336,6 +336,6 @@ After adding aliases, re-run gold transformation: `/run-gold`
 ## Related Files
 
 - `/fabric/silver-to-gold2.Notebook/` - Contains alias mapping logic
-- `/.claude/reference/transformations/alias_mappings.md` - Alias documentation
+- `/.claude/support/documents/transformations/alias_mappings.md` - Alias documentation
 - `/.claude/tasks/01_enhance_data_quality_visibility.md`
 - `/.claude/commands/check-quality.md`
