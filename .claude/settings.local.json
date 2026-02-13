@@ -9,7 +9,13 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\nRefactor data_coverage_flow.md to dashboard style\n\n- Add status summary box with key metrics at top\n- Add spend % column to country coverage table\n- Simplify Mermaid diagram \\(left-to-right flow\\)\n- Consolidate risk points into compact table with status indicators\n- Remove historical changelog language\n- Remove verbose explanations and speculative content\n- Reduce from 235 to 120 lines for quick scanning\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git push:*)",
       "Bash(git commit:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "mcp__playwright__browser_take_screenshot",
+      "Bash(uuidgen:*)",
+      "Bash(wc:*)",
+      "Bash(grep:*)",
+      "Bash(git mv:*)",
+      "Bash(git rm:*)"
     ]
   }
 }

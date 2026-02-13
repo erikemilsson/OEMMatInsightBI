@@ -2,7 +2,8 @@
   "id": "task-017",
   "title": "Populate Quality History & Gap Registry with Sample Data",
   "description": "Create realistic sample data for gold_quality_history and gold_gap_registry tables to demonstrate their value before organic data accumulates.",
-  "status": "In Progress",
+  "status": "Finished",
+  "completionDate": "2026-01-20",
   "priority": "P2",
   "difficulty": 4,
   "estimatedEffort": "0.5-1 day",
@@ -64,9 +65,10 @@
     {
       "id": "task-017-4",
       "title": "Validate sample data renders correctly in reports",
-      "status": "Pending",
+      "status": "Finished",
+      "completedDate": "2026-01-20",
       "owner": "Erik",
-      "details": "Run notebook in Fabric, build trend chart to verify the story"
+      "details": "Ran notebook, built trend chart on Data Quality page"
     }
   ],
   "sampleDataScenarios": {
