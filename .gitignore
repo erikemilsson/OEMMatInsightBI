@@ -77,3 +77,6 @@ Desktop.ini
 *.temp
 .pytest_cache/
 .claude/settings.local.json
+.claude/support/workspace/scratch/
+.claude/support/workspace/drafts/
+.claude/support/workspace/research/
