@@ -224,7 +224,7 @@ After all agents complete (active_agents is empty):
    Regenerate dashboard.md per the Dashboard Regeneration Procedure
    - Remove all conflict_note fields from task JSONs (cleanup)
 
-3. Operational checks (Step 6)
+3. Operational checks (Step 5)
 
 4. Loop back to Step 2c:
    Reassess remaining tasks for next parallel batch or phase transition

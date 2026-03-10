@@ -17,7 +17,7 @@ A lightweight file at `.claude/tasks/.last-clean-exit.json` tracks whether the p
 }
 ```
 
-**Written by:** `/work` at the end of a successful run (after Step 6).
+**Written by:** `/work` at the end of a successful run (after Step 5).
 **Read by:** `/work` at the start of Step 0.
 
 ### Fast-Path: Skip Recovery Scan

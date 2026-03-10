@@ -215,7 +215,7 @@ IF any deferral expired (and count is within budget):
 **Clearing deferrals:** When a section is reconciled (user selects Apply or reviews individually and applies), remove it from `drift-deferrals.json`.
 
 **See also:**
-- `.claude/support/reference/workflow.md` § "Spec Change and Feature Addition Workflow" for the end-to-end process (user edits spec → detection → confirmation → task updates → implementation → verification).
+- `.claude/support/reference/workflow.md` § "Spec Change and Feature Addition" for the end-to-end process overview.
 
 ---
 

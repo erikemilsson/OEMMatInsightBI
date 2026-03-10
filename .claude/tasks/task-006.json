@@ -6,7 +6,7 @@
   "priority": "P2",
   "difficulty": 7,
   "estimatedEffort": "3.5 days",
-  "owner": "Claude Code",
+  "owner": "claude",
   "completionDate": "2025-11-03 (Design Phase)",
   "actualEffort": "3 hours (design phase)",
   "acceptanceCriteria": [
@@ -40,6 +40,27 @@
     "CLAUDE: Write dataflow modifications, notebook MERGE logic, pipeline parameter wiring",
     "ERIK: Deploy to Fabric, run test loads (full + incremental), verify no duplicates"
   ],
+  "phase": "2",
+  "spec_section": "",
+  "files_affected": [
+    "fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/",
+    "fabric/bronze_azureSQLdb2table.Dataflow/",
+    "fabric/clean_columnsAndHeaders.Notebook/",
+    "fabric/silver-to-gold2.Notebook/",
+    ".claude/support/documents/incremental_load_strategy.md"
+  ],
+  "created_date": "",
+  "updated_date": "2026-03-10",
+  "task_verification": {},
+  "verification_attempts": 0,
+  "verification_history": [],
+  "test_protocol": null,
+  "user_review_pending": false,
+  "interaction_hint": "dashboard",
+  "decision_dependencies": [],
+  "recovery_state": "",
+  "out_of_spec": false,
+  "absorbed_into": "",
   "tableStrategy": {
     "incremental": [
       "bronze_procurement_transactional (Date field)",

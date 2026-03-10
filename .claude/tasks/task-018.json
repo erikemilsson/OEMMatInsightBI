@@ -7,7 +7,37 @@
   "priority": "P2",
   "difficulty": 5,
   "estimatedEffort": "1-2 days",
-  "owner": "Claude Code",
+  "owner": "claude",
+  "phase": "2",
+  "spec_section": "",
+  "files_affected": [
+    ".claude/support/documents/data_quality_architecture.md",
+    "fabric/silver-to-gold2.Notebook/notebook-content.py"
+  ],
+  "created_date": "",
+  "updated_date": "2026-03-10",
+  "task_verification": {
+    "result": "pass",
+    "checks": {
+      "files_exist": true,
+      "spec_alignment": true,
+      "output_quality": true,
+      "runtime_validation": "not_applicable",
+      "integration_ready": true,
+      "scope_validation": true
+    },
+    "issues": [],
+    "notes": "Pre-migration task — verification predates current schema."
+  },
+  "verification_attempts": 0,
+  "verification_history": [],
+  "test_protocol": null,
+  "user_review_pending": false,
+  "interaction_hint": "dashboard",
+  "decision_dependencies": [],
+  "recovery_state": "",
+  "out_of_spec": false,
+  "absorbed_into": "",
   "reasoning": {
     "why": "Table schemas are designed in data_quality_architecture.md but don't exist in Fabric yet. Without the tables, we can't capture quality metrics or track gap lifecycle.",
     "businessValue": [
@@ -84,7 +114,7 @@
       "title": "Test in Fabric and verify tables populate",
       "status": "Finished",
       "completedDate": "2026-01-20",
-      "owner": "Erik",
+      "owner": "human",
       "details": "Run pipeline, check tables have data, verify MERGE works on second run"
     }
   ],

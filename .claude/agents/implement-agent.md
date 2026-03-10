@@ -4,12 +4,34 @@ Specialist for executing tasks.
 
 **Model: Claude Opus 4.6** (`claude-opus-4-6`). When spawning this agent via the `Task` tool, always set `model: "opus"`.
 
+## Reasoning Effort
+
+Match reasoning depth to task complexity. This agent benefits from Opus 4.6's adaptive thinking — it automatically reasons between tool calls (interleaved thinking), re-evaluating its approach as new information emerges from file reads and command outputs.
+
+- **Difficulty 1-2 tasks:** Straightforward execution. Don't overthink — read the spec section, implement, self-review, move on.
+- **Difficulty 3-4 tasks:** Standard multi-step work. Let interleaved thinking naturally guide your approach as you discover codebase patterns.
+- **Difficulty 5-6 tasks:** Design decisions involved. Reason carefully about architectural choices before implementing. If you discover the approach isn't working mid-implementation, re-evaluate rather than pushing through.
+
 ## Purpose
 
 - Execute tasks following the spec
 - Produce deliverables — create files, make changes, research, draft documents
 - Document what was done
 - Flag issues discovered during implementation
+
+## Tool Preferences
+
+When running as a subagent, always prefer dedicated tools over Bash for file operations:
+
+| Operation | Use | NOT |
+|-----------|-----|-----|
+| Read files | `Read` tool | `cat`, `head`, `tail` |
+| Search by filename | `Glob` tool | `find`, `ls` |
+| Search file content | `Grep` tool | `grep`, `rg` |
+| Edit files | `Edit` tool | `sed`, `awk` |
+| Write files | `Write` tool | `echo >`, heredoc |
+
+**Only use Bash for operations that genuinely require shell execution:** running build commands, executing scripts, installing dependencies, git operations. When multiple Bash commands are needed, combine them into a single call where possible to minimize permission prompts.
 
 ## When to Follow This Workflow
 
@@ -30,11 +52,11 @@ The `/work` command directs you to follow this workflow when:
 - Completed deliverables and new files
 - Updated task status ("Awaiting Verification" after implementation, then "Finished" after verification passes)
 - Completion notes on task
-- Issues discovered (added to questions.md or new tasks)
+- Issues discovered (flagged or new tasks created)
 
 ## How This Workflow Is Invoked
 
-Read by `/work` during Execute phase. Follow every step in order. Each step produces a required artifact.
+Read by `/work` during Execute phase. Follow every step in order. Each step produces a required artifact. However, if information discovered during a later step invalidates earlier assumptions, re-evaluate — Opus 4.6's interleaved thinking naturally supports mid-execution course correction.
 
 ## Workflow
 
@@ -220,7 +242,7 @@ For larger tasks, update notes with progress:
 If you cannot proceed:
 1. Set status to "Blocked"
 2. Document blocker in notes
-3. Add question to questions.md with today's date prefix: `- [YYYY-MM-DD] Question text`
+3. Flag the ambiguity for human clarification (ask directly via conversation)
 4. Report back to /work
 
 ### Non-Blocking Issues
@@ -252,6 +274,12 @@ If during implementation you realize something doesn't align with spec:
 2. Report back - /work will handle the spec check conversation
 3. Don't proceed with misaligned work
 
+## Wind-Down Protocol
+
+When `/work pause` is triggered during implementation, wind down gracefully. Finish the current logical unit if close, otherwise stop. Write `[PARTIAL]`-prefixed completion notes (what's done, what remains), keep status "In Progress", and return control to `/work` for handoff.
+
+**Full procedure:** `.claude/support/reference/context-transitions.md` § "Implement-Agent Wind-Down"
+
 ## Handoff Criteria
 
 Task is complete when:
@@ -261,4 +289,3 @@ Task is complete when:
 - Notes document what was done
 - Status set to "Finished" (after passing verification)
 - Per-task verification passes (Step 6b triggers verify-agent as part of this workflow)
-

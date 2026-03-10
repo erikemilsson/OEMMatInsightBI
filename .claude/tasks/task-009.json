@@ -6,7 +6,7 @@
   "priority": "P2",
   "difficulty": 2,
   "estimatedEffort": "0.5 hours",
-  "owner": "Claude Code",
+  "owner": "claude",
   "completionDate": "2025-11-03",
   "actualEffort": "0.5 hours",
   "acceptanceCriteria": [
@@ -32,6 +32,36 @@
     "Documentation created noting findings and recommendations",
     "Task closed quickly as expected (simple documentation task)"
   ],
+  "phase": "1",
+  "spec_section": "",
+  "files_affected": [
+    "fabric/semantic_model_oeminsightbi.SemanticModel/definition/expressions.tmdl",
+    ".claude/support/documents/dax_measures.md"
+  ],
+  "created_date": "",
+  "updated_date": "2026-03-10",
+  "task_verification": {
+    "result": "pass",
+    "checks": {
+      "files_exist": true,
+      "spec_alignment": true,
+      "output_quality": true,
+      "runtime_validation": "not_applicable",
+      "integration_ready": true,
+      "scope_validation": true
+    },
+    "issues": [],
+    "notes": "Pre-migration task — verification predates current schema."
+  },
+  "verification_attempts": 0,
+  "verification_history": [],
+  "test_protocol": null,
+  "user_review_pending": false,
+  "interaction_hint": "dashboard",
+  "decision_dependencies": [],
+  "recovery_state": "",
+  "out_of_spec": false,
+  "absorbed_into": "",
   "findings": [
     "No custom DAX measures exist in git-synced semantic model files",
     "Only database connection expression found in expressions.tmdl",

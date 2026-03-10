@@ -6,7 +6,7 @@
   "priority": "P1",
   "difficulty": 5,
   "estimatedEffort": "1-2 days",
-  "owner": "Claude Code",
+  "owner": "claude",
   "completionDate": "2026-01-16",
   "acceptanceCriteria": [
     "Show countries in procurement data that have NO EPI scores",
@@ -33,6 +33,37 @@
     "Shows what's MISSING, not what's matched",
     "Portfolio showcase: demonstrates data quality awareness"
   ],
+  "phase": "1",
+  "spec_section": "",
+  "files_affected": [
+    "fabric/silver-to-gold2.Notebook/",
+    "fabric/OEMInsightBI_v2.SemanticModel/",
+    "docs/guides/DQ_PAGE_GUIDE.md"
+  ],
+  "created_date": "",
+  "updated_date": "2026-03-10",
+  "task_verification": {
+    "result": "pass",
+    "checks": {
+      "files_exist": true,
+      "spec_alignment": true,
+      "output_quality": true,
+      "runtime_validation": "not_applicable",
+      "integration_ready": true,
+      "scope_validation": true
+    },
+    "issues": [],
+    "notes": "Pre-migration task — verification predates current schema."
+  },
+  "verification_attempts": 0,
+  "verification_history": [],
+  "test_protocol": null,
+  "user_review_pending": false,
+  "interaction_hint": "dashboard",
+  "decision_dependencies": [],
+  "recovery_state": "",
+  "out_of_spec": false,
+  "absorbed_into": "",
   "subtasks": [
     {
       "id": "task-001-1",
@@ -67,14 +98,14 @@
       "title": "Run pipeline and sync semantic model to Fabric",
       "status": "Finished",
       "completionDate": "2026-01-16",
-      "owner": "Erik",
+      "owner": "human",
       "details": "Ran silver-to-gold2.Notebook, synced TMDL to Fabric, refreshed semantic model"
     },
     {
       "id": "task-001-6",
       "title": "Build Data Gaps page following DQ_PAGE_GUIDE.md",
       "status": "Pending",
-      "owner": "Erik",
+      "owner": "human",
       "details": "Build the visuals in Power BI per the guide (optional enhancement)"
     }
   ],

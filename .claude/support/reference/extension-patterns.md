@@ -221,24 +221,9 @@ The section has two parts:
 
 ## Project Overview Diagram
 
-The dashboard includes an inline Mermaid diagram in the Progress section that provides a bird's-eye view of the project's dependency structure.
+An inline Mermaid diagram in the dashboard's Progress section showing the project's dependency structure at a glance. Generated when 4+ tasks remain; omitted for smaller projects. Collapses completed phases, shows active tasks with ownership indicators, and uses color-coded styles.
 
-**When it appears:** Generated during dashboard regeneration when there are 4+ remaining tasks. For smaller projects, the critical path one-liner is sufficient.
-
-**What it shows:**
-- Completed phases collapsed into single nodes
-- Active/pending tasks with ownership indicators (🤖/❗/👥)
-- Decision gates as diamond nodes, phase gates as hexagon nodes
-- Dependency arrows between tasks
-- Date constraints when present
-
-**Design principles:**
-- Focus on relationships, not detail — clump completed work, show remaining structure
-- Ownership at a glance — immediately see what's Claude vs human vs collaborative
-- Compact — when >15 nodes would result, group by phase or functional area
-- Color-coded — done (green), active (blue), human-owned (yellow), blocked (grey) via `classDef` styles. Human ownership overrides status.
-
-**Generation rules:** See `.claude/support/reference/dashboard-regeneration.md` § "Project Overview Diagram" for the full algorithm.
+**Full generation rules:** `.claude/support/reference/dashboard-regeneration.md` § "Project Overview Diagram".
 
 ---
 

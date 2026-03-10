@@ -6,7 +6,7 @@
   "priority": "P3",
   "difficulty": 3,
   "estimatedEffort": "0.5-1 day",
-  "owner": "TBD",
+  "owner": "both",
   "acceptanceCriteria": [
     "Schedule configured and active in Fabric workspace",
     "First scheduled run completes successfully",
@@ -38,6 +38,23 @@
     "CLAUDE: Document schedule configuration steps, write pipeline_schedule.md",
     "ERIK: Configure schedule in Fabric UI (this is primarily an Erik task)"
   ],
+  "phase": "3",
+  "spec_section": "",
+  "files_affected": [
+    "fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/"
+  ],
+  "created_date": "",
+  "updated_date": "2026-03-10",
+  "task_verification": {},
+  "verification_attempts": 0,
+  "verification_history": [],
+  "test_protocol": null,
+  "user_review_pending": false,
+  "interaction_hint": "dashboard",
+  "decision_dependencies": [],
+  "recovery_state": "",
+  "out_of_spec": false,
+  "absorbed_into": "",
   "recommendedSchedule": {
     "frequency": "Daily",
     "time": "06:00 AM",

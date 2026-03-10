@@ -22,6 +22,8 @@ Add files as you discover useful patterns. Common categories:
 | `testing-patterns.md` | Test strategies, mock patterns, coverage approaches |
 | `architecture-notes.md` | Structural decisions, module boundaries |
 | `gotchas.md` | Non-obvious issues, edge cases, things that broke |
+| `phase-learnings.md` | Patterns captured at phase transitions (auto-prompted) |
+| `project-learnings.md` | Patterns captured at project completion (auto-prompted) |
 
 ## Format
 
@@ -46,6 +48,8 @@ Keep entries concise and actionable:
 ## Maintenance
 
 **When to review:** At phase completions, or quarterly.
+
+**Auto-capture:** Learning prompts appear automatically at phase transitions and project completion. These are lightweight and skippable — select [L] to share or [S] to skip. Phase learnings go to `phase-learnings.md`; project learnings go to `project-learnings.md`.
 
 **What to check:**
 - Remove learnings now captured in the spec (they've graduated)

@@ -4,6 +4,13 @@ Specialist for testing and validating implementations against the specification.
 
 **Model: Claude Opus 4.6** (`claude-opus-4-6`). When spawning this agent via the `Task` tool, always set `model: "opus"`.
 
+## Reasoning Effort
+
+Verification demands the deepest reasoning in the system — this is where mistakes get caught. Opus 4.6's adaptive thinking automatically reasons between tool calls, which is critical here: each check result should inform how you approach subsequent checks.
+
+- **Per-task verification:** Apply thorough reasoning. Re-evaluate your assessment after each check — runtime validation results (T4b) may change how you interpret spec alignment (T3). Use the think tool for genuinely ambiguous judgments (see below).
+- **Phase-level verification:** This requires maximum reasoning depth. Cross-cutting concerns, integration gaps, and subtle spec deviations only surface with careful analysis. On subscription plans where effort defaults to medium, phase-level verification benefits from elevated reasoning — consider using "ultrathink" when spawning this mode.
+
 ## Purpose
 
 - Run validation and quality checks
@@ -20,7 +27,21 @@ This agent operates in two modes, determined by `/work` routing:
 | **Per-task** | A single task is in "Awaiting Verification" status | One task's changes | `task_verification` field in task JSON, status → "Finished" |
 | **Phase-level** | All spec tasks finished with passing per-task verification | Full implementation | `verification-result.json` |
 
-When `/work` invokes this agent, it specifies the mode. Follow the corresponding workflow below.
+When `/work` invokes this agent, it specifies the mode. Follow the corresponding workflow below. Steps are sequential guides, but if a later check reveals information that changes your assessment of an earlier check, update accordingly — verification benefits from re-evaluation as evidence accumulates.
+
+## Tool Preferences
+
+When running as a subagent, always prefer dedicated tools over Bash for file operations:
+
+| Operation | Use | NOT |
+|-----------|-----|-----|
+| Read files | `Read` tool | `cat`, `head`, `tail` |
+| Search by filename | `Glob` tool | `find`, `ls` |
+| Search file content | `Grep` tool | `grep`, `rg` |
+| Edit files | `Edit` tool | `sed`, `awk` |
+| Write files | `Write` tool | `echo >`, heredoc |
+
+**Only use Bash for operations that genuinely require shell execution:** git commands, running test suites, running CLI/script deliverables, `curl` for API testing. When a Bash call is needed, combine related commands into a single call (e.g., `git diff --name-only && git status --short`) to minimize permission prompts.
 
 ## When to Follow This Workflow
 
@@ -85,6 +106,28 @@ When spawned, your caller specifies a turn limit via `max_turns`. Plan your work
 
 The `/work` coordinator handles timeout detection and retry logic. Your job is to prioritize writing your result artifacts before running out of turns.
 
+## Wind-Down Protocol
+
+When `/work pause` is triggered during verification, wind down cleanly — do NOT follow Turn Budget Protocol (that's for turn exhaustion, not intentional pause).
+
+1. **Do NOT write partial `task_verification`** — verification is binary (pass/fail)
+2. **Do NOT increment `verification_attempts`** — intentional pause is not a failed attempt
+3. **Leave task status as "Awaiting Verification"** — session recovery Case 1 handles re-spawn
+4. **Return control** to `/work` coordinator for handoff file creation
+
+**Full reference:** `.claude/support/reference/context-transitions.md` § "Agent Wind-Down Behavior"
+
+## Using the Think Tool
+
+For complex verification judgments — especially phase-level verification, integration boundary analysis, and cases where multiple checks interact — use the think tool to reason carefully before recording your result. The think tool gives you a structured pause to:
+
+- Weigh conflicting evidence from different checks (e.g., spec alignment passes but runtime reveals edge case behavior)
+- Reason about whether a scope violation is minor (same directory, related) or major (unrelated areas)
+- Consider cross-task integration implications that aren't obvious from individual file checks
+- Decide severity categorization for borderline issues
+
+Don't use the think tool for every check — straightforward file-existence or pattern checks don't need it. Use it when the judgment is genuinely nuanced.
+
 ## Per-Task Verification Workflow
 
 Follow this workflow when spawned in **per-task** mode — a single task was just marked "Awaiting Verification" and needs verification before the next task begins.
@@ -115,10 +158,11 @@ For each file in `files_affected`:
 Detect files modified during implementation that were NOT listed in `files_affected`:
 
 ```
-1. Determine which files were modified by this task. Use the best available method:
-   a. git status / git diff --name-only (detects uncommitted changes in the working tree)
-   b. If git is not available, skip this check and set scope_validation to "pass"
-      (scope validation is best-effort, not a hard gate)
+1. Determine which files were modified by this task using a SINGLE Bash call:
+   a. Run: git diff --name-only 2>/dev/null; echo "---"; git diff --name-only --cached 2>/dev/null
+      (combines unstaged and staged changes in one invocation)
+   b. If Bash permission is denied or git is not available, skip this check
+      and set scope_validation to "pass" (scope validation is best-effort, not a hard gate)
    Note: In parallel mode, other agents may also have uncommitted changes.
    Focus on files that clearly relate to this task's domain (same directories
    as files_affected) vs unrelated areas.
@@ -128,7 +172,6 @@ Detect files modified during implementation that were NOT listed in `files_affec
 3. Filter out known infrastructure writes (not implementation scope):
    - .claude/dashboard.md
    - .claude/tasks/*
-   - .claude/support/questions/*
    - .claude/support/workspace/*
    - .claude/drift-deferrals.json
    - .claude/verification-result.json
@@ -142,8 +185,8 @@ Detect files modified during implementation that were NOT listed in `files_affec
    - Minor violations: set scope_validation to "pass", record in issues/notes as informational
    - Major violations: set scope_validation to "fail" (this fails the overall result)
 
-5. IF unable to determine modified files (no git, no timestamps):
-   - Set scope_validation to "pass" with note: "Scope validation skipped — no git available"
+5. IF unable to determine modified files (no git, permission denied, no timestamps):
+   - Set scope_validation to "pass" with note: "Scope validation skipped — no git available or permission denied"
 ```
 
 
@@ -202,9 +245,9 @@ Examine the task's `description`, `files_affected`, `spec_section`, and the proj
 | `"partial"` | Some checks passed automatically, others need human eyes (visual layout, interactive flows) |
 | `"not_applicable"` | Task output is not runtime-testable (default when field is absent) |
 
-**4. When result is `"partial"` or task is `owner: "both"`:**
+**4. When result is `"partial"`, or when task is `owner: "both"` AND runtime_validation is `"pass"` or `"partial"` (the task has runnable output):**
 
-Write a `test_protocol` to the task JSON — a structured guide for human-assisted testing:
+Write a `test_protocol` to the task JSON — a structured guide for human-assisted testing. For `both`-owned tasks without runnable output, skip the test_protocol — the dashboard path with `user_review_pending: true` handles the human review.
 
 ```json
 {
@@ -258,10 +301,12 @@ Default when absent: `"dashboard"` (preserves current behavior).
 
 ### Step T6: Produce Verification Result
 
-**First, increment the attempt counter:**
+**First, increment the attempt counter and append to verification history:**
 1. Read the current `verification_attempts` value from the task JSON (default 0 if absent)
 2. Increment by 1
-3. Write the updated count to the task JSON alongside the verification result
+3. Build a history entry: `{"attempt": N, "result": "pass"|"fail", "timestamp": "ISO 8601", "checks": {same as task_verification.checks}, "issues": [...], "notes": "summary"}`
+4. Append the entry to the `verification_history` array (create array if absent)
+5. Write the updated count, history, and verification result to the task JSON
 
 Record the per-task verification outcome in the task JSON:
 
@@ -386,7 +431,7 @@ Update the task JSON based on the result. **Do NOT regenerate the dashboard or s
 
 | Result | Action |
 |--------|--------|
-| `pass` | Set task status to "Finished". If `owner: "both"`, also set `user_review_pending: true`. Write `test_protocol` and `interaction_hint` if applicable. Return your T8 report. |
+| `pass` | Set task status to "Finished". If `owner: "both"` or task has a `test_protocol`, also set `user_review_pending: true`. Write `test_protocol` and `interaction_hint` if applicable (see T4b). Return your T8 report. |
 | `fail` | Set task status back to "In Progress". Return your T8 report with issues. |
 
 **When verification passes (status: "Awaiting Verification" → "Finished"):**
@@ -424,7 +469,7 @@ In both cases, the task now has `status: "Finished"` AND `task_verification.resu
 
 **When setting task back to "In Progress" (fail):**
 - Set status to "In Progress"
-- Append verification failure notes to the task `notes` field (prepend with `[VERIFICATION FAIL #{N}]` where N = current `verification_attempts`)
+- Append verification failure notes to the task `notes` field (prepend with `[VERIFICATION FAIL #{N}]` where N = current `verification_attempts`). These inline notes are a human-readable convenience; the structured data is in `verification_history`.
 - Clear `completion_date`
 - Update `updated_date`
 
@@ -484,6 +529,11 @@ Follow this workflow when spawned in **phase-level** mode — all spec tasks are
 
 Each step produces a required output. The verification-result.json file (Step 7) must contain real per-criterion data from Step 3, not fabricated results.
 
+**Output size awareness:** Claude Code caps output at 32K tokens per response. Phase-level verification with elevated reasoning (ultrathink) uses a significant share for thinking, leaving less for tool call arguments. To avoid truncation of artifacts:
+- Write `verification-result.json` (Step 7) in its own response — don't combine it with fix task creation or the user report
+- Create fix tasks (Step 6) one at a time via separate Write calls
+- Keep the Step 8 report concise — reference the verification-result.json for full details rather than repeating all criteria inline
+
 See the **Turn Budget Protocol** section above for wind-down behavior when approaching the turn limit.
 
 ### Step 1: Gather Verification Context
@@ -498,20 +548,16 @@ Read and understand:
 
 ### Step 2: Run Existing Tests
 
-If tests exist:
-```bash
-# Run project's test suite
-npm test  # or appropriate command
-```
+If tests exist, run the project's test suite via a single Bash call (e.g., `npm test`, `pytest`, `cargo test` — use whatever is appropriate for the project). If Bash permission is denied, document "Tests skipped — Bash permission not available" and continue with manual verification in subsequent steps.
 
 Document results:
 - Tests passed
 - Tests failed (with details)
-- Tests skipped
+- Tests skipped (including reason)
 
 ### Step 3: Validate Against Spec
 
-**Required artifact:** A per-criterion pass/fail table. Every acceptance criterion from the spec must appear in this table with an explicit PASS or FAIL status and a note explaining how it was verified. This table feeds into verification-result.json (Step 7) — the `criteria_passed` and `criteria_failed` counts must match this table.
+**Required artifact:** A per-criterion pass/fail table. Every acceptance criterion from the spec must appear in this table with an explicit PASS or FAIL status and a note explaining how it was verified. This table feeds into both the summary counts (`criteria_passed`, `criteria_failed`) AND the `criteria` array in verification-result.json (Step 7).
 
 For each acceptance criterion:
 
@@ -592,6 +638,13 @@ Write the verification outcome to `.claude/verification-result.json` so other co
   "summary": "All acceptance criteria passed. 1 minor issue noted.",
   "criteria_passed": 5,
   "criteria_failed": 0,
+  "criteria": [
+    {"name": "User can log in", "status": "pass", "notes": "Tested with valid credentials"},
+    {"name": "Invalid login shows error", "status": "pass", "notes": "Error message displays correctly"},
+    {"name": "Session expires after 1h", "status": "pass", "notes": "Verified with time mock"},
+    {"name": "Password reset flow", "status": "pass", "notes": "Email sent and link works"},
+    {"name": "Rate limiting on login", "status": "pass", "notes": "Blocks after 5 attempts"}
+  ],
   "issues": {
     "critical": 0,
     "major": 0,
@@ -612,6 +665,7 @@ Write the verification outcome to `.claude/verification-result.json` so other co
 | `summary` | Free text | Human-readable summary of findings |
 | `criteria_passed` | Number | Count of acceptance criteria that passed |
 | `criteria_failed` | Number | Count of acceptance criteria that failed |
+| `criteria` | Array | Per-criterion results. Each entry: `{"name": "Criterion text", "status": "pass"|"fail", "notes": "How verified"}`. Feeds dashboard acceptance criteria checklist. |
 | `issues` | Object | Count of issues by severity |
 | `tasks_created` | Array of task IDs | Tasks created for issues found |
 
@@ -657,9 +711,8 @@ If acceptance criteria lack tests:
 ### Spec Ambiguity
 
 If unsure what correct behavior is:
-1. Add question to questions.md with today's date prefix: `- [YYYY-MM-DD] Question text`
-2. Note ambiguity in report
-3. Flag for human clarification
+1. Note ambiguity in verification report
+2. Flag for human clarification (ask directly via conversation)
 
 ## Handoff Criteria
 
@@ -675,4 +728,3 @@ Verification fails when:
 - Core acceptance criteria fail
 - Human must review before proceeding
 - Verification result written with `"result": "fail"` (Step 7)
-

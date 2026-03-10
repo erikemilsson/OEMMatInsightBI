@@ -124,6 +124,7 @@
 | recovery_state | String | **Transient.** Set by `/work` Step 0 when auto-recovering a stuck task. Values: `"verification_retry"` (respawning verify-agent), `"agent_retry"` (user chose to retry after timeout). Cleared after recovery completes. Prevents double-recovery if `/work` runs again before recovery finishes. |
 | user_review_pending | Boolean | Set to `true` by verify-agent when a `both`-owned task passes verification, OR when any task has a `test_protocol` (runtime validation was partial, human testing needed). Keeps the task visible for user action until the user runs `/work complete {id}` or completes guided testing. Cleared by `/work complete`. |
 | verification_attempts | Number | Count of per-task verification attempts (incremented by verify-agent on each run). Escalates to human review at >= 3 (initial + 2 retries). Default: 0 (omit until first verification). |
+| verification_history | Array | Append-only log of all verification attempts (pass and fail). Each entry records attempt number, result, checks, issues, and notes. Coexists with `task_verification` (which stays as the latest result for quick checks). See Verification History section below. |
 | task_verification | Object | Per-task verification result recorded by verify-agent |
 | test_protocol | Object | Structured testing steps for human-guided verification. Written by verify-agent when runtime validation is `"partial"` or task needs human testing. See Test Protocol section below. |
 | interaction_hint | String | `"cli_direct"` or `"dashboard"`. Determines how `/work` presents the task to the user. CLI-direct tasks are presented immediately in the conversation; dashboard tasks appear in "Your Tasks". Default when absent: `"dashboard"`. |
@@ -170,82 +171,11 @@ Only critical and high show emoji prefixes in the dashboard to reduce visual noi
 
 ## Drift Prevention Fields
 
-These fields track spec-to-task alignment and detect when specs evolve after tasks are created:
+These fields track spec-to-task alignment. All are set during decomposition (see `decomposition.md`) and used by `/work` for drift detection (see `drift-reconciliation.md`).
 
-### spec_fingerprint
+The fields `spec_fingerprint`, `spec_version`, `spec_section`, `section_fingerprint`, and `section_snapshot_ref` are defined in the Field Definitions table above. Together they enable granular per-section drift detection: when `/work` runs, it compares current section hashes against task fingerprints and only flags tasks from changed sections.
 
-SHA-256 hash of the spec file content when tasks were decomposed:
-
-```json
-{
-  "spec_fingerprint": "sha256:a1b2c3d4..."
-}
-```
-
-When `/work` runs, it compares the current spec hash against task fingerprints. If different, the spec has changed since decomposition.
-
-### spec_version and spec_section
-
-Track which spec and section a task originated from:
-
-```json
-{
-  "spec_version": "spec_v1",
-  "spec_section": "## Authentication"
-}
-```
-
-Enables tracking which tasks need review when specific sections change.
-
-### section_fingerprint and section_snapshot_ref
-
-Enable granular per-section drift detection:
-
-```json
-{
-  "section_fingerprint": "sha256:abc123...",
-  "section_snapshot_ref": "spec_v1_decomposed.md"
-}
-```
-
-| Field | Purpose |
-|-------|---------|
-| `section_fingerprint` | SHA-256 hash of the specific section content at decomposition time. Allows detecting changes to individual sections without triggering alerts for unrelated changes. |
-| `section_snapshot_ref` | Reference to the snapshot file in `.claude/support/previous_specifications/`. Used to generate diffs showing exactly what changed in a section. |
-
-**How it works:**
-1. When tasks are decomposed from spec, each task's originating section is hashed
-2. The full spec is saved as a snapshot (e.g., `spec_v1_decomposed.md`)
-3. When `/work` runs, it compares current section fingerprints against task fingerprints
-4. Only tasks from changed sections are flagged for review
-
-This provides more targeted drift detection than full-spec fingerprinting alone.
-
-### out_of_spec
-
-Marks tasks that don't align with the spec but were created anyway:
-
-```json
-{
-  "out_of_spec": true
-}
-```
-
-Set when user selects "proceed anyway" on spec misalignment. Dashboard shows ⚠️ prefix for these tasks. Health check reports them separately.
-
-### out_of_spec_rejected
-
-Marks tasks that were rejected by the user during out-of-spec review. Task is archived to `.claude/tasks/archive/` but preserved for audit trail.
-
-```json
-{
-  "out_of_spec": true,
-  "out_of_spec_rejected": true,
-  "rejection_reason": "Not needed — existing validation covers this case"
-}
-```
-
-Set when user selects `[R]` Reject during out-of-spec task review. The `rejection_reason` field is optional — captures user rationale when provided.
+The `out_of_spec` and `out_of_spec_rejected` fields mark tasks outside the spec scope. See `workflow.md` § "Out-of-Spec Task Handling" for behavior rules.
 
 ## Task Verification Field
 
@@ -291,6 +221,7 @@ A task "needs per-task verification" when:
 
 When per-task verification fails:
 - `verification_attempts` is incremented (verify-agent increments this before writing the result)
+- The attempt is appended to `verification_history` (structured record of all attempts, including passes — see Verification History section)
 - Task status is set back to "In Progress"
 - Verification failure notes are prepended with `[VERIFICATION FAIL #{N}]` in the task `notes` field (where N = current attempt count)
 - `completion_date` is cleared
@@ -298,29 +229,68 @@ When per-task verification fails:
 - Dashboard is regenerated
 - **Escalation rule:** When `verification_attempts >= 3` (initial attempt + 2 re-attempts), set status to "Blocked" with note `[VERIFICATION ESCALATED] 3 attempts exhausted — requires human review` instead of retrying
 
+### Verification History
+
+Append-only log of every verification attempt (pass and fail). Provides a full repair trail when tasks require multiple verification cycles.
+
+```json
+{
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "fail",
+      "timestamp": "2026-01-28T14:00:00Z",
+      "checks": {
+        "files_exist": "pass",
+        "spec_alignment": "fail",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [{"severity": "major", "description": "Missing upsert for raw_game_designers table"}],
+      "notes": "3 of 4 tables implemented"
+    },
+    {
+      "attempt": 2,
+      "result": "pass",
+      "timestamp": "2026-01-28T15:30:00Z",
+      "checks": {
+        "files_exist": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [],
+      "notes": "All 4 tables implemented correctly"
+    }
+  ]
+}
+```
+
+#### Sub-fields
+
+| Sub-field | Type | Description |
+|-----------|------|-------------|
+| `attempt` | Number | Attempt number (matches `verification_attempts` at time of recording) |
+| `result` | String | `"pass"` or `"fail"` |
+| `timestamp` | String | ISO 8601 timestamp of when this attempt completed |
+| `checks` | Object | Per-check pass/fail (same keys as `task_verification.checks`) |
+| `issues` | Array | Issues found during this attempt |
+| `notes` | String | Brief summary of this attempt's findings |
+
+#### Behavior Rules
+
+- **Append-only** — never modify or remove previous entries
+- **Includes passing result** — the final passing attempt is recorded in both `verification_history` and `task_verification`
+- **Coexists with `task_verification`** — `task_verification` remains the latest result for quick status checks; `verification_history` provides the full trail
+- **Created on first verification** — array is created when verify-agent runs Step T6 for the first time on a task
+
 ### Verification Debt
 
-Tasks that bypass verification create "verification debt":
-
-| Debt Condition | Description |
-|----------------|-------------|
-| Finished without `task_verification` | Task marked complete but never verified |
-| Finished with `task_verification.result == "fail"` | Verification failed, not re-verified |
-| Finished with critical issues in `task_verification.issues` | Passed verification but has critical issues that should block |
-
-**Debt is tracked in the dashboard** under "Action Required" → "Verification Debt" and **blocks project completion**.
-
-**How verification debt is computed:**
-1. Scan all tasks with `status: "Finished"` (excluding `out_of_spec: true` tasks)
-2. Count tasks meeting any debt condition above
-3. Display count in dashboard footer: `⚠️ N verification debt`
-4. Surface each debt item in "Action Required" → "Verification Debt" with task ID, title, and specific issue
-
-**How it blocks completion (structural enforcement):**
-- `/work` Step 3 routing algorithm checks for verification debt before routing to phase-level verification or completion
-- If debt count > 0, `/work` routes to verify-agent (per-task) for the first unverified task instead of proceeding to phase-level verification
-- The completion gate (work.md § Step 4 "If Completing") enforces mandatory verification checks before updating spec status to `complete`
-- `/health-check` treats missing or failed verification on Finished tasks as an ERROR
+Tasks that bypass verification create "verification debt" — Finished tasks without `task_verification`, with a failing result, or with critical issues. Debt is tracked in the dashboard under "Action Required" → "Verification Debt", blocks project completion, and is enforced by both `/work` (routing) and `/health-check` (ERROR level).
 
 ## Test Protocol Field
 

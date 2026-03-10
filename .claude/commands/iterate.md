@@ -1,18 +1,18 @@
 # Iterate Command
 
-Spec review and implementation quality assessment. Identifies gaps, asks questions, suggests improvements.
+Spec review and refinement. Identifies gaps, asks questions, proposes spec changes for user approval.
 
 ## Usage
 
 ```
-/iterate                    # Auto-detect: spec review or implementation review
-/iterate {topic}            # Focus on a specific area (spec or implementation)
+/iterate                    # Review spec, focus on weakest area
+/iterate {topic}            # Focus on a specific spec area
 /iterate distill            # Extract buildable spec from vision document
-/iterate review             # Enter implementation review mode directly
-/iterate review {area}      # Focus implementation review on a specific area
 ```
 
-Determines mode based on spec state, asks focused questions (max 4), proposes changes for user approval.
+Assesses spec readiness, asks focused questions (max 4), proposes changes as declarations for user approval.
+
+**Scope:** All outputs from this command target the specification. When discussing implementation details, codebase patterns, or repo contents, translate observations into specification-level proposals — never suggest direct code changes. For implementation quality review, use `/review`.
 
 ---
 
@@ -42,12 +42,6 @@ IF `new` count > 0 OR `refined` count > 0:
 IF no feedback items exist or file doesn't exist: continue silently.
 
 ### Step 2: Determine Mode
-
-**If user specified `/iterate review` or `/iterate review {area}`:**
-
-Enter implementation review mode. See the "Implementation Review Mode" section below.
-
----
 
 **If user specified `/iterate distill`:**
 
@@ -146,18 +140,6 @@ that guide ideation sessions to produce well-structured vision documents.
 
 If `.claude/vision/` already contains documents, suggest `/iterate distill` directly.
 
-**If spec has content and status is `active` with tasks in progress or completed:**
-
-Check whether implementation review is more appropriate than spec review — **only when no topic argument was provided** (bare `/iterate`):
-1. IF a topic argument was provided (`/iterate {topic}`) → skip auto-review, fall through to spec readiness check below (the user wants to focus on a specific spec area)
-2. Glob `.claude/tasks/task-*.json` — count tasks by status
-3. IF spec status is `active` AND at least 3 tasks have status "Finished":
-   - Enter implementation review mode automatically (see "Implementation Review Mode" below)
-   - Report: "Spec is active with {N} completed tasks. Entering implementation review mode."
-   - For spec review instead, use `/iterate {topic}` to focus on a specific area
-4. IF spec status is `active` but fewer than 3 Finished tasks:
-   - Fall through to spec readiness check below (still building, review not yet meaningful)
-
 **If spec has content (spec review mode):**
 
 Assess readiness and identify the weakest area. Report:
@@ -206,6 +188,8 @@ For each implicit decision found:
    If `[D]`: Create the decision record only. Decisions need to be trackable so `/work` can gate dependent tasks.
 
 ### Step 3: Ask Questions (max 4)
+
+**Conversational context check:** If the conversation already contains clear direction for spec changes (e.g., from a preceding `/work` discussion or user feedback), summarize your understanding in 1-2 sentences and confirm before proposing changes, rather than asking fresh questions. Only ask new questions when genuine ambiguity remains about what the spec change should be.
 
 Generate focused questions for the target area. Questions should:
 - Be specific and answerable
@@ -311,170 +295,8 @@ See `.claude/support/reference/spec-checklist.md` for full readiness criteria.
 | Spec exists, specific gap known | `/iterate {topic}` | Focuses on that area |
 | Adding a new feature to existing spec | `/iterate {feature}` | Targets the new section |
 | Vision doc updated after initial distill | `/iterate distill` | Re-read vision and suggest updates |
-| Tasks in progress, want quality check | `/iterate review` | Implementation review mode |
-| After parallel batch, check integration | `/iterate review integration` | Focused integration review |
-| At phase gate, assess phase quality | `/iterate review` | Comprehensive phase review |
-| Spec active, no specific topic | `/iterate` | Auto-enters review if 3+ tasks finished (bare `/iterate` only) |
-
-**Implementation review is purely advisory** — suggests improvements but does not create tasks, modify files, or change project state.
-
----
-
-## Implementation Review Mode
-
-Review the quality of completed implementation work. This mode activates when the project has moved past spec definition and concepts have crystallized — work is on specific features, architecture is taking shape, and there's enough completed work to assess.
-
-**This is purely advisory.** Review mode identifies concerns and suggests improvements but does not create tasks, modify files, or change project state. The user decides what to act on.
-
-### When Review Mode Activates
-
-| Trigger | How |
-|---------|-----|
-| Explicit | `/iterate review` or `/iterate review {area}` |
-| Auto-detect | Bare `/iterate` (no arguments) when spec is `active` and 3+ tasks are "Finished" |
-| Suggested by `/work` | After parallel batch completion or at phase gate boundaries |
-
-### Review Step 1: Gather Review Context
-
-Read (all reads, no modifications):
-- All task JSON files — focus on "Finished" and "In Progress" tasks
-- `files_affected` from completed tasks — these are the implementation artifacts to review
-- `.claude/spec_v{N}.md` — for architectural intent and acceptance criteria
-- `.claude/support/decisions/decision-*.md` — for agreed-upon approaches
-- `.claude/support/learnings/` — for established project patterns
-- Per-task `task_verification` results — for known issues and patterns
-
-**Scope check:**
-- If fewer than 3 "Finished" tasks: "Not enough completed work for meaningful review. Continue with `/work`." → fall back to spec refinement mode
-- If `/iterate review {area}` was specified: narrow to tasks and files matching that area
-
-### Review Step 2: Assess Focus Areas
-
-Quickly assess all areas with a ✓/⚠/✗ indicator (shown in the Step 3 report), then deep-dive into the worst areas (max 4 per run). Prioritize areas with the most signal (more completed tasks, more files to examine).
-
-**Domain adaptation:** The focus areas below use software examples but apply to any project domain. Adapt the specific checks to the project type — for a procurement project, "Architecture Coherence" becomes vendor alignment; for a research project, "Pattern Consistency" becomes methodology consistency.
-
-#### Focus Area: Architecture Coherence
-
-- Are completed tasks following a consistent architecture?
-- Do patterns established by early tasks hold in later tasks?
-- Are there contradictory approaches across tasks? (e.g., one task uses callbacks, another uses async/await; one uses REST conventions, another doesn't)
-- Cross-reference `files_affected` across tasks for unexpected overlap patterns
-
-#### Focus Area: Integration Quality
-
-- Do outputs from completed tasks connect properly to inputs of dependent tasks?
-- Are shared interfaces consistent (naming, data shapes, contracts, file formats)?
-- Are there orphaned outputs (Task A produces something no downstream task consumes)?
-- Check dependency chains: for each finished task with dependents, verify the handoff points
-
-**This fills the gap between per-task verification (siloed to one task) and phase-level verification (runs only after all tasks complete).** Catching integration issues mid-execution is cheaper than finding them at the end.
-
-#### Focus Area: Pattern Consistency
-
-- Scan completed deliverables for convention adherence
-- Check `.claude/support/learnings/` for documented patterns — are tasks following them?
-- Flag inconsistencies across tasks: different error handling styles, naming conventions, structural approaches, formatting
-
-#### Focus Area: Cross-Cutting Concerns
-
-- Error handling: Are patterns consistent? Are they comprehensive?
-- Security: Input validation, auth checks, data sanitization patterns
-- Logging and observability: Are events being tracked consistently?
-- Configuration: Hardcoded values that should be configurable?
-
-#### Focus Area: Technical Debt Detection
-
-- TODOs, FIXMEs, placeholders accumulated during implementation
-- Workarounds noted in task completion notes ("MVP complete, Additional work in tasks X, Y")
-- Per-task verification issues marked "minor" that are accumulating into a pattern
-- Scope violations recorded in `task_verification.checks.scope_validation`
-
-#### Focus Area: Decision Implementation Audit
-
-- For decisions with `status: implemented` and `implementation_anchors`: verify anchors are still valid (files exist, content matches)
-- For decisions with `status: approved` but no anchors yet: flag that implementation may be drifting from the decision
-- Check if implementation choices made during tasks align with resolved decisions
-
-### Review Step 3: Present Findings
-
-Report format (mirrors spec readiness report):
-
-```
-Implementation Review ({phase context}, {N}/{M} tasks complete)
-
-Architecture coherence:      ✓ Consistent | ⚠ {N} concerns | ✗ Significant issues
-Integration quality:         ✓ Clean | ⚠ {N} concerns | ✗ Gaps found
-Pattern consistency:         ✓ Consistent | ⚠ {N} inconsistencies | ✗ Divergent
-Cross-cutting concerns:      ✓ Addressed | ⚠ {N} gaps | ✗ Missing
-Technical debt:              ✓ Minimal | ⚠ {N} items | ✗ Accumulating
-Decision implementation:     ✓ Aligned | ⚠ {N} drifts | ✗ Misaligned
-
-Focusing on: {weakest area}
-```
-
-For each concern or issue, provide:
-- **What**: Brief description of the finding
-- **Where**: Specific files and tasks involved (with `file:line` references where applicable)
-- **Why it matters**: Impact on quality, maintainability, or correctness
-- **Suggestion**: Concrete improvement (copy-pasteable where appropriate)
-
-### Review Step 4: Ask Questions (max 4)
-
-Questions about implementation direction — not spec questions:
-- "Tasks 3 and 7 use different error handling patterns. Should we standardize on the try/catch approach from Task 3?"
-- "The auth middleware from Task 2 isn't referenced by Tasks 5 and 6. Is that intentional or an integration gap?"
-- "I see 4 TODOs from the last 3 tasks. Should these become follow-up tasks or are they acceptable?"
-
-**Wait for user responses before proceeding.**
-
-### Review Step 5: Generate Suggestions
-
-Based on findings and answers, suggest (all advisory, never auto-applied):
-
-1. **Specific improvements** — with file references and copy-pasteable snippets where appropriate
-2. **Pattern documentation** — suggest additions to `.claude/support/learnings/` if a pattern should be established for remaining tasks
-3. **Decision record updates** — if implementation has drifted from a decision, suggest updating the decision's implementation anchors or creating a new decision record
-4. **Areas to watch** — for remaining tasks, flag concerns to keep in mind
-
-```
-## Suggestions
-
-Based on your answers, here are improvements to consider:
-
----
-
-### 1. Standardize error handling (Tasks 3, 5, 7)
-[Specific suggestion with code/file references]
-
-### 2. Add integration test between auth and API modules
-[Suggestion for what to verify]
-
-### 3. Document the naming convention in learnings
-[Copy-pasteable content for .claude/support/learnings/]
-
----
-
-These are suggestions — apply what makes sense for your project.
-```
-
-### Review Step 6: Continue or Finish
-
-```
-Review complete. Options:
-- Apply suggestions manually, then run /work to continue
-- Run /iterate review {area} to focus on a specific concern
-- Run /iterate to return to spec review mode
-- Run /work to continue execution
-```
-
-### Principles for Good Implementation Reviews
-
-1. **Focus on patterns, not individual lines** — Review is about systemic quality, not line-by-line code review (that's verify-agent's job)
-2. **Weight findings by impact** — An architecture inconsistency affecting 5 tasks matters more than a naming convention in 1 file
-3. **Consider remaining work** — If 4/12 tasks are done, flag patterns early so remaining tasks can follow them. If 11/12 tasks are done, focus on integration between what exists.
-4. **Respect previous decisions** — If a pattern was chosen via a decision record, don't second-guess it. Flag only if implementation *drifts* from the decision.
-5. **Stay advisory** — Never create tasks, modify files, or change state. The user decides what to act on.
+| Mid-work discussion surfaced bigger changes | `/iterate` | Translates discussion into spec changes |
+| Tasks in progress, want quality check | `/review` | Implementation review (separate command) |
 
 ---
 

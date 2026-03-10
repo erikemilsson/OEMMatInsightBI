@@ -29,6 +29,10 @@ Determine the current active phase by walking phases in ascending order:
                 → Phase transition approved.
                 → Replace gate content with: <!-- PHASE GATE:{P}→{next_phase} APPROVED -->
                 → Log: "Phase {P} → {next_phase} approved"
+                → Learning capture (lightweight, skippable):
+                    "Phase {P} complete. Any patterns or learnings to capture? [L] Share  [S] Skip"
+                    If [L]: append to .claude/support/learnings/phase-learnings.md
+                    If [S]: continue silently
                 → Execute Version Transition Procedure (see iterate.md § "Version Transition Procedure")
                 → Suggest running /iterate to flesh out Phase {next_phase} sections
                 → Continue to next phase

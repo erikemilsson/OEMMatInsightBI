@@ -96,22 +96,30 @@ User-authored content is persisted in `.claude/dashboard-state.json` as a durabl
 
 ## When to Regenerate
 
-The dashboard is regenerated automatically after every task change. This ensures the user always sees current state.
+Dashboard regeneration follows a **tiered communication strategy** (see `commands/work.md` § "User Communication Strategy"). Not every task change triggers a full regen — routine status updates use inline CLI messages instead.
 
-| State Change | Regenerate? | Rationale |
-|-------------|:-----------:|-----------|
-| Task: Pending → In Progress | **Yes** | Reflects work starting |
-| Task: In Progress → Awaiting Verification | **Yes** | Reflects implementation complete |
-| Task: Awaiting Verification → Finished (pass) | **Yes** | User-visible completion event |
-| Task: Awaiting Verification → In Progress (fail) | **Yes** | User may need to see verification failure |
-| Task: any → Blocked | **Yes** | User may need to act on blocker |
-| Task: any → On Hold | **Yes** | User-initiated status change |
-| Decomposition complete (new tasks created) | **Yes** | New tasks to display |
-| Phase transition | **Yes** | Major state change, gate conditions to show |
-| Phase-level verification complete | **Yes** | Verification results to display |
-| Parallel batch complete (post-cleanup) | **Yes** | Single regen for all parallel results |
-| `/work complete` | **Yes** | User-initiated completion |
-| Decision resolved | **Yes** | Decision status changed, tasks may unblock |
+**Tier 1 — Strategic Dashboard Regeneration (full regen):**
+
+| Trigger | Rationale |
+|---------|-----------|
+| After decomposition (new tasks created) | User needs to see the full task list |
+| After parallel batch completes | Many changes at once, single regen |
+| At session boundaries (before presenting final results) | User will check the dashboard |
+| At project completion | Final state matters |
+| When routing async work to dashboard (phase gates, decision reviews) | User will go read the dashboard |
+| `/work complete` (user-initiated) | User explicitly interacting with task state |
+| After decision resolution | May unblock tasks, dashboard needs to reflect new state |
+| Step 1a freshness check | Catch-up on entry |
+
+**Tier 2 — Inline CLI Messages (no regen):**
+
+| Event | Inline message |
+|-------|---------------|
+| Task starts (In Progress) | `Starting task {id}: "{title}"` |
+| Per-task verification passes | `Task {id} verified` + what's next |
+| Per-task verification fails | `Task {id} verification failed: {summary}` |
+| Human task becomes unblocked | `Note: Task {id} ("{title}") is now available for you` |
+| Auto-continuation step | `Moving to task {id}: "{title}"` |
 
 **In parallel mode:** Individual agents never regenerate. The `/work` coordinator regenerates once after all agents complete.
 
@@ -125,7 +133,6 @@ The dashboard is regenerated automatically after every task change. This ensures
 - All `decision-*.md` files in `.claude/support/decisions/` (decisions)
 - `drift-deferrals.json` (if exists)
 - `verification-result.json` (if exists)
-- `.claude/support/questions/questions.md` (scan for blocking questions)
 - `.claude/support/feedback/feedback.md` (scan for unhandled feedback items)
 
 ### 2. Extract and Persist User Content
@@ -206,6 +213,15 @@ This ensures user content is always persisted in a structured file before the da
   ```
   All tasks complete — phase-level verification will run on next `/work`
   ```
+- **Acceptance Criteria sub-section (Progress section):** When `verification-result.json` exists and has a `criteria` array, render a compact checklist as a sub-section under `## 📊 Progress` (after the phase table, before the critical path one-liner):
+  ```
+  ### Acceptance Criteria
+  - [x] User can log in — *Tested with valid credentials*
+  - [x] Invalid login shows error — *Error message displays correctly*
+  - [ ] Session expires after 1h — *Currently no expiration*
+  **4/5 criteria passed**
+  ```
+  Rules: `status: "pass"` renders as `[x]`, `status: "fail"` renders as `[ ]`. Notes are italicized and truncated at 60 characters. The summary count line uses `criteria_passed` / (`criteria_passed` + `criteria_failed`). When the `criteria` array is absent (backward compatibility), fall back to summary-only: `**{criteria_passed}/{criteria_passed + criteria_failed} criteria passed**`.
 - **Spec Drift sub-section:** When `drift-deferrals.json` exists with active deferrals, render each deferred section:
   ```
   - ⚠️ **{section}** — {N} tasks affected, deferred {M} days ago
@@ -254,7 +270,21 @@ At very end:
 - Healthy: `[Spec aligned](# "0 drift deferrals, 0 verification debt")`
 - Issues: `⚠️ N drift deferrals, M verification debt`
 
-### 7. Post-Regeneration Validation
+### 7. Output Size Awareness
+
+Claude Code caps output at 32K tokens per response (thinking + tool arguments + text). Dashboard content is written via the Write tool in a single call — if the dashboard is very large, the response could hit this limit and truncate the file.
+
+**Mitigations built into the format:**
+- Completed task summarization (>10 finished per phase → summary line instead of individual rows)
+- Action Required sub-sections only render when they have content
+- Project Overview diagram omitted when <4 tasks remain
+- Critical path truncation (>5 steps → first 3 + "... N more → Done")
+
+**If the dashboard still risks exceeding the limit** (50+ active tasks, complex parallel structure, many phases):
+- Write the dashboard in two passes: first the structural sections (metadata, action required, progress), then the data-heavy sections (tasks, decisions) as an Edit append
+- Prioritize Action Required and Progress sections — these are what the user checks first
+
+### 8. Post-Regeneration Validation
 
 After writing the new dashboard.md, verify structural integrity:
 
@@ -284,12 +314,10 @@ Every item in "Action Required" must be:
 ### Review Item Derivation
 
 Review items are derived, not stored. During regeneration:
-1. Scan for unresolved items — out_of_spec without approval, draft/proposed decisions, blocking questions from `questions.md`
+1. Scan for unresolved items — out_of_spec without approval, draft/proposed decisions
 2. Populate Reviews sub-section from current data
 3. Never carry forward stale entries — resolved items disappear on next regeneration
 4. No dangling references — every item must link to a concrete file
-5. Blocking questions: scan `questions.md` for `[BLOCKING]` entries, render each as a review item linking to [questions.md](support/questions/questions.md)
-6. Non-blocking unanswered questions: if count > 0, add summary line to Reviews: `- [ ] **N pending questions** → [questions.md](support/questions/questions.md)
 
 ### Out-of-Spec Task Approval UI
 
@@ -326,7 +354,7 @@ The user selects an option when prompted, and `/work` updates the task according
 - Spec Drift: only render when drift-deferrals.json has active entries
 - Feedback: only render when `feedback.md` has entries with status `new` or `refined` — render as: `- 📝 **{N} feedback items** awaiting attention ({X} new, {Y} refined) → /feedback review`
 - Reviews sub-section format: `- [ ] **Item title** — what to do → [link to file](path)`
-- Reviews appear for: out_of_spec tasks without approval, draft/proposed decisions, blocking questions from `questions.md` (each linked to the file)
+- Reviews appear for: out_of_spec tasks without approval, draft/proposed decisions
 - Timeline sub-section in Progress: only render when tasks have `due_date` or `external_dependency.expected_date` (part of Progress, not an independent toggle)
 - Phase table in Progress: always show ALL phases (including blocked/future)
 - Critical path owners: ❗ (human), 🤖 (Claude), 👥 (both)
@@ -334,13 +362,14 @@ The user selects an option when prompted, and `/work` updates the task according
 - Critical path >5 steps (after collapsing parallel branches): show first 3 + "... N more → Done"
 - "This week" line: omit when all counts are zero
 - Tasks grouped by phase with per-phase progress lines
+- **Repair indicator:** When a Finished task has `verification_history` with more than 1 entry, show status as `Finished (N retries)` in the Tasks section Status column (where N = number of entries minus 1). This surfaces the repair trail without requiring users to open task JSON files.
 - **Completed task summarization (scale):** When a phase has more than 10 finished tasks, render a summary line (`✅ {N} tasks finished`) instead of listing each individually. Only list active tasks (Pending, In Progress, Awaiting Verification, Blocked, On Hold) with full detail rows. This keeps the dashboard navigable for large projects (50+ tasks).
 - Tasks with `conflict_note`: show status as `Pending (held: conflict with Task {id})` during parallel dispatch
 - Decisions: status display mapping: `approved`/`implemented` → "Decided", `draft`/`proposed` → "Pending". Selected column always links to the decision document regardless of status — Decided shows the selected option name as link text; Pending shows "Pending" as link text
 - Out-of-spec tasks: prefix title with ⚠️
 - On Hold tasks: show status as `⏸️ On Hold` in Tasks section; exclude from Progress phase "Done" counts but include in "Total"; exclude from critical path (paused work isn't on the path)
 - Absorbed tasks: show status as `Absorbed → Task {id}` in Tasks section (dimmed/collapsed style); exclude from both "Done" and "Total" in Progress phase counts; exclude from critical path
-- Notes generated content: minimal — a single inline link to [questions.md](support/questions/questions.md) when unresolved questions exist, placed before the `<!-- USER SECTION -->` markers. No "Quick links" header, no decisions link (decisions have their own section with persistent links). When no unresolved questions exist, the Notes section contains only the user section markers.
+- Notes generated content: minimal — the Notes section contains only the user section markers. No "Quick links" header, no decisions link (decisions have their own section with persistent links).
 - Footer: healthy = spec aligned tooltip; issues = ⚠️ with counts
 - Custom Views section: user-defined instructions (preserved between markers) followed by Claude-generated content based on those instructions (when enabled). Multiple views are rendered as `###` sub-sections, one per bold-labeled instruction.
 
@@ -357,6 +386,7 @@ The user selects an option when prompted, and `/work` updates the task according
 | Action Required → Your Tasks | `Task \| What To Do \| Where` |
 | Action Required → Reviews | `- [ ] **Item title** — what to do → [link](path)` — derived, not stored |
 | Progress → Phase table | `Phase \| Done \| Total \| Status` — status: Complete, Active, Blocked (reason) |
+| Progress → Acceptance Criteria | `- [x]/[ ] Criterion — *notes*` checklist + `**N/M criteria passed**` summary. Only when `verification-result.json` has `criteria` array; falls back to summary-only when absent. |
 | Progress → Timeline | `Date \| Item \| Status \| Notes` — sorted chronologically, overdue: strikethrough date + ⚠️ OVERDUE prefix, external deps with contact info, human tasks marked with ❗ |
 | Tasks → Per phase | `ID \| Title \| Status \| Diff \| Owner \| Deps` — grouped by phase headers |
 | Decisions | `ID \| Decision \| Status \| Selected` |

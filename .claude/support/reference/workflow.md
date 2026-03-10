@@ -95,6 +95,7 @@ Verification operates in two tiers:
 
 **Activities:**
 - Verify file artifacts exist and match task description
+- Check for undeclared modifications (scope validation)
 - Check spec alignment against task description and spec section
 - Validate output quality (no incomplete items, follows patterns)
 - Runtime validation — self-test runnable outputs (CLIs, APIs, web UIs) before involving humans
@@ -196,8 +197,8 @@ By separating concerns:
 5. research-agent: updates decision status to `proposed` (ready for user selection)
 6. User selects option via checkbox → `/work` auto-updates status to `approved` → dependent tasks unblock
 
-**The review workflow** (via `/iterate review`):
-1. `/iterate` detects active spec with completed tasks (or user explicitly requests review)
+**The review workflow** (via `/review`):
+1. User runs `/review` (or `/review {area}`) to assess implementation quality
 2. Reviews implementation artifacts across completed tasks for quality patterns
 3. Assesses: architecture coherence, integration quality, pattern consistency, cross-cutting concerns, technical debt, decision alignment
 4. Presents findings and suggestions — purely advisory, no state changes
@@ -211,73 +212,9 @@ This separation — both logical and contextual — produces higher quality outp
 
 By default, `/work` dispatches multiple tasks concurrently when they are independent. Each parallel task still runs the full atomic implement → verify cycle. The coordinator manages batching, result collection, and a single dashboard regeneration.
 
-### Eligibility Criteria
+Key constraints: verification remains per-task, dashboard regeneration is coordinator-only (parallel agents never regenerate), parent auto-completion is deferred, and phase-level verification stays sequential. Configure via `parallel_execution` in spec frontmatter (default: enabled, max 3 tasks).
 
-A task is eligible for parallel dispatch when ALL conditions are met:
-
-| Condition | Rationale |
-|-----------|-----------|
-| Status is "Pending" | Only unstarted tasks can be batched |
-| Owner is not "human" | Human tasks require manual action |
-| All dependencies are "Finished" | No unresolved blockers |
-| Task belongs to current active phase | Phase N+1 blocked until Phase N complete |
-| All decision dependencies are resolved | Pending decisions block dependent tasks |
-| Difficulty < 7 | Complex tasks need breakdown first |
-| `files_affected` don't overlap with other batch tasks | Prevents file conflicts |
-
-Tasks with empty `files_affected` and no `parallel_safe: true` are excluded from parallel batches (unknown file impact). Set `parallel_safe: true` on research/analysis tasks that have no file side effects.
-
-### How It Works
-
-1. **Gather candidates** — `/work` collects all eligible tasks
-2. **Build conflict-free batch** — Pairwise comparison of `files_affected` using the file conflict detection algorithm (see `.claude/support/reference/parallel-execution.md` § "File Conflict Detection Algorithm"). Two paths conflict if they are an exact match OR one is a directory containing the other (e.g., `src/` conflicts with `src/auth.py`). Paths are normalized before comparison. Tasks with conflicts are tracked in a `held_back` list with the specific conflict reason (task ID and shared files)
-3. **Annotate held-back tasks** — Add `conflict_note` to held-back task JSONs (surfaced in the dashboard's Status column); cap batch at `max_parallel_tasks`
-4. **Dispatch** — If batch size >= 2, set all to "In Progress" and spawn parallel agents (using `run_in_background: true`) via Claude Code's `Task` tool. Each agent reads `implement-agent.md` and runs Steps 2/4/5/6a/6b independently
-5. **Incremental re-dispatch** — Poll for agent completion. When an agent finishes, re-run eligibility assessment: tasks whose file conflicts are now resolved become eligible and can be dispatched immediately (even while other agents are still running). Clear `conflict_note` from newly-dispatched tasks
-6. **Post-parallel cleanup** — After all agents finish: final parent auto-completion check, single dashboard regeneration (clears remaining `conflict_note` fields), operational checks (see `/work` Step 6)
-
-### Constraints
-
-- **Verification is still per-task** — Each agent runs its own implement → verify cycle
-- **Dashboard regeneration in parallel mode is coordinator-only** — Parallel agents do NOT regenerate the dashboard; the `/work` coordinator does a single batch regeneration after all agents finish. In sequential mode, regeneration occurs after every task change as specified in `dashboard-regeneration.md`.
-- **Parent auto-completion is deferred** — The coordinator checks parent completion after collecting all results, preventing races when siblings finish simultaneously
-- **Phase-level verification remains sequential** — Runs once when ALL tasks are done
-- **Conflict notes are transient** — `conflict_note` fields are cleaned up during post-parallel dashboard regeneration
-
-### Configuration
-
-In spec frontmatter (optional — defaults apply if absent):
-
-```yaml
-parallel_execution:
-  max_parallel_tasks: 3    # default: 3
-  enabled: true            # default: true
-```
-
-Set `enabled: false` to force sequential execution for the entire project.
-
-### Fallback to Sequential
-
-Parallel execution falls back to sequential (one task at a time) when:
-- Only one eligible task exists
-- All eligible tasks have file conflicts with each other
-- `parallel_execution.enabled` is `false`
-- A single task is specified via `/work {task-id}`
-
----
-
-## Implementation Stages
-
-When decomposing the spec into execute-phase tasks, organize them into logical stages:
-
-| Stage | Focus | Examples |
-|-------|-------|----------|
-| **Foundation** | Setup, core infrastructure, initial research | Project structure, database schema, vendor research, requirements gathering |
-| **Core Features** | Main functionality from spec | Primary user flows, API endpoints, procurement, key deliverables |
-| **Polish** | Edge cases, error handling, refinement | Validation, error messages, budget reconciliation, final reviews |
-| **Validation** | Testing, documentation, verification | Unit tests, integration tests, documentation, acceptance checks |
-
-**Note:** These are organizational stages for tasks within the Execute phase, not to be confused with workflow phases (Spec → Execute → Verify).
+**Full procedure:** `.claude/support/reference/parallel-execution.md` (eligibility criteria, file conflict algorithm, batch building, dispatch, incremental re-dispatch, and post-parallel cleanup).
 
 ---
 
@@ -299,7 +236,6 @@ User → /work → Specialist Agent → /work → User
 - Complete tasks (`/work complete`)
 - Select appropriate agent
 - Pass context to agent
-- Collect questions
 - Trigger checkpoints
 - Report progress
 - Auto-sync dashboard after changes
@@ -310,11 +246,11 @@ User → /work → Specialist Agent → /work → User
 
 ### /work → Specialist
 
-Provides: current phase, spec summary, recent activity, task to do, constraints (already-asked questions, scope limits).
+Provides: current phase, spec summary, recent activity, task to do, constraints (scope limits, prior decisions).
 
 ### Specialist → /work
 
-Returns: what was completed, files modified, status updates, questions generated, recommendations, issues encountered.
+Returns: what was completed, files modified, status updates, recommendations, issues encountered.
 
 ---
 
@@ -366,6 +302,7 @@ Returns: what was completed, files modified, status updates, questions generated
 - Update spec `status` from `active` to `complete`
 - Update dashboard with completion summary
 - Present final checkpoint to human
+- Offer project-level learning capture prompt (skippable) — if shared, append to `.claude/support/learnings/project-learnings.md`
 - Project complete (or loop back if issues)
 
 **Verification result validity:** The result is valid when `result` is `"pass"`, `spec_fingerprint` matches the current spec, and no tasks changed since the verification `timestamp`. If the spec changes or new tasks appear, the result is automatically invalidated and `/work` re-routes to verification.
@@ -398,7 +335,7 @@ Checkpoint types:
 ### Phase Boundaries
 When transitioning between phases:
 - Spec → Execute: "Specification complete. Ready to implement?"
-- **Phase N → Phase N+1** (within Execute): Surfaced as a dashboard Action Required item with a checkbox in a `<!-- PHASE GATE:{N}→{N+1} -->` marker. `/work` blocks until the user checks the box and re-runs. Once approved, the marker becomes `<!-- PHASE GATE:{N}→{N+1} APPROVED -->` so it won't re-trigger on subsequent runs.
+- **Phase N → Phase N+1** (within Execute): Surfaced as a dashboard Action Required item with a checkbox in a `<!-- PHASE GATE:{N}→{N+1} -->` marker. `/work` blocks until the user checks the box and re-runs. Once approved, the marker becomes `<!-- PHASE GATE:{N}→{N+1} APPROVED -->` so it won't re-trigger on subsequent runs. After approval, a lightweight learning capture prompt is offered (skippable).
 - **Execute → Verify**: When all tasks are complete, the dashboard shows a "Verification Pending" item in Action Required, and the critical path displays "🤖 Phase verification → Done" instead of "All tasks complete!". Phase-level verification runs automatically on the next `/work`.
 - Verify → Complete: "Verification passed. Ready to ship?"
 
@@ -421,11 +358,6 @@ When something goes wrong:
 - Tests fail
 - Specification violations found
 - Critical issues discovered
-
-### Question Batches
-When questions accumulate:
-- Non-trivial questions need human input
-- Blocking questions prevent progress
 
 ---
 
@@ -477,7 +409,7 @@ Verify-agent can self-test runnable outputs before escalating to human testing. 
 
 ### Guided Testing
 
-When runtime validation is `"partial"` or the task needs human testing, verify-agent writes a **test protocol** — a structured set of testing steps. Combined with `interaction_hint: "cli_direct"`, this enables guided testing directly in the CLI conversation.
+When runtime validation is `"partial"`, or when an `owner: "both"` task has runnable output, verify-agent writes a **test protocol** — a structured set of testing steps. Combined with `interaction_hint: "cli_direct"`, this enables guided testing directly in the CLI conversation.
 
 **Test protocol schema:**
 
@@ -522,29 +454,6 @@ When runtime validation is `"partial"` or the task needs human testing, verify-a
 
 ---
 
-## Questions System
-
-During execution, when implement-agent or verify-agent encounter something they can't resolve autonomously — a spec ambiguity, a technical choice needing user input, a dependency question — they write it to `.claude/support/questions/questions.md` under categories: Requirements, Technical, Scope, Dependencies. Questions are surfaced to the user in the dashboard's Action Required section at natural checkpoints.
-
-**Blocking vs Non-Blocking:**
-- `[BLOCKING]` prefix → cannot proceed, triggers immediate checkpoint
-- Non-blocking → note assumption, present at next phase boundary
-
-**Checkpoints where questions are surfaced:**
-
-| Checkpoint | Trigger Condition | Question Type Presented |
-|------------|-------------------|-------------------------|
-| **Immediate** | `[BLOCKING]` question added | Blocking only — work halts until answered |
-| **After task completion** | Task transitions to "Finished" | All unanswered questions (blocking + non-blocking) |
-| **Phase boundary (Execute → Verify phase-level)** | All tasks in phase finished | All unanswered questions |
-| **Phase boundary (Verify phase-level → Complete)** | Phase-level verification passes | All unanswered questions |
-| **Quality gate failure** | Tests fail, spec violation detected | All unanswered questions |
-| **Manual checkpoint** | User runs `/work` after answering questions in questions.md | All unanswered questions (validation that answers were captured) |
-
-**At checkpoints:** Group by category, prioritize blocking first, present to human, clear answered questions to "Answered Questions" table when resolved.
-
----
-
 ## Error Handling
 
 ### Agent Failure
@@ -569,109 +478,26 @@ If work isn't progressing:
 2. Present situation to human
 3. Get explicit direction
 
----
+### Context Window Exhaustion
 
-## Spec Change and Feature Addition Workflow
+When a long session approaches compaction:
+- **Proactive (preferred):** User runs `/work pause` — graceful wind-down, writes handoff file with reasoning context, task JSON updated with partial notes
+- **Automatic (safety net):** PreCompact hook writes handoff file before compaction clears context
+- **Reactive (fallback):** Session recovery (Step 0) detects stuck tasks and recovers from task file state alone
 
-When you need to add features or change requirements after initial decomposition, follow this workflow:
+The handoff file (`.claude/tasks/.handoff.json`) captures environment-specific context that compaction can't preserve: agent step position, session knowledge, strategic reasoning. `/work` Step 0 detects and restores it before the session recovery scan.
 
-### Steps
-
-1. **User edits the spec** — Update `.claude/spec_v{N}.md` directly (add sections, modify requirements, change acceptance criteria)
-2. **User runs `/work`** — Auto-detect mode picks up the change
-3. **`/work` detects drift** — Compares spec fingerprint against task fingerprints (see `.claude/support/reference/drift-reconciliation.md` § "Spec Drift Detection")
-4. **`/work` shows what changed** — Granular section diffs showing added, modified, and removed content
-5. **User confirms** — Per-section options: apply suggestions, review individually, or skip
-6. **Tasks are created/updated** — Only for changed sections (unchanged tasks are preserved)
-7. **Implementation proceeds** — Execute phase runs on new/updated tasks
-8. **Verification confirms** — Verify phase runs against updated acceptance criteria
-
-### Key Principles
-
-- **Transparency first:** The user always sees what Claude thinks changed before any action is taken
-- **Incremental by default:** Only affected tasks are updated; completed work is preserved
-- **Full re-decomposition is rare:** Only needed for major rewrites or architecture changes (see table below)
-- **Spec stays as source of truth:** Tasks follow the spec, not the other way around
-
-### Adding a New Feature
-
-1. Add a new `##` section to the spec describing the feature
-2. Run `/work` — it detects the new section
-3. Confirm the new tasks to be created
-4. Existing tasks remain untouched
-
-### Modifying an Existing Feature
-
-1. Edit the relevant `##` section in the spec
-2. Run `/work` — it shows the diff and affected tasks
-3. Choose how to update each affected task
-4. Unaffected tasks remain untouched
-
-### Removing a Feature
-
-1. Delete the `##` section from the spec
-2. Run `/work` — it flags tasks tied to the removed section
-3. Choose to mark them out-of-spec or delete them
-
-### Versioning Conventions
-
-- **Single-spec invariant**: Exactly one `spec_v{N}.md` exists in `.claude/` at any time
-- **Version discovery**: `/work` globs for `spec_v*.md` and uses the highest N
-- **Direct edits are safe**: The decomposed snapshot preserves the pre-edit state; drift detection handles reconciliation. After editing, run `/work` to continue building (detects changes and reconciles affected tasks) or `/iterate` to keep refining
-- **Version bumps** are for major transitions (phase completion, inflection points, major pivots) — not for routine edits
-- **Substantial change detection**: `/work` evaluates change magnitude and suggests a version bump when edits are large enough
-- **Version Transition Procedure**: Archive → Copy → Bump frontmatter → Remove old (see `iterate.md` § "Version Transition Procedure")
-- **Task migration**: Finished tasks keep old provenance; pending/in-progress tasks are migrated (see `.claude/support/reference/drift-reconciliation.md` § "Task Migration on Version Transition")
-- Each decomposition saves a snapshot to `.claude/support/previous_specifications/`
+**Full reference:** `.claude/support/reference/context-transitions.md`
 
 ---
 
-## Spec Drift and Reconciliation
+## Spec Change and Feature Addition
 
-When the specification evolves after tasks are decomposed, granular reconciliation helps keep tasks aligned without starting over.
+Direct spec edits are always safe — the decomposed snapshot preserves the before-state, and `/work` detects drift automatically. The workflow: user edits spec → runs `/work` → drift detection shows granular section diffs → user confirms per-section (apply, review individually, or skip) → only affected tasks are updated. Completed work is preserved.
 
-### How It Works
+**Versioning:** Exactly one `spec_v{N}.md` exists at a time. Version bumps are for major transitions (phase completion, inflection points), not routine edits. `/work` suggests a bump when edits are substantial enough.
 
-1. **At decomposition time:**
-   - Full spec is hashed and stored in each task (`spec_fingerprint`)
-   - Each section is individually hashed (`section_fingerprint`)
-   - A snapshot is saved for diff generation (`section_snapshot_ref`)
-
-2. **When /work runs:**
-   - Current spec hash is compared to task fingerprints
-   - If different, section-level analysis identifies which parts changed
-   - Only affected tasks are flagged for review
-
-3. **Reconciliation UI:**
-   - Shows diff of changed sections
-   - Groups affected tasks by section
-   - Offers targeted update options
-
-### Reconciliation Options
-
-| Option | Effect |
-|--------|--------|
-| **Apply suggestions** | Auto-update task descriptions based on spec changes |
-| **Review individually** | Step through each affected task one by one |
-| **Skip section** | Acknowledge change without updating tasks |
-| **Mark out-of-spec** | Flag task as no longer aligned with spec |
-
-### Benefits
-
-- **Targeted updates**: Only tasks from changed sections need review
-- **Visible diffs**: See exactly what changed in each section
-- **Preserves work**: Unchanged sections and their tasks remain intact
-- **Backward compatible**: Tasks without section fingerprints fall back to full-spec comparison
-
-### When to Re-decompose vs Reconcile
-
-| Scenario | Recommendation |
-|----------|---------------|
-| Minor clarifications | Reconcile - update affected tasks |
-| New section added | Create new tasks for new section only |
-| Section deleted | Mark affected tasks out-of-spec or delete |
-| Major rewrite | Re-decompose from scratch |
-| Architecture change | Re-decompose from scratch |
+**Full procedure:** `.claude/support/reference/drift-reconciliation.md` (detection, reconciliation UI, drift budget, task migration, substantial change detection, version transition).
 
 ---
 
@@ -720,7 +546,7 @@ Reference documentation for the environment builder system.
 - Implements according to spec
 - Surfaces everything user-facing through the dashboard — action items with links, not buried in internal files
 - Validates work against acceptance criteria
-- Regenerates the dashboard after every significant change
+- Regenerates the dashboard at strategic moments (see tiered communication strategy in `commands/work.md`)
 
 ### Workspace
 
@@ -744,7 +570,7 @@ Two files control template behavior:
 | Category | Purpose | Examples |
 |----------|---------|----------|
 | `sync` | Updated from template | Commands, agents, reference docs |
-| `customize` | User-editable, template provides defaults | `.claude/CLAUDE.md`, README.md, questions/questions.md, documents/README.md |
+| `customize` | User-editable, template provides defaults | `.claude/CLAUDE.md`, README.md, documents/README.md |
 | `ignore` | Project-specific data, never synced | Tasks, dashboard, decision records, learnings |
 
 **settings.local.json** — Pre-approved permissions for consistent Claude Code behavior. Ensures the template works the same way for everyone using it.
@@ -792,9 +618,6 @@ Two files control template behavior:
 │   │   ├── scratch/          # Temporary notes, quick analysis
 │   │   ├── research/         # Web search results, reference material
 │   │   └── drafts/           # WIP docs before final location
-│   ├── questions/            # Questions for human input
-│   │   ├── README.md         # Workflow and categories
-│   │   └── questions.md      # Active questions and archive
 │   └── documents/            # User-provided reference files (PDFs, contracts, etc.)
 │       └── README.md         # Conventions and file placement
 ├── sync-manifest.json

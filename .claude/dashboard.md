@@ -1,75 +1,142 @@
-# Project Dashboard
+# Dashboard
 
-**OEMMatInsightBI**
+<!-- DASHBOARD META
+generated: 2026-03-10T12:00:00Z
+task_hash: sha256:09605e6a3b662861
+task_count: 19
+spec_fingerprint: sha256:b4041371a843faa2
+verification_debt: 0
+drift_deferrals: 0
+-->
 
-*Last Updated: 2026-02-13*
+**OEMMatInsightBI** — 68% complete (13/19 tasks)
+
+*Updated 2026-03-10 12:00 — may not reflect changes made outside `/work`*
+
+<!-- SECTION TOGGLES -->
+<details><summary>Section toggles</summary>
+
+- [x] Action Required
+- [x] Progress
+- [x] Tasks
+- [ ] Decisions
+- [x] Notes
+- [ ] Custom Views
+
+</details>
+<!-- END SECTION TOGGLES -->
 
 ---
 
-## Progress Overview
+## 🚨 Action Required
 
+### Phase Transitions
+
+<!-- PHASE GATE:1→2 -->
+**Phase 1 → Phase 2 Transition**
+
+Conditions:
+- [x] All Phase 1 tasks finished (9/9)
+- [x] All verifications passed (9/9)
+- [ ] Approve transition to Phase 2
+
+<!-- END PHASE GATE:1→2 -->
+
+### Your Tasks
+
+| Task | What To Do | Where |
+|------|-----------|-------|
+| 010 | Configure pipeline scheduling in Fabric UI | [task-010.json](tasks/task-010.json) |
+| 012 | Run performance baselines, validate gains | [task-012.json](tasks/task-012.json) |
+
+<!-- FEEDBACK:task-010 -->
+**Task 010 — Feedback:**
+[Leave feedback here, then run /work complete task-010]
+<!-- END FEEDBACK:task-010 -->
+
+<!-- FEEDBACK:task-012 -->
+**Task 012 — Feedback:**
+[Leave feedback here, then run /work complete task-012]
+<!-- END FEEDBACK:task-012 -->
+
+---
+
+## 📊 Progress
+
+| Phase | Done | Total | Status |
+|-------|------|-------|--------|
+| Phase 1 | 9 | 9 | Complete |
+| Phase 2 | 4 | 7 | Active |
+| Phase 3 | 0 | 3 | Blocked (Phase 2 incomplete) |
+
+**Critical path:** 🤖 Task 005 → 🤖 Task 006 → 🤖 Task 007 → 🤖 Task 011 → 👥 Task 010 → 👥 Task 012 → Done *(6 steps)*
+
+### Project Overview
+
+```mermaid
+graph LR
+    P1["✅ Phase 1 (9/9)"]
+    T005["🤖 Automate External Data"]
+    T006["🤖 Incremental Load"]
+    T007["🤖 Data Quality Checks"]
+    T011["🤖 Error Handling"]
+    T010["👥 Pipeline Scheduling"]
+    T012["👥 Optimize Performance"]
+
+    P1 --> T005
+    P1 --> T006
+    P1 --> T007
+    T011 --> T010
+    T005 --> T011
+    T006 --> T011
+    T007 --> T011
+    T010 --> T012
+
+    classDef done fill:#c8e6c9,stroke:#2e7d32
+    classDef active fill:#bbdefb,stroke:#1565c0
+    classDef human fill:#fff9c4,stroke:#f57f17
+    classDef blocked fill:#f5f5f5,stroke:#9e9e9e
+
+    class P1 done
+    class T005,T006,T007,T011 active
+    class T010,T012 human
 ```
-Tasks Complete: █████████████████████░░░░░░░░░░░ 68% (13/19)
-P1 Tasks:       ████████████████████████████████ 100% (8/8)
-P2 Tasks:       ████████████████████░░░░░░░░░░░░ 62% (5/8)
-P3 Tasks:       ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  0% (0/3)
-Pending:        6 tasks remaining
-```
 
 ---
 
-## Task Status
+## 📋 Tasks
 
-| Status | Tasks |
-|--------|-------|
-| **Finished** (13) | 001, 002, 003, 004, 008, 009, 013, 014, 015, 016, 017, 018, 019 |
-| **In Progress** (0) | — |
-| **Pending** (6) | 005, 006, 007, 010, 011, 012 |
+### Phase 1 — ✅ Complete (9/9)
 
-### Pending Task Details
+✅ 9 tasks finished
 
-| Task | Title | Owner | Difficulty | Priority |
-|------|-------|-------|------------|----------|
-| 005 | Automate External Data Ingestion | Claude Code | 5 | P2 |
-| 006 | Implement Incremental Load Logic | Claude Code | 7 | P2 |
-| 007 | Add Comprehensive Data Quality Checks | Claude Code | 6 | P2 |
-| 010 | Configure Pipeline Scheduling | TBD | 3 | P3 |
-| 011 | Implement Error Handling & Retry Logic | Claude Code | 6 | P3 |
-| 012 | Optimize Pipeline Performance | TBD | 7 | P3 |
+### Phase 2 — Active (4/7)
 
-### Task Ownership Matrix
+| ID | Title | Status | Diff | Owner | Deps |
+|----|-------|--------|------|-------|------|
+| 005 | Automate External Data Ingestion | Pending | 5 | 🤖 | — |
+| 006 | Implement Incremental Load Logic | Pending | 7 | 🤖 | — |
+| 007 | Add Comprehensive Data Quality Checks | Pending | 6 | 🤖 | task-018 ✅ |
+| 016 | Guided Power BI Dashboard Building | Finished | 3 | 👥 | — |
+| 017 | Populate Quality History with Sample Data | Finished | 4 | 🤖 | — |
+| 018 | Implement Quality Observability Tables | Finished | 5 | 🤖 | — |
+| 019 | Add Quality Tables to Semantic Model | Finished | 4 | 🤖 | — |
 
-| Task | Claude Does | Erik Does |
-|------|-------------|-----------|
-| **005** | Write Copy Activity + API notebook | Deploy & test in Fabric |
-| **006** | Write MERGE logic + parameters | Deploy & test loads |
-| **007** | Write DQ notebook (9 checks) | Deploy & test alerts |
-| **010** | Write docs | **Configure in Fabric UI** |
-| **011** | Write retry config + logging | Deploy & test failures |
-| **012** | Write optimization code | **Run baselines & validate** |
+### Phase 3 — Blocked (0/3)
 
-**Ready for Claude now:** 005, 006, 007, 011
-**Primarily Erik tasks:** 010, 012
+| ID | Title | Status | Diff | Owner | Deps |
+|----|-------|--------|------|-------|------|
+| 010 | Configure Pipeline Scheduling | Pending | 3 | 👥 | task-011 |
+| 011 | Implement Error Handling & Retry Logic | Pending | 6 | 🤖 | — |
+| 012 | Optimize Pipeline Performance | Pending | 7 | 👥 | — |
 
 ---
 
-## Action Required (Erik)
+## 💡 Notes
 
-| # | Action | Priority |
-|---|--------|----------|
-| 1 | Run `sample-quality-data` notebook in Fabric (task 017 verification) | Medium |
-| 2 | Configure pipeline scheduling in Fabric UI (task 010) | Low |
-| 3 | Run performance baselines (task 012) | Low |
+<!-- USER SECTION -->
+[Your notes here — ideas, questions, reminders]
+<!-- END USER SECTION -->
 
 ---
-
-## Quick Links
-
-- **Spec:** `.claude/spec_v1.md`
-- **Tasks:** `.claude/tasks/task-*.json`
-- **Fabric Workspace:** [Open](https://app.fabric.microsoft.com/groups/99e4cc6d-6ec3-49a7-aed9-b69b04a97aa9)
-- **Lakehouse:** [oem_lh](https://app.fabric.microsoft.com/groups/99e4cc6d-6ec3-49a7-aed9-b69b04a97aa9/lakehouses/488fb9f8-e635-4683-90c4-ba4fee9dfadb)
-
----
-
-*Next Action: Pick up task 005, 006, 007, or 011 with `/work`*
+*2026-03-10 12:00 · 19 tasks · [Spec aligned](# "0 drift deferrals, 0 verification debt")*

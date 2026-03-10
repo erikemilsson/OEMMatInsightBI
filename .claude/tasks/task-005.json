@@ -6,7 +6,7 @@
   "priority": "P2",
   "difficulty": 5,
   "estimatedEffort": "3-4 days",
-  "owner": "Claude Code",
+  "owner": "claude",
   "completionDate": "2025-11-03 (Research Phase)",
   "actualEffort": "2 hours (research phase)",
   "acceptanceCriteria": [
@@ -38,6 +38,26 @@
     "CLAUDE: Write EPI Copy Activity JSON, WGI API notebook code, pipeline updates",
     "ERIK: Deploy to Fabric, test HTTP connectivity, verify data flows through pipeline"
   ],
+  "phase": "2",
+  "spec_section": "",
+  "files_affected": [
+    "fabric/EPI_file2table.Dataflow/",
+    "fabric/WGI_file2table.Dataflow/",
+    "fabric/bronzecopy_EUSupplyShares.CopyJob/",
+    ".claude/support/documents/external_data_automation.md"
+  ],
+  "created_date": "",
+  "updated_date": "2026-03-10",
+  "task_verification": {},
+  "verification_attempts": 0,
+  "verification_history": [],
+  "test_protocol": null,
+  "user_review_pending": false,
+  "interaction_hint": "dashboard",
+  "decision_dependencies": [],
+  "recovery_state": "",
+  "out_of_spec": false,
+  "absorbed_into": "",
   "dataSources": [
     {
       "name": "EPI (Environmental Performance Index)",

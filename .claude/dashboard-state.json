@@ -1,0 +1,15 @@
+{
+  "user_notes": "",
+  "section_toggles": {
+    "action_required": true,
+    "progress": true,
+    "tasks": true,
+    "decisions": false,
+    "notes": true,
+    "custom_views": false
+  },
+  "phase_gates": {},
+  "inline_feedback": {},
+  "custom_views_instructions": "",
+  "updated": "2026-03-10T12:00:00Z"
+}

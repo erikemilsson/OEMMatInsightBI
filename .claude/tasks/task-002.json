@@ -6,7 +6,7 @@
   "priority": "P1",
   "difficulty": 7,
   "estimatedEffort": "5 days total",
-  "owner": "Claude Code",
+  "owner": "claude",
   "completionDate": "2025-11-03 (Design Phase)",
   "actualEffort": "4 hours (design phase) + 0.5 hours (implementation)",
   "acceptanceCriteria": [
@@ -36,6 +36,36 @@
     "Focus on measures that showcase technical sophistication for portfolio",
     "Use variables in DAX for performance and readability"
   ],
+  "phase": "1",
+  "spec_section": "",
+  "files_affected": [
+    "fabric/semantic_model_oeminsightbi.SemanticModel/definition/",
+    ".claude/support/documents/dax_measure_library.md"
+  ],
+  "created_date": "",
+  "updated_date": "2026-03-10",
+  "task_verification": {
+    "result": "pass",
+    "checks": {
+      "files_exist": true,
+      "spec_alignment": true,
+      "output_quality": true,
+      "runtime_validation": "not_applicable",
+      "integration_ready": true,
+      "scope_validation": true
+    },
+    "issues": [],
+    "notes": "Pre-migration task — verification predates current schema."
+  },
+  "verification_attempts": 0,
+  "verification_history": [],
+  "test_protocol": null,
+  "user_review_pending": false,
+  "interaction_hint": "dashboard",
+  "decision_dependencies": [],
+  "recovery_state": "",
+  "out_of_spec": false,
+  "absorbed_into": "",
   "subtasks": [
     {
       "id": "task-002-1",
@@ -89,7 +119,7 @@
       "title": "Erik: Sync and verify measures in Fabric",
       "status": "Finished",
       "completionDate": "2026-01-16",
-      "owner": "Erik",
+      "owner": "human",
       "estimatedEffort": "0.5 days",
       "details": "Synced TMDL to Fabric, verified 40+ measures appear, tested Total Spend EUR = 3,342,498"
     }

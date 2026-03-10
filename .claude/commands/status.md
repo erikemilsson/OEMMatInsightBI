@@ -27,7 +27,6 @@ Quick, read-only view of project state without starting any work.
 Read (but don't modify):
 - `.claude/dashboard.md` - Current status (progress summary, decisions, recent activity)
 - `.claude/tasks/task-*.json` - Task data for phase detection, status counts, and verification result validation
-- `.claude/support/questions/questions.md` - Check for blocking questions
 - `.claude/spec_v{N}.md` - Spec version and fingerprint for verification validation
 - `.claude/drift-deferrals.json` - Drift deferral count (if exists)
 - `.claude/verification-result.json` - Phase-level verification result (if exists)
@@ -178,7 +177,6 @@ Computed from task JSON files, `drift-deferrals.json`, and `verification-result.
 | Dashboard freshness | `✓ Dashboard current` | `⚠️ Dashboard stale — run /work to refresh` |
 | Verification debt | `✓ No verification debt` | `⚠️ N tasks with verification debt` |
 | Drift deferrals | `✓ Spec aligned` | `⚠️ N drift deferrals` |
-| Blocking questions | *(omitted when 0)* | `⚠️ N blocking questions` |
 
 **Verification debt** = count of Finished tasks where `task_verification` is missing, has `result == "fail"`, or has `result != "pass"`.
 

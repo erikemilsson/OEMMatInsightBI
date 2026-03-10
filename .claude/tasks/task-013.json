@@ -8,7 +8,37 @@
   "priority": "P1",
   "difficulty": 5,
   "estimatedEffort": "1-2 days",
-  "owner": "Claude Code",
+  "owner": "claude",
+  "phase": "1",
+  "spec_section": "",
+  "files_affected": [
+    "fabric/report.Report/",
+    "fabric/semantic_model_oeminsightbi.SemanticModel/"
+  ],
+  "created_date": "",
+  "updated_date": "2026-03-10",
+  "task_verification": {
+    "result": "pass",
+    "checks": {
+      "files_exist": true,
+      "spec_alignment": true,
+      "output_quality": true,
+      "runtime_validation": "not_applicable",
+      "integration_ready": true,
+      "scope_validation": true
+    },
+    "issues": [],
+    "notes": "Pre-migration task — verification predates current schema."
+  },
+  "verification_attempts": 0,
+  "verification_history": [],
+  "test_protocol": null,
+  "user_review_pending": false,
+  "interaction_hint": "dashboard",
+  "decision_dependencies": [],
+  "recovery_state": "",
+  "out_of_spec": false,
+  "absorbed_into": "",
   "dependencies": [],
   "acceptanceCriteria": [
     "2-3 polished Power BI pages created (vs. 5 pages in Task 003)",

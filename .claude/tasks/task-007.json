@@ -6,7 +6,7 @@
   "priority": "P2",
   "difficulty": 6,
   "estimatedEffort": "3 days",
-  "owner": "Claude Code",
+  "owner": "claude",
   "completionDate": "2025-11-03 (Design Phase)",
   "actualEffort": "3 hours (design phase)",
   "acceptanceCriteria": [
@@ -42,6 +42,25 @@
     "CLAUDE: Write DQ notebook with 9 check functions, scoring logic, pipeline integration code",
     "ERIK: Deploy notebook to Fabric, add to pipeline, test alert notifications"
   ],
+  "phase": "2",
+  "spec_section": "",
+  "files_affected": [
+    "fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/",
+    "fabric/silver-to-gold2.Notebook/",
+    ".claude/support/documents/data_quality_framework.md"
+  ],
+  "created_date": "",
+  "updated_date": "2026-03-10",
+  "task_verification": {},
+  "verification_attempts": 0,
+  "verification_history": [],
+  "test_protocol": null,
+  "user_review_pending": false,
+  "interaction_hint": "dashboard",
+  "decision_dependencies": [],
+  "recovery_state": "",
+  "out_of_spec": false,
+  "absorbed_into": "",
   "qualityDimensions": [
     "Completeness: Null rate, row count, field population",
     "Accuracy: Range validation, format validation, cross-source validation",

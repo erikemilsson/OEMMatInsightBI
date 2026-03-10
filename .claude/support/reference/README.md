@@ -23,7 +23,8 @@ The reference files form a layered system. Commands (`work.md`, `health-check.md
 | `dashboard-regeneration.md` | Dashboard regeneration procedure, section format, critical path, overview diagram | `work.md`, `breakdown.md`, both agents |
 | `drift-reconciliation.md` | Spec drift detection, reconciliation UI, drift budget, task migration | `work.md` (pre-execution check), `iterate.md` |
 | `parallel-execution.md` | Parallelism eligibility, file conflict algorithm, parallel dispatch | `work.md` (task routing) |
-| `session-recovery.md` | Session sentinel, crash recovery scan, stuck task detection | `work.md` (Step 0) |
+| `session-recovery.md` | Session sentinel, crash recovery scan, stuck task detection | `work.md` (Step 0b) |
+| `context-transitions.md` | Proactive context preservation, handoff file schema, wind-down protocol, restoration | `work.md` (Step 0a, `/work pause`), both agents |
 | `phase-decision-gates.md` | Phase boundary checks, decision dependencies, late decision cross-refs | `work.md` (Step 2b) |
 | `decomposition.md` | Spec-to-task breakdown, task creation guidelines, stage organization | `work.md` (Step 4 decomposition) |
 

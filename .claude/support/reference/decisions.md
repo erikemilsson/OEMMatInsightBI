@@ -97,7 +97,6 @@ Include enough context for someone unfamiliar to understand.]
 **Questions:**
 - [e.g., "What's the expected data volume in year 2?"]
 
-*You can also add decision questions to [questions.md](../questions/questions.md).*
 
 ## Decision
 

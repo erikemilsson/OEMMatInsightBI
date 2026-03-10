@@ -17,7 +17,7 @@
 | Dashboard | `.claude/dashboard.md` |
 | Dashboard state sidecar | `.claude/dashboard-state.json` |
 | Session sentinel | `.claude/tasks/.last-clean-exit.json` |
-| Questions | `.claude/support/questions/questions.md` |
+| Context transition handoff | `.claude/tasks/.handoff.json` |
 | Feedback (active) | `.claude/support/feedback/feedback.md` |
 | Feedback (archived) | `.claude/support/feedback/archive.md` |
 | Documents | `.claude/support/documents/` |
@@ -26,6 +26,7 @@
 | Learnings | `.claude/support/learnings/` (see `README.md` for categories) |
 | Commands | `.claude/commands/` |
 | Agents | `.claude/agents/` |
+| Hooks | `.claude/hooks/` |
 
 ## Notes
 
@@ -34,3 +35,4 @@
 - **Version discovery**: `/work` globs for `.claude/spec_v*.md` and uses the highest N as the current version.
 - **Archive convention**: Archived items retain their original filename structure within their archive directory
 - **Workspace is ephemeral**: Files in workspace may be deleted between sessions; use for scratch work only
+- **Handoff is one-time-use**: `.handoff.json` is written before compaction, read at next `/work` start, then deleted. Not an accumulating log.

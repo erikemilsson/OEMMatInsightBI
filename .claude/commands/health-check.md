@@ -1,6 +1,6 @@
 # Health Check
 
-Combined system health check for tasks, decisions, `.claude/CLAUDE.md`, and template sync.
+Combined system health check for tasks, decisions, instruction files, rules, and template sync.
 
 ## Usage
 ```
@@ -10,7 +10,7 @@ Combined system health check for tasks, decisions, `.claude/CLAUDE.md`, and temp
 
 ## Purpose
 
-Manual maintenance tool that validates tasks, decisions, CLAUDE.md, and template sync. Operational checks for `/work` are defined inline in `work.md`.
+Manual maintenance tool that validates tasks, decisions, instruction files (`.claude/CLAUDE.md`, `./CLAUDE.md`, `.claude/rules/`), and template sync. Operational checks for `/work` are defined inline in `work.md`.
 
 ---
 
@@ -100,7 +100,7 @@ Detects tasks that may have bypassed the implement-agent or verify-agent workflo
 
 **Verification debt (ERRORS):**
 - Finished tasks MUST have a `task_verification` field with `result` of `"pass"`
-- `task_verification.checks` should have all 5 keys (`files_exist`, `spec_alignment`, `output_quality`, `integration_ready`, `scope_validation`) with pass/fail values (or `"skipped"` only when result is `"fail"` due to timeout)
+- `task_verification.checks` should have all 6 keys (`files_exist`, `spec_alignment`, `output_quality`, `runtime_validation`, `integration_ready`, `scope_validation`) with pass/fail values (or `"skipped"` only when result is `"fail"` due to timeout). Note: `runtime_validation` additionally allows `"not_applicable"` and `"partial"` as valid non-error values.
 - If any check is `"fail"`, the overall `result` must also be `"fail"` — a check-level fail with a result-level pass is invalid
 - If any finished task lacks `task_verification`: **ERROR** — "Verification debt: N finished tasks missing verification"
 - If any finished task has `task_verification.result == "fail"`: **ERROR**
@@ -128,11 +128,7 @@ verification_debt = count of tasks where:
 
 **Note:** Workflow bypass warnings are informational. Some tasks may legitimately have brief notes. The intent is to surface patterns, not block individual tasks.
 
-#### 8. Questions and Workspace Staleness
-
-**Stale Questions:**
-- Questions in `.claude/support/questions/questions.md` older than 14 days
-- Warning: "N questions have been pending for over 14 days"
+#### 8. Workspace Staleness
 
 **Stale Workspace Files:**
 - Files in `.claude/support/workspace/` older than 30 days
@@ -184,7 +180,6 @@ Reports tasks with `"out_of_spec": true` in a separate section of the report. In
 | Absorbed referencing another Absorbed task (chain) | Suggest the non-Absorbed end of the chain; ask user to confirm or change |
 | Missing snapshot file | Informational only — drift detection degrades gracefully |
 | Malformed decision dependency format | Ask user: correct or remove the entry |
-| Stale questions (> 14 days) | List questions, ask user to answer or remove |
 | Stale workspace files (> 30 days) | List files, ask user: graduate to final location, or delete |
 | Dashboard state sidecar missing | Create from current dashboard markers (or defaults if markers broken) |
 | Sidecar/dashboard toggle mismatch | Update sidecar from dashboard markers (dashboard is more recent) |
@@ -202,38 +197,87 @@ Reports tasks with `"out_of_spec": true` in a separate section of the report. In
 
 ---
 
-## Part 2: .claude/CLAUDE.md Audit
+## Part 2: Instruction Files Audit
 
-Detects bloat and offers guided cleanup.
+Two separate checks: environment CLAUDE.md template alignment, and project root CLAUDE.md bloat detection.
 
-### Thresholds
+### Part 2a: `.claude/CLAUDE.md` Template Alignment
 
-| Metric | Warning | Error |
-|--------|---------|-------|
-| Total lines | 80 | 120 |
+`.claude/CLAUDE.md` is template-owned and should not be modified by users. This check compares the local file against the template version.
+
+**Process:**
+1. If template remote is configured (Part 5), diff `.claude/CLAUDE.md` against `template/{default_branch}:.claude/CLAUDE.md`
+2. If no template remote, compare against a known hash stored in `.claude/version.json` (field: `claude_md_hash`)
+3. If the file has been modified locally, present the deviations and ask the user:
+   - **Revert** — restore template version
+   - **Keep** — acknowledge deviation (record in `version.json` as `claude_md_override: true`)
+   - **Merge** — show diff, let user decide line by line
+
+**What to report:**
+- ✓ if `.claude/CLAUDE.md` matches template
+- ⚠️ if deviations found (with diff summary)
+- ℹ️ if template remote not configured (skip check)
+
+### Part 2b: Root `./CLAUDE.md` Audit
+
+The root `./CLAUDE.md` contains project-specific instructions and is user-owned.
+
+#### Missing File Detection
+
+If `./CLAUDE.md` does not exist at the project root:
+1. Report: ℹ️ "No root CLAUDE.md found — this file holds project-specific instructions for Claude"
+2. Offer to create one from the template at `.claude/support/reference/root-claude-md-template.md`
+3. If the user accepts, copy the template to `./CLAUDE.md`
+4. If the user declines, note as informational and continue
+
+#### Bloat Thresholds
+
+| Metric | Warning (soft limit) | Error (hard limit) |
+|--------|---------------------|-------------------|
+| Total lines | 100 | 200 |
 | Section lines | 15 | 25 |
 | Code blocks | 10 | 20 |
 | Inline schemas | 8 | Always flag |
 
-### Audit Checks
+#### Audit Checks
 
-1. **Total lines** - Compare against thresholds
-2. **Section sizes** - Check each ## section for line count
-3. **Code blocks** - Check each code block for length
-4. **Inline schemas** - Flag JSON schemas >8 lines
+1. **Total lines** — compare against soft/hard limits
+2. **Section sizes** — check each `##` section for line count
+3. **Code blocks** — check each code block for length
+4. **Inline schemas** — flag JSON schemas >8 lines
+5. **Reference validation** — check that all file paths referenced in the root CLAUDE.md (links, `@` imports) actually exist and are in the correct location (`.claude/support/reference/` for extracted docs)
 
-### Fix Options (per issue)
+#### Condensation Guidance
 
-1. **Move** - Create `.claude/support/reference/{section-slug}.md`, replace with link
-2. **Keep** - Mark as explicitly kept
-3. **Condense** - Rewrite to fewer lines
-4. **Skip** - No changes
+When a section exceeds the soft limit, offer these options:
 
-### What Belongs Where
+1. **Extract** — Move verbose content to `.claude/support/reference/project-{section-slug}.md`, replace with a link. Project reference docs use the `project-` prefix to distinguish from template-owned reference docs.
+2. **Condense** — Rewrite to fewer lines. Apply the "would removing this cause Claude to make mistakes?" test. Cut:
+   - Standard conventions Claude already knows from reading code
+   - Rules already enforced by linters or config files (eslintrc, prettier, tsconfig, etc.)
+   - Detailed API docs (link instead)
+   - Information that changes frequently
+3. **Keep** — Mark as explicitly kept (acknowledge the size)
+4. **Skip** — No changes
 
-Keep in `.claude/CLAUDE.md`: project overview, critical commands, key conventions, navigation pointers.
+#### What Belongs Where
 
-Move to `support/reference/`: detailed schemas (>8 lines), verbose examples, procedure docs, technology deep-dives.
+**Keep in root `./CLAUDE.md`:** Project overview (1-2 lines), tech stack, key build/test commands, naming conventions that differ from defaults, non-obvious gotchas.
+
+**Extract to `.claude/support/reference/project-*.md`:** Detailed architecture docs, verbose code examples, API specifications, database schemas, deployment procedures.
+
+**Don't put in root `./CLAUDE.md`:** Environment workflow instructions (those are in `.claude/CLAUDE.md` and `.claude/rules/`), information Claude can infer from reading code, style rules already enforced by tooling.
+
+### Part 2c: Rules Files Validation
+
+Validates that the expected template rule files exist in `.claude/rules/`.
+
+**Expected files:** `task-management.md`, `spec-workflow.md`, `decisions.md`, `dashboard.md`, `agents.md`, `archiving.md`
+
+**Checks:**
+- Each expected file exists
+- No expected file exceeds 200 lines
+- User-created rule files (`project-*.md`) are noted as informational
 
 ---
 
@@ -370,48 +414,48 @@ For archived specs where tasks reference that version, check if `spec_v{i}_decom
 
 ## Part 5: Template Sync Check
 
-Checks whether the project's `.claude/` workflow files are up to date with the template repository.
+Checks whether the project's `.claude/` workflow files are up to date with the template repository using git-based comparison.
 
 ### Purpose
 
-The upstream template may improve commands, agents, and reference docs. This check compares your project's `.claude/` files against the template repo and suggests updates.
+The upstream template may improve commands, agents, and reference docs. This check uses the template repo as a git remote to compare sync files and present updates.
 
 ### Requirements
 
-- `.claude/version.json` — contains `template_repo` and `template_version`
-- `.claude/sync-manifest.json` — defines `sync` (updatable) vs `customize` (user-owned) file categories
-- `gh` CLI installed and authenticated
+- `.claude/version.json` — contains `template_repo` (git URL) and `template_version`
+- `.claude/sync-manifest.json` — defines `sync` (updatable) vs `customize` (user-owned) vs `ignore` (project data) file categories
+- `git` available (no `gh` CLI dependency)
 
 ### Process
 
-#### 1. Check for Updates
+#### 1. Setup Remote
 
-Read local `.claude/version.json` for `template_repo` and `template_version`.
+Ensure the template repo is configured as a git remote named `template`:
 
-Check remote version:
-```bash
-gh api repos/{owner}/{repo}/contents/.claude/version.json
+```
+IF "template" remote doesn't exist → git remote add template {template_repo}
+IF "template" remote exists but URL differs from version.json → warn, ask to update
 ```
 
-If remote `template_version` matches local → report up to date, done.
+Fetch latest: `git fetch template` (fetch only, never merge or pull).
 
-If versions differ → fetch the `.claude/` folder contents for comparison.
+If fetch fails (offline, invalid URL) → report as informational, skip remaining sync checks.
 
-If offline or fetch fails → report as informational, skip remaining checks.
+#### 2. Compare Sync Files
 
-#### 2. Compare Files
+Determine the template's default branch via `git remote show template` (typically `main`). For each file matching `sync` category patterns in `sync-manifest.json`, use `git diff` to compare the local version against `template/{default_branch}:.claude/...`.
 
-Only compare files matching `sync` category patterns in `sync-manifest.json`. Never touch `customize` or `ignore` category files.
-
-For each sync file, determine status:
-- **Up to date** — local matches template
-- **Modified** — template has changes
-- **New in template** — doesn't exist locally
+Per-file status:
+- **Up to date** — no diff
+- **Modified upstream** — template has changes the local copy doesn't
+- **New in template** — file exists upstream but not locally
 - **Local only** — exists locally but not in template (kept, never flagged)
+
+Never compare `customize` or `ignore` category files.
 
 #### 3. Present Changes
 
-**Small changes** (single-file edits, minor updates) — present as a simple list:
+**Small changes** (few files, minor edits) — simple list with diff stats:
 
 ```
 Template updates available (v1.5.0 → v1.6.0):
@@ -426,7 +470,7 @@ Template updates available (v1.5.0 → v1.6.0):
 Apply these changes? [Y/N]
 ```
 
-**Bigger changes** (structural changes, multi-file updates) — aggregate related changes and explain impact:
+**Bigger changes** (structural, multi-file) — group related changes and explain impact:
 
 ```
 Template updates available (v1.5.0 → v1.6.0):
@@ -437,7 +481,6 @@ Template updates available (v1.5.0 → v1.6.0):
    - .claude/support/reference/workflow.md — updated process docs
 
    Impact: Adds scope validation to the verification process.
-   Tasks in "Awaiting Verification" would use the new criteria.
 
 2. New reference file
    - .claude/support/reference/new-feature.md
@@ -447,13 +490,15 @@ Template updates available (v1.5.0 → v1.6.0):
 Apply all / Select individually / Skip?
 ```
 
-**Grouping heuristic:** Changes are "related" when they touch the same workflow area (e.g., multiple files in the verification pipeline, or a command and its referenced reference doc).
+**Grouping heuristic:** Changes are "related" when they touch the same workflow area (e.g., a command and the reference docs it depends on, or multiple files in the verification pipeline).
 
 #### 4. Apply Updates
 
+Read the upstream `template_version` from `template/{default_branch}:.claude/version.json`.
+
 For accepted changes:
-- Update the local files
-- Update `template_version` in `.claude/version.json`
+- Check out the accepted files from `template/{default_branch}` into the working tree
+- Update `template_version` in local `.claude/version.json` to match the upstream version
 - Report what was changed
 
 ### Key Rules
@@ -461,21 +506,22 @@ For accepted changes:
 - **Sync category only** — never touch `customize` or `ignore` category files
 - **Local-only files are kept** — never suggest removing files that aren't in the template
 - **No silent changes** — always present changes and get confirmation before applying
+- **Fetch only** — never merge, pull, or rebase from the template remote
 
 ### Report Format
 
-**Up to date:**
+**Up to date (no diffs in sync files):**
 ```
 ### Template Sync
 
 ✓ Template up to date (v1.5.0)
 ```
 
-**Offline:**
+**Offline / fetch failed:**
 ```
 ### Template Sync
 
-⚠️ Cannot reach template repository — skipping template checks
+⚠️ Cannot reach template repository — skipping template sync
 ```
 
 **Missing config:**
@@ -483,6 +529,13 @@ For accepted changes:
 ### Template Sync
 
 ℹ️ Template sync not configured (missing version.json or sync-manifest.json)
+```
+
+**Remote not configured (first run):**
+```
+### Template Sync
+
+ℹ️ Adding template remote: {template_repo}
 ```
 
 ---
@@ -493,7 +546,7 @@ Detects when custom commands in `.claude/commands/` overlap with template comman
 
 ### Process
 
-1. **Identify template commands** — known set: `work.md`, `iterate.md`, `breakdown.md`, `health-check.md`, `status.md`
+1. **Identify template commands** — known set: `work.md`, `iterate.md`, `breakdown.md`, `health-check.md`, `status.md`, `research.md`, `feedback.md`, `review.md`
 2. **Scan `.claude/commands/`** for all `.md` files not in the template set
 3. **Detect collisions:**
    - **Name collision:** custom file has same name as template command
@@ -525,20 +578,21 @@ READ all .claude/tasks/task-*.json files
 READ .claude/dashboard.md
 READ .claude/spec_v{N}.md (current spec — for completion gate checks)
 READ .claude/CLAUDE.md
+READ ./CLAUDE.md (root, if exists)
+SCAN .claude/rules/ for rule files
 READ all .claude/support/decisions/decision-*.md files
 READ .claude/version.json (template version info)
 READ .claude/sync-manifest.json (file categories)
 SCAN .claude/support/previous_specifications/ for archived specs
-SCAN .claude/support/questions/questions.md for stale questions
 SCAN .claude/support/workspace/ for stale files
 SCAN for misplaced spec files in non-canonical locations
-CHECK template repo for updates (skip if offline)
+FETCH template remote and diff sync files (skip if offline)
 ```
 
 ### Step 2: Run Checks
 
 - Part 1: Task system validation (checks 1-11)
-- Part 2: `.claude/CLAUDE.md` audit
+- Part 2: Instruction files audit (2a: template alignment, 2b: root bloat, 2c: rules validation)
 - Part 3: Decision system validation (checks 1-6)
 - Part 4: Archive validation (checks 1-4)
 - Part 5: Template sync + collision + settings checks
@@ -550,8 +604,10 @@ CHECK template repo for updates (skip if offline)
 - Task System — Verification Debt (check 7)
 - Task System — Dashboard Freshness (check 10)
 - Task System — Out-of-Spec Tasks (check 9, if any exist)
-- Questions & Workspace (check 8)
-- `.claude/CLAUDE.md` Audit (Part 2)
+- Workspace (check 8)
+- Instruction Files — Template Alignment (Part 2a)
+- Instruction Files — Root CLAUDE.md Bloat (Part 2b)
+- Instruction Files — Rules Validation (Part 2c)
 - Decision System (Part 3)
 - Archive Validation (Part 4)
 - Template Sync (Part 5)
@@ -572,7 +628,9 @@ If `--report` flag is set, skip this step and show report only.
 
 **Empty task list:** Reports "0 tasks — all checks pass" (healthy state for new projects)
 
-**Large `.claude/CLAUDE.md` (>120 lines):** Flags as error, suggests moving sections to reference/
+**Large root `./CLAUDE.md` (>200 lines):** Flags as error, suggests extracting sections to `.claude/support/reference/project-*.md`
+
+**`.claude/CLAUDE.md` deviations:** Presents diff and asks user to revert, keep, or merge
 
 **Subtask ID collisions:** Detects `5_1` already exists before creating duplicate
 
@@ -592,7 +650,7 @@ If `--report` flag is set, skip this step and show report only.
 - After extensive task operations
 - When something feels "off"
 - Before major handoffs
-- Periodically (weekly recommended for tasks and template sync, monthly for `.claude/CLAUDE.md`)
+- Periodically (weekly recommended for tasks and template sync, monthly for instruction files audit)
 
 ## Reference
 
