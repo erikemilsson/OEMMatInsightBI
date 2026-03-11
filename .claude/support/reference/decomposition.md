@@ -41,7 +41,7 @@ Procedure for breaking a spec into granular tasks. Run as `/work` Step 4 "If Dec
 - Explicit dependencies
 - Owner: claude/human/both
 - Include all spec provenance fields (fingerprint, version, section, section_fingerprint, section_snapshot_ref)
-- **Phase field:** Assign `phase` based on spec section structure (e.g., tasks from "## Phase 1: Data Pipeline" get `"phase": "1"`)
+- **Phase field:** Assign `phase` based on spec section structure (e.g., tasks from "## Phase 1: Data Pipeline" get `"phase": "1"`). Also set `phase_name` to the spec's descriptive name for the phase (e.g., `"phase_name": "Data Pipeline"`). Dashboard rendering uses the format "Phase {N} — {phase_name}" — generic labels like "Phase 1" alone are not acceptable.
 - **Decision dependencies:** If a task depends on an unresolved decision, add the decision ID to `decision_dependencies` array. Note whether the decision is an inflection point in task notes.
 
 ---

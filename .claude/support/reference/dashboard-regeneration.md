@@ -87,10 +87,11 @@ User-authored content is persisted in `.claude/dashboard-state.json` as a durabl
 | `updated` | String | ISO 8601 timestamp of last write |
 
 **Lifecycle:**
-- Created on first dashboard regeneration (populated from marker extraction or defaults)
+- **MUST** be created on first dashboard regeneration (populated from marker extraction or defaults). If this file does not exist after regeneration, the regeneration is incomplete — create it before finishing.
 - Updated on every regeneration (merged with any user edits from markers)
 - Read as fallback when markers are damaged
 - Never deleted by any command
+- If a dashboard.md exists but dashboard-state.json does not (e.g., after migration), create it by extracting current marker content from the dashboard
 
 ---
 
@@ -110,6 +111,15 @@ Dashboard regeneration follows a **tiered communication strategy** (see `command
 | `/work complete` (user-initiated) | User explicitly interacting with task state |
 | After decision resolution | May unblock tasks, dashboard needs to reflect new state |
 | Step 1a freshness check | Catch-up on entry |
+| Format staleness (template_version mismatch) | Dashboard was generated with older template rules |
+
+### Format Staleness
+
+The dashboard META block includes a `template_version` field (copied from `.claude/version.json` at generation time). When template sync updates `version.json`, the META value no longer matches — this means the dashboard was generated with an older version of the regeneration rules and should be regenerated to pick up format improvements (e.g., new collapsing rules, phase naming, status summary).
+
+**Detection:** During any freshness check (Step 1a of `/work`, Check 10 of `/health-check`), compare `template_version` in the dashboard META against `template_version` in `.claude/version.json`. If they differ, flag the dashboard as format-stale and regenerate.
+
+**Backward compatibility:** If the dashboard META has no `template_version` field (generated before this rule existed), treat it as format-stale (regeneration will add the field).
 
 **Tier 2 — Inline CLI Messages (no regen):**
 
@@ -236,16 +246,19 @@ generated: [ISO timestamp]
 task_hash: sha256:[hash of sorted task_id:status:difficulty:owner tuples]
 task_count: [number]
 spec_fingerprint: sha256:[hash of spec file content]
+template_version: [value from .claude/version.json template_version field]
 verification_debt: [count of tasks needing verification]
 drift_deferrals: [count from drift-deferrals.json]
 -->
 ```
 
+The `template_version` field enables **format staleness detection**: when template sync updates `version.json`, the dashboard META's `template_version` no longer matches, flagging the dashboard as format-stale even if task data hasn't changed. See § "Format Staleness" below.
+
 ### 5. Inject User Content from Sidecar
 
 Read `.claude/dashboard-state.json` and inject content into the generated dashboard:
 
-**5a. User notes:** Insert `user_notes` value between `<!-- USER SECTION -->` markers. If the value is empty, insert the default placeholder: `[Your notes here — ideas, questions, reminders]`
+**5a. User notes:** Insert `user_notes` value between `<!-- USER SECTION -->` markers. If the value is empty, insert the default placeholder: `[Your notes here — ideas, questions, reminders]`. **Exception — first regeneration:** When replacing the template example, skip sidecar injection for user notes and instead generate the seeded Quick Links content per the "Notes first-regeneration seeding" rule in Section Display Rules. Write the seeded content to `dashboard-state.json` as the initial `user_notes` value.
 
 **5b. Custom views instructions:** Insert `custom_views_instructions` value between `<!-- CUSTOM VIEWS INSTRUCTIONS -->` markers. Then generate rendered content below the end marker. If the section toggle is unchecked, skip entirely.
 
@@ -275,9 +288,12 @@ At very end:
 Claude Code caps output at 32K tokens per response (thinking + tool arguments + text). Dashboard content is written via the Write tool in a single call — if the dashboard is very large, the response could hit this limit and truncate the file.
 
 **Mitigations built into the format:**
-- Completed task summarization (>10 finished per phase → summary line instead of individual rows)
+- Completed phase collapsing (fully-finished phases always collapse to one summary line)
+- Completed task summarization in active phases (>10 finished → summary line instead of individual rows)
+- Blocked phase collapsing (>5 non-actionable tasks with no actionable tasks → summary line with blocker)
+- Status summary table only for projects with >20 tasks
 - Action Required sub-sections only render when they have content
-- Project Overview diagram omitted when <4 tasks remain
+- Project Overview diagram: omitted when <4 tasks remain; critical-path-only mode when >15 active nodes
 - Critical path truncation (>5 steps → first 3 + "... N more → Done")
 
 **If the dashboard still risks exceeding the limit** (50+ active tasks, complex parallel structure, many phases):
@@ -306,10 +322,11 @@ All dashboard formatting rules are documented here. This is the single authorita
 ### Action Item Contract
 
 Every item in "Action Required" must be:
-1. Actionable — the user can see what to do without guessing
-2. Linked — if the action involves a file, include a relative path link
-3. Completable — include a checkbox, command, or clear completion signal
-4. Contextual — if feedback is needed, provide a feedback area or link
+1. **Actionable** — the user can see what to do without guessing. "What To Do" must describe the concrete action, not just the task title (e.g., "Run the test suite and confirm output matches expected" not "Testing")
+2. **Linked** — if the action involves a file, include a relative path link
+3. **Completable** — include a checkbox, command, or clear completion signal. Always specify the completion command (e.g., "then run `/work complete {id}`")
+4. **Contextual** — if feedback is needed, provide a feedback area or link
+5. **Instructional** — for human-owned tasks, include a brief "how to proceed" note. If the task requires external tools, name them. If it requires access to specific systems, say so. The user should never need to open the task JSON to understand what to do next
 
 ### Review Item Derivation
 
@@ -356,20 +373,25 @@ The user selects an option when prompted, and `/work` updates the task according
 - Reviews sub-section format: `- [ ] **Item title** — what to do → [link to file](path)`
 - Reviews appear for: out_of_spec tasks without approval, draft/proposed decisions
 - Timeline sub-section in Progress: only render when tasks have `due_date` or `external_dependency.expected_date` (part of Progress, not an independent toggle)
+- **Status summary table:** When `task_count` exceeds 20, render a status summary table at the top of the Progress section (before the phase table) showing the count of tasks in each active status. Only include statuses with count > 0. Format: `| Status | Count |` with rows for Finished, Pending, In Progress, Blocked, On Hold, Broken Down, Absorbed. This gives at-a-glance project health for medium-to-large projects. When task_count is 20 or fewer, the phase table alone provides sufficient detail.
 - Phase table in Progress: always show ALL phases (including blocked/future)
 - Critical path owners: ❗ (human), 🤖 (Claude), 👥 (both)
 - Critical path parallel branches: `[step A | step B]` notation for fork/join points; max 3 branches per group
 - Critical path >5 steps (after collapsing parallel branches): show first 3 + "... N more → Done"
 - "This week" line: omit when all counts are zero
+- **Phase naming format:** Phase headers MUST use the format `Phase {N} — {Descriptive Name}` (e.g., "Phase 1 — Core Infrastructure", "Phase 3 — Validation and Hardening"). The descriptive name comes from the spec's phase definition or, if absent, is inferred from the dominant task category in that phase. Generic labels like "Phase 1" alone are not acceptable — descriptive names dramatically improve scannability. For projects using non-numeric phase identifiers (e.g., "Phase A", "refinement-phase-1"), normalize to the phase's display name from the spec.
 - Tasks grouped by phase with per-phase progress lines
 - **Repair indicator:** When a Finished task has `verification_history` with more than 1 entry, show status as `Finished (N retries)` in the Tasks section Status column (where N = number of entries minus 1). This surfaces the repair trail without requiring users to open task JSON files.
-- **Completed task summarization (scale):** When a phase has more than 10 finished tasks, render a summary line (`✅ {N} tasks finished`) instead of listing each individually. Only list active tasks (Pending, In Progress, Awaiting Verification, Blocked, On Hold) with full detail rows. This keeps the dashboard navigable for large projects (50+ tasks).
+- **Completed phase collapsing:** When every non-absorbed task in a phase is Finished, always collapse to a single summary line: `✅ {N} tasks finished`. Never list individual finished tasks for fully-completed phases — the detail adds no actionable value. This applies regardless of task count. (Absorbed tasks are excluded from phase counts per the Absorbed task rules, so a phase with 9 Finished + 1 Absorbed is treated as complete.)
+- **Completed task summarization (scale):** In active phases with a mix of finished and non-finished tasks, when the phase has more than 10 finished tasks, render the finished portion as a summary line (`✅ {N} tasks finished`) followed by full detail rows for only the active tasks (Pending, In Progress, Awaiting Verification, Blocked, On Hold). This keeps the dashboard navigable for large projects (50+ tasks).
+- **Blocked phase collapsing:** When a phase has no actionable tasks (all non-finished, non-absorbed tasks are Blocked or Broken Down — zero Pending/In Progress/Awaiting Verification/On Hold), and the phase has more than 5 such non-actionable tasks, collapse to a summary line: `⏳ {N} tasks awaiting upstream — {blocker summary}`. N is the count of Blocked + Broken Down tasks. The blocker summary names the upstream dependency (e.g., "awaiting Phase 2", "blocked by DEC-023", "blocked by task-068c"). Show at most 2 blockers; if more, use "and {N} others". This prevents large blocked phases from dominating the dashboard.
 - Tasks with `conflict_note`: show status as `Pending (held: conflict with Task {id})` during parallel dispatch
 - Decisions: status display mapping: `approved`/`implemented` → "Decided", `draft`/`proposed` → "Pending". Selected column always links to the decision document regardless of status — Decided shows the selected option name as link text; Pending shows "Pending" as link text
 - Out-of-spec tasks: prefix title with ⚠️
 - On Hold tasks: show status as `⏸️ On Hold` in Tasks section; exclude from Progress phase "Done" counts but include in "Total"; exclude from critical path (paused work isn't on the path)
 - Absorbed tasks: show status as `Absorbed → Task {id}` in Tasks section (dimmed/collapsed style); exclude from both "Done" and "Total" in Progress phase counts; exclude from critical path
-- Notes generated content: minimal — the Notes section contains only the user section markers. No "Quick links" header, no decisions link (decisions have their own section with persistent links).
+- Notes first-regeneration seeding: On first dashboard regeneration (replacing template example), seed the user notes section with **Quick Links** relevant to the project — spec path, key directories or config files mentioned in the spec, and any external resources (URLs, services, platforms) referenced in the spec. Format as a bullet list under a `**Quick Links:**` header. This gives users immediate orientation. On subsequent regenerations, the Notes section is `preserve` mode — never overwrite user content.
+- Notes generated content (subsequent): After first regen, the Notes section contains only the user section markers and whatever the user has written. No auto-generated content is added on subsequent regens. Decisions have their own section with persistent links.
 - Footer: healthy = spec aligned tooltip; issues = ⚠️ with counts
 - Custom Views section: user-defined instructions (preserved between markers) followed by Claude-generated content based on those instructions (when enabled). Multiple views are rendered as `###` sub-sections, one per bold-labeled instruction.
 
@@ -385,6 +407,7 @@ The user selects an option when prompted, and `/work` updates the task according
 | Action Required → Decisions | `Decision \| Question \| Doc` |
 | Action Required → Your Tasks | `Task \| What To Do \| Where` |
 | Action Required → Reviews | `- [ ] **Item title** — what to do → [link](path)` — derived, not stored |
+| Progress → Status Summary | `Status \| Count` table — rendered when task_count > 20 (see Status summary table rule in Section Display Rules above) |
 | Progress → Phase table | `Phase \| Done \| Total \| Status` — status: Complete, Active, Blocked (reason) |
 | Progress → Acceptance Criteria | `- [x]/[ ] Criterion — *notes*` checklist + `**N/M criteria passed**` summary. Only when `verification-result.json` has `criteria` array; falls back to summary-only when absent. |
 | Progress → Timeline | `Date \| Item \| Status \| Notes` — sorted chronologically, overdue: strikethrough date + ⚠️ OVERDUE prefix, external deps with contact info, human tasks marked with ❗ |
@@ -436,7 +459,7 @@ An inline Mermaid diagram in the Progress section showing the project's dependen
 
 **Generation rules:**
 
-1. **Completed phases** → Collapse into a single node: `["✅ Phase Name (N/N)"]`
+1. **Completed phases** → Collapse into a single node: `["✅ Phase {N} — {Name} (M/M)"]` (using the phase naming format)
 2. **Completed tasks in active phases** → Fold away. Reroute their connections: connect their predecessors directly to their incomplete successors. This keeps the diagram focused on remaining work.
 3. **Active/pending tasks** → Show individually with ownership prefix: `🤖` (claude), `❗` (human), `👥` (both)
 4. **Decisions** → Diamond nodes: `{"❓ Decision title"}`
@@ -451,5 +474,7 @@ An inline Mermaid diagram in the Progress section showing the project's dependen
     - `classDef active fill:#bbdefb,stroke:#1565c0` — in-progress tasks (claude/both-owned)
     - `classDef human fill:#fff9c4,stroke:#f57f17` — human-owned tasks and phase gates
     - `classDef blocked fill:#f5f5f5,stroke:#9e9e9e` — pending/blocked tasks (claude/both-owned)
+
+**Scaling for large projects:** When >15 active (non-finished, non-absorbed) nodes would result even after clumping, switch to **critical-path-only mode**: render only the nodes on the critical path (from Critical Path Generation above) plus their immediate dependencies. All other tasks are omitted from the diagram. This keeps the diagram readable. Add a note below: `*Showing critical path only — {N} additional tasks omitted*`.
 
 **Edge cases:** No tasks → omit diagram. All tasks complete → omit diagram (project done). Single task → omit diagram (one-liner is sufficient). Fewer than 4 remaining tasks → omit diagram (one-liner covers it).

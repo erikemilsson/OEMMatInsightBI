@@ -145,6 +145,14 @@ Reports tasks with `"out_of_spec": true` in a separate section of the report. In
 2. Read dashboard metadata block (if exists)
 3. Compare hashes — if different, dashboard is stale
 
+**Format staleness check:**
+1. Read `template_version` from dashboard `<!-- DASHBOARD META -->` block
+2. Read `template_version` from `.claude/version.json`
+3. If they differ (or META field is absent), dashboard is format-stale
+4. Report: "Dashboard generated with template {old} but current template is {new} — regenerate to apply format updates"
+
+A dashboard can be content-stale (task hash mismatch), format-stale (template_version mismatch), or both. Either condition triggers regeneration in auto-fix.
+
 **Stale "In Progress" tasks:**
 - Tasks with status `"In Progress"` where `updated_date` (or `created_date`) is > 7 days old
 - Indicates abandoned work or forgotten state updates
@@ -164,7 +172,7 @@ Reports tasks with `"out_of_spec": true` in a separate section of the report. In
 | Issue | Auto-Fix |
 |-------|----------|
 | Dashboard inconsistent or structurally invalid | Regenerate dashboard.md |
-| Dashboard stale (hash mismatch or missing metadata) | Regenerate dashboard.md with fresh metadata |
+| Dashboard stale (hash mismatch, format staleness, or missing metadata) | Regenerate dashboard.md with fresh metadata |
 | Parent missing subtask in array | Add subtask ID to parent's subtasks array |
 | Subtask missing parent_task field | Add parent_task field |
 | "Broken Down" with empty subtasks | Change status to "Pending" |
@@ -500,6 +508,8 @@ For accepted changes:
 - Check out the accepted files from `template/{default_branch}` into the working tree
 - Update `template_version` in local `.claude/version.json` to match the upstream version
 - Report what was changed
+
+**Post-sync dashboard re-check:** After applying template updates, check if any dashboard-related files were updated (any file matching `dashboard-regeneration.md`, `rules/dashboard.md`, or `shared-definitions.md`). If so, the dashboard was generated with older format rules — offer to regenerate: `"Dashboard format rules updated — regenerate dashboard to apply new format? [Y/N]"`. This catches the ordering issue where Part 1 ran dashboard checks before Part 5 synced the new rules. Regeneration follows `.claude/support/reference/dashboard-regeneration.md` (which is now the updated version).
 
 ### Key Rules
 

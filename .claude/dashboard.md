@@ -1,17 +1,18 @@
 # Dashboard
 
 <!-- DASHBOARD META
-generated: 2026-03-10T12:00:00Z
-task_hash: sha256:09605e6a3b662861
+generated: 2026-03-11T12:41:44Z
+task_hash: sha256:9b231b8178cdedde
 task_count: 19
 spec_fingerprint: sha256:b4041371a843faa2
+template_version: 1.5.0
 verification_debt: 0
 drift_deferrals: 0
 -->
 
 **OEMMatInsightBI** — 68% complete (13/19 tasks)
 
-*Updated 2026-03-10 12:00 — may not reflect changes made outside `/work`*
+*Updated 2026-03-11 12:41 — may not reflect changes made outside `/work`*
 
 <!-- SECTION TOGGLES -->
 <details><summary>Section toggles</summary>
@@ -46,8 +47,8 @@ Conditions:
 
 | Task | What To Do | Where |
 |------|-----------|-------|
-| 010 | Configure pipeline scheduling in Fabric UI | [task-010.json](tasks/task-010.json) |
-| 012 | Run performance baselines, validate gains | [task-012.json](tasks/task-012.json) |
+| 010 | Configure pipeline scheduling in Fabric UI (blocked by task-011) | [task-010.json](tasks/task-010.json) |
+| 012 | Run performance baselines in Fabric, validate optimization gains | [task-012.json](tasks/task-012.json) |
 
 <!-- FEEDBACK:task-010 -->
 **Task 010 — Feedback:**
@@ -65,17 +66,17 @@ Conditions:
 
 | Phase | Done | Total | Status |
 |-------|------|-------|--------|
-| Phase 1 | 9 | 9 | Complete |
-| Phase 2 | 4 | 7 | Active |
-| Phase 3 | 0 | 3 | Blocked (Phase 2 incomplete) |
+| Phase 1 — Core Data Model & Reports | 9 | 9 | Complete |
+| Phase 2 — Automation & Quality | 4 | 7 | Active |
+| Phase 3 — Operations & Performance | 0 | 3 | Blocked (task-011 pending) |
 
-**Critical path:** 🤖 Task 005 → 🤖 Task 006 → 🤖 Task 007 → 🤖 Task 011 → 👥 Task 010 → 👥 Task 012 → Done *(6 steps)*
+**Critical path:** 🤖 Task 011 → 👥 Task 010 → Done *(2 steps)*
 
 ### Project Overview
 
 ```mermaid
 graph LR
-    P1["✅ Phase 1 (9/9)"]
+    P1["✅ Phase 1 — Core Data Model & Reports (9/9)"]
     T005["🤖 Automate External Data"]
     T006["🤖 Incremental Load"]
     T007["🤖 Data Quality Checks"]
@@ -83,14 +84,7 @@ graph LR
     T010["👥 Pipeline Scheduling"]
     T012["👥 Optimize Performance"]
 
-    P1 --> T005
-    P1 --> T006
-    P1 --> T007
     T011 --> T010
-    T005 --> T011
-    T006 --> T011
-    T007 --> T011
-    T010 --> T012
 
     classDef done fill:#c8e6c9,stroke:#2e7d32
     classDef active fill:#bbdefb,stroke:#1565c0
@@ -98,19 +92,19 @@ graph LR
     classDef blocked fill:#f5f5f5,stroke:#9e9e9e
 
     class P1 done
-    class T005,T006,T007,T011 active
-    class T010,T012 human
+    class T005,T006,T007,T011,T012 active
+    class T010 human
 ```
 
 ---
 
 ## 📋 Tasks
 
-### Phase 1 — ✅ Complete (9/9)
+### Phase 1 — ✅ Core Data Model & Reports (9/9)
 
 ✅ 9 tasks finished
 
-### Phase 2 — Active (4/7)
+### Phase 2 — Automation & Quality (4/7)
 
 | ID | Title | Status | Diff | Owner | Deps |
 |----|-------|--------|------|-------|------|
@@ -122,7 +116,7 @@ graph LR
 | 018 | Implement Quality Observability Tables | Finished | 5 | 🤖 | — |
 | 019 | Add Quality Tables to Semantic Model | Finished | 4 | 🤖 | — |
 
-### Phase 3 — Blocked (0/3)
+### Phase 3 — Operations & Performance (0/3)
 
 | ID | Title | Status | Diff | Owner | Deps |
 |----|-------|--------|------|-------|------|
@@ -139,4 +133,4 @@ graph LR
 <!-- END USER SECTION -->
 
 ---
-*2026-03-10 12:00 · 19 tasks · [Spec aligned](# "0 drift deferrals, 0 verification debt")*
+*2026-03-11 12:41 · 19 tasks · [Spec aligned](# "0 drift deferrals, 0 verification debt")*

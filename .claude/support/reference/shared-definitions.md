@@ -160,7 +160,7 @@ Canonical definitions for terms used across the environment. Terms already defin
 | **Implement-Agent** | Builder agent. Executes tasks, produces deliverables, self-reviews, marks "Awaiting Verification". Defined in `.claude/agents/implement-agent.md`. |
 | **Verify-Agent** | Validator agent. Tests against spec, finds issues, handles both Tier 1 and Tier 2 verification. Defined in `.claude/agents/verify-agent.md`. |
 | **Dashboard** | Project dashboard at `.claude/dashboard.md`. Primary communication channel during build phase. Regenerated after task changes. |
-| **Dashboard Freshness** | Whether dashboard reflects current state. Detected by comparing `task_hash` (SHA-256 of sorted task_id:status pairs) against current computed hash. |
+| **Dashboard Freshness** | Whether dashboard reflects current state. Two dimensions: content freshness (comparing `task_hash` against current computed hash) and format freshness (comparing `template_version` in META against `.claude/version.json`). Either mismatch triggers regeneration. |
 | **Workspace** | Temporary documents at `.claude/support/workspace/`. Subdirs: scratch, research, drafts. May be deleted between sessions. |
 | **Vision Document** | Ideation document in `.claude/vision/`. Captures intent and philosophy. Run `/iterate distill` to extract a buildable spec. |
 | **Feedback** | Project-level ideas and improvement thoughts captured via `/feedback` and stored in `.claude/support/feedback/`. Items flow through statuses: `new` → `refined` → `promoted` (into spec via `/iterate`) or `new` → `archived` (not relevant). Uses `FB-NNN` IDs. Distinct from per-task inline `FEEDBACK:{id}` markers in the dashboard. |

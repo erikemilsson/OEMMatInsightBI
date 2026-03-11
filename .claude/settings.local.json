@@ -29,14 +29,10 @@
       "mcp__playwright__browser_take_screenshot",
       "Bash(chmod +x /Users/erikemilsson/Developer/OEMMatInsightBI/.claude/hooks/pre-compact-handoff.sh)",
       "Read(//Users/erikemilsson/Developer/**)",
-      "Bash(for file:*)",
-      "Bash(do)",
-      "Bash(echo \"===== DIFF: $file =====\")",
-      "Read(//Users/erikemilsson/Developer/OEMMatInsightBI/claude_code_environment/**)",
-      "Bash(done)",
+      "Read(//Users/erikemilsson/Developer/OEMMatInsightBI/.claude/commands/**)",
+      "Bash(git fetch:*)",
       "Bash(for f:*)",
-      "Bash(do echo:*)",
-      "Read(//Users/erikemilsson/Developer/OEMMatInsightBI/.claude/commands/**)"
+      "Read(//Users/erikemilsson/Developer/OEMMatInsightBI/**)"
     ]
   }
 }

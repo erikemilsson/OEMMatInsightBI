@@ -289,3 +289,4 @@ Task is complete when:
 - Notes document what was done
 - Status set to "Finished" (after passing verification)
 - Per-task verification passes (Step 6b triggers verify-agent as part of this workflow)
+

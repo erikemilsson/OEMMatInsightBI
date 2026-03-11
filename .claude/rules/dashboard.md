@@ -22,11 +22,20 @@ Dashboard does NOT regenerate on every task change. Two tiers:
 
 The dashboard has a **Sections** checklist at the top — check or uncheck items to control which sections Claude generates:
 - 🚨 Action Required — decisions, tasks, reviews needing user input
-- 📊 Progress — phase breakdown, critical path, timeline
-- 📋 Tasks — full task list by phase
+- 📊 Progress — phase breakdown, critical path, timeline, status summary (>20 tasks)
+- 📋 Tasks — task list by phase (auto-collapses completed and fully-blocked phases)
 - 📋 Decisions — decision log with status
-- 💡 Notes — user's preserved section
+- 💡 Notes — user's preserved section (seeded with quick links on first regen)
 - Optional: 👁️ Custom Views (toggle via Sections checklist)
+
+## Scaling
+
+The dashboard auto-adapts to project size:
+- **Completed phases** always collapse to a single summary line
+- **Fully-blocked phases** (>5 non-actionable tasks, no pending/in-progress tasks) collapse with blocker summary
+- **Status summary table** renders in Progress when task_count > 20
+- **Mermaid diagrams** switch to critical-path-only mode when >15 active nodes
+- **Phase naming** uses "Phase N — Descriptive Name" format for scannability
 
 ## Dashboard State
 

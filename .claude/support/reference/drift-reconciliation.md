@@ -30,7 +30,19 @@ Before using dashboard data, verify it's current (runs as `/work` Step 1a):
    └─ Continue with fresh dashboard
    ```
 
-**Why this matters:** Dashboard can become stale if tasks are modified outside `/work`. This check ensures you always work from accurate data.
+4. **Compare template_version:**
+   ```
+   Read template_version from META block
+   Read template_version from .claude/version.json
+   If they differ OR META field is absent:
+   ├─ Log: "Dashboard format stale — regenerating"
+   ├─ Regenerate dashboard (will use current format rules and set new template_version in META)
+   └─ Continue with fresh dashboard
+   ```
+
+A dashboard can be content-stale (task hash mismatch) or format-stale (template_version mismatch). Either condition triggers regeneration.
+
+**Why this matters:** Dashboard can become stale if tasks are modified outside `/work`, or if template sync updates the format rules. This check ensures you always work from accurate data with current formatting.
 
 ---
 

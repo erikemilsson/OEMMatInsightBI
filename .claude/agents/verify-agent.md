@@ -728,3 +728,4 @@ Verification fails when:
 - Core acceptance criteria fail
 - Human must review before proceeding
 - Verification result written with `"result": "fail"` (Step 7)
+
