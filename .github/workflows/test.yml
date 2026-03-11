@@ -21,10 +21,10 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Set up Java 11 (required for PySpark)
+    - name: Set up Java 17 (required for PySpark)
       uses: actions/setup-java@v4
       with:
-        java-version: '11'
+        java-version: '17'
         distribution: 'temurin'
 
     - name: Cache pip dependencies
