@@ -1,0 +1,61 @@
+{
+  "id": "task-006_3",
+  "title": "Test incremental load: full + incremental runs, verify no duplicates",
+  "description": "Deploy changes to Fabric and run end-to-end validation: (1) full load with p_full_load=true, (2) incremental load with p_full_load=false and p_from_date set, (3) verify no duplicate records in silver_procurement and fact_procurement, (4) compare row counts and performance.",
+  "status": "Pending",
+  "priority": "P2",
+  "difficulty": 3,
+  "owner": "both",
+  "parent_task": "task-006",
+  "phase": "2",
+  "spec_section": "Orchestration",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "files_affected": [],
+  "acceptanceCriteria": [
+    "Full load produces correct baseline (matches previous full load row counts)",
+    "Incremental load adds only new/changed records",
+    "No duplicates in silver_procurement or fact_procurement after incremental run",
+    "Performance improvement measured (target: >50% time reduction for incremental)",
+    "incremental_load_strategy.md updated with actual performance numbers"
+  ],
+  "dependencies": ["task-006_2"],
+  "notes": [
+    "Erik runs the pipeline in Fabric UI, Claude reviews results",
+    "Check duplicate detection: SELECT COUNT(*), COUNT(DISTINCT key) FROM fact_procurement",
+    "Compare bronze_load_metadata timestamps before and after"
+  ],
+  "created_date": "2026-04-05",
+  "updated_date": "2026-04-05",
+  "task_verification": {},
+  "verification_attempts": 0,
+  "verification_history": [],
+  "test_protocol": {
+    "steps": [
+      {
+        "type": "interactive",
+        "instruction": "Run pipeline with p_full_load=true in Fabric UI",
+        "expected": "Pipeline completes successfully, all tables populated"
+      },
+      {
+        "type": "interactive",
+        "instruction": "Run pipeline again with p_full_load=false, p_from_date=<recent date>",
+        "expected": "Pipeline completes faster, only new records processed"
+      },
+      {
+        "type": "command",
+        "instruction": "Check for duplicates in fact_procurement",
+        "expected": "COUNT(*) equals COUNT(DISTINCT composite_key)"
+      }
+    ],
+    "estimated_time": "15 minutes"
+  },
+  "user_review_pending": false,
+  "interaction_hint": "cli_direct",
+  "decision_dependencies": [],
+  "recovery_state": "",
+  "out_of_spec": false,
+  "absorbed_into": ""
+}

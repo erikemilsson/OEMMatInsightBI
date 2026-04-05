@@ -1,18 +1,18 @@
 # Dashboard
 
 <!-- DASHBOARD META
-generated: 2026-03-11T12:41:44Z
-task_hash: sha256:9b231b8178cdedde
-task_count: 19
-spec_fingerprint: sha256:b4041371a843faa2
+generated: 2026-04-05T14:05:00Z
+task_hash: sha256:a11dcc3dc5f5274e
+task_count: 24
+spec_fingerprint: sha256:93c01f3a54750f35
 template_version: 1.5.0
 verification_debt: 0
 drift_deferrals: 0
 -->
 
-**OEMMatInsightBI** — 68% complete (13/19 tasks)
+**OEMMatInsightBI** — 68% complete (13/19 spec tasks)
 
-*Updated 2026-03-11 12:41 — may not reflect changes made outside `/work`*
+*Updated 2026-04-05 14:05 — may not reflect changes made outside `/work`*
 
 <!-- SECTION TOGGLES -->
 <details><summary>Section toggles</summary>
@@ -47,6 +47,7 @@ Conditions:
 
 | Task | What To Do | Where |
 |------|-----------|-------|
+| 006_3 | Deploy incremental load changes to Fabric, run full + incremental tests, verify no duplicates | [task-006_3.json](tasks/task-006_3.json) |
 | 010 | Configure pipeline scheduling in Fabric UI (blocked by task-011) | [task-010.json](tasks/task-010.json) |
 | 012 | Run performance baselines in Fabric, validate optimization gains | [task-012.json](tasks/task-012.json) |
 
@@ -69,8 +70,9 @@ Conditions:
 | Phase 1 — Core Data Model & Reports | 9 | 9 | Complete |
 | Phase 2 — Automation & Quality | 4 | 7 | Active |
 | Phase 3 — Operations & Performance | 0 | 3 | Blocked (task-011 pending) |
+| Phase 4 — CI/CD Deployment | 0 | 0 | Planned |
 
-**Critical path:** 🤖 Task 011 → 👥 Task 010 → Done *(2 steps)*
+**Critical path:** 🤖 Task 006 (3 parallel subtasks) → 🤖 Task 006_2 → 👥 Task 006_3 → Done *(3 steps)*
 
 ### Project Overview
 
@@ -78,12 +80,20 @@ Conditions:
 graph LR
     P1["✅ Phase 1 — Core Data Model & Reports (9/9)"]
     T005["🤖 Automate External Data"]
-    T006["🤖 Incremental Load"]
+    T006_1a["🤖 Bronze Filtering"]
+    T006_1b["🤖 Silver MERGE"]
+    T006_1c["🤖 Gold MERGE"]
+    T006_2["🤖 Pipeline Wiring"]
+    T006_3["👥 Test Incremental"]
     T007["🤖 Data Quality Checks"]
     T011["🤖 Error Handling"]
     T010["👥 Pipeline Scheduling"]
     T012["👥 Optimize Performance"]
 
+    T006_1a --> T006_2
+    T006_1b --> T006_2
+    T006_1c --> T006_2
+    T006_2 --> T006_3
     T011 --> T010
 
     classDef done fill:#c8e6c9,stroke:#2e7d32
@@ -92,8 +102,8 @@ graph LR
     classDef blocked fill:#f5f5f5,stroke:#9e9e9e
 
     class P1 done
-    class T005,T006,T007,T011,T012 active
-    class T010 human
+    class T005,T006_1a,T006_1b,T006_1c,T006_2,T007,T011 active
+    class T010,T012,T006_3 human
 ```
 
 ---
@@ -109,7 +119,12 @@ graph LR
 | ID | Title | Status | Diff | Owner | Deps |
 |----|-------|--------|------|-------|------|
 | 005 | Automate External Data Ingestion | Pending | 5 | 🤖 | — |
-| 006 | Implement Incremental Load Logic | Pending | 7 | 🤖 | — |
+| 006 | Implement Incremental Load Logic | Broken Down | 7 | 🤖 | — |
+| ↳ 006_1a | Bronze: Date-parameter filtering | Pending | 4 | 🤖 | — |
+| ↳ 006_1b | Silver: Delta MERGE in cleaning notebook | Pending | 5 | 🤖 | — |
+| ↳ 006_1c | Gold: Incremental fact_procurement updates | Pending | 5 | 🤖 | — |
+| ↳ 006_2 | Wire pipeline parameters to activities | Pending | 4 | 🤖 | 006_1a, 006_1b, 006_1c |
+| ↳ 006_3 | Test incremental load end-to-end | Pending | 3 | 👥 | 006_2 |
 | 007 | Add Comprehensive Data Quality Checks | Pending | 6 | 🤖 | task-018 ✅ |
 | 016 | Guided Power BI Dashboard Building | Finished | 3 | 👥 | — |
 | 017 | Populate Quality History with Sample Data | Finished | 4 | 🤖 | — |
@@ -133,4 +148,4 @@ graph LR
 <!-- END USER SECTION -->
 
 ---
-*2026-03-11 12:41 · 19 tasks · [Spec aligned](# "0 drift deferrals, 0 verification debt")*
+*2026-04-05 14:05 · 24 tasks · [Spec aligned](# "0 drift deferrals, 0 verification debt")*

@@ -1,0 +1,43 @@
+{
+  "id": "task-006_2",
+  "title": "Wire pipeline parameters to all notebook activities",
+  "description": "Connect p_full_load and p_from_date pipeline parameters to the notebook activities in the orchestrator pipeline. Ensure parameter values flow from pipeline → notebook cells. Add conditional logic so bronze copy activities skip when p_full_load=false and external data hasn't changed.",
+  "status": "Pending",
+  "priority": "P2",
+  "difficulty": 4,
+  "owner": "claude",
+  "parent_task": "task-006",
+  "phase": "2",
+  "spec_section": "Orchestration",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "files_affected": [
+    "fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/"
+  ],
+  "acceptanceCriteria": [
+    "p_full_load and p_from_date parameters passed to bronze-to-silver notebook activity",
+    "p_full_load parameter passed to silver-to-gold notebook activity",
+    "Pipeline JSON reflects parameter bindings in activity definitions",
+    "Default values preserved (p_full_load=false, p_from_date=1900-01-01)"
+  ],
+  "dependencies": ["task-006_1a", "task-006_1b", "task-006_1c"],
+  "notes": [
+    "Pipeline parameter wiring is JSON config, not code",
+    "Fabric passes parameters as notebook base parameters",
+    "Design reference: .claude/support/documents/incremental_load_strategy.md"
+  ],
+  "created_date": "2026-04-05",
+  "updated_date": "2026-04-05",
+  "task_verification": {},
+  "verification_attempts": 0,
+  "verification_history": [],
+  "test_protocol": null,
+  "user_review_pending": false,
+  "interaction_hint": "dashboard",
+  "decision_dependencies": [],
+  "recovery_state": "",
+  "out_of_spec": false,
+  "absorbed_into": ""
+}

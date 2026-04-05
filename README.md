@@ -6,6 +6,14 @@
 ![Fabric](https://img.shields.io/badge/Microsoft-Fabric-purple)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
+## About
+
+A portfolio project by Erik Emilsson, built while preparing for a data engineering consultant role. The goal is twofold: demonstrate end-to-end proficiency with Microsoft Fabric, and learn production patterns (incremental loading, data quality observability, CI/CD deployment) hands-on.
+
+Companion project: [nordgrid-data-engineering](https://github.com/erikemilsson/nordgrid-data-engineering) — SQL/dbt depth training with 60 progressive exercises covering MERGE, stored procedures, SCD patterns, and Airflow orchestration.
+
+## Overview
+
 A Microsoft Fabric solution demonstrating how OEM databases can be integrated with material databases and ESG datasets to provide real-time insights into the environmental and social impacts of materials used in products.
 
 **Key Technologies:** Azure SQL Database, Fabric Lakehouse & Warehouse, PySpark 3.4+, Power BI, Microsoft.Build.Sql 0.1.19-preview, pytest

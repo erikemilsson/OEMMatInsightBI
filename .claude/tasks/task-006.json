@@ -2,7 +2,7 @@
   "id": "task-006",
   "title": "Implement Incremental Load Logic",
   "description": "Activate incremental load capability using existing pipeline parameters (p_full_load, p_from_date) to eliminate full refresh overhead. Design phase complete with comprehensive strategy.",
-  "status": "Pending",
+  "status": "Broken Down",
   "priority": "P2",
   "difficulty": 7,
   "estimatedEffort": "3.5 days",
@@ -50,7 +50,7 @@
     ".claude/support/documents/incremental_load_strategy.md"
   ],
   "created_date": "",
-  "updated_date": "2026-03-10",
+  "updated_date": "2026-04-05",
   "task_verification": {},
   "verification_attempts": 0,
   "verification_history": [],
@@ -72,42 +72,6 @@
       "External data tables (bronze_epi2024results, bronze_WB_ESGCSV, bronze_GlobalSupplyShares)"
     ]
   },
-  "subtasks": [
-    {
-      "id": "task-006-1",
-      "title": "Modify bronze dataflow with date parameter filtering",
-      "status": "Pending",
-      "estimatedEffort": "0.5 days",
-      "details": "Update bronze_azureSQLdb2table.Dataflow to use @p_from_date parameter with SQL pushdown"
-    },
-    {
-      "id": "task-006-2",
-      "title": "Implement silver layer merge logic",
-      "status": "Pending",
-      "estimatedEffort": "1 day",
-      "details": "Update clean_columnsAndHeaders.Notebook with Delta MERGE operations and high-water mark tracking"
-    },
-    {
-      "id": "task-006-3",
-      "title": "Implement gold layer incremental updates",
-      "status": "Pending",
-      "estimatedEffort": "1 day",
-      "details": "Update silver-to-gold2.Notebook to handle incremental fact/dimension updates with merge logic"
-    },
-    {
-      "id": "task-006-4",
-      "title": "Wire pipeline parameters to all activities",
-      "status": "Pending",
-      "estimatedEffort": "0.5 days",
-      "details": "Connect p_full_load and p_from_date parameters, implement conditional logic"
-    },
-    {
-      "id": "task-006-5",
-      "title": "Test and validate performance gains",
-      "status": "Pending",
-      "estimatedEffort": "0.5 days",
-      "details": "Run full vs incremental load tests, verify no duplicates, measure time savings"
-    }
-  ],
-  "progress": "Design complete (5/5 subtasks planned, 0/5 implemented)"
+  "subtasks": ["006_1a", "006_1b", "006_1c", "006_2", "006_3"],
+  "progress": "Broken down into 5 subtasks (3 parallel layer implementations + wiring + testing)"
 }

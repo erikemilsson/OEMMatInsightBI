@@ -1,0 +1,44 @@
+{
+  "id": "task-006_1b",
+  "title": "Silver: Implement Delta MERGE in cleaning notebook",
+  "description": "Update clean_columnsAndHeaders.Notebook to use Delta MERGE for silver_procurement instead of overwrite. When p_full_load=false, merge new/changed records on natural key (date + materialname + suppliername). Other silver tables (EPI, WGI, supply shares) remain full overwrite (annual external data).",
+  "status": "Pending",
+  "priority": "P2",
+  "difficulty": 5,
+  "owner": "claude",
+  "parent_task": "task-006",
+  "phase": "2",
+  "spec_section": "Data Transformations",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "files_affected": [
+    "fabric/clean_columnsAndHeaders.Notebook/"
+  ],
+  "acceptanceCriteria": [
+    "silver_procurement uses Delta MERGE (not overwrite) when p_full_load=false",
+    "MERGE key: natural key (date + materialname + suppliername)",
+    "No duplicate records after multiple incremental loads",
+    "Full load path still works correctly (overwrite mode)",
+    "Other silver tables unchanged (always full overwrite)"
+  ],
+  "dependencies": [],
+  "notes": [
+    "Design reference: .claude/support/documents/incremental_load_strategy.md",
+    "PySpark DeltaTable.forName().alias('target').merge() pattern",
+    "Notebook receives p_full_load parameter from pipeline"
+  ],
+  "created_date": "2026-04-05",
+  "updated_date": "2026-04-05",
+  "task_verification": {},
+  "verification_attempts": 0,
+  "verification_history": [],
+  "test_protocol": null,
+  "user_review_pending": false,
+  "interaction_hint": "dashboard",
+  "decision_dependencies": [],
+  "recovery_state": "",
+  "out_of_spec": false,
+  "absorbed_into": ""
+}

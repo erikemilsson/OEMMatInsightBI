@@ -4,6 +4,12 @@ Microsoft Fabric-based BI solution for OEM procurement material sourcing analysi
 
 > Full environment instructions: `.claude/CLAUDE.md`
 
+## Purpose
+
+Portfolio project for a data engineering role. Demonstrates Microsoft Fabric end-to-end: Lakehouse, PySpark, Delta Lake, DirectLake semantic model, Power BI, and pipeline orchestration. Also a learning vehicle for production patterns (incremental Delta MERGE, data quality observability, CI/CD with `fabric-cicd`).
+
+Companion project: `nordgrid-data-engineering` — covers SQL/dbt depth (MERGE, stored procs, SCD, execution plans, Airflow). Between the two projects, the core data engineering skill set is covered.
+
 ## Technology Stack
 
 Microsoft Fabric, PySpark, Delta Lake, Power BI, DAX, TMDL

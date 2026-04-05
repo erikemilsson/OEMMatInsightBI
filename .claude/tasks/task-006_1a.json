@@ -1,0 +1,43 @@
+{
+  "id": "task-006_1a",
+  "title": "Bronze: Add date-parameter filtering to procurement dataflow",
+  "description": "Update bronze_azureSQLdb2table.Dataflow to use p_from_date parameter with SQL pushdown filtering on the Date column. Only procurement tables get filtered; reference tables (SupplierInfo) always do full load. Add bronze_load_metadata table for high-water mark tracking.",
+  "status": "Pending",
+  "priority": "P2",
+  "difficulty": 4,
+  "owner": "claude",
+  "parent_task": "task-006",
+  "phase": "2",
+  "spec_section": "Data Transformations",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "files_affected": [
+    "fabric/bronze_azureSQLdb2table.Dataflow/"
+  ],
+  "acceptanceCriteria": [
+    "Dataflow respects p_from_date parameter for procurement table filtering",
+    "SQL pushdown filters applied (WHERE Date >= @p_from_date)",
+    "bronze_load_metadata table created with last_load_timestamp tracking",
+    "Full load (p_full_load=true) bypasses date filter correctly"
+  ],
+  "dependencies": [],
+  "notes": [
+    "Design reference: .claude/support/documents/incremental_load_strategy.md",
+    "Only bronze_procurement_transactional gets date filtering",
+    "bronze_supplier_ref always does full load (reference data)"
+  ],
+  "created_date": "2026-04-05",
+  "updated_date": "2026-04-05",
+  "task_verification": {},
+  "verification_attempts": 0,
+  "verification_history": [],
+  "test_protocol": null,
+  "user_review_pending": false,
+  "interaction_hint": "dashboard",
+  "decision_dependencies": [],
+  "recovery_state": "",
+  "out_of_spec": false,
+  "absorbed_into": ""
+}

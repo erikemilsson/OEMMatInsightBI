@@ -2,7 +2,7 @@
 version: 1
 status: active
 created: 2025-11-14
-updated: 2026-02-13
+updated: 2026-04-05
 ---
 
 # OEMMatInsightBI - Project Definition for Claude Code
@@ -44,6 +44,8 @@ updated: 2026-02-13
 -   Comply with ESG reporting requirements
 
 -   Make data-driven sourcing decisions
+
+**Secondary Purpose:** This project also serves as hands-on preparation for a data engineering consultant role (Rejlers). Beyond demonstrating a working BI solution, it exercises production patterns commonly encountered at client sites: incremental Delta MERGE loading, SQL warehouse stored procedures alongside PySpark notebooks, pipeline error handling with retry logic, and CI/CD deployment via GitHub Actions. The hybrid Lakehouse + Warehouse approach reflects standard Fabric practice.
 
 **Stakeholders:**
 
@@ -97,7 +99,7 @@ updated: 2026-02-13
 
 -   Each Fabric artifact has `.platform` metadata
 
--   Git integration with Fabric workspace (status: **NEEDS DOCUMENTATION**)
+-   Git integration with Fabric workspace via single-developer direct commits to main
 
 **Azure Services:**
 
@@ -107,7 +109,7 @@ updated: 2026-02-13
 
 -   **Database:** procurement-supplier-db
 
--   Authentication method: **NEEDS DOCUMENTATION**
+-   Authentication method: SQL authentication (see `azure/user_creation.sql`)
 
 -   Connection strings: Managed via Fabric dataflow connections
 
@@ -147,9 +149,9 @@ Power BI Reports
 
 -   Fabric Dataflow: `bronze_azureSQLdb2table.Dataflow`
 
--   Frequency: **NEEDS DOCUMENTATION**
+-   Frequency: Manual — pipeline triggered on demand
 
--   Incremental vs Full Load: **NEEDS DOCUMENTATION** (Pipeline has parameters `p_full_load` and `p_from_date` suggesting incremental capability)
+-   Incremental vs Full Load: Parameters exist (`p_full_load`, `p_from_date`); incremental logic implementation is task-006
 
 **Setup Scripts:** (in `/azure` folder)
 
@@ -279,9 +281,9 @@ Power BI Reports
 
 **Update Frequency:** Annual (World Bank releases Q3-Q4)
 
-**File Location:** **NEEDS DOCUMENTATION**
+**File Location:** Manual upload to Fabric Lakehouse Files
 
-**File Format:** Manual CSV file upload. (Task created to investigate automating ingestion).
+**File Format:** CSV
 
 #### 4. Global Supply Shares (EU CRM Data) - External Data
 
@@ -317,7 +319,7 @@ Power BI Reports
 
 -   Year assigned: 2023 (in gold transformation)
 
-**Update Frequency:** **NEEDS DOCUMENTATION**
+**Update Frequency:** Tracks EU CRM study releases (irregular)
 
 **File Location:** GitHub repository CSV file (HTTP source)
 
@@ -422,10 +424,6 @@ Power BI Reports
 -   Score range validation (0-100 for WB indicators)
 
 -   Duplicate removal on natural keys
-
-**Known Issues/Technical Debt:**
-
--   **NEEDS DOCUMENTATION** (requires operational knowledge)
 
 ### Silver → Gold: Business Logic & Aggregations
 
@@ -604,8 +602,6 @@ Power BI Reports
 
 **Key Functions:** - `stable_key(cols)` - Generate deterministic 64-bit surrogate key via xxhash64 - `write_tbl(df, name)` - Write DataFrame to Delta table with overwrite - `check_unmapped(df, col, name)` - Log unmapped values for data quality monitoring
 
-**Known Issues/Technical Debt:** - **NEEDS DOCUMENTATION** (requires operational feedback)
-
 ------------------------------------------------------------------------
 
 ## Orchestration
@@ -719,8 +715,6 @@ Power BI Reports
 
 -   Stage 4 waits for Stage 3 to succeed
 
-**Known Issues:** - **NEEDS DOCUMENTATION** (requires operational monitoring data)
-
 ------------------------------------------------------------------------
 
 ## Semantic Model & Reporting
@@ -833,9 +827,9 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 **Filters/Slicers:** **NEEDS REDESIGN**
 
-**Drill-through Pages:** **NEEDS DOCUMENTATION**
+**Drill-through Pages:** None currently — report is being redesigned
 
-**RLS (Row-Level Security):** **NEEDS DOCUMENTATION**
+**RLS (Row-Level Security):** Designed (6 roles, see `.claude/support/documents/rls_security_strategy.md`). Portfolio demonstration only.
 
 **Theme:** CY24SU10.json (Fabric default theme)
 
@@ -887,6 +881,8 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 -   [x] Helper views for high-confidence data filtering
 
+-   [x] Data quality observability tables (gold_quality_history, gold_gap_registry, gold_quality_snapshot)
+
 **Semantic Model:**
 
 -   [x] Star schema defined
@@ -896,6 +892,22 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 -   [x] 8 relationships configured (all active, single-direction)
 
 -   [x] Connection to Fabric warehouse established
+
+-   [x] 40+ DAX measures (documented in `.claude/support/documents/dax_measure_library.md`)
+
+-   [x] Quality observability tables added to semantic model
+
+-   [x] Cross-table relationship fixes for visuals
+
+**Security:**
+
+-   [x] Row-Level Security designed (6 roles — see `rls_security_strategy.md`)
+
+**Testing:**
+
+-   [x] Unit tests for transformation logic (33 tests, `tests/`)
+
+-   [x] CI pipeline: GitHub Actions with matrix testing (Python 3.10-3.12)
 
 **Orchestration:**
 
@@ -915,68 +927,24 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 ### What's Incomplete/Needs Work ⚠️
 
-**Documentation Gaps:**
+**Remaining Technical Work** (mapped to tasks):
 
--   [ ] DAX measure formulas (not in git-synced files)
+-   [ ] Incremental load implementation (task-006)
+-   [ ] Automated external data ingestion (task-005)
+-   [ ] Comprehensive data quality checks in pipeline (task-007)
+-   [ ] Error handling & retry logic in pipeline (task-011)
+-   [ ] Pipeline scheduling (task-010)
+-   [ ] Performance review (task-012)
+-   [ ] CI/CD deployment via `fabric-cicd` (Phase 4)
+
+**Documentation:**
+
 -   [ ] Report page descriptions and visual inventory
--   [ ] Business logic documentation (business rules, thresholds)
 -   [ ] Data lineage diagrams
--   [ ] Error handling procedures
--   [ ] Git workflow documentation
-
-**Technical Gaps:**
-
--   [ ] Incremental load implementation (parameters exist but logic not used)
-
--   [ ] Schema validation in notebooks
-
--   [ ] Performance optimization (partitioning, indexing)
-
--   [ ] Unit tests for transformation logic
-
--   [ ] Integration tests for pipeline
-
--   [ ] Automated data quality monitoring
-
--   [ ] Alerting/notification configuration
-
--   [ ] **Semantic Model & DAX Logic:** The current model needs to be redesigned to better answer business questions. New DAX measures need to be created from scratch.
-
--   [ ] **Reporting & Visualization:** The Power BI report needs to be completely redesigned with a focus on clear, insightful visuals.
-
--   [ ] **Automated Ingestion:** The ingestion of external data (EPI, WGI, EU Supply Shares) is currently a manual CSV upload process. This needs investigation to automate or connect directly to sources.
-
--   [ ] **Security Implementation:** Row-Level Security (RLS) needs to be designed conceptually and then implemented technically to showcase security best practices.
-
-**Process Gaps:**
-
--   [ ] Pipeline scheduling configuration
-
--   [ ] Change management process
-
--   [ ] Deployment procedure (dev → prod)
-
--   [ ] Monitoring/alerting setup
-
--   [ ] Backup/recovery procedures
-
--   [ ] Access control documentation
 
 ### Known Issues/Technical Debt 🔴
 
-**NEEDS DOCUMENTATION:**
-
--   Any data quality issues in sources?
-
--   Performance bottlenecks?
-
--   Incomplete transformations?
-
--   Workarounds or hacks in code?
-
--   Deprecated approaches that need refactoring?
-
--   **Data Quality Visibility:** There is no centralized way to view the quality of the data, specifically the match rates and assumptions made during alias resolution (e.g., country and material name mapping). This makes it difficult to assess confidence in the final dataset and needs to be addressed for the project portfolio.
+No open issues. Previously identified gap (data quality visibility) addressed via quality observability tables in tasks 018/019.
 
 ------------------------------------------------------------------------
 
@@ -995,9 +963,7 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
   └── [Artifact].Report/
 ```
 
-**Git Status:** **NEEDS DOCUMENTATION**
-
-**Git Status:** The project is managed by a single developer. A formal branching strategy (e.g., GitFlow) is not currently implemented. Work is typically committed directly to the main branch synced with the Fabric workspace.
+**Git Status:** Repository synced with Fabric workspace via Git integration. Single developer, direct commits to main. CI/CD deployment pipeline planned (Phase 4) to formalize this with `fabric-cicd` + GitHub Actions.
 
 **Desired Workflow with Claude Code:**
 
@@ -1131,41 +1097,13 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 ### Expected Data Profiles
 
-**Procurement Transactions:**
+Synthetic dataset — exact counts depend on Azure SQL seed scripts in `/azure/`.
 
--   Row count range: **NEEDS DOCUMENTATION**
+**Procurement Transactions:** ~500 records, key fields: date, materialname, suppliername, quantity, unitpriceeur
 
--   Date range: **NEEDS DOCUMENTATION** (dynamically determined from data)
+**EPI Scores:** ~180-200 countries, ~30-40 indicators (wide format in bronze), year 2024, score range 0-100
 
--   Amount range: Min/Max/Avg **NEEDS DOCUMENTATION**
-
--   Null rate acceptance: **NEEDS DOCUMENTATION**
-
--   Key fields: date, materialname, suppliername, quantity, unitpriceeur
-
-**EPI Scores:**
-
--   Countries covered: \~180-200 (from EPI dataset)
-
--   Indicators: \~30-40 (wide format in bronze)
-
--   Years: 2024 (current implementation)
-
--   Score range: Varies by indicator (EPI overall: 0-100)
-
--   Null rate: **NEEDS DOCUMENTATION**
-
-**WGI Indicators:**
-
--   Countries covered: \~200+ (from World Bank)
-
--   Indicators: 6 governance dimensions
-
--   Years: 2020 (filtered in transformation)
-
--   Score range: 0-100 (filtered in transformation)
-
--   Null rate: **NEEDS DOCUMENTATION**
+**WGI Indicators:** ~200+ countries, 6 governance dimensions, year 2020, score range 0-100
 
 **Supply Shares:**
 
@@ -1185,7 +1123,7 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 ### Fabric Workspace Configuration
 
-**Workspace Name:** **NEEDS DOCUMENTATION**
+**Workspace Name:** OEMMatInsightBI
 
 **Workspace ID:** 99e4cc6d-6ec3-49a7-aed9-b69b04a97aa9 (from notebook metadata)
 
@@ -1212,7 +1150,7 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
   └── /gold (gold_dim_*, fact_*, mapping_*, v_* views)
 ```
 
-**Partitioning Strategy:** **NEEDS DOCUMENTATION** **Optimization Settings:** **NEEDS DOCUMENTATION** (V-Order, etc.) **Format:** Delta Lake (confirmed from write operations)
+**Partitioning Strategy:** Not applicable at portfolio scale — default Fabric behavior. **Optimization Settings:** Default V-Order (Fabric default for warehouse tables). **Format:** Delta Lake (confirmed from write operations)
 
 ### Warehouse Configuration
 
@@ -1220,15 +1158,29 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 **Warehouse ID:** b1cb7506-8d2d-4e4a-97cc-2b580da8eda0 (from expressions.tmdl)
 
-**Purpose:** SQL-queryable layer for Power BI DirectLake semantic model
+**Purpose:** SQL-queryable analytics layer with business-logic transformations. Combines mirrored gold tables from the Lakehouse with native SQL views and stored procedures.
 
 **Tables/Views:**
 
--   Mirrors gold layer tables (based on semantic model source)
+-   Mirrors gold layer tables via Lakehouse-to-Warehouse sync (Copy Job)
 
 -   Schema: dbo (default schema)
 
 -   DirectLake queries these tables directly from parquet files
+
+**SQL Business Logic Objects (in `oem_wh`):**
+
+The warehouse hosts SQL views and stored procedures that complement PySpark notebook transformations. This hybrid approach follows standard Fabric practice — notebooks handle complex ETL in the Lakehouse, SQL handles structured analytics and business rules in the Warehouse.
+
+**Views:**
+-   `dbo.v_procurement_summary` — Procurement spend aggregated by material, country, and time period with dimension attributes joined
+-   `dbo.v_supply_concentration_risk` — Supply concentration risk analysis by material and stage, with risk tier classification (Critical/High/Medium/Low)
+-   `dbo.v_supplier_sustainability_scorecard` — Combines procurement spend with EPI and WGI scores per supplier country for ESG reporting
+-   `dbo.v_data_quality_overview` — Cross-table data quality summary (match rates, unmapped counts, confidence distributions)
+
+**Stored Procedures:**
+-   `dbo.usp_merge_fact_procurement` — Incremental MERGE for fact_procurement using watermark-based change detection. Demonstrates the Delta MERGE pattern in T-SQL as an alternative to PySpark.
+-   `dbo.usp_refresh_quality_metrics` — Refreshes aggregated data quality metrics from audit tables
 
 **Connection:**
 
@@ -1236,33 +1188,51 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 -   Database ID: b1cb7506-8d2d-4e4a-97cc-2b580da8eda0
 
+### CI/CD Deployment
+
+**Approach:** Git-based deployment using Microsoft's `fabric-cicd` Python library + GitHub Actions (Microsoft CI/CD Option 2 — trunk-based with build environments).
+
+**Why this approach:** `fabric-cicd` is the de facto standard for code-first Fabric deployment, maintained by Microsoft (MIT-licensed). It handles notebooks, pipelines, semantic models, environments, and lakehouses. Combined with GitHub Actions, it provides automated deployment on merge to main.
+
+**Deployment Pipeline:**
+
+-   **Trigger:** Push to `main` branch (after PR merge)
+-   **Tool:** `fabric-cicd` library (`pip install fabric-cicd`)
+-   **Authentication:** Service Principal with Fabric workspace contributor role
+-   **Parameterization:** `parameter.yml` for environment-specific config (lakehouse IDs, connection strings)
+-   **Key functions:** `publish_all_items()`, `unpublish_all_orphan_items()`
+
+**GitHub Actions Workflow:** `.github/workflows/fabric-deploy.yml`
+
+-   Install `fabric-cicd`
+-   Authenticate via Service Principal (client ID, client secret, tenant ID stored as GitHub secrets)
+-   Run `publish_all_items()` targeting the Fabric workspace
+-   Environment-specific find-and-replace via `parameter.yml`
+
+**Scope of deployment:** Metadata only — notebooks, pipelines, semantic model definitions, warehouse DDL. Data is never deployed; data population happens via the orchestrator pipeline.
+
+**Known Limitations:**
+-   Notebook-to-Lakehouse bindings don't auto-update across environments — `parameter.yml` handles this
+-   Lakehouse table data, shortcuts, and views are not deployed (metadata only)
+-   `fabric-cicd` is pre-1.0 (v0.3.x) but production-used across the community
+
+**Credentials:** Service Principal setup is a human task (Azure AD app registration, Fabric workspace permissions). Secrets stored in GitHub repository settings, never committed to code.
+
 ### Security & Access
 
 **Authentication:**
 
--   Azure SQL: **NEEDS DOCUMENTATION** (setup scripts exist: user_creation.sql, grant_permissions.sql)
+-   Azure SQL: SQL authentication (see `azure/user_creation.sql`, `azure/grant_permissions.sql`)
 
--   Lakehouse: Workspace identity (inferred from artifact connections)
+-   Lakehouse: Workspace identity
 
 -   Semantic Model: Workspace connection (from expressions.tmdl)
 
 **Row-Level Security (RLS):**
 
--   Implemented?No. Not implemented.
+-   Designed and documented (see `.claude/support/documents/rls_security_strategy.md`). 6 roles defined. Implementation is a portfolio demonstration — not enforced in a production sense.
 
--   Roles defined? None. A task has been created to design and implement RLS.
-
-**Column-Level Security:**
-
--   Any sensitive fields masked? **NEEDS DOCUMENTATION**
-
-**Access Control:**
-
--   Who can read/write lakehouse? **NEEDS DOCUMENTATION**
-
--   Who can edit notebooks/pipelines? **NEEDS DOCUMENTATION**
-
--   Who can refresh semantic model? **NEEDS DOCUMENTATION**
+**Access Control:** Single-developer portfolio project — no access control configuration needed.
 
 ------------------------------------------------------------------------
 
@@ -1270,15 +1240,7 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 ### Current Performance Status
 
-**Pipeline Runtime:** **NEEDS DOCUMENTATION**
-
--   Bronze ingestion: X minutes
-
--   Silver transformation: X minutes - Gold transformation: X minutes
-
--   Total end-to-end: X minutes
-
-**Known Bottlenecks:** **NEEDS DOCUMENTATION**
+**Pipeline Runtime:** Not benchmarked — manual pipeline runs at portfolio scale. No production load or SLA requirements.
 
 **Optimization Opportunities:**
 
@@ -1316,11 +1278,7 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 -   [ ] Regression tests for alias mappings
 
-**Test Data:** **NEEDS DOCUMENTATION**
-
--   Test environment with sample data?
-
--   Synthetic data generation?
+**Test Data:** Synthetic data generated via SQL scripts in `/azure/`. Local unit tests use PySpark test fixtures in `tests/`.
 
 ------------------------------------------------------------------------
 
@@ -1348,9 +1306,7 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 **Environmental Score Aggregation:**
 
--   How are multiple EPI indicators combined? **NEEDS DOCUMENTATION**
-
--   Current implementation: Individual indicators stored separately in fact_epi_score
+-   Individual indicators stored separately in fact_epi_score (no composite scoring)
 
 -   Weighting approach: EPI provides weights per indicator (stored in gold_dim_indicator.weight)
 
@@ -1388,13 +1344,11 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 **Date Logic:**
 
--   Fiscal year start: **NEEDS DOCUMENTATION** (currently uses calendar year) - Reporting periods: Daily grain available in gold_dim_date with quarter/month aggregations
+-   Calendar year only (no fiscal year). Reporting periods: Daily grain available in gold_dim_date with quarter/month aggregations
 
 ### DAX Measures (High-Level)
 
-**NEEDS DOCUMENTATION** - Actual DAX formulas not found in synced files
-
-**Expected measures based on business requirements:**
+See `.claude/support/documents/dax_measure_library.md` for the full measure library (40+ measures). Key measures:
 
 -   Total Spend = SUM(fact_procurement\[spend_eur\])
 
@@ -1432,21 +1386,17 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 -   Connection string/endpoint: Managed via Fabric dataflow connection
 
--   Refresh schedule: **NEEDS DOCUMENTATION**
-
--   Data owner: **NEEDS DOCUMENTATION**
-
--   SLA: **NEEDS DOCUMENTATION**
+-   Refresh schedule: Manual — pipeline triggered on demand
 
 **EPI Dataset:**
 
--   Source URL/provider: **NEEDS DOCUMENTATION** (file-based dataflow ingestion)
+-   Source: Yale EPI (https://epi.yale.edu/), file-based dataflow ingestion
 
 -   Update schedule: Annual (typically Q2-Q3 each year)
 
--   File location: **NEEDS DOCUMENTATION**
+-   File location: Manual CSV upload to Fabric Lakehouse Files
 
--   Manual vs automated ingestion: Automated via dataflow (manual file upload?)
+-   Ingestion: Automated via dataflow after manual file upload
 
 -   Current year: 2024
 
@@ -1456,9 +1406,9 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 -   Update schedule: Annual (typically Q3-Q4)
 
--   File location: **NEEDS DOCUMENTATION**
+-   File location: Manual CSV upload to Fabric Lakehouse Files
 
--   Manual vs automated ingestion: Automated via dataflow
+-   Ingestion: Automated via dataflow after manual file upload
 
 -   Current year: 2020 (filtered in transformation)
 
@@ -1466,7 +1416,7 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 -   Source: GitHub repository CSV file (HTTP endpoint)
 
--   Update schedule: **NEEDS DOCUMENTATION**
+-   Update schedule: Tracks EU CRM study releases (irregular)
 
 -   Connection type: HTTP REST endpoint
 
@@ -1478,11 +1428,11 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 -   Report ID: report.Report (in /fabric folder)
 
--   Who uses it? **NEEDS DOCUMENTATION**
+-   Portfolio demonstration — no external consumers
 
 -   Refresh schedule: Automatic with DirectLake (on lakehouse update)
 
--   Published to Power BI Service? **NEEDS DOCUMENTATION**
+-   Published via Fabric workspace (DirectLake mode)
 
 **Semantic Model**
 
@@ -1492,11 +1442,7 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 -   Refresh: Automatic (no explicit refresh needed with DirectLake)
 
-**Other Systems:**
-
--   Any external systems consuming gold tables? **NEEDS DOCUMENTATION**
-
--   APIs or data exports? **NEEDS DOCUMENTATION**
+**Other Systems:** None — no downstream consumers beyond Power BI.
 
 ------------------------------------------------------------------------
 
@@ -1505,93 +1451,74 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 ### Technical Decisions
 
 1.  **Incremental vs Full Load:**
-    -   Which tables need incremental load?
-    -   What's the incremental key? (Date field, timestamp?)
-    -   **DECISION:** **NEEDS DOCUMENTATION**
-    -   **Note:** Pipeline has parameters (`p_full_load`, `p_from_date`) but logic not implemented
+    -   **DECISION:** Incremental load for `fact_procurement` (the only table with ongoing transactional data). External data tables (EPI, WGI, Supply Shares) remain full-load on their annual refresh cycle.
+    -   **Pattern:** Watermark-based incremental loading. Track `last_modified` timestamp in a metadata table. Stage new/changed records in bronze, then MERGE into gold.
+    -   **Incremental key:** `Date` field from `dbo.Procurement` (transaction date)
+    -   **Why:** `mode("overwrite")` erases the Delta log and forces full DirectLake semantic model reload. Incremental MERGE preserves the VertiPaq column store and enables incremental framing.
+    -   **Post-merge maintenance:** Run `OPTIMIZE` on gold tables after MERGE. V-Order enabled by default in Warehouse.
+    -   **Implementation:** Both PySpark (notebook) and T-SQL (`usp_merge_fact_procurement` stored procedure) implementations for skill demonstration.
 2.  **Partitioning Strategy:**
-    -   Partition by date? Country? Material? Both?
-    -   **DECISION:** **NEEDS DOCUMENTATION**
+    -   **DECISION:** Not applicable at portfolio scale — default Fabric behavior sufficient. No custom partitioning needed.
 3.  **SCD Implementation:**
     -   Which dimensions need history tracking?
     -   Type 1 vs Type 2?
     -   **DECISION:** Currently all Type 1 (overwrite)
     -   **Recommendation:** Consider Type 2 for gold_dim_country, gold_dim_material if names/attributes change
 4.  **Data Retention:**
-    -   How long to keep bronze data?
-    -   Archive strategy?
-    -   **DECISION:** **NEEDS DOCUMENTATION**
+    -   **DECISION:** Not applicable — portfolio project with no retention policy needed. All layers kept indefinitely.
 5.  **Error Handling:**
-    -   Fail fast or continue on error?
-    -   Quarantine bad records?
-    -   **DECISION:** Currently fail-fast (0 retries in pipeline)
-    -   **Recommendation:** Add retry logic for transient failures
+    -   **DECISION:** Activity-level retry with Try-Catch pattern and error logging.
+    -   **Pattern:** Each activity gets retry count (3) and interval (30s). Upon Failure paths route to a shared error-logging activity (writes to `pipeline_execution_log` table). Critical failures use the Fail activity with custom error codes. Non-critical failures (e.g., EPI refresh fails) allow the pipeline to continue via Try-Catch, logging the failure for review.
+    -   **Why:** Fabric has no pipeline-level retry — only activity-level. The Try-Catch pattern (Upon Failure path only) allows the pipeline to succeed even when non-critical activities fail, which is important for a multi-source pipeline where one external source being unavailable shouldn't block everything.
+    -   **Notification:** Pipeline failure alerts via Fabric monitoring (no custom notification system needed for a single-developer project).
 
 ### Business Decisions
 
 1.  **EPI Indicator Selection:**
-    -   Which of \~30 indicators to include in reports?
-    -   Any custom weighting for composite scores?
-    -   **DECISION:** **NEEDS DOCUMENTATION**
-    -   **Current:** All indicators included in fact_epi_score
+    -   **DECISION:** All indicators included in fact_epi_score. No custom weighting or filtering — the full EPI dataset is available for Power BI exploration. Users can filter by policy objective or issue category in the report.
 2.  **Supplier Risk Thresholds:**
-    -   What defines "high risk"? (Current: \>50% concentration = Critical)
-    -   Multiple dimensions (env + governance)?
-    -   **DECISION:** Concentration risk thresholds implemented, but ESG risk thresholds **NEEDS DOCUMENTATION**
+    -   **DECISION:** Concentration risk thresholds implemented (Critical >50%, High >30%, Medium >20%, Low ≤20%). ESG risk scoring (composite EPI + WGI) deferred — out of scope for current phases.
 3.  **Reporting Granularity:**
     -   Daily, weekly, monthly aggregates?
     -   **DECISION:** Daily grain in fact_procurement, yearly grain in fact_epi_score and fact_supply_share
     -   **Current:** gold_dim_date provides daily grain with month/quarter/week attributes
 4.  **Material Hierarchy:**
-    -   How many levels? (Current: 1 level - commodity_group)
-    -   Categories defined? (Current: 13 commodity groups)
-    -   Need sub-categories? (e.g., Battery metals → Lithium compounds)
-    -   **DECISION:** **NEEDS DOCUMENTATION**
+    -   **DECISION:** Single-level hierarchy (13 commodity groups). Sub-categories not needed — sufficient analytical granularity for the portfolio use case.
 5.  **Fiscal Calendar:**
-    -   Fiscal year different from calendar year?
-    -   **DECISION:** **NEEDS DOCUMENTATION** (currently calendar year only)
+    -   **DECISION:** Calendar year only. No fiscal year logic — the synthetic procurement data doesn't model a specific organization's fiscal calendar.
 
 ------------------------------------------------------------------------
 
 ## Next Steps & Priorities
 
-### Immediate Priorities (Next 2 Weeks)
+### Phase Structure
 
-**NEEDS DOCUMENTATION:**
+| Phase | Focus | Status | Acceptance Criteria |
+|-------|-------|--------|-------------------|
+| Phase 1 | Core Data Model & Reports | Complete (9/9) | Gold tables populated, semantic model connected, Power BI report built |
+| Phase 2 | Automation & Quality | Active (4/7 done) | Incremental load works for fact_procurement, DQ checks run in pipeline, external data ingestion scripted |
+| Phase 3 | Operations & Performance | Blocked (pending task-011) | Error handling with Try-Catch in pipeline, pipeline scheduling configured, basic performance review done |
+| Phase 4 | CI/CD Deployment | Planned | GitHub Actions workflow deploys Fabric artifacts on merge to main via `fabric-cicd` |
 
-1.  [ ] **Priority 1:** \[What needs to be done first?\]
-2.  [ ] **Priority 2:** \[Second most important?\]
-3.  [ ] **Priority 3:** \[Third?\]
+### Phase 4 — CI/CD Deployment
 
-**Suggested priorities based on gaps identified:**
+**Goal:** Automated deployment pipeline — the one production-readiness pattern not covered by the companion NordGrid project.
 
--   **Priority 1: Enhance Data Quality & Matching Visibility:** Create a new notebook or Power BI report page dedicated to surfacing the results of the alias resolution process. This should clearly show unmapped values, match confidence scores, and the impact of assumptions for countries and materials. This directly addresses the main technical debt.
+**Deliverables:**
 
--   **Priority 2: Redesign Semantic Model & DAX Measures:** Brainstorm and document the key business questions the report should answer. Based on that, redesign the semantic model and implement a core set of DAX measures for key metrics (e.g., Total Spend, Supplier Concentration, Weighted EPI Score).
+1. **GitHub Actions workflow** using `fabric-cicd` library (owner: both — Claude writes workflow, Erik configures Service Principal + GitHub secrets)
+   - `parameter.yml` for environment-specific configuration (lakehouse IDs, connection strings)
+   - Service Principal authentication (human task: Azure AD app registration)
+   - Deployment triggered on merge to main
 
--   **Priority 3: Redesign Power BI Report:** Build a new Power BI report on top of the redesigned semantic model. Start with an overview page and a deep-dive page for supplier risk.
+2. **SQL Warehouse Analytics Layer** — already implemented (4 views + 2 stored procedures in `oem_wh`). No additional work needed.
 
--   **Priority 4: Design Row-Level Security (RLS):** Research and document a conceptual RLS model. For example, create roles like "Procurement Manager - Americas" who can only see data for their region.
+### Priority Order
 
-### Short-Term Goals (Next Month)
-
-**NEEDS DOCUMENTATION:**
-
--   [ ] **Goal 1:** Implement the designed Row-Level Security (RLS) in the semantic model and test it.
-
--   [ ] **Goal 2:** Investigate automating the ingestion of at least one external data source (e.g., the EU Supply Shares from its source GitHub URL) to replace the manual CSV upload.
-
--   [ ] **Goal 3:** Complete documentation for all remaining NEEDS DOCUMENTATION sections.
-
-### Long-Term Vision (Next Quarter)
-
-**NEEDS DOCUMENTATION:**
-
--   [ ] Vision item 1: Expand to additional data sources
-
--   [ ] Vision item 2: Implement predictive analytics
-
--   [ ] Vision item 3: Real-time data integration
+Complete in sequence:
+1. Phase 2 remaining (tasks 005, 006, 007) — incremental load is the highest-value item
+2. Phase 3 (tasks 011, 010, 012) — error handling unblocks scheduling
+3. Phase 4 — CI/CD builds on the completed pipeline
 
 ------------------------------------------------------------------------
 

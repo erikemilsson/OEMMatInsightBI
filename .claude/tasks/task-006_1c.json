@@ -1,0 +1,45 @@
+{
+  "id": "task-006_1c",
+  "title": "Gold: Implement incremental fact_procurement updates",
+  "description": "Update silver-to-gold2.Notebook to use Delta MERGE for fact_procurement instead of overwrite. Merge on surrogate keys, update existing rows, insert new. Dimension tables (country, material, date, indicator, stage) remain full overwrite (SCD Type 1). Run OPTIMIZE after MERGE.",
+  "status": "Pending",
+  "priority": "P2",
+  "difficulty": 5,
+  "owner": "claude",
+  "parent_task": "task-006",
+  "phase": "2",
+  "spec_section": "Data Transformations",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "files_affected": [
+    "fabric/silver-to-gold2.Notebook/"
+  ],
+  "acceptanceCriteria": [
+    "fact_procurement uses Delta MERGE (not overwrite) when p_full_load=false",
+    "MERGE key: surrogate keys (date_key + material_key + supplier_hq_country_key + production_country_key)",
+    "fact_supply_share and fact_epi_score remain full overwrite (annual external data)",
+    "Dimension tables remain full overwrite (SCD Type 1)",
+    "OPTIMIZE runs on fact_procurement after MERGE",
+    "No duplicate records after multiple incremental loads"
+  ],
+  "dependencies": [],
+  "notes": [
+    "Design reference: .claude/support/documents/incremental_load_strategy.md",
+    "Gold layer MERGE is the highest-value change — eliminates DirectLake full reload",
+    "Quality observability tables should also update incrementally if possible"
+  ],
+  "created_date": "2026-04-05",
+  "updated_date": "2026-04-05",
+  "task_verification": {},
+  "verification_attempts": 0,
+  "verification_history": [],
+  "test_protocol": null,
+  "user_review_pending": false,
+  "interaction_hint": "dashboard",
+  "decision_dependencies": [],
+  "recovery_state": "",
+  "out_of_spec": false,
+  "absorbed_into": ""
+}
