@@ -27,13 +27,38 @@
 # MARKDOWN ********************
 
 # # nb_silver_standardize
-# 
+#
 # This notebook does the following:
-# - cleans headers, 
-# - trims entries, 
-# - type casts, 
+# - cleans headers,
+# - trims entries,
+# - type casts,
 # - light normalization (no business joins).
+#
+# Supports incremental loading for procurement data via p_full_load / p_from_date parameters.
 
+
+# CELL ********************
+
+# Pipeline parameters — overridden by Fabric pipeline at runtime
+p_full_load = "false"
+p_from_date = "1900-01-01"
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark",
+# META   "inputParameters": {
+# META     "p_full_load": {
+# META       "type": "string",
+# META       "defaultValue": "false"
+# META     },
+# META     "p_from_date": {
+# META       "type": "string",
+# META       "defaultValue": "1900-01-01"
+# META     }
+# META   }
+# META }
 
 # CELL ********************
 
@@ -41,6 +66,8 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.functions import col, expr, regexp_replace, substring
 from pyspark.sql.types import (IntegerType,StringType,DoubleType,StructType,StructField)
+from delta.tables import DeltaTable
+from datetime import datetime, timedelta
 
 # METADATA ********************
 
@@ -135,10 +162,29 @@ df_newheaders.write.format("delta").mode("overwrite").saveAsTable('silver_global
 # MARKDOWN ********************
 
 # ## procurement: bronze --> silver
+#
+# Supports incremental loading via Delta MERGE when p_full_load is "false".
+# MERGE key: natural key (date + materialname + suppliername).
+# Uses a 7-day look-back window for late-arriving data during incremental loads.
 
 # CELL ********************
 
-df1 = spark.sql("SELECT * FROM oem_lh.bronze_procurement_transactional")
+# Read bronze procurement data — apply date filter for incremental loads
+is_full_load = p_full_load.strip().lower() == "true"
+
+if is_full_load:
+    df1 = spark.sql("SELECT * FROM oem_lh.bronze_procurement_transactional")
+    print("Procurement: FULL LOAD — reading all bronze records")
+else:
+    # Apply 7-day look-back window for late-arriving data
+    watermark_date = datetime.strptime(p_from_date, "%Y-%m-%d")
+    lookback_date = watermark_date - timedelta(days=7)
+    lookback_str = lookback_date.strftime("%Y-%m-%d")
+    df1 = spark.sql(
+        f"SELECT * FROM oem_lh.bronze_procurement_transactional WHERE Date >= '{lookback_str}'"
+    )
+    print(f"Procurement: INCREMENTAL LOAD — reading records from {lookback_str} (7-day look-back from {p_from_date})")
+
 df2 = spark.sql("SELECT * FROM oem_lh.bronze_supplier_ref")
 display(df1)
 display(df2)
@@ -153,12 +199,17 @@ display(df2)
 # CELL ********************
 
 # Join procurement_transactional & supplier_ref
-left_join_df = df1.join(
-    df2,
-    df1.SupplierName == df2.SupplierName, # The join condition
-    "left"  # The type of join
-)
-display(left_join_df)
+# Use list-based join key to avoid duplicate SupplierName columns in output
+left_join_df = df1.join(df2, ["SupplierName"], "left")
+
+# Rename columns to lowercase with underscores
+new_columns = [c.lower().replace(' ', '_') for c in left_join_df.columns]
+df_joined = left_join_df.toDF(*new_columns)
+
+# Drop region column (not needed in silver layer)
+silver_df = df_joined.drop("region")
+
+display(silver_df)
 
 # METADATA ********************
 
@@ -169,33 +220,31 @@ display(left_join_df)
 
 # CELL ********************
 
-# rename column headers
-new_columns = [c.lower().replace(' ', '_') for c in left_join_df.columns] # create a list of new, clean column names
-df2_newheaders = left_join_df.toDF(*new_columns)
-display(df2_newheaders)
+# Write silver_procurement — full overwrite or Delta MERGE
+if is_full_load:
+    silver_df.write.format("delta").mode("overwrite").saveAsTable("silver_procurement")
+    print(f"Procurement: full overwrite complete ({silver_df.count():,} rows)")
+else:
+    # Incremental: Delta MERGE on natural key
+    if not spark.catalog.tableExists("oem_lh.silver_procurement"):
+        # First load — create table via overwrite
+        silver_df.write.format("delta").mode("overwrite").saveAsTable("silver_procurement")
+        print(f"Procurement: initial table created ({silver_df.count():,} rows)")
+    else:
+        merge_condition = """
+            target.date = source.date AND
+            target.materialname = source.materialname AND
+            target.suppliername = source.suppliername
+        """
 
-# METADATA ********************
+        target_table = DeltaTable.forName(spark, "oem_lh.silver_procurement")
+        (target_table.alias("target")
+         .merge(silver_df.alias("source"), merge_condition)
+         .whenMatchedUpdateAll()
+         .whenNotMatchedInsertAll()
+         .execute())
 
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-df_dropped = df2_newheaders.drop("region", "suppliername") # drop repeated columns
-display(df_dropped)
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-df_dropped.write.format("delta").mode("overwrite").saveAsTable('silver_procurement')
+        print(f"Procurement: Delta MERGE complete ({silver_df.count():,} rows merged)")
 
 # METADATA ********************
 

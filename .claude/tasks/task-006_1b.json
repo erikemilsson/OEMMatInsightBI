@@ -1,8 +1,8 @@
 {
   "id": "task-006_1b",
   "title": "Silver: Implement Delta MERGE in cleaning notebook",
-  "description": "Update clean_columnsAndHeaders.Notebook to use Delta MERGE for silver_procurement instead of overwrite. When p_full_load=false, merge new/changed records on natural key (date + materialname + suppliername). Other silver tables (EPI, WGI, supply shares) remain full overwrite (annual external data).",
-  "status": "Pending",
+  "description": "Update bronze-to-silver.Notebook to use Delta MERGE for silver_procurement instead of overwrite. When p_full_load=false, merge new/changed records on natural key (date + materialname + suppliername). Other silver tables (EPI, WGI, supply shares) remain full overwrite (annual external data).",
+  "status": "Finished",
   "priority": "P2",
   "difficulty": 5,
   "owner": "claude",
@@ -14,7 +14,7 @@
   "section_fingerprint": "",
   "section_snapshot_ref": "",
   "files_affected": [
-    "fabric/clean_columnsAndHeaders.Notebook/"
+    "fabric/bronze-to-silver.Notebook/notebook-content.py"
   ],
   "acceptanceCriteria": [
     "silver_procurement uses Delta MERGE (not overwrite) when p_full_load=false",
@@ -27,13 +27,46 @@
   "notes": [
     "Design reference: .claude/support/documents/incremental_load_strategy.md",
     "PySpark DeltaTable.forName().alias('target').merge() pattern",
-    "Notebook receives p_full_load parameter from pipeline"
+    "Notebook receives p_full_load parameter from pipeline",
+    "[IMPLEMENTATION] Added parameter cell with p_full_load and p_from_date (with Fabric inputParameters metadata for pipeline injection). Added DeltaTable import from delta.tables and datetime/timedelta imports. Procurement section now: (1) reads bronze with optional date filter + 7-day look-back for incremental, (2) joins using list-based join key ['SupplierName'] to avoid duplicate columns and retain suppliername for merge key, (3) drops region column, (4) writes via Delta MERGE on (date, materialname, suppliername) when incremental, or overwrite when full load. Falls back to table creation if target doesn't exist during incremental. EPI, GlobalSupplyShares, and WGI sections unchanged (always full overwrite).",
+    "[SCHEMA NOTE] silver_procurement now retains the suppliername column (previously dropped). This is required for the MERGE natural key. The join was changed from equality-based (df1.SupplierName == df2.SupplierName) to list-based (['SupplierName']) to produce a single copy of the join column.",
+    "[SELF-REVIEW] All 5 acceptance criteria verified in code. All 47 existing tests pass. Notebook cell format (CELL/METADATA/MARKDOWN markers) preserved. No changes to EPI, WGI, or GlobalSupplyShares sections."
   ],
   "created_date": "2026-04-05",
   "updated_date": "2026-04-05",
-  "task_verification": {},
-  "verification_attempts": 0,
-  "verification_history": [],
+  "completion_date": "2026-04-05",
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-04-05T12:00:00Z",
+    "checks": {
+      "files_exist": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "not_applicable",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "All 5 acceptance criteria verified. Delta MERGE logic correct with natural key (date, materialname, suppliername). Parameter cell has proper Fabric inputParameters metadata. 7-day look-back window applied. Fallback to table creation on first incremental run. EPI, WGI, GlobalSupplyShares sections unchanged. All 47 existing tests pass. suppliername retention is a documented deviation from spec line 389, required for the MERGE key.",
+    "issues": []
+  },
+  "verification_attempts": 1,
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-04-05T12:00:00Z",
+      "checks": {
+        "files_exist": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [],
+      "notes": "All acceptance criteria pass. Implementation aligns with task description and design reference."
+    }
+  ],
   "test_protocol": null,
   "user_review_pending": false,
   "interaction_hint": "dashboard",

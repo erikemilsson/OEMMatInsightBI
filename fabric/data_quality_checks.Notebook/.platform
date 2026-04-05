@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "data_quality_checks",
+    "description": "Task 007: Comprehensive data quality framework with 9 check functions across bronze/silver/gold layers using ISO 25012 quality dimensions"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "a1b2c3d4-5e6f-7890-abcd-ef1234567890"
+  }
+}

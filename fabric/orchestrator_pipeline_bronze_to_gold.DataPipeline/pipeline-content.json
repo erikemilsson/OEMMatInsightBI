@@ -126,8 +126,8 @@
         },
         "policy": {
           "timeout": "0.12:00:00",
-          "retry": 0,
-          "retryIntervalInSeconds": 30,
+          "retry": 3,
+          "retryIntervalInSeconds": 300,
           "secureInput": false,
           "secureOutput": false
         },
@@ -145,8 +145,8 @@
         },
         "policy": {
           "timeout": "0.12:00:00",
-          "retry": 0,
-          "retryIntervalInSeconds": 30,
+          "retry": 2,
+          "retryIntervalInSeconds": 180,
           "secureInput": false,
           "secureOutput": false
         },
@@ -163,8 +163,8 @@
         },
         "policy": {
           "timeout": "0.12:00:00",
-          "retry": 0,
-          "retryIntervalInSeconds": 30,
+          "retry": 3,
+          "retryIntervalInSeconds": 300,
           "secureInput": false,
           "secureOutput": false
         },
@@ -181,8 +181,8 @@
         },
         "policy": {
           "timeout": "0.12:00:00",
-          "retry": 0,
-          "retryIntervalInSeconds": 30,
+          "retry": 2,
+          "retryIntervalInSeconds": 180,
           "secureInput": false,
           "secureOutput": false
         },
@@ -193,12 +193,28 @@
         "type": "TridentNotebook",
         "typeProperties": {
           "notebookId": "0e960e19-4e8b-a31b-468d-9a08d577abe0",
-          "workspaceId": "00000000-0000-0000-0000-000000000000"
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "p_full_load": {
+              "value": {
+                "value": "@string(pipeline().parameters.p_full_load)",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "p_from_date": {
+              "value": {
+                "value": "@pipeline().parameters.p_from_date",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
         },
         "policy": {
           "timeout": "0.12:00:00",
-          "retry": 0,
-          "retryIntervalInSeconds": 30,
+          "retry": 2,
+          "retryIntervalInSeconds": 120,
           "secureInput": false,
           "secureOutput": false
         },
@@ -234,12 +250,28 @@
         "type": "TridentNotebook",
         "typeProperties": {
           "notebookId": "b65d5f35-9e31-b8c4-4705-0bdc711d4ef3",
-          "workspaceId": "00000000-0000-0000-0000-000000000000"
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "p_full_load": {
+              "value": {
+                "value": "@string(pipeline().parameters.p_full_load)",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "p_from_date": {
+              "value": {
+                "value": "@pipeline().parameters.p_from_date",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
         },
         "policy": {
           "timeout": "0.12:00:00",
-          "retry": 0,
-          "retryIntervalInSeconds": 30,
+          "retry": 2,
+          "retryIntervalInSeconds": 120,
           "secureInput": false,
           "secureOutput": false
         },

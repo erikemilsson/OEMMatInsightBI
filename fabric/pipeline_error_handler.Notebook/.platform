@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "pipeline_error_handler",
+    "description": "Task 011: Pipeline execution logging, error categorization, and reporting for the orchestrator pipeline"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f90"
+  }
+}

@@ -1,7 +1,7 @@
 # External Data Source Automation - OEMMatInsightBI
 
-**Status:** Research Complete
-**Last Updated:** 2025-11-03
+**Status:** Implementation Complete
+**Last Updated:** 2026-04-05
 **Owner:** Claude Code
 
 ## Executive Summary
@@ -13,6 +13,11 @@ This document provides comprehensive research findings on automating the ingesti
 - ✅ **WGI (World Bank):** REST API with CSV export capability
 - ⚠️ **License:** EPI is non-commercial only (CC BY-NC-SA 4.0)
 - 🔄 **Update Frequency:** Both annual updates (sufficient for use case)
+
+**Implementation (2026-04-05):**
+- ✅ **EPI notebook:** `fabric/bronze_ingest_epi.Notebook/` — downloads CSV via `requests`, writes to `bronze_epi2024results`
+- ✅ **WGI notebook:** `fabric/bronze_ingest_wgi.Notebook/` — calls World Bank API v2 (JSON), writes to `bronze_WGI`
+- ⏭️ **Pipeline wiring:** Erik to replace dataflow activities with notebook activities in Fabric UI
 
 ---
 
@@ -578,15 +583,31 @@ https://www.worldbank.org/en/publication/worldwide-governance-indicators
 
 ---
 
-## 7. Next Steps
+## 7. Implementation Status
 
-### Immediate Actions (Task 05 Completion)
+### Completed (2026-04-05)
 
-✅ **Research Complete** - Document created
-⏭️ **Design Copy Activities** - Create HTTP linked services in Fabric
-⏭️ **Implement Downloads** - Replace manual dataflows with copy activities
-⏭️ **Test & Validate** - Verify data quality and schema consistency
-⏭️ **Update Documentation** - Add automation notes to project_definition.md
+✅ **Research Complete** - Data sources documented, feasibility confirmed
+✅ **EPI Notebook Created** - `fabric/bronze_ingest_epi.Notebook/`
+  - Downloads `epi{YYYY}results.csv` from Yale via HTTP
+  - Parameterized by year (`p_epi_year`, default: 2024)
+  - Schema validation (checks for `code`, `iso`, `country`, `EPI` columns)
+  - Retry logic (3 attempts) with specific 404 handling
+  - Writes to `bronze_epi2024results` Delta table (overwrite)
+✅ **WGI Notebook Created** - `fabric/bronze_ingest_wgi.Notebook/`
+  - Calls World Bank API v2 (JSON format) for all 6 WGI indicators
+  - Parameterized by date range (`p_start_year`/`p_end_year`, default: 1996-2023)
+  - Pagination support for large result sets
+  - Retry logic with exponential backoff
+  - Writes to `bronze_WGI` Delta table with columns matching downstream expectations
+  - Enriches data with `Indicator Code`, `Year`, and `Value` columns beyond original schema
+✅ **Documentation Updated** - This document updated with implementation details
+
+### Remaining (Erik in Fabric UI)
+
+⏭️ **Pipeline Wiring** - Replace `bronze_EPI` (RefreshDataflow) and `bronze_WGI` (RefreshDataflow) activities in `orchestrator_pipeline_bronze_to_gold` with TridentNotebook activities pointing to the new notebooks
+⏭️ **Test End-to-End** - Run full pipeline, verify data flows through bronze->silver->gold
+⏭️ **Decommission Dataflows** - Remove `EPI_file2table.Dataflow` and `WGI_file2table.Dataflow` after validation
 
 ### Future Enhancements
 

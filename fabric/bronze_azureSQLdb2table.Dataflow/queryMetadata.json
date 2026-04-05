@@ -5,6 +5,11 @@
   "queryGroups": [],
   "documentLocale": "en-US",
   "queriesMetadata": {
+    "p_from_date": {
+      "queryId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "queryName": "p_from_date",
+      "loadEnabled": false
+    },
     "procurement_transactional": {
       "queryId": "d06c1012-1350-43c0-a815-d596982c7408",
       "queryName": "procurement_transactional",

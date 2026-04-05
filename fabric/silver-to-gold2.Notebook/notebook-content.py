@@ -20,6 +20,29 @@
 # META   }
 # META }
 
+# CELL ********************
+
+# Pipeline parameters — overridden by orchestrator pipeline when invoked
+p_full_load = "false"
+p_from_date = "1900-01-01"
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark",
+# META   "inputsV2": {
+# META     "p_full_load": {
+# META       "type": "string",
+# META       "defaultValue": "false"
+# META     },
+# META     "p_from_date": {
+# META       "type": "string",
+# META       "defaultValue": "1900-01-01"
+# META     }
+# META   }
+# META }
+
 # MARKDOWN ********************
 
 # ## Setup and Conventions
@@ -55,6 +78,19 @@ def write_tbl(df, tbl_name):
        .option("overwriteSchema","true")
        .saveAsTable(f"{DB}.{tbl_name}"))
     print(f"✓ Written {df.count():,} records to {DB}.{tbl_name}")
+
+def merge_tbl(df, tbl_name, merge_condition):
+    """Delta MERGE for incremental loads"""
+    from delta.tables import DeltaTable
+    target = DeltaTable.forName(spark, f"{DB}.{tbl_name}")
+    (target.alias("target")
+     .merge(df.alias("source"), merge_condition)
+     .whenMatchedUpdateAll()
+     .whenNotMatchedInsertAll()
+     .execute())
+    # OPTIMIZE after merge
+    spark.sql(f"OPTIMIZE {DB}.{tbl_name}")
+    print(f"✓ Merged records into {DB}.{tbl_name}")
 
 def check_unmapped(df, join_col, name, fail=False):
     """Check for unmapped values after a join"""
@@ -1116,7 +1152,18 @@ fact_procurement_complete = (
     )
 )
 
-write_tbl(fact_procurement_complete, "fact_procurement")
+is_full_load = p_full_load.lower() == "true"
+
+if is_full_load or not spark.catalog.tableExists(f"{DB}.fact_procurement"):
+    write_tbl(fact_procurement_complete, "fact_procurement")
+else:
+    merge_condition = """
+        target.date_key = source.date_key AND
+        target.material_key = source.material_key AND
+        target.supplier_hq_country_key = source.supplier_hq_country_key AND
+        target.production_country_key = source.production_country_key
+    """
+    merge_tbl(fact_procurement_complete, "fact_procurement", merge_condition)
 
 # NEW: Create audit trail for unmapped records
 unmapped_audit = (
