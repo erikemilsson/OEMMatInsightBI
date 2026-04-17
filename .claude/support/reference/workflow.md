@@ -75,7 +75,10 @@ To create or revise the spec, run `/iterate`. Claude will guide you through iter
 - Flag discovered issues
 
 **Exit Criteria:**
-- All tasks have status "Finished" with passing per-task verification (Absorbed tasks are excluded — they don't count as incomplete)
+- All tasks have status "Finished" with passing verification (Absorbed tasks are excluded — they don't count as incomplete):
+  - Claude-owned tasks: passed per-task verification (full 7-check suite via verify-agent)
+  - Human-owned tasks: completed via `/work complete` with auto-generated self-attestation (`checks.self_attested`)
+  - Both-owned tasks: passed per-task verification, then user review via `/work complete`
 - No blocked tasks remain
 - No "On Hold" tasks remain (user must resume, absorb, or remove them before phase exit)
 - Deliverables follow project conventions
@@ -91,7 +94,7 @@ Verification operates in two tiers:
 
 **Goal:** Catch issues in each task immediately after completion
 
-**When it triggers:** After implement-agent sets a task to "Awaiting Verification" status. Verification is triggered automatically as part of Step 6 in implement-agent, making implementation and verification atomic.
+**When it triggers:** After implement-agent returns its structured report with `implementation_status: "completed"`, the `/work` orchestrator sets the task to "Awaiting Verification" and immediately dispatches verify-agent. Implementation and verification remain atomic — the orchestrator persists state, but no task reaches "Finished" without passing verification.
 
 **Activities:**
 - Verify file artifacts exist and match task description
@@ -179,15 +182,15 @@ By separating concerns:
 **Architectural separation:** verify-agent and research-agent always run as **separate `Task` agents** (spawned via the Task tool), never inline in the implementation context. This ensures genuine independence — the verifier has no memory of implementation decisions, only the artifacts (task JSON, spec section, and files); the researcher has no implementation or compliance bias, only the decision record and project context. This applies to both sequential and parallel execution modes.
 
 **The build workflow:**
-1. `/work` reads and follows implement-agent workflow for the next pending task
-2. implement-agent: build, self-review, update status to "Awaiting Verification"
-3. implement-agent Step 6b: **spawn** verify-agent as a separate Task agent (fresh context)
-4. verify-agent (separate context): verify files, spec alignment, quality, integration boundaries
-5. If verification passes: status → "Finished", regenerate dashboard, back to step 1 for next task
-6. If verification fails: status → "In Progress", back to step 1 (implement-agent fixes)
-7. When all tasks have "Finished" status with passing verification, `/work` spawns verify-agent for phase-level workflow
-8. verify-agent: test against spec acceptance criteria
-9. Issues found become new tasks, back to implement-agent
+1. `/work` orchestrator sets the next pending task to "In Progress" and dispatches implement-agent
+2. implement-agent: build, self-review, return structured report
+3. Orchestrator writes task status "Awaiting Verification" from the report and dispatches verify-agent as a separate Task agent (fresh context, see DEC-004)
+4. verify-agent (separate context): verify files, spec alignment, quality, integration boundaries, return structured verification report
+5. Orchestrator writes `task_verification` from the report. If pass: status → "Finished", regenerate dashboard, back to step 1 for next task
+6. If verification fails: orchestrator sets status → "In Progress", back to step 1 (implement-agent fixes)
+7. When all tasks have "Finished" status with passing verification, orchestrator dispatches verify-agent for phase-level workflow
+8. verify-agent: test against spec acceptance criteria, return structured phase-level report
+9. Orchestrator writes `verification-result.json` and any fix tasks; issues become new tasks, back to implement-agent
 
 **The research workflow:**
 1. `/work` encounters an unresolved decision blocking a task (or `/research` is invoked directly)
@@ -238,6 +241,7 @@ User → /work → Specialist Agent → /work → User
 - Pass context to agent
 - Trigger checkpoints
 - Report progress
+- Early-exit for non-actionable states (human-owned, blocked, on hold — Step 1d)
 - Auto-sync dashboard after changes
 
 ---
@@ -384,7 +388,7 @@ Not all human involvement benefits from the dashboard. When a task needs human i
 | Interaction type | Passive review (read, think, decide) | Active testing (run, observe, respond) |
 
 **How it integrates:**
-- Verify-agent writes an `interaction_hint` field (`"cli_direct"` or `"dashboard"`) to the task JSON when it determines human involvement is needed
+- Verify-agent includes `interaction_hint` (`"cli_direct"` or `"dashboard"`) in its return report when it determines human involvement is needed; the orchestrator writes the field to the task JSON
 - `/work` respects the hint when routing human tasks — CLI-direct tasks are presented immediately in the conversation rather than only appearing in dashboard "Your Tasks"
 - The hint is a suggestion, not a gate — users can always override by running `/work complete {id}` from the dashboard flow
 - When absent, defaults to `"dashboard"` (preserves current behavior)
@@ -409,7 +413,7 @@ Verify-agent can self-test runnable outputs before escalating to human testing. 
 
 ### Guided Testing
 
-When runtime validation is `"partial"`, or when an `owner: "both"` task has runnable output, verify-agent writes a **test protocol** — a structured set of testing steps. Combined with `interaction_hint: "cli_direct"`, this enables guided testing directly in the CLI conversation.
+When runtime validation is `"partial"`, or when an `owner: "both"` task has runnable output, verify-agent includes a **test protocol** in its return report — a structured set of testing steps. The orchestrator writes the protocol to the task JSON. Combined with `interaction_hint: "cli_direct"`, this enables guided testing directly in the CLI conversation.
 
 **Test protocol schema:**
 
@@ -438,7 +442,7 @@ When runtime validation is `"partial"`, or when an `owner: "both"` task has runn
 
 **The flow in `/work`:**
 1. Task passes per-task verification with `runtime_validation: "partial"`
-2. Verify-agent writes `test_protocol` + `interaction_hint: "cli_direct"`
+2. Verify-agent's return report includes `test_protocol` + `interaction_hint: "cli_direct"`; orchestrator writes both to the task JSON
 3. `/work` presents guided testing immediately in the CLI conversation
 4. User walks through steps, signaling pass/fail for each
 5. All passed → task complete, auto-continuation resumes

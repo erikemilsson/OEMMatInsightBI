@@ -22,7 +22,7 @@ Detects and fixes drift from task management standards.
 
 #### 1. Task JSON Schema Validation
 
-Validates required fields (id, title, status, difficulty) and optional fields per `.claude/support/reference/task-schema.md`.
+Validates required fields (id, title, status, difficulty) and optional fields per `.claude/support/reference/task-schema.md`. Boolean fields (`parallel_safe`, `out_of_spec`, `out_of_spec_rejected`, `cross_phase`, `user_review_pending`) must be booleans when present — flag non-boolean values as schema violations.
 
 **Migration detection:** When non-conforming schemas are found (missing required fields, unknown status values, unexpected fields), provide migration guidance:
 - Suggest field mappings (e.g., `"done"` → `"Finished"`, `"assignee"` → `"owner"`)
@@ -100,7 +100,7 @@ Detects tasks that may have bypassed the implement-agent or verify-agent workflo
 
 **Verification debt (ERRORS):**
 - Finished tasks MUST have a `task_verification` field with `result` of `"pass"`
-- `task_verification.checks` should have all 6 keys (`files_exist`, `spec_alignment`, `output_quality`, `runtime_validation`, `integration_ready`, `scope_validation`) with pass/fail values (or `"skipped"` only when result is `"fail"` due to timeout). Note: `runtime_validation` additionally allows `"not_applicable"` and `"partial"` as valid non-error values.
+- `task_verification.checks` should have all 7 keys (`files_exist`, `consistency_check`, `spec_alignment`, `output_quality`, `runtime_validation`, `integration_ready`, `scope_validation`) with pass/fail values (or `"skipped"` only when result is `"fail"` due to timeout). Note: `runtime_validation` additionally allows `"not_applicable"` and `"partial"` as valid non-error values. **Exception:** tasks with `owner: "human"` that have `checks.self_attested: "pass"` are exempt from the 7-key requirement — human tasks use self-attestation instead of the standard verification checks.
 - If any check is `"fail"`, the overall `result` must also be `"fail"` — a check-level fail with a result-level pass is invalid
 - If any finished task lacks `task_verification`: **ERROR** — "Verification debt: N finished tasks missing verification"
 - If any finished task has `task_verification.result == "fail"`: **ERROR**
@@ -127,6 +127,8 @@ verification_debt = count of tasks where:
 - Check for status mismatch: spec says "active" but dashboard shows "Complete" (or vice versa)
 
 **Note:** Workflow bypass warnings are informational. Some tasks may legitimately have brief notes. The intent is to surface patterns, not block individual tasks.
+
+**Script alternative:** `.claude/scripts/validate-tasks.py .claude/tasks` runs schema + verification-debt checks deterministically and prints a combined report. `--json` flag emits structured output for downstream consumption.
 
 #### 8. Workspace Staleness
 
@@ -280,7 +282,7 @@ When a section exceeds the soft limit, offer these options:
 
 Validates that the expected template rule files exist in `.claude/rules/`.
 
-**Expected files:** `task-management.md`, `spec-workflow.md`, `decisions.md`, `dashboard.md`, `agents.md`, `archiving.md`
+**Expected files:** `task-management.md`, `spec-workflow.md`, `decisions.md`, `dashboard.md`, `agents.md`, `archiving.md`, `session-management.md`
 
 **Checks:**
 - Each expected file exists
@@ -513,6 +515,7 @@ For accepted changes:
 
 ### Key Rules
 
+- **Actual file diffs required** — you MUST `git fetch template` and diff each sync file against the remote. Comparing `template_version` strings is NOT a substitute for file-level comparison. Version numbers can match while files diverge (e.g., local edits, partial syncs, template patches). The version number is only used for display and for updating `version.json` after applying changes.
 - **Sync category only** — never touch `customize` or `ignore` category files
 - **Local-only files are kept** — never suggest removing files that aren't in the template
 - **No silent changes** — always present changes and get confirmation before applying
@@ -567,15 +570,168 @@ Never delete or rename custom commands without user consent.
 
 ---
 
-## Part 5c: Settings Conflict Detection
+## Part 5c: Settings Boundary Validation
 
-Checks for existing user settings files and confirms the template doesn't interfere.
+Validates the layered-settings contract: `.claude/settings.json` is template-owned (base `permissions.allow` only); `.claude/settings.local.json` is user-owned (all user additions, hooks, env vars, theme). Enforcing the boundary prevents template sync from silently clobbering user edits.
 
 ### Process
 
-1. Check for `.claude/settings.local.json` and `.claude/settings.json`
-2. If found: report presence, confirm template doesn't ship settings files, note any restrictions that might affect agent workflows (e.g., restricted `Bash` may prevent test execution)
-3. If not found: report as informational
+1. **Check for presence:**
+   - If `.claude/settings.json` is missing: informational only (will be created by next template sync).
+   - If `.claude/settings.local.json` is missing: informational only (user has no overrides yet — fine).
+
+2. **Validate template-owned `settings.json` scope:**
+   - Parse `.claude/settings.json` as JSON.
+   - If parse fails: ❌ error — "`.claude/settings.json` is not valid JSON. Sync may have been interrupted; re-run `/health-check` to re-sync."
+   - Check that the file contains **only** `permissions.allow`:
+     - ✅ Pass: the top-level object has exactly one key (`permissions`) whose value has exactly one key (`allow`).
+     - ⚠️ Warn if any of the following are present: `permissions.deny`, `permissions.ask`, `hooks`, `env`, `theme`, or any other top-level key.
+     - Warning message:
+       ```
+       ⚠️ Found non-base entries in `.claude/settings.json` (template-owned file).
+          Unexpected keys: {list}
+          These will be overwritten on next template sync.
+          Move them to `.claude/settings.local.json` to preserve them.
+          [M] Move automatically  [S] Skip (accept overwrite on next sync)
+       ```
+     - On `[M]`: merge the unexpected entries into `.claude/settings.local.json` (create if missing, concatenate+dedupe for array fields like `permissions.allow`, preserve existing keys for object fields like `hooks`), then strip them from `.claude/settings.json`. On `[S]`: leave files as-is; next sync will overwrite.
+
+3. **Validate base-set drift (template vs. local):**
+   - Read the template's `.claude/settings.json` from the template remote (if configured and reachable — same fetch as Part 5). Skip this check if offline.
+   - Compare the local `permissions.allow` array against the template's.
+   - If entries differ: this is normal (user has not yet synced, or template has been updated). Part 5's sync flow will offer the update — no Part 5c action needed.
+   - This check exists purely to reassure users that additions/removals from the template base will propagate through normal sync.
+
+4. **Report:**
+   - Pass: `✓ Settings layer valid (template-owned base + user-owned local)`
+   - Warnings: emit the warning block from step 2 above.
+
+### Rationale
+
+Claude Code's runtime concatenates `permissions.allow[]` across all settings layers, so the user's additions in `settings.local.json` combine automatically with the template's base in `settings.json`. The template-owned file exists for one job only: shipping a conservative base set. Everything else belongs in the user-owned file.
+
+---
+
+## Part 6: UX Evaluation
+
+Assesses dashboard readability, project structure clarity, and interaction quality. Findings contribute to the overall health-check status (HEALTHY / NEEDS ATTENTION / CRITICAL ISSUES).
+
+**Severity framework:** Nielsen's 0-4 scale mapped to health-check indicators:
+- Severity 0-1 (cosmetic): `ℹ️` info — noted but doesn't affect status
+- Severity 2 (minor): `⚠️` warning — contributes to NEEDS ATTENTION
+- Severity 3-4 (major/catastrophic): `❌` error — contributes to CRITICAL ISSUES
+
+### Initial Checks (targeting known issues)
+
+The check catalog starts minimal and grows based on real usage feedback. Initial checks target three observed problems:
+
+#### 1. Mermaid Diagram Readability (H3 — Visualization Integrity)
+
+Parse Mermaid code blocks in `dashboard.md`. Count nodes in each diagram.
+
+| Condition | Result | Severity |
+|-----------|--------|----------|
+| ≤15 nodes | Pass | — |
+| 16-50 nodes without `%%critical-path-only` comment | Warn: "Mermaid diagram has {N} nodes — may be unreadable. Consider critical-path-only mode." | 2 |
+| >50 nodes | Error: "Mermaid diagram has {N} nodes — will render unreadably small." | 3 |
+
+#### 2. Workspace Document Graduation (H6 — Project Structure Clarity)
+
+Count files in `.claude/support/workspace/` that are either: (a) linked from dashboard content, or (b) listed in `files_affected` of tasks with `owner: human` or `owner: both`.
+
+| Condition | Result | Severity |
+|-----------|--------|----------|
+| 0-2 workspace files referenced | Pass | — |
+| 3+ workspace files referenced by human/both tasks | Warn per file: "'{filename}' is in workspace but referenced by human task {id}. Consider moving to project root (e.g., `docs/`)." | 2 |
+
+#### 3. User Notes Section Utilization (H5 — User-Input Effectiveness)
+
+Check if the Notes section in `dashboard.md` contains only the default placeholder text after the project has 5+ completed tasks.
+
+| Condition | Result | Severity |
+|-----------|--------|----------|
+| Notes has user content, or <5 tasks completed | Pass | — |
+| Notes is default placeholder, 5+ tasks completed | Info: "Notes section is still the default placeholder. Add Quick Links or project-specific notes." | 1 |
+
+#### 4. Action Required Actionability (H4 — Navigation)
+
+Every item in the Action Required section should have a file link and a completion command or checkbox.
+
+| Condition | Result | Severity |
+|-----------|--------|----------|
+| All items have links | Pass | — |
+| Item missing link or action | Error per item: "Action Required item '{title}' has no link or completion command." | 3 |
+
+#### 5. Dashboard Length (H1 — Readability)
+
+Count total lines in `dashboard.md`.
+
+| Condition | Result | Severity |
+|-----------|--------|----------|
+| ≤300 lines | Pass | — |
+| 301-500 lines | Warn: "Dashboard is {N} lines. Check that completed phases are collapsed." | 2 |
+| >500 lines | Warn: "Dashboard is {N} lines — may be hard to scan. Review section toggles and phase collapsing." | 2 |
+
+#### 6. Phase Collapsing Compliance (H2 — Information Density)
+
+Check completed phases (all tasks Finished with passing verification) — they should be collapsed to a single summary line, not list individual tasks.
+
+| Condition | Result | Severity |
+|-----------|--------|----------|
+| All completed phases collapsed | Pass | — |
+| Completed phase lists >3 individual tasks | Warn per phase: "Phase {N} is complete but lists {X} individual tasks. Should be collapsed to summary line." | 2 |
+
+### Extending the Check Catalog
+
+New checks should be added when:
+- A UX problem is observed in a real project (not hypothetical)
+- The check has a clear structural signal (can be verified from file content, not rendering)
+- The threshold has low false-positive risk
+
+Add new checks to the appropriate heuristic category (H1-H6) with a severity rating. DEC-001 interaction logs will be a source of new check candidates once implemented.
+
+---
+
+## Part 7: Interaction Log Processing (template repo only)
+
+Processes cross-project session exports when `/health-check` runs in the template repo. Skipped in downstream projects.
+
+**Detection:** Check if `system-overview.md` exists at the project root (template repo indicator). If not, skip this part entirely.
+
+### Process
+
+1. **Check inbox:** Read `interaction-logs/inbox/` for `.json` files
+2. **If empty:** Report "No pending interaction logs" and continue
+3. **For each export file:**
+   a. Validate format (`export_version`, required fields)
+   b. Parse friction markers by template area:
+      - `verify-agent` — verification failures, false positives, verification gaps
+      - `implement-agent` — workflow deviations, scope creep, template gaps
+      - `/work` — routing issues, session recovery problems
+      - `/iterate` — spec change friction, drift issues
+      - `design-guidance` — pushback opportunities, scope pivot detection
+      - `user-experience` — dashboard issues, interaction mode mismatches
+   c. If Claude assessment is present (`export_quality: "full"`), extract design pushback opportunities and workflow friction notes
+   d. Move processed file to `interaction-logs/processed/`
+
+4. **Aggregate across processed exports:**
+   - Count recurring friction types (same `template_area` + similar `type` across multiple sessions/projects)
+   - Flag patterns with 3+ occurrences as high-confidence insights
+
+5. **Generate insights** for high-confidence patterns:
+   - Write insight documents to `interaction-logs/insights/`
+   - Format: `YYYY-MM-DD_{template-area}_{slug}.md`
+
+6. **Route to `/feedback`:** For insights above confidence threshold, auto-create feedback items in `.claude/support/feedback/feedback.md` (status: `new`, body references the insight document). Present to user for confirmation before creating.
+
+7. **Report:**
+   ```
+   Interaction Logs:
+     Processed: {N} new exports ({M} full, {P} markers-only)
+     Patterns detected: {X} ({Y} high-confidence)
+     Feedback items created: {Z}
+     Inbox: {remaining} pending
+   ```
 
 ---
 
@@ -606,6 +762,8 @@ FETCH template remote and diff sync files (skip if offline)
 - Part 3: Decision system validation (checks 1-6)
 - Part 4: Archive validation (checks 1-4)
 - Part 5: Template sync + collision + settings checks
+- Part 6: UX evaluation (checks 1-6)
+- Part 7: Interaction log processing (template repo only)
 
 ### Step 3: Report
 
@@ -622,6 +780,8 @@ FETCH template remote and diff sync files (skip if offline)
 - Archive Validation (Part 4)
 - Template Sync (Part 5)
 - Command & Settings (Parts 5b, 5c)
+- UX Evaluation (Part 6)
+- Interaction Logs (Part 7, template repo only)
 - Summary (overall status: HEALTHY / NEEDS ATTENTION / CRITICAL ISSUES)
 
 Each section uses `✓` for passes, `⚠️` for warnings, `❌` for errors.

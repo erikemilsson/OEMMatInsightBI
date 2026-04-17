@@ -135,6 +135,77 @@ handoff = {
 with open(handoff_path, "w") as f:
     json.dump(handoff, f, indent=2)
 
+# --- Cross-project interaction log export (Track 1 only) ---
+# Compile friction markers into a markers-only session export.
+# Track 2 (Claude assessment) requires conversation context, so it's null here.
+
+workspace_dir = os.path.join(project_dir, ".claude", "support", "workspace")
+session_log_path = os.path.join(workspace_dir, ".session-log.jsonl")
+version_path = os.path.join(project_dir, ".claude", "version.json")
+
+markers = []
+if os.path.exists(session_log_path):
+    with open(session_log_path) as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                try:
+                    markers.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+
+# Only write export if there are markers
+if markers:
+    template_version = "unknown"
+    template_inbox_path = None
+    if os.path.exists(version_path):
+        try:
+            with open(version_path) as f:
+                vdata = json.load(f)
+                template_version = vdata.get("template_version", "unknown")
+                template_inbox_path = vdata.get("template_inbox_path")
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    # Count tasks completed today
+    completed_today = len([
+        t for t in tasks
+        if t.get("status") == "Finished" and t.get("completion_date", "") == today
+    ])
+
+    # Verification pass rate
+    verified = [t for t in tasks if t.get("task_verification", {}).get("result")]
+    passed = [t for t in verified if t["task_verification"]["result"] == "pass"]
+    pass_rate = len(passed) / len(verified) if verified else 0.0
+
+    export_data = {
+        "export_version": 1,
+        "source_project": os.path.basename(project_dir),
+        "template_version": template_version,
+        "session_date": today,
+        "automated_markers": markers,
+        "session_metrics": {
+            "tasks_completed": completed_today,
+            "verification_pass_rate": round(pass_rate, 2),
+            "recovery_events": 0
+        },
+        "claude_assessment": None,
+        "export_quality": "markers_only"
+    }
+
+    export_path = os.path.join(workspace_dir, f".session-export-{today}.json")
+    with open(export_path, "w") as f:
+        json.dump(export_data, f, indent=2)
+
+    # Copy to template inbox if configured
+    if template_inbox_path and os.path.isdir(template_inbox_path):
+        import shutil
+        dest = os.path.join(template_inbox_path, f"{os.path.basename(project_dir)}-{today}.json")
+        shutil.copy2(export_path, dest)
+
+    # Clean up session log (data is now in the export)
+    os.remove(session_log_path)
+
 PYEOF
 
 exit 0

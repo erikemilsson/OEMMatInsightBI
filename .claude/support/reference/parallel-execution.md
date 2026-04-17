@@ -2,6 +2,8 @@
 
 Procedures for assessing parallelism eligibility, detecting file conflicts, building conflict-free batches, and dispatching/collecting parallel agents. These run inline during `/work` Steps 2c and 4.
 
+**Scope:** this doc covers *intra-session* parallelism — multiple `Task` agents coordinated by one `/work` orchestrator within a single conversation. For *inter-session* parallelism (many independent `claude` processes for batch workloads), see `.claude/support/reference/automation.md`.
+
 ---
 
 ## Parallelism Eligibility Assessment
@@ -26,7 +28,7 @@ eligible = tasks where ALL of:
   - status == "Pending" (excludes On Hold, Absorbed, Blocked, Broken Down)
   - owner != "human"
   - all dependencies have status "Finished"
-  - task.phase <= active_phase (no phase dependency blocks the task)
+  - task.phase <= active_phase OR task.cross_phase == true (no phase dependency blocks the task)
   - all decision_dependencies are resolved
   - difficulty < 7
 ```
@@ -110,6 +112,42 @@ ELSE:
 
 ---
 
+## Pre-Dispatch Confirmation
+
+When Step 2c produces a parallel batch of **3 or more tasks**, confirm with the user before spawning. Batches of 2 skip this step — the parallel-dispatch default of 3 means a 2-batch is a partial use of the budget and the cheapest case to interrupt if wrong.
+
+### Format
+
+```
+Parallel dispatch ready: {N} tasks
+
+  Task {id}: "{title}" → files: [{files_affected}]
+  Task {id}: "{title}" → files: [{files_affected}]
+  ...
+
+Verify strategy: per-task verify-agent dispatched as each implement-agent completes.
+
+{If held_back is non-empty:}
+Held back (file conflicts):
+  Task {id}: "{title}" — conflict with Task {conflict_with} on [{conflict_files}]
+
+[D] Dispatch  [S] Skip — review batch first  [1] Dispatch only first task
+```
+
+### Behavior
+
+- `[D]` Dispatch → proceed to § "Parallel Dispatch" Step 1 (Log the Parallel Dispatch)
+- `[S]` Skip → return to `/work` Step 2c. User can review tasks, adjust priorities, edit `files_affected`, then re-run `/work`.
+- `[1]` Dispatch only first task → drop the batch, treat as sequential single-task dispatch on the highest-priority eligible task.
+
+### Rationale
+
+Parallel batches scale Claude's throughput but also remove the natural pause-points that sequential dispatch provides (per-call permission prompts, post-task user-visible state changes). A pre-dispatch confirmation restores a cheap human checkpoint without changing parallel-batch behavior.
+
+Independent of permission settings or auto-mode classifier behavior — auto mode (which removes per-call permission prompts) actually makes this checkpoint *more* valuable, not less.
+
+---
+
 ## Parallel Dispatch
 
 When Step 2c produces a parallel batch of >= 2 tasks, execute them concurrently (runs as `/work` Step 4 "If Executing (Parallel)").
@@ -153,59 +191,76 @@ During parallel execution, strict write ownership prevents file corruption. The 
 
 | Writer | May write to | Must NOT write to |
 |--------|-------------|-------------------|
-| Each parallel agent | Its own `task-{id}.json` only | Any other task JSON, parent task JSON, dashboard.md, verification-result.json, dashboard-state.json |
-| `/work` orchestrator | Nothing (waits for agents) | Any task JSON file owned by a running agent |
+| Each parallel agent | Nothing — agents return structured reports only (harness prohibits subagent writes to `.claude/`, per DEC-004) | Any `.claude/` path |
+| `/work` orchestrator | All task JSONs, parent task JSONs, dashboard.md, verification-result.json, dashboard-state.json, session-log.jsonl, fix-task JSON files | Nothing — orchestrator is the sole writer in this architecture |
 
-Before agents spawn (Step 2) and after they complete (Step 5), only the orchestrator writes — it sets `conflict_note` fields, performs parent auto-completion, and regenerates the dashboard. No agents are running during these windows.
+The orchestrator performs all writes: it sets `conflict_note` fields before dispatch, consumes each agent's return report to persist task-JSON state, performs parent auto-completion, and regenerates the dashboard at batch end.
 
 **Key invariants:**
-- **One writer per file:** Each agent writes only to its own task JSON file. No two agents share a task file because each is dispatched for a distinct task.
-- **Parent auto-completion is orchestrator-only:** Agents are instructed "DO NOT check parent auto-completion." The orchestrator performs parent checks sequentially in the collect loop (Step 4), so concurrent writes to a parent task file cannot occur.
-- **Sequential result processing:** When multiple agents complete in the same poll cycle, the orchestrator processes them one at a time (the `For each completed agent` loop is sequential), preventing race conditions on shared state like parent task files.
+- **Single writer:** The orchestrator is the only writer for all `.claude/` state (task JSON, dashboard, verification-result.json, session-log.jsonl). Agents return structured reports; all persistence is mediated.
+- **Sequential result processing:** When multiple agents complete in the same poll cycle, the orchestrator processes them one at a time (the `For each completed agent` loop is sequential). This naturally serializes task-JSON writes, parent auto-completion, and friction-marker appends — no race conditions possible since there's only one writer.
+- **Verify-agent dispatch per implement-agent:** After each implement-agent report is processed, the orchestrator dispatches that task's verify-agent. Verify-agents can run concurrent with subsequent implement-agents, preserving pipeline throughput.
 
 ### 3. Spawn Parallel Agents
 
-Use Claude Code's `Task` tool to spawn one agent per task. **Always set `model: "opus"` and `max_turns: 40`** to ensure agents run on Claude Opus 4.6 with a bounded turn limit. Each agent receives:
+Use Claude Code's `Task` tool to spawn one agent per task. **Always set `model: "opus[1m]"` and `max_turns: 40`** to ensure agents run on Claude Opus 4.7 (1M context) with a bounded turn limit. Each agent receives:
 - The task JSON to execute
 - Instructions to read `.claude/agents/implement-agent.md`
-- Instructions to follow Steps 2, 4, 5, 6a, and 6b (understand, implement, self-review, mark awaiting verification, spawn verify-agent as a sub-agent for per-task verification)
-- **Wind-down instruction:** "TURN BUDGET: You have 40 turns. If you reach turn 35 without completing, stop implementation, update task notes with progress so far, and return your status. Do NOT leave the task in an inconsistent state — either mark Awaiting Verification (if implementation is complete) or leave as In Progress with detailed notes (if not)."
-- **Explicit instruction: "DO NOT regenerate dashboard. DO NOT select next task. DO NOT check parent auto-completion. Return results when verification completes."**
-- **Note:** Each parallel implement-agent will spawn its own verify-agent sub-agent (nested Task call). This is expected — verification separation applies in parallel mode too.
+- Instructions to follow Steps 1-6 (understand, implement, self-review, return structured report)
+- **Wind-down instruction:** "TURN BUDGET: You have 40 turns. If you reach turn 35 without completing, stop implementation and return your report with `implementation_status: 'partial'` and detailed notes. Do NOT attempt writes to `.claude/` — subagents cannot write there; orchestrator handles all persistence from your report."
+- **Explicit instruction:** "Return a structured implementation report per `.claude/agents/implement-agent.md` § Step 6. Do NOT write to task JSON, do NOT spawn verify-agent, do NOT regenerate dashboard — orchestrator owns all state persistence."
 
-All agents run concurrently via parallel `Task` tool calls with `model: "opus"`.
+All agents run concurrently via parallel `Task` tool calls with `model: "opus[1m]"`.
 
 ### 4. Collect Results with Incremental Re-Dispatch
 
 Use `run_in_background: true` for each agent's `Task` call, then poll for completion:
 
 ```
-active_agents = {task_id: {agent_id, spawned_at} for each spawned agent}
+active_agents = {task_id: {agent_id, spawned_at} for each spawned implement-agent}
+active_verifiers = {task_id: {agent_id, spawned_at} for each spawned verify-agent}
 AGENT_TIMEOUT_POLLS = 60  # max poll iterations before declaring an agent timed out
 
-WHILE active_agents is non-empty:
+WHILE active_agents or active_verifiers is non-empty:
   Check each agent for completion (read output file or use TaskOutput with block: false)
 
-  For each completed agent:
-    1. Record result (task ID, status, verification result, files modified, issues)
-    2. Remove from active_agents
-    3. Check parent auto-completion for finished tasks
-    4. INCREMENTAL RE-DISPATCH:
+  For each completed implement-agent:
+    1. Read implement-agent's return report (structured schema per implement-agent.md § Step 6)
+    2. Apply "After implement-agent returns" protocol from work.md § State Persistence Protocol:
+       - Status transition on task JSON per implementation_status
+       - Append friction_markers to .claude/support/workspace/.session-log.jsonl
+    3. If implementation_status == "completed":
+       Dispatch verify-agent for this task (Task tool, model: "opus[1m]", max_turns: 30)
+       Add to active_verifiers. Verify-agent dispatch is individual — one per completed
+       implement-agent, runs concurrent with remaining implement-agents.
+    4. Remove implement-agent from active_agents
+    5. INCREMENTAL RE-DISPATCH:
        - Re-run Step 2c eligibility assessment with current state
-         (completed tasks are now "Finished", their files are released)
+         (completed tasks are now "Awaiting Verification" or "Finished", their files are released)
        - Any previously held-back tasks whose conflicts are now resolved
          become eligible
        - If new eligible tasks found AND len(active_agents) < max_parallel_tasks:
-         Spawn new agents for newly-eligible tasks
+         Spawn new implement-agents for newly-eligible tasks
          Add to active_agents
        - Clear conflict_note from newly-dispatched tasks
 
-  For each agent that has exceeded AGENT_TIMEOUT_POLLS iterations without completing:
+  For each completed verify-agent:
+    1. Read verify-agent's return report (structured schema per verify-agent.md § Step T6)
+    2. Apply "After verify-agent returns (per-task mode)" protocol from work.md § State Persistence Protocol:
+       - Write task_verification, append verification_history, increment verification_attempts
+       - Transition status (Finished / In Progress retry / Blocked escalate)
+       - Append friction_markers
+       - Check parent auto-completion
+    3. Remove verify-agent from active_verifiers
+
+  For each agent (implement or verify) that has exceeded AGENT_TIMEOUT_POLLS iterations:
     1. Log: "Agent for task {id} timed out after {N} poll iterations"
-    2. Read the task JSON — if still "In Progress" (agent didn't finish):
-       - Set status to "Blocked"
-       - Add note: "[AGENT TIMEOUT] Parallel agent did not complete within polling limit"
-    3. Remove from active_agents
+    2. Apply protocol:
+       - Implement-agent timeout: if task still "In Progress", set to "Blocked" with
+         "[AGENT TIMEOUT] Parallel agent did not complete within polling limit"
+       - Verify-agent timeout: increment verification_attempts, set status to "Blocked",
+         add "[VERIFICATION TIMEOUT]" note
+    3. Remove from active_agents / active_verifiers
     4. Report to user: "Task {id} timed out — may need manual investigation or retry"
 
   Brief pause before next poll iteration (avoid busy-waiting)
@@ -215,7 +270,7 @@ This enables **incremental re-dispatch**: when Task A completes and releases its
 
 ### 5. Post-Parallel Cleanup
 
-After all agents complete (active_agents is empty):
+After all agents complete (active_agents AND active_verifiers are empty):
 
 ```
 1. Final parent auto-completion check

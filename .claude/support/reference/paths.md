@@ -14,13 +14,14 @@
 | Decisions | `.claude/support/decisions/` |
 | Decision research archive | `.claude/support/decisions/.archive/` |
 | Workspace/scratch | `.claude/support/workspace/` |
+| User-facing documents | `docs/` (project root, user may customize) |
 | Dashboard | `.claude/dashboard.md` |
 | Dashboard state sidecar | `.claude/dashboard-state.json` |
 | Session sentinel | `.claude/tasks/.last-clean-exit.json` |
 | Context transition handoff | `.claude/tasks/.handoff.json` |
 | Feedback (active) | `.claude/support/feedback/feedback.md` |
 | Feedback (archived) | `.claude/support/feedback/archive.md` |
-| Documents | `.claude/support/documents/` |
+| Reference documents (inputs) | `.claude/support/documents/` |
 | Vision documents | `.claude/vision/` |
 | Reference docs | `.claude/support/reference/` (see `README.md` for index) |
 | Learnings | `.claude/support/learnings/` (see `README.md` for categories) |

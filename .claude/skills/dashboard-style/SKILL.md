@@ -1,4 +1,9 @@
-<!-- During Skills trial (DEC-007 Option B, 2026-04-17): this file mirrors `.claude/skills/dashboard-style/SKILL.md`. Update both files in sync until one is retired. -->
+---
+name: dashboard-style
+description: Full dashboard regeneration procedure — when to regenerate, section toggles, sidecar state (dashboard-state.json), markers, step-by-step regeneration, metadata block, section format rules (Action Required, Progress, Tasks, Decisions, Notes, Custom Views), critical path generation, and Project Overview Mermaid diagram rules. Use when regenerating .claude/dashboard.md (triggered by decomposition completion, parallel batch end, session boundaries, /work complete, phase gates, decision resolution, format-staleness detection), when formatting dashboard sections or sub-sections per template conventions, when computing the critical path or Project Overview diagram, or when validating dashboard marker integrity.
+---
+
+<!-- During Skills trial (DEC-007 Option B, 2026-04-17): this Skill mirrors `.claude/support/reference/dashboard-regeneration.md`. Update both files in sync until one is retired. -->
 
 # Dashboard Regeneration Procedure
 

@@ -12,11 +12,26 @@ Do not create new archive locations. Use these canonical paths:
 
 ## Workspace
 
-Temporary documents go in `.claude/support/workspace/` (scratch, research, drafts). Never create working documents in the project root.
+Temporary documents go in `.claude/support/workspace/` (scratch, research, drafts). This is Claude's scratch space for intermediate analysis, research notes, and working drafts.
 
-## Documents
+## User-Facing Documents
 
-User-provided reference files (PDFs, contracts, vendor docs, etc.) go in `.claude/support/documents/`. When the user provides a file path, move it there with a descriptive filename.
+Operational documents the user needs to work with (invitation letters, consent forms, facilitation guides, reports, etc.) go in the **project root**, not in `.claude/`. The default convention is a `docs/` folder, but the user may organize further (e.g., `docs/phase-1/`, `docs/operations/`). The system respects the user's folder structure rather than overriding it.
+
+**Principle:** `.claude/` is Claude's environment. The project root is the user's environment. Documents the user works with daily belong in the user's environment.
+
+**During spec decomposition**, when tasks will produce user-facing documents, prompt about folder structure:
+```
+This project will produce operational documents (e.g., [examples from spec]).
+Default location: docs/
+Would you like a different structure? [D] Use docs/ | [C] Custom folder | [S] Skip (decide later)
+```
+
+**Graduation:** If intermediate workspace documents become operational (user references them daily, dashboard links to them), suggest moving them to the project root during `/health-check` or `/work complete`.
+
+## Reference Documents
+
+User-provided reference files (PDFs, contracts, vendor docs, etc.) go in `.claude/support/documents/`. These are inputs to Claude's work, not outputs the user needs to find. When the user provides a file path, move it there with a descriptive filename.
 
 ## Credentials and Secrets
 

@@ -49,11 +49,19 @@ Determine the current active phase by walking phases in ascending order:
        → This is the active phase
 
    For target task(s):
-   IF task.phase > active_phase:
+   IF task.phase > active_phase AND task.cross_phase != true:
      "Task {id} is in Phase {task.phase}, but Phase {active_phase} is still in progress.
       {N} tasks remaining in Phase {active_phase}."
      → Skip this task, work on active-phase tasks instead
+
+   IF task.phase > active_phase AND task.cross_phase == true:
+     → Cross-phase task — bypass gate. Proceed to task-level dependency/decision checks.
+     → Log: "Task {id} is cross-phase (Phase {task.phase}) — eligible despite active Phase {active_phase}."
 ```
+
+### Cross-Phase Tasks
+
+Tasks with `cross_phase: true` (see `task-schema.md`) are exempt from the phase gate on eligibility checks only. They still belong to their declared phase for verification and dashboard rendering. Typical use: long-lead human work (recruitment, procurement, approvals) that must start before the prior phase is fully done.
 
 ---
 

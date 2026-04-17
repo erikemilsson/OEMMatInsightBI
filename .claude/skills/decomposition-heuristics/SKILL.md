@@ -1,4 +1,9 @@
-<!-- During Skills trial (DEC-007 Option B, 2026-04-17): this file mirrors `.claude/skills/decomposition-heuristics/SKILL.md`. Update both files in sync until one is retired. -->
+---
+name: decomposition-heuristics
+description: Procedure and guidelines for decomposing a spec into granular tasks. Use when decomposing a spec (e.g., running /work decomposition step), creating task JSON files from spec sections, setting task provenance fields (spec_fingerprint, section_fingerprint, phase, cross_phase), computing spec/section hashes for drift detection, or organizing tasks into implementation stages (Foundation, Core Features, Polish, Validation). Covers all 10 decomposition steps, task creation fields, difficulty bounds, phase/cross-phase assignment heuristics, and decomposition quality checks.
+---
+
+<!-- During Skills trial (DEC-007 Option B, 2026-04-17): this Skill mirrors `.claude/support/reference/decomposition.md`. Update both files in sync until one is retired. -->
 
 # Spec Decomposition
 
@@ -29,7 +34,6 @@ Procedure for breaking a spec into granular tasks. Run as `/work` Step 4 "If Dec
    - `section_fingerprint` — Hash of specific section computed in step 6
    - `section_snapshot_ref` — Snapshot filename (e.g., "spec_v1_decomposed.md")
    - **Important:** Create all task JSON files before regenerating the dashboard. Every task must have a `task-*.json` file — the dashboard is generated from these files, never the other way around.
-   - **Script alternative:** Capture hashes via `.claude/scripts/fingerprint.py --spec` / `--sections`; orchestrator writes the `sha256:...` strings into task JSON `spec_fingerprint` and `section_fingerprint` fields.
 
 9. **Map dependencies** — What must complete before what.
 

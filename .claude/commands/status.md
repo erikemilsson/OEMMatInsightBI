@@ -35,6 +35,8 @@ Read (but don't modify):
 
 **Dashboard freshness check:** Compute `SHA-256(sorted list of task_id + ":" + status)` from task JSON files and compare against the `task_hash` in the dashboard's `<!-- DASHBOARD META -->` block. If the hash differs or no metadata exists, flag the dashboard as stale in the Health Indicators output. At scale (50+ tasks), this full check only runs when the lightweight count check above detects a discrepancy. Task counts always come from JSON files regardless of freshness. If `template_version` in the META block differs from `template_version` in `.claude/version.json` (or the META field is absent), report: `⚠️ Dashboard format stale — run /work or /health-check to refresh`.
 
+**Script alternative:** `.claude/scripts/fingerprint.py --dashboard-rollup .claude/tasks` produces the canonical task-JSON rollup hash in a single call.
+
 ### Step 2: Determine Phase
 
 | Condition | Phase |

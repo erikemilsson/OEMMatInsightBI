@@ -8,7 +8,13 @@
 
 ## Key Commands
 
-[Project-specific build, test, run, and deploy commands]
+```bash
+# [Adjust for your framework]
+npm run dev          # Start dev server
+npm run build        # Production build
+npm run test         # Run tests
+npm run lint         # Lint check
+```
 
 ## Conventions
 

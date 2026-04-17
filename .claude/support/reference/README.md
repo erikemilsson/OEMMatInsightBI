@@ -36,6 +36,7 @@ The reference files form a layered system. Commands (`work.md`, `health-check.md
 | `spec-checklist.md` | Spec readiness criteria, red flags, core questions |
 | `extension-patterns.md` | Phases and decisions patterns for complex projects |
 | `setup-checklist.md` | Template configuration checks (CLAUDE.md placeholders, version.json), run during decomposition |
+| `automation.md` | `claude -p` primitive + fan-out pattern for inter-session automation |
 | `desktop-project-prompt.md` | Instructions for Claude Desktop ideation sessions |
 
 ## Related READMEs (in sibling directories)

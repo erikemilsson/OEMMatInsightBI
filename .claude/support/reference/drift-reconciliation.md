@@ -81,6 +81,8 @@ printf '%s' "## Authentication\nContent here..." | shasum -a 256 | cut -d' ' -f1
 # Prefix with "sha256:" → "sha256:e5f6g7h8..."
 ```
 
+**Script alternative:** `.claude/scripts/fingerprint.py --spec PATH` (full spec) or `.claude/scripts/fingerprint.py --sections PATH` (JSON map of `## heading` → hash) — produces byte-identical output to the prose recipes above. Use when running in the orchestrator; the prose recipe remains authoritative if the script is absent.
+
 **Note:** Tasks without `spec_fingerprint` are treated as legacy (no warning). Tasks without `section_fingerprint` fall back to full-spec comparison.
 
 ---

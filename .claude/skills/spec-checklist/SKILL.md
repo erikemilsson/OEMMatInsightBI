@@ -1,4 +1,9 @@
-<!-- During Skills trial (DEC-007 Option B, 2026-04-17): this file mirrors `.claude/skills/spec-checklist/SKILL.md`. Update both files in sync until one is retired. -->
+---
+name: spec-checklist
+description: Spec readiness criteria — the bar for a specification to move from draft to task decomposition. Use when running /iterate on a spec, evaluating whether a spec is ready for work, checking for red flags (placeholder text, vague statements, undecided architecture), calibrating rigor to project seriousness (prototype vs MVP vs production vs critical infrastructure), or deciding whether a spec can exit the draft phase. Covers the five core questions, three readiness levels (Not Ready / Ready for Work / Well-Defined), calibration to project type, and common red flags.
+---
+
+<!-- During Skills trial (DEC-007 Option B, 2026-04-17): this Skill mirrors `.claude/support/reference/spec-checklist.md`. Update both files in sync until one is retired. -->
 
 # Spec Readiness Guide
 
@@ -58,4 +63,3 @@ Watch for these regardless of project type:
 - Requirements that are really tasks ("add login button")
 - Decisions without rationale
 - Acceptance criteria requiring subjective judgment ("looks good")
-

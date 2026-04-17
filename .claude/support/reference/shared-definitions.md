@@ -15,7 +15,7 @@ Canonical terminology used across the system.
 
 ## Difficulty Scale (1-10)
 
-> **Calibrated for Claude Opus 4.6** (`claude-opus-4-6`). These difficulty ratings and breakdown thresholds assume Opus 4.6-level reasoning — including adaptive thinking, interleaved reasoning between tool calls, and sustained agentic execution. Tasks rated 5-6 ("Substantial") are at the upper limit of what should be attempted without breakdown — Opus 4.6 can handle the design decisions and multi-step reasoning involved. Tasks at 7+ **must** be broken down regardless of model confidence.
+> **Calibrated for Claude Opus 4.7** (`claude-opus-4-7[1m]`). These difficulty ratings and breakdown thresholds assume Opus 4.7-level reasoning — including adaptive thinking, interleaved reasoning between tool calls, and sustained agentic execution. Tasks rated 5-6 ("Substantial") are at the upper limit of what should be attempted without breakdown — Opus 4.7 can handle the design decisions and multi-step reasoning involved. Tasks at 7+ **must** be broken down regardless of model confidence.
 
 | Level | Category | Action | Examples |
 |-------|----------|--------|----------|
@@ -142,7 +142,9 @@ Canonical definitions for terms used across the environment. Terms already defin
 |------|------------|
 | **Per-Task Verification (Tier 1)** | Runs after each task implementation. Checks: files exist, spec alignment, output quality, runtime validation, integration readiness, scope validation. Pass → Finished. Fail → back to In Progress (max 2 retries). |
 | **Phase-Level Verification (Tier 2)** | Runs once when all tasks Finished. Validates full implementation against spec acceptance criteria. Result: `pass` or `fail`. Written to `.claude/verification-result.json`. |
-| **Verification Debt** | Tasks that bypassed or failed verification: status "Awaiting Verification", "Finished" without `task_verification`, or `task_verification.result` is "fail". Blocks project completion. |
+| **Verification Debt** | Tasks with verification issues: status "Awaiting Verification" (incomplete), "Finished" without valid `task_verification` (bypass — rare for human tasks which auto-generate), or `task_verification.result` is "fail". Blocks project completion. |
+
+**Human task verification:** Human-owned tasks satisfy the verification requirement via self-attestation — auto-generated when the user runs `/work complete`. The invariant holds (every Finished task has `task_verification.result == "pass"`), but human tasks use `checks.self_attested` instead of the standard 7-check suite.
 
 ### Runtime Validation & Interaction
 
@@ -157,10 +159,10 @@ Canonical definitions for terms used across the environment. Terms already defin
 
 | Term | Definition |
 |------|------------|
-| **Implement-Agent** | Builder agent. Executes tasks, produces deliverables, self-reviews, marks "Awaiting Verification". Defined in `.claude/agents/implement-agent.md`. |
-| **Verify-Agent** | Validator agent. Tests against spec, finds issues, handles both Tier 1 and Tier 2 verification. Defined in `.claude/agents/verify-agent.md`. |
+| **Implement-Agent** | Builder agent. Executes tasks, produces deliverables, self-reviews, returns a structured implementation report. The `/work` orchestrator writes task state from the report (including transition to "Awaiting Verification"). See DEC-004. Defined in `.claude/agents/implement-agent.md`. |
+| **Verify-Agent** | Validator agent. Tests against spec, finds issues, returns a structured verification report. The `/work` orchestrator writes `task_verification` and state transitions from the report. Handles both Tier 1 (per-task) and Tier 2 (phase-level) verification. Defined in `.claude/agents/verify-agent.md`. |
 | **Dashboard** | Project dashboard at `.claude/dashboard.md`. Primary communication channel during build phase. Regenerated after task changes. |
 | **Dashboard Freshness** | Whether dashboard reflects current state. Two dimensions: content freshness (comparing `task_hash` against current computed hash) and format freshness (comparing `template_version` in META against `.claude/version.json`). Either mismatch triggers regeneration. |
 | **Workspace** | Temporary documents at `.claude/support/workspace/`. Subdirs: scratch, research, drafts. May be deleted between sessions. |
 | **Vision Document** | Ideation document in `.claude/vision/`. Captures intent and philosophy. Run `/iterate distill` to extract a buildable spec. |
-| **Feedback** | Project-level ideas and improvement thoughts captured via `/feedback` and stored in `.claude/support/feedback/`. Items flow through statuses: `new` → `refined` → `promoted` (into spec via `/iterate`) or `new` → `archived` (not relevant). Uses `FB-NNN` IDs. Distinct from per-task inline `FEEDBACK:{id}` markers in the dashboard. |
+| **Feedback** | Project-level ideas and improvement thoughts captured via `/feedback` and stored in `.claude/support/feedback/`. Active items (`new`, `reviewing`, `refined`, `ready`) live in `feedback.md`; all terminal states live in `archive.md`. `/feedback review` runs a 3-phase pipeline: grouping (suggest combinations), refinement (distill insights), and impact assessment (spec + task analysis). Only `ready` items (assessed and user-approved) are eligible for `/iterate`. Resolution paths: `new` → `refined` → `ready` → `promoted` (into spec, auto-archived), `new` → `absorbed` (combined into another item, immediately archived with `absorbed_into` pointer), `new` → `closed` (decided against), or `new` → `archived` (not relevant). Uses `FB-NNN` IDs. Distinct from per-task inline `FEEDBACK:{id}` markers in the dashboard. |

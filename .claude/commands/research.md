@@ -72,7 +72,7 @@ Read (all reads, no modifications):
 ```
 Task tool call:
   subagent_type: "general-purpose"
-  model: "opus"
+  model: "opus[1m]"
   max_turns: 25
   description: "Research {decision title or topic}"
   prompt: |

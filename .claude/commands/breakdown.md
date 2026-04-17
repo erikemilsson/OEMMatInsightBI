@@ -32,6 +32,10 @@ Split a complex task into smaller subtasks.
    ```
 
    **Important:** Copy all spec provenance fields from the parent task. This ensures subtasks are tracked for spec drift detection.
+
+   **Also copy eligibility flags from parent:**
+   - If parent has `cross_phase: true`, each subtask inherits `cross_phase: true`. User can remove it from individual subtasks manually if needed.
+   - If parent has `parallel_safe: true`, inheritance is per-subtask based on whether the subtask has file side effects (do not auto-inherit).
 4. Update parent task:
    ```json
    {

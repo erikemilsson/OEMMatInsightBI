@@ -48,6 +48,7 @@
     "timestamp": "2026-01-28T15:30:00Z",
     "checks": {
       "files_exist": "pass",
+      "consistency_check": "pass",
       "spec_alignment": "pass",
       "output_quality": "pass",
       "runtime_validation": "partial",
@@ -118,10 +119,11 @@
 | out_of_spec_rejected | Boolean | Task rejected during out-of-spec review (archived, preserved for audit) |
 | rejection_reason | String | User's reason for rejecting an out-of-spec task (optional) |
 | absorbed_into | String | Task ID this task was absorbed into (required when status is "Absorbed") |
-| phase | String | Phase identifier this task belongs to (e.g., "1", "2"). Tasks in Phase N+1 are blocked until all Phase N tasks complete. |
+| phase | String | Phase identifier this task belongs to (e.g., "1", "2"). Tasks in Phase N+1 are blocked until all Phase N tasks complete, unless the task has `cross_phase: true` (see below). |
 | phase_name | String | Descriptive name for the phase (e.g., "Core Infrastructure", "Validation and Hardening"). Used in dashboard rendering as "Phase {phase} — {phase_name}". |
 | decision_dependencies | Array | Decision IDs that block this task (e.g., ["DEC-002"]). Task remains blocked until all referenced decisions are resolved. |
 | parallel_safe | Boolean | When true, task is eligible for parallel execution even with empty `files_affected`. Use for research/analysis tasks with no file side effects. |
+| cross_phase | Boolean | When true, task is exempt from the phase gate — eligible when its `dependencies`/`decision_dependencies` are met, regardless of prior phase completion. Phase membership is unchanged (task still belongs to its declared phase for verification and dashboard rendering). Use for long-lead work (procurement, recruitment, approvals) that must start before prior phase is fully done. Default: false. |
 | conflict_note | String | **Transient.** Set during parallel dispatch when a task is held back due to file conflicts (e.g., `"Held: file conflict with Task 3 on src/models.py"`). Cleared when the task is dispatched or during post-parallel cleanup. Surfaced in the dashboard Status column. |
 | recovery_state | String | **Transient.** Set by `/work` Step 0 when auto-recovering a stuck task. Values: `"verification_retry"` (respawning verify-agent), `"agent_retry"` (user chose to retry after timeout). Cleared after recovery completes. Prevents double-recovery if `/work` runs again before recovery finishes. |
 | user_review_pending | Boolean | Set to `true` by verify-agent when a `both`-owned task passes verification, OR when any task has a `test_protocol` (runtime validation was partial, human testing needed). Keeps the task visible for user action until the user runs `/work complete {id}` or completes guided testing. Cleared by `/work complete`. |
@@ -190,6 +192,7 @@ Per-task verification result recorded by verify-agent when a task is in "Awaitin
     "timestamp": "2026-01-28T15:30:00Z",
     "checks": {
       "files_exist": "pass",
+      "consistency_check": "pass",
       "spec_alignment": "pass",
       "output_quality": "pass",
       "runtime_validation": "not_applicable",
@@ -208,16 +211,19 @@ Per-task verification result recorded by verify-agent when a task is in "Awaitin
 |-----------|------|--------|-------------|
 | `result` | String | `"pass"`, `"fail"` | Overall per-task verification outcome |
 | `timestamp` | String | ISO 8601 | When verification completed |
-| `checks` | Object | Keys: `files_exist`, `spec_alignment`, `output_quality`, `runtime_validation`, `integration_ready`, `scope_validation` | Per-check pass/fail |
+| `checks` | Object | Keys: `files_exist`, `consistency_check`, `spec_alignment`, `output_quality`, `runtime_validation`, `integration_ready`, `scope_validation` | Per-check pass/fail |
 | `checks.*` | String | `"pass"`, `"fail"`, `"partial"`, `"not_applicable"`, or `"skipped"` | Individual check result. Most checks use `"pass"`/`"fail"`. `runtime_validation` additionally uses `"partial"` (some checks need human eyes), `"not_applicable"` (non-runnable output), and `"skipped"` (turn budget exceeded). |
+| `checks.self_attested` | String | `"pass"` | Present only on human-owned tasks. Indicates the user attested to completion via `/work complete`. When present, the standard 7 checks are absent. |
 | `issues` | Array | Issue objects `{severity, description}` | Issues found during verification |
 | `notes` | String | Free text | Brief summary of verification |
+
+**Human task self-attestation:** When `/work complete` is run for an `owner: "human"` task that has no existing `task_verification`, a self-attestation record is auto-generated with `checks: { "self_attested": "pass" }`. This satisfies the structural invariant (every Finished task has `task_verification.result == "pass"`) without spawning verify-agent. The standard 7-check suite does not apply to human tasks since there is no Claude-produced implementation to verify.
 
 ### State Detection
 
 A task "needs per-task verification" when:
 - It has status "Awaiting Verification", OR
-- It has status "Finished" AND does NOT have a `task_verification` field (legacy edge case)
+- It has status "Finished" AND does NOT have a `task_verification` field (legacy edge case — human tasks auto-generate `self_attested` verification via `/work complete`, so this state is rare)
 
 ### Failure Handling
 
@@ -244,6 +250,7 @@ Append-only log of every verification attempt (pass and fail). Provides a full r
       "timestamp": "2026-01-28T14:00:00Z",
       "checks": {
         "files_exist": "pass",
+        "consistency_check": "pass",
         "spec_alignment": "fail",
         "output_quality": "pass",
         "runtime_validation": "not_applicable",
@@ -259,6 +266,7 @@ Append-only log of every verification attempt (pass and fail). Provides a full r
       "timestamp": "2026-01-28T15:30:00Z",
       "checks": {
         "files_exist": "pass",
+        "consistency_check": "pass",
         "spec_alignment": "pass",
         "output_quality": "pass",
         "runtime_validation": "not_applicable",
@@ -444,7 +452,7 @@ Any non-Finished status → Absorbed (when scope is folded into another task)
 **"Awaiting Verification"** is the transitional status between implementation completion and verification. Tasks in this status:
 - Have completed implementation but not yet been verified
 - Must proceed to verify-agent immediately (cannot remain in this status)
-- Are set automatically by implement-agent Step 6a
+- Are set by the `/work` orchestrator after implement-agent returns its structured report with `implementation_status: "completed"` (see DEC-004)
 
 ### On Hold
 

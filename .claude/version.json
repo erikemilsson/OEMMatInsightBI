@@ -1,10 +1,12 @@
 {
-  "template_version": "1.5.0",
-  "template_release_date": "2026-03-11",
+  "template_version": "3.0.0",
+  "template_release_date": "2026-04-17",
   "template_repo": "https://github.com/erikemilsson/claude_code_environment",
   "project_version": "1.0.0",
   "project_initialized": "2026-02-13",
   "migrated_at": "2026-03-10",
   "migrated_from": "template v1.5.0 (2026-01-26)",
+  "synced_at": "2026-04-18",
+  "synced_from": "1.5.0",
   "notes": "Full migration to current template. Added rules/, review command, context-transitions, verification_history, ask-directly approach (removed questions system)."
 }

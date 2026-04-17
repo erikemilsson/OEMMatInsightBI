@@ -4,7 +4,7 @@ Major decisions are documented in `.claude/support/decisions/`.
 
 ## When to Create a Decision Record
 
-When facing significant choices that block downstream work, create a decision record rather than deciding inline.
+When facing significant choices that block downstream work, create a decision record rather than deciding inline. When encountering any ambiguity or choice point, surface it to the user — never resolve silently.
 
 ## Decision Types
 
