@@ -32,7 +32,28 @@
       "Read(//Users/erikemilsson/Developer/OEMMatInsightBI/.claude/commands/**)",
       "Bash(git fetch:*)",
       "Bash(for f:*)",
-      "Read(//Users/erikemilsson/Developer/OEMMatInsightBI/**)"
+      "Read(//Users/erikemilsson/Developer/OEMMatInsightBI/**)",
+      "Bash(gh run:*)",
+      "Bash(brew install:*)",
+      "Bash(gh repo:*)",
+      "mcp__claude_ai_Microsoft_Learn__microsoft_docs_search",
+      "WebSearch",
+      "mcp__claude_ai_Microsoft_Learn__microsoft_docs_fetch",
+      "WebFetch(domain:techcommunity.microsoft.com)",
+      "WebFetch(domain:www.daymarksi.com)",
+      "WebFetch(domain:community.fabric.microsoft.com)",
+      "WebFetch(domain:microsoft.github.io)",
+      "WebFetch(domain:formula5.com)",
+      "WebFetch(domain:blog.fabric.microsoft.com)",
+      "mcp__claude_ai_Microsoft_Learn__microsoft_code_sample_search",
+      "WebFetch(domain:www.waferwire.com)",
+      "WebFetch(domain:pypi.org)",
+      "WebFetch(domain:www.kevinrchant.com)",
+      "WebFetch(domain:dzone.com)",
+      "WebFetch(domain:www.skool.com)",
+      "Bash(head -60 /Users/erikemilsson/Developer/nordgrid-data-engineering/exercises/01-foundations/*.md)",
+      "Bash(python -m pytest tests/ -v --tb=short)",
+      "Bash(python -m pytest tests/ -v)"
     ]
   }
 }
