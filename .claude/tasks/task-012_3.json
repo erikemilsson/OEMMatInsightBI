@@ -1,0 +1,46 @@
+{
+  "id": "task-012_3",
+  "title": "Enable V-Order and add broadcast join hints",
+  "description": "Set V-Order Spark config on gold writes, run OPTIMIZE on existing tables, add broadcast hints for small dimension joins, enable DataFrame caching where appropriate.",
+  "status": "Pending",
+  "priority": "P3",
+  "difficulty": 4,
+  "owner": "claude",
+  "parent_task": "task-012",
+  "phase": "3",
+  "spec_section": "Performance Optimization",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "files_affected": [
+    "fabric/silver-to-gold2.Notebook/",
+    "fabric/clean_columnsAndHeaders.Notebook/"
+  ],
+  "acceptanceCriteria": [
+    "spark.sql.parquet.vorder.enabled=true set in gold notebook",
+    "OPTIMIZE run on all gold tables (Erik in Fabric)",
+    "Broadcast hints applied to dim_country, dim_material, dim_indicator joins",
+    "DataFrame caching used for reusable intermediates"
+  ],
+  "dependencies": [
+    "task-012_2"
+  ],
+  "notes": [
+    "Touches silver-to-gold2 \u2014 runs after task-012_2 (file overlap).",
+    "V-Order is Fabric-specific; document for portfolio."
+  ],
+  "created_date": "2026-04-29",
+  "completion_date": "",
+  "updated_date": "2026-04-29",
+  "task_verification": {},
+  "verification_attempts": 0,
+  "verification_history": [],
+  "test_protocol": null,
+  "user_review_pending": false,
+  "interaction_hint": "dashboard",
+  "decision_dependencies": [],
+  "recovery_state": "",
+  "out_of_spec": false,
+  "absorbed_into": ""
+}

@@ -1,0 +1,45 @@
+{
+  "id": "task-012_2",
+  "title": "Implement partitioning on fact tables",
+  "description": "Add partition columns (year/month) to fact_procurement, fact_epi_score, fact_supply_share. Update Delta write statements and rewrite existing tables.",
+  "status": "Pending",
+  "priority": "P3",
+  "difficulty": 5,
+  "owner": "claude",
+  "parent_task": "task-012",
+  "phase": "3",
+  "spec_section": "Performance Optimization",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "files_affected": [
+    "fabric/silver-to-gold2.Notebook/",
+    "src/transformations/"
+  ],
+  "acceptanceCriteria": [
+    "Partition columns added to fact_procurement (year, month), fact_epi_score (year), fact_supply_share (year)",
+    "Delta write statements use partitionBy(...)",
+    "Existing tables rewritten with new partitioning (Erik runs in Fabric)",
+    "Partition pruning verified via Spark plan"
+  ],
+  "dependencies": [
+    "task-012_1"
+  ],
+  "notes": [
+    "Touches silver-to-gold2 \u2014 coordinate with task-012_3 (file overlap, run sequentially)."
+  ],
+  "created_date": "2026-04-29",
+  "completion_date": "",
+  "updated_date": "2026-04-29",
+  "task_verification": {},
+  "verification_attempts": 0,
+  "verification_history": [],
+  "test_protocol": null,
+  "user_review_pending": false,
+  "interaction_hint": "dashboard",
+  "decision_dependencies": [],
+  "recovery_state": "",
+  "out_of_spec": false,
+  "absorbed_into": ""
+}

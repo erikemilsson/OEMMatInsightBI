@@ -1,0 +1,45 @@
+{
+  "id": "task-012_4",
+  "title": "Author warehouse index DDL",
+  "description": "Write CREATE INDEX statements for dimension keys and fact foreign keys, plus statistics rebuild. Erik deploys via SQL endpoint.",
+  "status": "Pending",
+  "priority": "P3",
+  "difficulty": 4,
+  "owner": "both",
+  "parent_task": "task-012",
+  "phase": "3",
+  "spec_section": "Performance Optimization",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "files_affected": [
+    "fabric/sql/warehouse_indexes.sql"
+  ],
+  "acceptanceCriteria": [
+    "Indexes defined for dim_country, dim_material, dim_indicator (clustered on surrogate keys)",
+    "Indexes defined for fact_procurement, fact_epi_score, fact_supply_share foreign keys",
+    "UPDATE STATISTICS statements included",
+    "DDL committed to fabric/sql/warehouse_indexes.sql",
+    "Erik deploys via SQL endpoint and confirms successful index creation"
+  ],
+  "dependencies": [
+    "task-012_1"
+  ],
+  "notes": [
+    "No file overlap with task-012_2 or task-012_3 \u2014 can be developed in parallel."
+  ],
+  "created_date": "2026-04-29",
+  "completion_date": "",
+  "updated_date": "2026-04-29",
+  "task_verification": {},
+  "verification_attempts": 0,
+  "verification_history": [],
+  "test_protocol": null,
+  "user_review_pending": false,
+  "interaction_hint": "dashboard",
+  "decision_dependencies": [],
+  "recovery_state": "",
+  "out_of_spec": false,
+  "absorbed_into": ""
+}

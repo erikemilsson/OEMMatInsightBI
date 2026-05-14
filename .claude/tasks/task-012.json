@@ -2,7 +2,7 @@
   "id": "task-012",
   "title": "Optimize Pipeline Performance",
   "description": "Measure baseline performance, implement partitioning strategy, enable V-Order optimization, optimize transformations, and create warehouse indexes. Target: >30% performance improvement.",
-  "status": "Pending",
+  "status": "Broken Down",
   "priority": "P3",
   "difficulty": 7,
   "estimatedEffort": "2-4 days",
@@ -16,7 +16,7 @@
     ".claude/spec_v1.md"
   ],
   "created_date": "",
-  "updated_date": "2026-03-10",
+  "updated_date": "2026-04-29",
   "task_verification": {},
   "verification_attempts": 0,
   "verification_history": [],
@@ -60,20 +60,28 @@
     "--- HANDOFF ---",
     "CLAUDE: Write partitioning code, V-Order config, broadcast hints, index DDL",
     "ERIK: Run baseline measurements, deploy optimizations, validate performance gains",
-    "NOTE: This task is Erik-heavy due to baseline measurement and Fabric-specific testing"
+    "NOTE: This task is Erik-heavy due to baseline measurement and Fabric-specific testing",
+    "--- BREAKDOWN 2026-04-29 ---",
+    "Broken down into 5 subtasks: 012_1 (baseline) \u2192 [012_2, 012_3, 012_4 in sequence/parallel] \u2192 012_5 (validate)"
   ],
   "optimizationTechniques": [
     {
       "technique": "Partitioning",
       "expectedImpact": "20-40% faster queries",
       "complexity": "Medium",
-      "tables": ["fact_procurement (year/month)", "fact_epi_score (year)", "fact_supply_share (year)"]
+      "tables": [
+        "fact_procurement (year/month)",
+        "fact_epi_score (year)",
+        "fact_supply_share (year)"
+      ]
     },
     {
       "technique": "V-Order",
       "expectedImpact": "10-30% faster DirectLake queries",
       "complexity": "Low",
-      "tables": ["All gold tables"]
+      "tables": [
+        "All gold tables"
+      ]
     },
     {
       "technique": "Broadcast joins",
@@ -102,41 +110,11 @@
     "powerBIQuery": "<3 seconds"
   },
   "subtasks": [
-    {
-      "id": "task-012-1",
-      "title": "Baseline measurement",
-      "status": "Pending",
-      "estimatedEffort": "0.5 days",
-      "details": "Run pipeline 3 times, measure each activity, identify bottlenecks"
-    },
-    {
-      "id": "task-012-2",
-      "title": "Implement partitioning strategy",
-      "status": "Pending",
-      "estimatedEffort": "1 day",
-      "details": "Add partition columns, update write statements, rewrite existing tables"
-    },
-    {
-      "id": "task-012-3",
-      "title": "Enable V-Order and optimize transformations",
-      "status": "Pending",
-      "estimatedEffort": "1 day",
-      "details": "Set Spark config, run OPTIMIZE, add broadcast hints, enable caching"
-    },
-    {
-      "id": "task-012-4",
-      "title": "Create warehouse indexes",
-      "status": "Pending",
-      "estimatedEffort": "0.5 days",
-      "details": "Create indexes on dimension keys and fact foreign keys, rebuild statistics"
-    },
-    {
-      "id": "task-012-5",
-      "title": "Performance testing and validation",
-      "status": "Pending",
-      "estimatedEffort": "1 day",
-      "details": "Retest pipeline, compare to baseline, test Power BI query performance"
-    }
+    "012_1",
+    "012_2",
+    "012_3",
+    "012_4",
+    "012_5"
   ],
   "progress": "Not started (0/5 subtasks complete)"
 }

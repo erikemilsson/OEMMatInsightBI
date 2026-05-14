@@ -1,0 +1,49 @@
+{
+  "id": "task-012_5",
+  "title": "Performance retest and validation",
+  "description": "Re-run pipeline, compare to baseline, validate Power BI query performance, document optimized results in performance_optimized.md.",
+  "status": "Pending",
+  "priority": "P3",
+  "difficulty": 4,
+  "owner": "human",
+  "parent_task": "task-012",
+  "phase": "3",
+  "spec_section": "Performance Optimization",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "files_affected": [
+    ".claude/support/documents/performance_optimized.md"
+  ],
+  "acceptanceCriteria": [
+    "Pipeline retest run 3 times (matching baseline methodology)",
+    "Activity-level improvement documented vs baseline",
+    "Total end-to-end runtime <20 minutes",
+    "Power BI query times <3 seconds on representative reports",
+    "Overall improvement >30% vs baseline",
+    "performance_optimized.md committed with comparison table"
+  ],
+  "dependencies": [
+    "task-012_2",
+    "task-012_3",
+    "task-012_4"
+  ],
+  "notes": [
+    "Erik runs in Fabric; Claude can prepare the comparison template.",
+    "If <30% improvement, document findings and adjust strategy before closing."
+  ],
+  "created_date": "2026-04-29",
+  "completion_date": "",
+  "updated_date": "2026-04-29",
+  "task_verification": {},
+  "verification_attempts": 0,
+  "verification_history": [],
+  "test_protocol": null,
+  "user_review_pending": false,
+  "interaction_hint": "dashboard",
+  "decision_dependencies": [],
+  "recovery_state": "",
+  "out_of_spec": false,
+  "absorbed_into": ""
+}

@@ -1,18 +1,20 @@
 # Dashboard
 
 <!-- DASHBOARD META
-generated: 2026-04-05T16:30:00Z
-task_hash: sha256:64902bc0dc5a1e51
-task_count: 24
+generated: 2026-04-29T00:00:00Z
+task_hash: sha256:59d9d2c6710e730d
+task_count: 29
 spec_fingerprint: sha256:93c01f3a54750f35
-template_version: 1.5.0
+template_version: 3.0.0
 verification_debt: 0
 drift_deferrals: 0
 -->
 
-**OEMMatInsightBI** — 89% complete (17/19 spec tasks)
+**OEMMatInsightBI** — 69% complete (20/29 atomic tasks; 16/19 spec tasks finished, 2 broken down)
 
-*Updated 2026-04-05 16:30 — may not reflect changes made outside `/work`*
+*Updated 2026-04-29 — may not reflect changes made outside `/work`*
+
+**Next:** Deploy incremental load changes to Fabric and run full + incremental tests — [task-006_3](tasks/task-006_3.json).
 
 <!-- SECTION TOGGLES -->
 <details><summary>Section toggles</summary>
@@ -31,25 +33,13 @@ drift_deferrals: 0
 
 ## 🚨 Action Required
 
-### Phase Transitions
-
-<!-- PHASE GATE:1→2 -->
-**Phase 1 → Phase 2 Transition**
-
-Conditions:
-- [x] All Phase 1 tasks finished (9/9)
-- [x] All verifications passed (9/9)
-- [x] Approve transition to Phase 2
-
-<!-- END PHASE GATE:1→2 -->
-
 ### Your Tasks
 
 | Task | What To Do | Where |
 |------|-----------|-------|
 | 006_3 | Deploy incremental load changes to Fabric, run full + incremental tests, verify no duplicates | [task-006_3.json](tasks/task-006_3.json) |
 | 010 | Configure pipeline scheduling in Fabric UI (daily 6:00 AM) | [task-010.json](tasks/task-010.json) |
-| 012 | Run `/breakdown 012` first (difficulty 7), then run performance baselines in Fabric | [task-012.json](tasks/task-012.json) |
+| 012_1 | Run baseline performance measurements in Fabric (3 pipeline runs, record activity durations) | [task-012_1.json](tasks/task-012_1.json) |
 
 <!-- FEEDBACK:task-006_3 -->
 **Task 006_3 — Feedback:**
@@ -61,10 +51,10 @@ Conditions:
 [Leave feedback here, then run /work complete task-010]
 <!-- END FEEDBACK:task-010 -->
 
-<!-- FEEDBACK:task-012 -->
-**Task 012 — Feedback:**
-[Leave feedback here, then run /work complete task-012]
-<!-- END FEEDBACK:task-012 -->
+<!-- FEEDBACK:task-012_1 -->
+**Task 012_1 — Feedback:**
+[Leave feedback here, then run /work complete task-012_1]
+<!-- END FEEDBACK:task-012_1 -->
 
 ---
 
@@ -74,7 +64,7 @@ Conditions:
 |-------|------|-------|--------|
 | Phase 1 — Core Data Model & Reports | 9 | 9 | Complete |
 | Phase 2 — Automation & Quality | 6 | 7 | 1 task awaiting your action (006_3) |
-| Phase 3 — Operations & Performance | 1 | 3 | 2 tasks awaiting your action (010, 012) |
+| Phase 3 — Operations & Performance | 1 | 7 | Pipeline scheduling (010) + 5 performance subtasks (012_1–012_5) |
 
 **What was done this session:**
 - ✅ Incremental load: bronze date filtering (006_1a), silver Delta MERGE (006_1b), gold Delta MERGE (006_1c), pipeline wiring (006_2)
@@ -82,7 +72,7 @@ Conditions:
 - ✅ Data quality framework: 9 check functions across all layers (007)
 - ✅ Error handling: retry logic + execution logging + recovery playbook (011)
 
-**Remaining:** 3 tasks, all requiring your Fabric UI action
+**Remaining:** 7 tasks (1 incremental test + 1 scheduling + 5 performance subtasks)
 
 ### Project Overview
 
@@ -91,15 +81,23 @@ graph LR
     P1["✅ Phase 1 (9/9)"]
     T006_3["👥 Test Incremental"]
     T010["👥 Pipeline Scheduling"]
-    T012["👥 Optimize Performance"]
+    T012_1["👥 Baseline"]
+    T012_2["🤖 Partitioning"]
+    T012_3["🤖 V-Order"]
+    T012_4["👥 Indexes"]
+    T012_5["👥 Validate"]
 
     T006_3 --> T010
+    T012_1 --> T012_2 --> T012_3 --> T012_5
+    T012_1 --> T012_4 --> T012_5
 
     classDef done fill:#c8e6c9,stroke:#2e7d32
     classDef human fill:#fff9c4,stroke:#f57f17
+    classDef claude fill:#bbdefb,stroke:#1565c0
 
     class P1 done
-    class T006_3,T010,T012 human
+    class T006_3,T010,T012_1,T012_4,T012_5 human
+    class T012_2,T012_3 claude
 ```
 
 ---
@@ -127,13 +125,18 @@ graph LR
 | 018 | Implement Quality Observability Tables | Finished | 5 | 🤖 | — |
 | 019 | Add Quality Tables to Semantic Model | Finished | 4 | 🤖 | — |
 
-### Phase 3 — Operations & Performance (1/3)
+### Phase 3 — Operations & Performance (1/7)
 
 | ID | Title | Status | Diff | Owner | Deps |
 |----|-------|--------|------|-------|------|
 | 010 | Configure Pipeline Scheduling | **Pending** | 3 | 👥 | task-011 ✅ |
 | 011 | Implement Error Handling & Retry Logic | Finished | 6 | 🤖 | — |
-| 012 | Optimize Pipeline Performance | **Pending** | 7 | 👥 | — |
+| 012 | Optimize Pipeline Performance | Broken Down | 7 | 👥 | — |
+| ↳ 012_1 | Establish performance baseline | **Pending** | 3 | 👥 | — |
+| ↳ 012_2 | Implement partitioning on fact tables | **Pending** | 5 | 🤖 | 012_1 |
+| ↳ 012_3 | Enable V-Order and add broadcast hints | **Pending** | 4 | 🤖 | 012_2 |
+| ↳ 012_4 | Author warehouse index DDL | **Pending** | 4 | 👥 | 012_1 |
+| ↳ 012_5 | Performance retest and validation | **Pending** | 4 | 👥 | 012_2, 012_3, 012_4 |
 
 ---
 
@@ -144,4 +147,4 @@ graph LR
 <!-- END USER SECTION -->
 
 ---
-*2026-04-05 16:30 · 24 tasks · [Spec aligned](# "0 drift deferrals, 0 verification debt")*
+*2026-04-29 · 29 tasks · [Spec aligned](# "0 drift deferrals, 0 verification debt")*

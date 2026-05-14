@@ -1,0 +1,44 @@
+{
+  "id": "task-012_1",
+  "title": "Establish performance baseline",
+  "description": "Run the full pipeline 3 times in Fabric, record activity-level durations, and identify bottlenecks. Output: performance_baseline.md.",
+  "status": "Pending",
+  "priority": "P3",
+  "difficulty": 3,
+  "owner": "human",
+  "parent_task": "task-012",
+  "phase": "3",
+  "spec_section": "Performance Optimization",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "files_affected": [
+    ".claude/support/documents/performance_baseline.md"
+  ],
+  "acceptanceCriteria": [
+    "Pipeline run 3 times to average out variance",
+    "Activity-level durations recorded for bronze, silver, gold stages",
+    "Slowest activities identified as candidates for optimization",
+    "Baseline document committed at .claude/support/documents/performance_baseline.md"
+  ],
+  "dependencies": [],
+  "notes": [
+    "Erik runs in Fabric UI; Claude prepares the baseline.md template if helpful.",
+    "Measure before optimizing \u2014 avoid premature optimization.",
+    "Each run should use a fresh cache state to avoid skew."
+  ],
+  "created_date": "2026-04-29",
+  "completion_date": "",
+  "updated_date": "2026-04-29",
+  "task_verification": {},
+  "verification_attempts": 0,
+  "verification_history": [],
+  "test_protocol": null,
+  "user_review_pending": false,
+  "interaction_hint": "dashboard",
+  "decision_dependencies": [],
+  "recovery_state": "",
+  "out_of_spec": false,
+  "absorbed_into": ""
+}
