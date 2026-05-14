@@ -52,8 +52,7 @@
       "WebFetch(domain:dzone.com)",
       "WebFetch(domain:www.skool.com)",
       "Bash(head -60 /Users/erikemilsson/Developer/nordgrid-data-engineering/exercises/01-foundations/*.md)",
-      "Bash(python -m pytest tests/ -v --tb=short)",
-      "Bash(python -m pytest tests/ -v)"
+      "Bash(python -m pytest:*)"
     ]
   }
 }
