@@ -44,7 +44,8 @@
       "output_quality": "pass",
       "runtime_validation": "not_applicable",
       "integration_ready": "pass",
-      "scope_validation": "pass"
+      "scope_validation": "pass",
+      "consistency_check": "pass"
     },
     "notes": "All 5 acceptance criteria verified. Delta MERGE logic correct with natural key (date, materialname, suppliername). Parameter cell has proper Fabric inputParameters metadata. 7-day look-back window applied. Fallback to table creation on first incremental run. EPI, WGI, GlobalSupplyShares sections unchanged. All 47 existing tests pass. suppliername retention is a documented deviation from spec line 389, required for the MERGE key.",
     "issues": []

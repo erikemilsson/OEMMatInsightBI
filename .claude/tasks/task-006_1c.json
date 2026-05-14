@@ -27,9 +27,9 @@
   "dependencies": [],
   "notes": [
     "Design reference: .claude/support/documents/incremental_load_strategy.md",
-    "Gold layer MERGE is the highest-value change — eliminates DirectLake full reload",
+    "Gold layer MERGE is the highest-value change \u2014 eliminates DirectLake full reload",
     "Quality observability tables should also update incrementally if possible",
-    "Implemented: (1) Added parameter cell with p_full_load/p_from_date at top of notebook with Fabric inputsV2 metadata, (2) Added merge_tbl() helper function alongside write_tbl() — uses DeltaTable.forName, MERGE with whenMatchedUpdateAll/whenNotMatchedInsertAll, followed by OPTIMIZE, (3) Replaced fact_procurement write_tbl call with conditional: overwrite on full load or first run, MERGE on incremental using 4-key condition (date_key + material_key + supplier_hq_country_key + production_country_key). All dimension tables, fact_epi_score, fact_supply_share, and unmapped audit remain full overwrite. Self-review: verified notebook format preserved, all 47 existing tests pass."
+    "Implemented: (1) Added parameter cell with p_full_load/p_from_date at top of notebook with Fabric inputsV2 metadata, (2) Added merge_tbl() helper function alongside write_tbl() \u2014 uses DeltaTable.forName, MERGE with whenMatchedUpdateAll/whenNotMatchedInsertAll, followed by OPTIMIZE, (3) Replaced fact_procurement write_tbl call with conditional: overwrite on full load or first run, MERGE on incremental using 4-key condition (date_key + material_key + supplier_hq_country_key + production_country_key). All dimension tables, fact_epi_score, fact_supply_share, and unmapped audit remain full overwrite. Self-review: verified notebook format preserved, all 47 existing tests pass."
   ],
   "created_date": "2026-04-05",
   "completion_date": "2026-04-05",
@@ -43,7 +43,8 @@
       "output_quality": "pass",
       "runtime_validation": "not_applicable",
       "integration_ready": "pass",
-      "scope_validation": "pass"
+      "scope_validation": "pass",
+      "consistency_check": "pass"
     },
     "notes": "All acceptance criteria met. Parameter cell with Fabric inputsV2 metadata added. merge_tbl function correctly implements DeltaTable.forName + MERGE + OPTIMIZE. fact_procurement conditionally uses overwrite (full load/first run) or MERGE (incremental) with 4-key condition. All dimension tables, fact_epi_score, fact_supply_share, and unmapped audit remain full overwrite. 47/47 tests pass.",
     "issues": []

@@ -25,10 +25,11 @@
       "output_quality": true,
       "runtime_validation": "not_applicable",
       "integration_ready": true,
-      "scope_validation": true
+      "scope_validation": true,
+      "consistency_check": true
     },
     "issues": [],
-    "notes": "Pre-migration task — verification predates current schema."
+    "notes": "Pre-migration task \u2014 verification predates current schema."
   },
   "verification_attempts": 0,
   "verification_history": [],
@@ -39,7 +40,9 @@
   "recovery_state": "",
   "out_of_spec": false,
   "absorbed_into": "",
-  "dependencies": ["task-015"],
+  "dependencies": [
+    "task-015"
+  ],
   "acceptanceCriteria": [
     "Page 1 (Executive Dashboard) has 4 KPI cards + at least 2 charts",
     "Page 2 (Risk & Sustainability) has 3 KPI cards + at least 2 charts",
@@ -115,7 +118,12 @@
       {
         "type": "KPI Cards (4)",
         "status": "DONE",
-        "measures": ["Total Spend EUR (3.27M)", "Supplier Countries Count (10)", "Materials Count (11)", "Transaction Count (132)"]
+        "measures": [
+          "Total Spend EUR (3.27M)",
+          "Supplier Countries Count (10)",
+          "Materials Count (11)",
+          "Transaction Count (132)"
+        ]
       },
       {
         "type": "Clustered Column Chart",
@@ -132,7 +140,10 @@
       {
         "type": "KPI Cards (2)",
         "status": "DONE",
-        "measures": ["Avg EPI Score (47.72)", "Countries with EPI Data (180)"]
+        "measures": [
+          "Avg EPI Score (47.72)",
+          "Countries with EPI Data (180)"
+        ]
       },
       {
         "type": "Clustered Bar Chart",

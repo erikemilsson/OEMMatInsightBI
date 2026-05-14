@@ -65,7 +65,8 @@
       "output_quality": "pass",
       "runtime_validation": "not_applicable",
       "integration_ready": "pass",
-      "scope_validation": "pass"
+      "scope_validation": "pass",
+      "consistency_check": "pass"
     },
     "notes": "All 9 check functions implemented. Notebook follows Fabric format. Results persist to gold_quality_history. Quality scoring 0-100 with categorization. Python syntax valid. All 47 existing tests pass. Runtime validation not applicable (Fabric notebook requires PySpark environment).",
     "issues": []
@@ -106,17 +107,29 @@
   "checkFunctions": [
     {
       "layer": "Bronze",
-      "checks": ["Row count validation", "Schema validation", "Required field completeness", "Duplicate detection"],
+      "checks": [
+        "Row count validation",
+        "Schema validation",
+        "Required field completeness",
+        "Duplicate detection"
+      ],
       "count": 4
     },
     {
       "layer": "Silver",
-      "checks": ["Referential integrity", "Business rule validation", "Outlier detection (Z-score)"],
+      "checks": [
+        "Referential integrity",
+        "Business rule validation",
+        "Outlier detection (Z-score)"
+      ],
       "count": 3
     },
     {
       "layer": "Gold",
-      "checks": ["Aggregate reconciliation (silver vs gold totals)", "Trend validation (anomaly detection)"],
+      "checks": [
+        "Aggregate reconciliation (silver vs gold totals)",
+        "Trend validation (anomaly detection)"
+      ],
       "count": 2
     }
   ],

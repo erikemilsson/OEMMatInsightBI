@@ -1,7 +1,7 @@
 {
   "id": "task-006_2",
   "title": "Wire pipeline parameters to all notebook activities",
-  "description": "Connect p_full_load and p_from_date pipeline parameters to the notebook activities in the orchestrator pipeline. Ensure parameter values flow from pipeline → notebook cells. Add conditional logic so bronze copy activities skip when p_full_load=false and external data hasn't changed.",
+  "description": "Connect p_full_load and p_from_date pipeline parameters to the notebook activities in the orchestrator pipeline. Ensure parameter values flow from pipeline \u2192 notebook cells. Add conditional logic so bronze copy activities skip when p_full_load=false and external data hasn't changed.",
   "status": "Finished",
   "priority": "P2",
   "difficulty": 4,
@@ -22,13 +22,17 @@
     "Pipeline JSON reflects parameter bindings in activity definitions",
     "Default values preserved (p_full_load=false, p_from_date=1900-01-01)"
   ],
-  "dependencies": ["task-006_1a", "task-006_1b", "task-006_1c"],
+  "dependencies": [
+    "task-006_1a",
+    "task-006_1b",
+    "task-006_1c"
+  ],
   "notes": [
     "Pipeline parameter wiring is JSON config, not code",
     "Fabric passes parameters as notebook base parameters",
     "Design reference: .claude/support/documents/incremental_load_strategy.md",
-    "IMPLEMENTED: Added parameters block to 'bronze-to-silver data cleaning' TridentNotebook activity — wires p_full_load (@string(pipeline().parameters.p_full_load)) and p_from_date (@pipeline().parameters.p_from_date).",
-    "IMPLEMENTED: Added parameters block to 'silver-to-gold' TridentNotebook activity — same parameter bindings.",
+    "IMPLEMENTED: Added parameters block to 'bronze-to-silver data cleaning' TridentNotebook activity \u2014 wires p_full_load (@string(pipeline().parameters.p_full_load)) and p_from_date (@pipeline().parameters.p_from_date).",
+    "IMPLEMENTED: Added parameters block to 'silver-to-gold' TridentNotebook activity \u2014 same parameter bindings.",
     "IMPLEMENTED: p_full_load converted from pipeline bool to notebook string via @string() expression.",
     "SELF-REVIEW: JSON validates. Both notebook activities have parameter bindings. Pipeline-level defaults preserved (p_full_load=false, p_from_date=1900-01-01). RefreshDataflow activities unchanged (dataflow-level parameter defaults apply)."
   ],
@@ -44,9 +48,10 @@
       "output_quality": "pass",
       "runtime_validation": "not_applicable",
       "integration_ready": "pass",
-      "scope_validation": "pass"
+      "scope_validation": "pass",
+      "consistency_check": "pass"
     },
-    "notes": "Both TridentNotebook activities (bronze-to-silver, silver-to-gold) have correct parameter bindings. p_full_load uses @string() conversion for bool→string. p_from_date passed directly. Pipeline-level defaults preserved. JSON valid. Copy and RefreshDataflow activities unchanged. Parameter names match notebook inputParameters metadata.",
+    "notes": "Both TridentNotebook activities (bronze-to-silver, silver-to-gold) have correct parameter bindings. p_full_load uses @string() conversion for bool\u2192string. p_from_date passed directly. Pipeline-level defaults preserved. JSON valid. Copy and RefreshDataflow activities unchanged. Parameter names match notebook inputParameters metadata.",
     "issues": []
   },
   "verification_attempts": 1,

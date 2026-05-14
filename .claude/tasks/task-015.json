@@ -28,10 +28,11 @@
       "output_quality": true,
       "runtime_validation": "not_applicable",
       "integration_ready": true,
-      "scope_validation": true
+      "scope_validation": true,
+      "consistency_check": true
     },
     "issues": [],
-    "notes": "Pre-migration task — verification predates current schema."
+    "notes": "Pre-migration task \u2014 verification predates current schema."
   },
   "verification_attempts": 0,
   "verification_history": [],

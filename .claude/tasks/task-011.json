@@ -29,7 +29,8 @@
       "output_quality": "pass",
       "runtime_validation": "not_applicable",
       "integration_ready": "pass",
-      "scope_validation": "pass"
+      "scope_validation": "pass",
+      "consistency_check": "pass"
     },
     "notes": "All 5 declared files exist and are correct. All 6 pipeline activities have non-zero retry counts matching the design (3/300s for external sources, 2/180s for dataflows, 2/120s for notebooks). Pipeline JSON is valid, parameter blocks from task-006_2 intact. Error handler notebook follows Fabric format, creates gold_pipeline_execution_log Delta table with proper schema. Helper functions (log_activity_start/success/failure) and error categorization (Transient/Permanent/Unknown) are well-implemented. Error recovery playbook is comprehensive. Runtime validation not applicable (requires Fabric deployment).",
     "issues": [
@@ -131,17 +132,30 @@
     {
       "category": "Transient",
       "action": "Retry with exponential backoff",
-      "examples": ["Network timeouts", "Connection resets", "Resource unavailable", "Throttling"]
+      "examples": [
+        "Network timeouts",
+        "Connection resets",
+        "Resource unavailable",
+        "Throttling"
+      ]
     },
     {
       "category": "Permanent",
       "action": "Fail immediately, send alert",
-      "examples": ["Authentication failed", "Schema mismatch", "Table not found", "Access denied"]
+      "examples": [
+        "Authentication failed",
+        "Schema mismatch",
+        "Table not found",
+        "Access denied"
+      ]
     },
     {
       "category": "Unknown",
       "action": "Retry with caution, log for analysis",
-      "examples": ["Unexpected errors", "New error patterns"]
+      "examples": [
+        "Unexpected errors",
+        "New error patterns"
+      ]
     }
   ],
   "retryConfiguration": [
