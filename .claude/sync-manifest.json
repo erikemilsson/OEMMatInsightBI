@@ -9,6 +9,7 @@
       ".claude/skills/*/SKILL.md",
       ".claude/scripts/*.py",
       ".claude/scripts/README.md",
+      ".claude/scripts/tests/*.py",
       ".claude/rules/task-management.md",
       ".claude/rules/spec-workflow.md",
       ".claude/rules/decisions.md",
@@ -16,6 +17,7 @@
       ".claude/rules/agents.md",
       ".claude/rules/archiving.md",
       ".claude/rules/session-management.md",
+      ".claude/rules/feature-retirement.md",
       ".claude/support/reference/shared-definitions.md",
       ".claude/support/reference/task-schema.md",
       ".claude/support/reference/workflow.md",
@@ -24,15 +26,19 @@
       ".claude/support/reference/extension-patterns.md",
       ".claude/support/reference/dashboard-regeneration.md",
       ".claude/support/reference/drift-reconciliation.md",
+      ".claude/support/reference/friction-register.md",
+      ".claude/support/reference/audit-fix-workflow.md",
       ".claude/support/reference/parallel-execution.md",
       ".claude/support/reference/session-recovery.md",
       ".claude/support/reference/context-transitions.md",
       ".claude/support/reference/phase-decision-gates.md",
       ".claude/support/reference/decomposition.md",
+      ".claude/support/reference/inline-command-pattern.md",
       ".claude/support/reference/paths.md",
       ".claude/support/reference/setup-checklist.md",
       ".claude/support/reference/automation.md",
       ".claude/support/reference/known-issues.md",
+      ".claude/support/reference/extension-hooks.md",
       ".claude/support/reference/desktop-project-prompt.md",
       ".claude/support/reference/root-claude-md-template.md",
       ".claude/support/reference/README.md",
@@ -41,6 +47,7 @@
       ".claude/support/previous_specifications/README.md",
       ".claude/vision/README.md",
       ".claude/support/feedback/README.md",
+      ".claude/support/retired/README.md",
       ".claude/hooks/pre-compact-handoff.sh"
     ],
     "customize": [
@@ -55,6 +62,7 @@
       ".claude/verification-result.json",
       ".claude/version.json",
       ".claude/sync-manifest.json",
+      ".claude/.sync-state.json",
       ".claude/support/decisions/decision-*.md",
       ".claude/support/decisions/.archive/*",
       ".claude/support/learnings/*",
@@ -70,5 +78,5 @@
       ".claude/spec_v*.md"
     ]
   },
-  "notes": "Paths relative to template root. Use glob patterns. User-created rule files (project-*.md) and reference docs (project-*.md) are ignored by sync. The settings file is layered: `.claude/settings.json` is template-owned (in `sync`) and contains only the base `permissions.allow`; `.claude/settings.local.json` is user-owned (in `ignore`) and holds user additions, hooks, env vars, and theme. Claude Code merges both layers at runtime."
+  "notes": "Paths relative to template root. Use glob patterns. User-created rule files (project-*.md) and reference docs (project-*.md) are ignored by sync. The settings file is layered: `.claude/settings.json` is template-owned (in `sync`) and contains the base `permissions.allow` AND `permissions.ask` (template-wide guardrails per DEC-016 — spec/decision/vision Edit/Write prompts); `.claude/settings.local.json` is user-owned (in `ignore`) and holds user additions, hooks, env vars, and theme. Claude Code merges both layers at runtime."
 }
