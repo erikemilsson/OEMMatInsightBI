@@ -5,7 +5,8 @@ Quick capture and triage of project improvement ideas. Provides a structured pat
 ## Usage
 
 ```
-/feedback [text]              # Quick capture: save an idea
+/feedback [text]              # Quick capture: save an idea (project-local)
+/feedback template: [text]    # Quick capture + bridge to template repo's inbox
 /feedback list                # Show summary counts and item list
 /feedback review              # 3-phase review: grouping → refinement → impact assessment
 /feedback review {id}         # Single-item review (adapts to item's current status)
@@ -23,6 +24,7 @@ Quick capture and triage of project improvement ideas. Provides a structured pat
 - Promotion to spec happens via `/iterate`, not within `/feedback`
 - Never delete feedback without archiving — always preserve with reason
 - Claude does not make decisions for the user — always ask for input on grouping, refinement, and assessment
+- Template bridge: a `template:` prefix on Quick Capture also writes a user-feedback export to the template repo's `interaction-logs/inbox/` (via `template_inbox_path` in `.claude/version.json`). The local entry is unchanged — the bridge is purely additive, and silently no-ops when `template_inbox_path` is unset.
 
 ---
 
@@ -50,12 +52,13 @@ new → archived (not relevant, quick triage)
 
 ## Process
 
-### Mode 1: Quick Capture (`/feedback [text]`)
+### Mode 1: Quick Capture (`/feedback [text]` or `/feedback template: [text]`)
 
-1. Read `.claude/support/feedback/feedback.md` AND `.claude/support/feedback/archive.md`
-2. Parse all `## FB-NNN:` headings in both files to find the highest `FB-NNN` ID
-3. Assign next sequential ID: `FB-{N+1}` (zero-padded to 3 digits)
-4. Append new entry to `feedback.md`:
+1. **Parse prefix.** If the text starts with `template:` (case-insensitive, trailing whitespace tolerated), set `bridge_mode = true` and strip the prefix from the capture body. Otherwise `bridge_mode = false`.
+2. Read `.claude/support/feedback/feedback.md` AND `.claude/support/feedback/archive.md`
+3. Parse all `## FB-NNN:` headings in both files to find the highest `FB-NNN` ID
+4. Assign next sequential ID: `FB-{N+1}` (zero-padded to 3 digits)
+5. Append new entry to `feedback.md`:
 
 ```markdown
 ## FB-NNN: [Brief title derived from text]
@@ -63,21 +66,65 @@ new → archived (not relevant, quick triage)
 **Status:** new
 **Captured:** YYYY-MM-DD
 
-[Full text as provided by user]
+[Full text as provided by user, with the `template:` prefix stripped if `bridge_mode`]
 ```
 
-5. Confirm:
+6. **If `bridge_mode == true`:** write a user-feedback export to the template repo's inbox (see "Template Bridge Export" below). Silently no-op if `template_inbox_path` is unset — the local entry from step 5 still stands.
+
+7. Confirm:
 ```
 Captured as FB-NNN: [title]
+[If bridge_mode AND inbox path set]: Bridge export sent to {template_inbox_path}/{filename}
+[If bridge_mode AND inbox path unset]: Template bridge skipped — `template_inbox_path` not configured in `.claude/version.json`.
 Use /feedback review to triage, or /feedback list to see all items.
 ```
 
-**Title derivation:** Extract a brief (3-8 word) title from the user's text. Use the first clause or sentence if short enough; otherwise summarize the core idea.
+**Title derivation:** Extract a brief (3-8 word) title from the capture body (after stripping any `template:` prefix). Use the first clause or sentence if short enough; otherwise summarize the core idea.
 
 **Edge cases:**
 - If `feedback.md` doesn't exist or has no entries, start with `FB-001`
 - If the feedback directory doesn't exist, create it with the template files
 - Empty text: ask "What's the idea?" — don't create an empty entry
+- `template:` with no body (e.g. `/feedback template:`): treat as empty text — ask "What's the idea?"
+- `template:` prefix when `template_inbox_path` is unset: capture locally and report the skip in the confirmation message — do not error
+
+---
+
+### Template Bridge Export
+
+Triggered from Mode 1 step 6 when `bridge_mode == true`. Writes a `user_feedback` export to the template repo's inbox so `/health-check` in the template repo can route it into `template-maintenance/feedback.md`.
+
+**Procedure:**
+
+1. Read `.claude/version.json`:
+   - `template_inbox_path` — target directory (e.g., absolute path to a template clone's `interaction-logs/inbox/`)
+   - `template_version` — e.g., `"3.1.0"`
+2. If `template_inbox_path` is empty string or not an existing directory: silently skip the export. The Mode 1 step 7 confirmation reports the skip — do not raise an error.
+3. Determine `source_project`: basename of the project directory (`os.path.basename(cwd)` semantics — same convention as the PreCompact hook).
+4. Construct the export object:
+   ```json
+   {
+     "export_version": 1,
+     "kind": "user_feedback",
+     "source_project": "[basename of project dir]",
+     "template_version": "[from version.json]",
+     "captured_date": "YYYY-MM-DD",
+     "feedback": {
+       "title": "[same title as the local FB entry from Mode 1 step 5]",
+       "body": "[capture body, with `template:` prefix already stripped]",
+       "source_fb_id": "FB-NNN (the local ID just assigned in step 4)"
+     }
+   }
+   ```
+5. Write to: `{template_inbox_path}/{source_project}-feedback-{FB-NNN}-{YYYY-MM-DD}.json`
+   - One file per export — never append to existing files in the inbox.
+   - If the filename already exists (rare collision: same FB-NNN, same date, same project), append a `-{HHmmss}` suffix to disambiguate.
+6. Do NOT modify or delete the local entry. The bridge is purely additive — both copies must exist after the operation.
+
+**Notes:**
+- The export is consumed by `/health-check` Part 7 in the template repo, which dispatches by the `kind` field. `kind: "user_feedback"` routes the entry into `template-maintenance/feedback.md` as a new `FB-NNN` there.
+- This is distinct from session exports (Track 1 markers + Track 2 assessment) produced by `/work pause` and the PreCompact hook. Both share the inbox directory but route differently — session exports have `export_quality`, no `kind`; user-feedback exports have `kind: "user_feedback"`, no `export_quality`.
+- The bridge writes to an external path (the template repo). No `.claude/` write on the downstream side beyond the local feedback entry — so the bridge is safe to invoke from any session, including subagent contexts that can't write to `.claude/`.
 
 ---
 

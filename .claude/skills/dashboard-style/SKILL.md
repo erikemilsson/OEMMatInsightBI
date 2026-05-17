@@ -78,6 +78,11 @@ User-authored content is persisted in `.claude/dashboard-state.json` as a durabl
   "phase_gates": {},
   "inline_feedback": {},
   "custom_views_instructions": "",
+  "audit_digest": {
+    "latest_audit": "",
+    "items": [],
+    "dismissed_ids": []
+  },
   "updated": "2026-01-28T14:30:00Z"
 }
 ```
@@ -91,6 +96,7 @@ User-authored content is persisted in `.claude/dashboard-state.json` as a durabl
 | `phase_gates` | Object | Keyed by transition (e.g., `"1→2"`). Value: `{ "status": "active"\|"approved", "content": "full markdown between markers" }` |
 | `inline_feedback` | Object | Keyed by task ID. Value: string content between `<!-- FEEDBACK:{id} -->` markers |
 | `custom_views_instructions` | String | Content between `<!-- CUSTOM VIEWS INSTRUCTIONS -->` markers |
+| `audit_digest` | Object | `latest_audit` (string, e.g. `"coherence-2026-05-15-1430"`), `items[]` (digest item objects, projection of latest digest.json), `dismissed_ids[]` (item IDs the user dismissed via dashboard). See `.claude/support/reference/audit-fix-workflow.md` for the dashboard digest section spec. |
 | `updated` | String | ISO 8601 timestamp of last write |
 
 **Lifecycle:**
@@ -166,6 +172,7 @@ For each marker type, check that both open and close markers exist:
 | Phase gate approved | `<!-- PHASE GATE:{X}→{Y} APPROVED -->` | *(single marker, no close)* |
 | Custom views | `<!-- CUSTOM VIEWS INSTRUCTIONS -->` | `<!-- END CUSTOM VIEWS INSTRUCTIONS -->` |
 | Section toggles | `<!-- SECTION TOGGLES -->` | `<!-- END SECTION TOGGLES -->` |
+| Audit digest | `<!-- AUDIT DIGEST -->` | `<!-- END AUDIT DIGEST -->` |
 
 For each type:
 - If both markers present → extract content (marker is intact)
@@ -247,19 +254,36 @@ This ensures user content is always persisted in a structured file before the da
 ### 4. Compute and Add Metadata Block
 
 Add after `# Dashboard` title:
+
 ```markdown
 <!-- DASHBOARD META
 generated: [ISO timestamp]
-task_hash: sha256:[hash of sorted task_id:status:difficulty:owner tuples]
 task_count: [number]
+task_hash: sha256:[hash of sorted task_id:status:difficulty:owner tuples]
+spec_version: [e.g., "spec_v13"]
+spec_status: [active|finalized|archived]
 spec_fingerprint: sha256:[hash of spec file content]
 template_version: [value from .claude/version.json template_version field]
 verification_debt: [count of tasks needing verification]
 drift_deferrals: [count from drift-deferrals.json]
+decision_count: [total count of decision-*.md files]
+decisions_approved: [count where status == approved or implemented]
+decisions_superseded: [count where status == superseded]
+decisions_partially_superseded: [count where status == partially_superseded]
 -->
 ```
 
-The `template_version` field enables **format staleness detection**: when template sync updates `version.json`, the dashboard META's `template_version` no longer matches, flagging the dashboard as format-stale even if task data hasn't changed. See § "Format Staleness" below.
+The `template_version` field enables **format staleness detection**: when template sync updates `version.json`, the dashboard META's `template_version` no longer matches, flagging the dashboard as format-stale even if task data hasn't changed. See § "Format Staleness" above.
+
+#### Field whitelist (strict)
+
+ONLY the 13 fields listed above may appear in the META block. Specifically forbidden:
+
+- **`session_*` keys of any kind.** Session-handoff content (what just happened, what's next) belongs in `.claude/tasks/.handoff.json` (written by `/work pause`), git log, or auto-memory — never in dashboard META. The META block exists for state-fingerprinting and freshness checks, not narrative.
+- **Free-form notes, status messages, commentary, or session journals.** The META block is machine-readable; only structural fields belong here.
+- **Per-task or per-decision details.** Those belong in the body of the dashboard, not META.
+
+**Migration on existing dashboards:** When regenerating a dashboard whose existing META contains `session_*` keys or other non-whitelist fields, **drop them silently**. They were added in error or under older rules. Do not preserve to sidecar; do not warn the user. Session content has its own canonical homes (handoff file, git log, auto-memory) and is not duplicated in the dashboard.
 
 ### 5. Inject User Content from Sidecar
 
@@ -279,6 +303,8 @@ Read `.claude/dashboard-state.json` and inject content into the generated dashbo
 - If the gate no longer applies: remove from dashboard-state.json
 
 **5e. Section toggles:** The toggle checklist is generated from `section_toggles` in the sidecar. The `<details>` wrapper and marker format remain unchanged.
+
+**5f. Audit digest:** Read sidecar's `audit_digest`. Then scan `.claude/support/audits/*/digest.json` for the most recent file by `ran_at`. If newer than `audit_digest.latest_audit`, replace `audit_digest.items` with the new digest's `items[]` (preserving `dismissed_ids`). Render the `🔍 Audit Findings` sub-section per Section Display Rules — see audit-fix-workflow.md for the action-protocol details. Items with `id` in `dismissed_ids` OR `status != "pending"` are filtered out (resolved / promoted / dismissed items don't render). If `audit_digest.items` is empty after filtering AND `latest_audit` is non-empty, render the empty-state line. If `latest_audit` is empty (no audits ever run), skip the section entirely.
 
 ### 6. Add Footer Line
 
@@ -302,6 +328,8 @@ Claude Code caps output at 32K tokens per response (thinking + tool arguments + 
 - Action Required sub-sections only render when they have content
 - Project Overview diagram: omitted when <4 tasks remain; critical-path-only mode when >15 active nodes
 - Critical path truncation (>5 steps → first 3 + "... N more → Done")
+- **META block field whitelist (Step 4):** no `session_*` keys, no narrative content, only the 13 structural fields
+- **Recent Activity cap (Section Display Rules):** max 7 entries, 1 line each; prose paragraphs forbidden — they belong in handoff file / git log / friction register
 
 **If the dashboard still risks exceeding the limit** (50+ active tasks, complex parallel structure, many phases):
 - Write the dashboard in two passes: first the structural sections (metadata, action required, progress), then the data-heavy sections (tasks, decisions) as an Edit append
@@ -374,7 +402,36 @@ The user selects an option when prompted, and `/work` updates the task according
 ### Section Display Rules
 
 - Action Required sub-sections: only render when they have content (omit empty categories entirely)
-- Action Required sub-section order: Phase Transitions, Verification Pending, Verification Debt, Spec Drift, Feedback, Decisions, Your Tasks, Reviews
+- Action Required sub-section order: Phase Transitions, Verification Pending, Verification Debt, Spec Drift, **Audit Findings**, Feedback, Decisions, Your Tasks, Reviews
+- **Audit Findings sub-section in Action Required** (auto-renders when sidecar's `audit_digest.items` has any item with `status: pending` and `id` not in `dismissed_ids`):
+  - Header line: `*Last audit: {audit_name} {ran_at} ({N} pending · {K} promoted · {M} dismissed since last audit)*`
+  - Marker-bracketed for sidecar persistence:
+    ```
+    <!-- AUDIT DIGEST -->
+    - [ ] **{C-NN}** {description ?? title}
+    <!-- END AUDIT DIGEST -->
+    ```
+  - One bullet per item where `status == "pending"` AND `id NOT IN dismissed_ids`. Items resolved by promote (`status: resolved` or `status: promoted`) or dismissed are filtered out at render time.
+  - **Body field selection (added v3.18.0, FB-006 iteration 2):** prefer the item's `description` field (plain-English one-line summary, ~80-140 chars; written by the synthesizer per `audit-coherence.md` / `audit-ui.md` § "Algorithm" step 4). Fall back to `title` for backward compatibility with digest.json files written before v3.18.0 (no migration of older audits — they render their `title` as before).
+  - **Per-item action affordance (Stage 6 Option C per DEC-013, currently shipped) — kind-conditional, single trailing token:**
+    - `bundle-eligible` items: append ` — [Fix it]` after the title. `[Fix it]` is retained because it has no checkbox/keyword alternative — invoke via `/audit-{name} fix latest {C-ID}` or natural-language *"fix C-NN from the latest audit"*.
+    - `fix-eligible`, `decision`, `design` items: append a single italicized kind annotation after the title (no inline `[Promote to FB] / [Dismiss]` text — those actions are still available, just not rendered per-item; see "How to act on findings" below):
+      - `fix-eligible` → `*(fix-eligible — manual review pending future DEC)*`
+      - `decision` → `*(spec amendment via /iterate)*`
+      - `design` → `*(promote to FB → /research)*`
+    See `audit-fix-workflow.md` § "Per-kind action availability" for the full table and the [Fix it] mechanism documentation.
+  - **How to act on findings (was previously rendered as per-item `[Promote to FB] / [Dismiss]` inline text; dropped in FB-006 PATCH iteration v3.17.1 because the inline text was non-interactive and the actions exist regardless of rendering):**
+    - **Preferred for multiple findings (v3.19.0+):** `/audit-{name} triage` — interactive walker that defaults `audit-ts` to `latest` (newest by `ran_at`) and walks the user through each pending non-dismissed finding with kind-conditional actions ([F]ix it / [P]romote / [D]ismiss / [S]kip / [Q]uit). Eliminates the dashboard-tick → CLI re-specification courier pattern and audit-name memory burden (FB-006 sub-issues 1+2). See `commands/audit-coherence.md § "Triage mode"` for the canonical algorithm.
+    - **Promote (single or bulk)** — tick the checkbox of each finding to lift, then run `/audit-{name} promote {audit-ts}` to bulk-promote ticked items to `feedback.md`. Single-item promotion: `/audit-{name} promote {audit-ts} {C-ID}`. The walker invokes the same canonical promote mechanics per-finding.
+    - **Dismiss** — ask Claude in natural language, e.g. *"dismiss C-05 — those FB items are stale because they're tracking long-term ideas"*. The orchestrator adds the id to `dashboard-state.json audit_digest.dismissed_ids[]` and updates `digest.json status: dismissed`. The walker's `[D]ismiss` action invokes the same dispatch (with optional inline reason prompt).
+    - **Fix it (bundle-eligible only)** — see the inline `[Fix it]` token; invoke per-item as documented above. The walker's `[F]ix it` action invokes the same canonical mechanics.
+  - **Annotations footer** (when the source digest has `annotations[]`): rendered as a separate italicized sub-list outside the marker pair:
+    ```
+    *Already covered by in-flight work:*
+    - C-NN → T{id} ({status}) — "{what}"
+    ```
+  - **Empty state** (no `pending` items but `latest_audit` is non-empty): `*No pending audit findings. Last audit: {date}. Run /health-check to refresh.*`
+  - **Section toggle defaults:** `[x]` if any audit command in `.claude/commands/audit-*.md` is applicable to the project (per its `applies_when`); `[ ]` otherwise.
 - Phase Transitions: only render when a phase boundary has been reached (all Phase N tasks Finished, Phase N+1 exists) AND no APPROVED marker exists for that transition
 - Verification Pending: only render when all spec tasks are Finished with passing per-task verification but no valid verification-result.json
 - Spec Drift: only render when drift-deferrals.json has active entries
@@ -382,6 +439,12 @@ The user selects an option when prompted, and `/work` updates the task according
 - Reviews sub-section format: `- [ ] **Item title** — what to do → [link to file](path)`
 - Reviews appear for: out_of_spec tasks without approval, draft/proposed decisions
 - Timeline sub-section in Progress: only render when tasks have `due_date` or `external_dependency.expected_date` (part of Progress, not an independent toggle)
+- **Recent Activity sub-section in Progress** (auto-renders when ≥3 tasks transitioned status in the last 7 days):
+  - **Strict cap: max 7 entries, each ≤1 line.**
+  - Format per entry: `- **YYYY-MM-DD** — {Task ID or short commit ref} — {one-line outcome}`
+  - **Strictly forbidden in entries:** prose paragraphs (>1 line per entry), friction markers, session-summary blocks, scope contradictions, design-thesis narratives, embedded "captured for /iterate" notes, multi-part outcome lists. All of those belong in the friction register (`.claude/support/friction.jsonl` once Stage 2 lands), task JSON `notes`, handoff file, or git log. Dashboard Recent Activity is a chronological pointer, not narrative.
+  - **Migration on existing dashboards with prose-style entries:** during regeneration, condense each entry to its task ID + 1-line outcome (drop the prose). Do not archive the prose anywhere new — it belongs in handoff/git log, not duplicated. If an entry's content can't compress to 1 line meaningfully, drop the entry entirely.
+  - **Source:** the most recent 7 task-status transitions (Pending → In Progress → Finished) OR git commits within the last 7 days, whichever yields a more compact list.
 - **Status summary table:** When `task_count` exceeds 20, render a status summary table at the top of the Progress section (before the phase table) showing the count of tasks in each active status. Only include statuses with count > 0. Format: `| Status | Count |` with rows for Finished, Pending, In Progress, Blocked, On Hold, Broken Down, Absorbed. This gives at-a-glance project health for medium-to-large projects. When task_count is 20 or fewer, the phase table alone provides sufficient detail.
 - Phase table in Progress: always show ALL phases (including blocked/future)
 - Critical path owners: ❗ (human), 🤖 (Claude), 👥 (both)
@@ -414,6 +477,7 @@ The user selects an option when prompted, and `/work` updates the task according
 | Action Required → Verification Pending | Plain text status message |
 | Action Required → Verification Debt | `Task \| Title \| Issue` |
 | Action Required → Spec Drift | `- ⚠️ **{section}** — {N} tasks affected, deferred {M} days ago` |
+| Action Required → Audit Findings | `bundle-eligible`: `- [ ] **{C-NN}** {description ?? title} — [Fix it]`. Other kinds: `- [ ] **{C-NN}** {description ?? title} *({kind annotation})*` (annotations: `decision` → `*(spec amendment via /iterate)*`; `fix-eligible` → `*(fix-eligible — manual review pending future DEC)*`; `design` → `*(promote to FB → /research)*`). Body field selection per v3.18.0: prefer `description` (plain-English synthesizer-written sentence); fall back to `title` for older audits. Promote (tick + `/audit-{name} promote {audit-ts}`) and Dismiss (natural-language to Claude) are NOT rendered inline per-item — see Audit Findings rule "How to act on findings" above. |
 | Action Required → Feedback | `- 📝 **{N} feedback items** awaiting attention ({X} new, {Y} refined, {Z} ready) → /feedback review` |
 | Action Required → Decisions | `Decision \| Question \| Doc` |
 | Action Required → Your Tasks | `Task \| What To Do \| Where` |

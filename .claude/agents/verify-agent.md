@@ -31,17 +31,9 @@ When `/work` invokes this agent, it specifies the mode. Follow the corresponding
 
 ## Tool Preferences
 
-When running as a subagent, always prefer dedicated tools over Bash for file operations:
+See `.claude/rules/agents.md § Tool Preferences` for the canonical tool/operation mapping that applies to all subagents.
 
-| Operation | Use | NOT |
-|-----------|-----|-----|
-| Read files | `Read` tool | `cat`, `head`, `tail` |
-| Search by filename | `Glob` tool | `find`, `ls` |
-| Search file content | `Grep` tool | `grep`, `rg` |
-| Edit files | `Edit` tool | `sed`, `awk` |
-| Write files | `Write` tool | `echo >`, heredoc |
-
-**Only use Bash for operations that genuinely require shell execution:** git commands, running test suites, running CLI/script deliverables, `curl` for API testing. When a Bash call is needed, combine related commands into a single call (e.g., `git diff --name-only && git status --short`) to minimize permission prompts.
+**Bash usage:** git commands, running test suites, running CLI/script deliverables, `curl` for API testing. When a Bash call is needed, combine related commands into a single call (e.g., `git diff --name-only && git status --short`) to minimize permission prompts.
 
 ## When to Follow This Workflow
 
@@ -87,6 +79,20 @@ When spawned, your caller specifies a turn limit via `max_turns`. Plan your work
 **Phase-level mode (default: 50 turns):** If you reach turn 43 without completing all criteria, return your partial report with `result: "fail"` and `notes: "Verification incomplete — evaluated N of M criteria"` and a single fix task in `fix_tasks_to_create[]`: "Complete phase-level verification". The orchestrator writes verification-result.json and creates the fix task.
 
 The `/work` coordinator handles timeout detection, retry logic, and all persistence. Your job is to prioritize returning a valid report before running out of turns.
+
+## Editorial-Content Budget Guideline
+
+Heavy editorial verification tasks — those involving prose review across multiple markdown files — approach the per-agent budget ceiling. Plan accordingly.
+
+**Heuristic:** If the verification target includes ≥3 substantial markdown/prose files (or any single file >500 lines of prose), plan ≤25 tool calls and consider one of:
+
+- **Split the verification** into a structural pass (file existence, scope clean, cross-refs resolve, tests pass) + a content pass (read prose, judge tone/voice, semantic correctness). Each runs as a separate verify-agent dispatch.
+- **Reduce scope** by returning early with `result: "fail"` and `notes: "Editorial scope exceeds single-pass budget — recommend splitting per § Editorial-Content Budget Guideline"`, allowing the orchestrator to re-decompose into structural + content tasks.
+- **Tighten per-file reads** using `Read` `offset`/`limit` to spot-check rather than full-read substantial files; reserve full reads for files where structural checks suggest content issues.
+
+Default behavior for tasks NOT matching this heuristic: full single-pass verification per the standard workflow.
+
+This guideline calibrates against observed budget overruns (styler T447 verify-agent at 32 tool calls; quota exhausted mid-verification, 2026-04-27). The 25-call / 3-file threshold is a starting point — tighten or relax if observed sessions shift the typical-task budget.
 
 ## Wind-Down Protocol
 
@@ -295,6 +301,7 @@ Default when absent: `"dashboard"` (preserves current behavior).
 - If the task has dependencies: are the outputs of those dependencies consumed correctly?
 - If other tasks depend on this one: does this task produce what they will need?
 - Check: references, interfaces, naming conventions, and file paths that downstream tasks will depend on
+- **Production-consumption check (for class-export tasks):** If any file in `files_affected` declares a top-level class export (pattern: `^export (default )?class \w+` or `export\s+\{[^}]*\b\w+Class\b`), grep for `new {ClassName}\(` across `src/` excluding `__tests__` and `*.test.*`. Pass requires either ≥1 hit OR an explicit "consumer task deferred" note in the task description (e.g., "T85 will instantiate"). Failure sets `integration_ready` to fail with a `major` issue: "Class `{ClassName}` exported but not instantiated in src/ — likely integration gap (structural code shipped, no consumer)". Catches the structural-vs-runtime verification gap (echothread Phase 4 integration gap: 6 module classes exported but never `new`'d; discovered only via interactive Playwright run on T71). Skip the check for tasks where `files_affected` contains no class-exporting files.
 
 ### Step T5b: Rule-Layer Checks
 
@@ -678,9 +685,9 @@ Include a verification report summary as text output alongside your structured r
 
 ## Friction Markers
 
-During verification, observe situations that suggest template improvement opportunities. Include observations in the `friction_markers[]` of your return report. The orchestrator appends each marker to `.claude/support/workspace/.session-log.jsonl`.
+During verification, observe situations that suggest template improvement OR project coherence issues. Include observations in the `friction_markers[]` of your return report. The orchestrator appends each marker to `.claude/support/workspace/.session-log.jsonl` (canonical session log) AND, for audit-eligible kinds, to `.claude/support/friction.jsonl` (audit register — see `.claude/support/reference/friction-register.md`).
 
-**When to emit markers:**
+### Template-improvement kinds (write to session log only)
 
 | Event | Marker type | What to capture |
 |-------|-------------|-----------------|
@@ -689,9 +696,21 @@ During verification, observe situations that suggest template improvement opport
 | Missing verification capability (can't test something that should be testable) | `verification_gap` | What couldn't be verified, what capability would be needed |
 | Spec ambiguity discovered during verification | `spec_ambiguity` | Which spec section, what's unclear |
 
-**Marker object shape (within your return report):** `{"type": "...", "timestamp": "...", "details": "...", "template_area": "..."}`. Note: `task_id` is added by the orchestrator — do not include it yourself.
+### Audit-eligible kinds (also written to friction register)
 
-**Rules:** Same as implement-agent — only emit for template-improvement signals, keep concise, don't interrupt verification flow.
+| Event | Marker type | What to capture |
+|-------|-------------|-----------------|
+| Spec uses term X but implementation (or another spec section) uses term Y for the same concept | `vocab_drift` | The two terms, the spec/code locations of each. Set `source_anchor` to the spec section that needs reconciliation. |
+| Spec mentions a path that doesn't exist on disk, or implementation uses a different path than spec specifies | `path_drift` | Both paths, the spec section. Set `source_anchor` to the spec section that needs updating. |
+| Same concept named differently across spec / decisions / code | `terminology_mismatch` | The variant names, the files. Set `source_anchor` to the canonical reference. |
+| Spec or vision contains contradictory claims you had to navigate around | `design_contradiction` | The conflicting statements, with file refs. Set `source_anchor` to the section needing resolution (usually spec). |
+| Implementation deviates from spec to ship correctly (and spec text wasn't updated) | `spec_implementation_gap` | What deviated, why. Set `source_anchor` to the spec section that no longer matches reality. |
+
+**Marker object shape (within your return report):** `{"type": "...", "timestamp": "...", "details": "...", "template_area": "..." (template-kinds only), "source_anchor": "..." (REQUIRED for audit-eligible kinds)}`. Note: `task_id` and `id` (FR-NNN for audit-eligible) are added by the orchestrator — do not include either yourself.
+
+**Rules:**
+- Template-improvement kinds: same as implement-agent — only emit for genuine template-level signals, keep concise.
+- Audit-eligible kinds: emit when the friction is structural (spec vs reality) and could be cleanup work the user addresses async via `audit-coherence`. Don't emit for in-task fixes you're flagging via `issues[]` — those are verification feedback, not coherence drift.
 
 ## Separation of Concerns
 

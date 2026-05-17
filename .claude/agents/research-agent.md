@@ -20,17 +20,9 @@ Apply deep reasoning when evaluating options against criteria (Step R3) and when
 
 ## Tool Preferences
 
-When running as a subagent, always prefer dedicated tools over Bash for file operations:
+See `.claude/rules/agents.md § Tool Preferences` for the canonical tool/operation mapping that applies to all subagents.
 
-| Operation | Use | NOT |
-|-----------|-----|-----|
-| Read files | `Read` tool | `cat`, `head`, `tail` |
-| Search by filename | `Glob` tool | `find`, `ls` |
-| Search file content | `Grep` tool | `grep`, `rg` |
-| Edit files | `Edit` tool | `sed`, `awk` |
-| Write files | `Write` tool | `echo >`, heredoc |
-
-This agent should rarely need Bash. Use `WebSearch` and `WebFetch` for external research, and dedicated file tools for codebase analysis. Only use Bash if you need to run a build command or script to understand project behavior.
+**Bash usage:** This agent should rarely need Bash. Use `WebSearch` and `WebFetch` for external research, and dedicated file tools for codebase analysis. Only use Bash if you need to run a build command or script to understand project behavior.
 
 ## When to Follow This Workflow
 

@@ -2,6 +2,8 @@
 
 > **Read during decomposition.** `/work` runs these checks as the first step when decomposing a spec into tasks. Runs every decomposition but is most useful on the first one — subsequent decompositions (e.g., after a spec version bump) will typically pass all checks. Advisory only — warnings do not block decomposition.
 
+> **Before customizing, see [`extension-hooks.md`](./extension-hooks.md)** for the canonical map of where project-specific additions go (rules, reference docs, commands, decisions, feedback, operational documents). Modifying template-owned files breaks `/health-check` Part 5 sync hygiene.
+
 ## Checks
 
 ### 1. `.claude/CLAUDE.md` Customization

@@ -8,6 +8,7 @@ Spec review and refinement. Identifies gaps, asks questions, proposes spec chang
 /iterate                    # Review spec, focus on weakest area
 /iterate {topic}            # Focus on a specific spec area
 /iterate distill            # Extract buildable spec from vision document
+/iterate hygiene            # Cross-check spec claims against project's structured artifact
 ```
 
 Assesses spec readiness, asks focused questions (max 4), proposes changes as declarations for user approval.
@@ -150,6 +151,73 @@ Enter distill mode. Extract buildable spec from a vision document.
 - The user can modify or reject any proposed change before it's applied
 
 **Multiple vision documents:** If `.claude/vision/` contains multiple files, Claude lists them and asks which to use. To combine multiple vision docs, run distill once per document and merge the changes into the spec.
+
+---
+
+**If user specified `/iterate hygiene`:**
+
+Enter hygiene mode. Cross-check spec noun-phrase claims about registry/schema state against the project's structured artifact. Surfaces silent spec-vs-registry drift before it accumulates into multiple spec edits.
+
+**Configuration prerequisite:** Read `structured_artifact_path` from `.claude/version.json`. This is the path to the project's structured artifact (e.g., `src/registry/field-definitions.json`, `src/schemas/main.ts`, `config/schema.yaml`). If the field is empty or missing, surface:
+
+```
+Hygiene mode requires `structured_artifact_path` in `.claude/version.json`.
+
+Common values by project shape:
+  - Registry-driven projects: path to field-definitions.json (or similar)
+  - Schema-driven projects: path to the canonical schema file (e.g., src/schemas/main.ts)
+  - Config-driven projects: path to the config root file
+
+Set this value in `.claude/version.json`, then re-run `/iterate hygiene`.
+```
+
+If the path is set but the file doesn't exist, surface "structured_artifact_path points to a non-existent file: {path}. Fix the path or clear the field." and exit.
+
+**Hygiene procedure:**
+
+1. **Load the spec** — read `.claude/spec_v{N}.md`.
+
+2. **Parse the structured artifact** — read the file at `structured_artifact_path`. Best-effort parse depending on extension:
+   - `.json` → parse JSON; flatten to dot-path identifiers (e.g., `subsections.extremities.fields[].id`)
+   - `.ts` / `.js` → grep for `enum`, `type ... =`, exported names
+   - `.yaml` / `.yml` → parse YAML; flatten similarly
+   - `.md` or unknown → read as text; rely on grep-style cross-reference (lossier)
+
+3. **Scan the spec for noun-phrase claims about structured-artifact state.** Patterns to detect:
+   - `the {X} subsection / section / field / type` — descriptive claims
+   - `previously-empty {X}` / `previously {state} {X}` / `now-{state} {X}` — state-change claims
+   - `{X} under section {Y}` / `{X} in {Y}` — structural-location claims
+   - `update the {X} description / label / order` — modification claims (the target attribute must exist)
+
+4. **Cross-reference each claim against the artifact:**
+   - State claims (e.g., "previously-empty extremities"): verify the named region is actually empty/in-state. Mismatch → drift.
+   - Structural claims (e.g., "field Y under section Z"): verify Y is actually under Z. Mismatch → drift.
+   - Modification claims (e.g., "update the X description"): verify X has a `description` attribute. Missing → unimplementable instruction.
+
+5. **Report findings:**
+   ```
+   Hygiene findings — spec v{N} vs {structured_artifact_path}:
+
+     Drift detected ({N}):
+       § [section]: spec says "[claim]"
+                    artifact actually [observed state]
+                    → [NEEDS APPROVAL] for next /iterate propose
+
+       § [section]: spec instruction "[instruction]" references missing attribute [attr]
+                    → instruction unimplementable as written
+
+     No drift on [M] other patterns checked.
+   ```
+
+6. **Offer follow-up actions:**
+   - `[P]` Propose — load drift findings as context for an immediate `/iterate` propose pass; findings appear as `[NEEDS APPROVAL]` items in "Decisions in This Proposal" (Step 4)
+   - `[E]` Export — write findings to `.claude/support/workspace/hygiene-findings-{YYYY-MM-DD}.md` for later review
+   - `[S]` Skip — exit without proposing changes; findings surfaced but no action taken
+
+**Constraints:**
+- The cross-reference is best-effort and grep-based. False positives are expected — surface and ask, never silently rewrite.
+- Don't propose drift fixes inside hygiene mode — surface them and route through the normal propose-approve-apply flow (Step 4) if the user picks `[P]`. This preserves the spec edit policy.
+- Limit the noun-phrase scan to ≤20 patterns per run — large specs can produce too many findings to act on; pick the top-20 by section recency or by user-provided focus topic if hygiene is invoked as `/iterate hygiene {topic}`.
 
 ---
 

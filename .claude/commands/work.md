@@ -160,6 +160,26 @@ When Step 0a found no handoff and Step 0b found no recovery issues (clean start)
 
 Note: This reads task files and dashboard META before Step 1, but Step 1 reads the same data. The summary re-uses data that would be loaded regardless — it's surfaced earlier for user orientation.
 
+#### Step 0d: Friction-Marker Catchup
+
+Reconcile any friction markers persisted to the transient pending buffer in a prior session that never reached the canonical log (DEC-011 Option ABp). Runs once per `/work` invocation, before any agent dispatch.
+
+**Procedure:**
+
+1. If `.claude/support/workspace/.pending-markers.jsonl` does not exist, this step is a no-op — proceed to Step 1.
+2. Read both files (create `.session-log.jsonl` empty if missing):
+   - `.pending-markers.jsonl` — append-only buffer dual-written at agent-return time
+   - `.session-log.jsonl` — canonical log
+3. Build a dedup set from `.session-log.jsonl` entries using the composite key: `(task_id, timestamp, type, sha256(details))`. For entries missing any of these fields, fall back to `sha256(full_json_line)`.
+4. Iterate `.pending-markers.jsonl` entries. For each entry NOT already in the dedup set, append to `.session-log.jsonl`.
+5. Count appended entries. If count > 0, surface inline: `Step 0d: Caught up {N} friction markers from prior session.` (Inform — not an error.)
+6. After successful merge, truncate `.pending-markers.jsonl` (write empty file) — the canonical log now holds the entries.
+7. If the merge fails (read error, write error), do NOT truncate. Surface inline: `Step 0d: Catchup failed ({error}). Pending buffer preserved for retry.`
+
+**Why this exists:** The "After implement-agent returns" protocol Step 2 dual-writes markers to both the pending buffer and the canonical log immediately upon agent return. The pending buffer's purpose is purely the sub-second window where the orchestrator could be terminated between agent return and writes completing. Step 0d guarantees that any markers in the pending buffer that didn't make it to the canonical log are reconciled before the next agent dispatch.
+
+**Composability with PreCompact hook:** `.claude/hooks/pre-compact-handoff.sh` runs the same catchup before its Track 1 export compile. The two entry points (here + PreCompact) cover both "normal /work resume" and "compaction-triggered wind-down" paths.
+
 ### Step 1: Gather Context
 
 **Version discovery:** Determine the current spec version:
@@ -384,7 +404,7 @@ After phase and decision checks, assess whether multiple tasks can be dispatched
 
 **Full procedure:** `.claude/support/reference/parallel-execution.md` § "Parallelism Eligibility Assessment"
 
-**Summary:** Read `parallel_execution` from spec frontmatter (defaults: `enabled: true`, `max_parallel_tasks: 3`). Eligible tasks must be Pending, not human-owned, all deps Finished, in active phase (or `cross_phase: true`), all decision deps resolved, difficulty < 7. Build conflict-free batch by pairwise-comparing `files_affected`. If batch >= 2, set `parallel_mode = true`.
+**Summary:** Read `parallel_execution` from spec frontmatter (defaults: `enabled: true`, `max_parallel_tasks: 3`). Eligible tasks must be Pending, not human-owned, all deps Finished, in active phase (or `cross_phase: true`), all decision deps resolved, difficulty < 7. Build conflict-free batch by pairwise-comparing `files_affected`. If batch >= 2, set `parallel_mode = true`. After batch is built, scan for shared-scaffolding pairs and compose `shared_contract` payloads where applicable (see `parallel-execution.md` § "Shared Scaffolding Contracts") — prevents contradicting per-agent briefs when tasks share allowlists/fixtures.
 
 ### Step 3: Determine Action
 
@@ -537,14 +557,33 @@ After any agent (implement-agent or verify-agent) returns a structured report, t
 1. **Status transition** based on `implementation_status`:
    - `completed`: write `{ "status": "Awaiting Verification", "completion_date": report.completion_date, "updated_date": today, "notes": report.notes }` to task JSON
    - `partial`: leave status "In Progress"; prepend `[PARTIAL]` to notes
+   - `partial_resume_pending` (per DEC-010): leave status "In Progress"; write `{ "partial_completion": report.partial_completion, "updated_date": today, "notes": "[PARTIAL_RESUME_PENDING] " + report.notes }` to task JSON. Surface inline: `Task {id} returned partial — resume scheduled. Confidence: {confidence}. Run /work again to re-dispatch.` Do NOT dispatch verify-agent — verification is gated on `completed`.
    - `blocked`: write `{ "status": "Blocked", "notes": "...", "updated_date": today }`; surface `issues_discovered[]` to user
    - `misaligned`: do not advance status; route to spec-alignment flow with `issues_discovered[]` context
 
-2. **Append friction markers:** for each marker in `report.friction_markers`, add `task_id: report.task_id` and append as a JSON line to `.claude/support/workspace/.session-log.jsonl` (Read existing content, then Write with appended line; if file doesn't exist, create it)
+2. **Append friction markers (DEC-011 Option ABp + audit register).** For each marker in `report.friction_markers`, add `task_id: report.task_id` and **dual-write the marker as a JSON line to BOTH** `.claude/support/workspace/.pending-markers.jsonl` (transient buffer; survives abrupt termination) **AND** `.claude/support/workspace/.session-log.jsonl` (canonical log; consumed by PreCompact + Track 1 export). Append immediately within this step — **do NOT defer to `/work pause` or batch across multiple agent returns**. Markers between an agent return and the next sync point are at risk of permanent loss if the session terminates abruptly; the dual-write narrows that loss window to sub-second.
 
-3. **Dashboard regeneration:** in sequential mode, regenerate `dashboard.md` per `.claude/support/reference/dashboard-regeneration.md`. In parallel mode, defer — handled at batch-end.
+   - Pending-buffer write is append-only: open in append mode, write `{...}\n`, close. No read-modify-write cycle.
+   - Session-log write also appends. If file doesn't exist, create it.
+   - The next `/work` invocation (or PreCompact hook) will reconcile the two files via the catchup procedure in § "Step 0d: Friction-Marker Catchup" below.
+   - If `report.friction_markers` is empty, this step is a no-op — skip all writes.
 
-4. **For `completed` status:** dispatch verify-agent (see "If Verifying (Per-Task)" section) and then apply the "After verify-agent returns" protocol below.
+   **Friction register projection (audit-eligible kinds):** For each marker whose `type` is one of `vocab_drift`, `path_drift`, `design_contradiction`, `terminology_mismatch`, or `spec_implementation_gap`, ALSO append to `.claude/support/friction.jsonl` (the audit register — see `.claude/support/reference/friction-register.md`). The register entry has additional structure beyond the session-log raw marker:
+   - `id`: assigned at append time. Read existing `friction.jsonl` (create if missing), find max existing `FR-NNN`, increment by 1 (zero-padded to 3 digits, starting at FR-001).
+   - `captured`: ISO timestamp from the marker.
+   - `captured_in`: `{"agent": "{agent_type}", "task": "{task_id}", "command": "/work"}`.
+   - `kind`: copy from marker `type`.
+   - `what`: copy from marker `details`.
+   - `source_anchor`: copy from marker `source_anchor` (REQUIRED — if missing on an audit-eligible kind, log a warning and skip the register write; session-log write still happens).
+   - `status`: `"open"`.
+
+   Register write is append-only at insert time. Status updates (later, by `audit-coherence` or user dismissal) use a read-modify-write of the entire file keyed by `id` — see friction-register.md § "Status update protocol".
+
+3. **Persist decisions:** for each entry in `report.decisions_to_record[]`, scan `.claude/support/decisions/decision-*.md` for the highest existing DEC-NNN, assign the next available ID (zero-padded to 3 digits), and Write a new `decision-NNN-{slug}.md` file using the template in `.claude/support/reference/decisions.md`. Populate the Selected/Rationale/Options sections from the report entry. Set frontmatter `status: approved`, `decided: today`, `decided_by: implement-agent`. Subagents cannot write under `.claude/`, so this step is the orchestrator's responsibility — implement-agent only generates content (DEC-004; `rules/agents.md § State Ownership`).
+
+4. **Dashboard regeneration:** in sequential mode, regenerate `dashboard.md` per `.claude/support/reference/dashboard-regeneration.md` — newly persisted decisions surface in the Decisions section. In parallel mode, defer — handled at batch-end.
+
+5. **For `completed` status:** dispatch verify-agent (see "If Verifying (Per-Task)" section) and then apply the "After verify-agent returns" protocol below.
 
 **After verify-agent returns (per-task mode):**
 
@@ -571,6 +610,26 @@ After any agent (implement-agent or verify-agent) returns a structured report, t
 #### If Executing
 
 **Before dispatch:** orchestrator sets task JSON to `{"status": "In Progress", "updated_date": today}`.
+
+**Resume-pending check (per DEC-010):** if the selected task JSON has a `partial_completion` field from a previous dispatch:
+
+1. Read the envelope's `completed_subtargets`, `remaining_subtargets`, `resume_instructions`, `confidence`
+2. Run a git-diff audit on the task's declared `files_affected`:
+   - `git diff --name-only` (combined with `--cached` if needed)
+   - If files in `files_affected` show no diff since the partial dispatch, surface inline: `⚠ Task {id} resume: declared-completed sub-targets show no file changes since partial. Audit may have rolled back. Continue? [Y/N]`
+   - If files outside `files_affected` show diffs, surface inline: `⚠ Task {id} resume: {N} files modified since partial — review before resuming.`
+3. When `confidence: low`, surface: `⚠ Task {id} resume: previous dispatch flagged low confidence in partial state. Spot-check before continuing.`
+4. Inject the envelope content into the dispatch prompt for the re-dispatched implement-agent:
+   ```
+   RESUME-PENDING TASK. Previously completed sub-targets: {completed_subtargets}.
+   Remaining sub-targets: {remaining_subtargets}.
+   Resume instructions from previous dispatch: {resume_instructions}.
+   Confidence in prior state: {confidence}.
+   Before continuing, spot-check that the declared completed sub-targets are
+   actually present in the deliverable. If any are missing, treat them as
+   remaining_subtargets instead.
+   ```
+5. **After re-dispatch returns** `completed` or a fresh `partial_resume_pending`: clear the `partial_completion` field from the task JSON. (For fresh `partial_resume_pending`, the new envelope replaces the old.)
 
 Dispatch implement-agent (Task tool with `model: "opus[1m]"`) instructing it to read `.claude/agents/implement-agent.md` and follow Steps 1-6. Agent returns a structured report.
 
@@ -825,17 +884,45 @@ Use `/work complete` for manual task completion outside of implement-agent's wor
      ```
    - If deliverables pass validation: proceed silently to step 3c
 3c. **Collect completion notes (interactive):**
-   Ask the user for feedback inline in the CLI conversation:
+
+   Ask for two clearly-separated kinds of notes so the user does not have to context-switch between project-focused and template-focused thinking. The two prompts run in sequence; each is independently skippable with Enter.
+
+   **First prompt — Project notes (always shown):**
 
    ```
-   Task {id}: "{title}" — any notes on how this went?
-   (Type your notes, or press Enter to skip)
+   Task {id}: "{title}" — any notes about the work itself? (Enter to skip)
+   (decisions made, follow-ups, gotchas, anything worth remembering for this task)
+   >
    ```
 
-   - If the user provides feedback → store in `user_feedback` field
-   - If the user skips → proceed without feedback
-   - This is the PRIMARY feedback path for `/work complete`
-   - Dashboard FEEDBACK markers remain as an ASYNC alternative — if the user wrote feedback in the dashboard before running `/work complete`, Step 4b captures it as fallback
+   - If non-empty: store in the task's `user_feedback` field
+   - If empty: proceed without setting `user_feedback`
+
+   **Second prompt — Template notes (shown only if `template_inbox_path` is configured in `.claude/version.json`):**
+
+   ```
+   Any notes about how Claude or the workflow handled this? (Enter to skip — bridges to template repo)
+   (e.g. a step that felt off, an instruction that was unclear, something the template could do better)
+   >
+   ```
+
+   - If non-empty: invoke the `/feedback template:` Mode 1 procedure with these notes as the capture body. Prepend a source line to the body so the template-side FB entry carries task context:
+     ```
+     Captured during /work complete on Task {id}: "{title}".
+
+     [user's template notes]
+     ```
+     Mode 1 writes the local `FB-NNN` entry and, since `template_inbox_path` is set, writes the bridge export to the template inbox.
+   - If empty: proceed without creating a template feedback item.
+
+   **Why the conditional second prompt:** When `template_inbox_path` is unset, capturing template notes would create local-only FB entries in the downstream project that the user then has to carry over manually — the same friction the bridge was built to eliminate. Skipping the prompt when the bridge is disabled keeps the UX honest: we only ask the user to write template feedback when there is a destination for it.
+
+   **Language principles for both prompts:**
+   - Plain English only. Do not use template-internal terminology in user-facing prompt text (no "spec drift", "friction signal", "scope creep", "user_feedback signal", etc.).
+   - Each label states what the prompt is for AND where the input lands. The user should not have to guess.
+   - The two prompts are visually adjacent but clearly labeled — the user can tell at a glance which slot they are filling in.
+
+   This is the PRIMARY feedback path for `/work complete`. Dashboard FEEDBACK markers remain as an ASYNC alternative for project notes — if the user wrote feedback in the dashboard before running `/work complete`, Step 4b captures it as fallback. (A template-side dashboard marker is not yet implemented; the second prompt is currently the only path for template notes during `/work complete`.)
 4. **Check work** - Review all changes made for this task
    - Look for bugs, edge cases, inefficiencies
    - If issues found, fix them before proceeding

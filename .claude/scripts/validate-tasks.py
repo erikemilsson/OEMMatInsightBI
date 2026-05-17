@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 REQUIRED_FIELDS = {
-    "task_id", "title", "description", "status", "difficulty", "owner",
+    "id", "title", "description", "status", "difficulty", "owner",
     "dependencies", "files_affected",
 }
 
@@ -101,7 +101,7 @@ def main() -> int:
             validation_errors[f.name] = errs
         d = check_verification_debt(data)
         if d:
-            debt.append({"file": f.name, "task_id": data.get("task_id"), "reason": d})
+            debt.append({"file": f.name, "task_id": data.get("id"), "reason": d})
 
     summary = {
         "task_count": len(files),

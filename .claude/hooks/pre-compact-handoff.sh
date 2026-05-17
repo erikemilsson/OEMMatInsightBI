@@ -141,18 +141,52 @@ with open(handoff_path, "w") as f:
 
 workspace_dir = os.path.join(project_dir, ".claude", "support", "workspace")
 session_log_path = os.path.join(workspace_dir, ".session-log.jsonl")
+pending_markers_path = os.path.join(workspace_dir, ".pending-markers.jsonl")
 version_path = os.path.join(project_dir, ".claude", "version.json")
 
-markers = []
-if os.path.exists(session_log_path):
-    with open(session_log_path) as f:
+# DEC-011 Option ABp: friction-marker catchup before reading the canonical log.
+# Merge any entries from the pending buffer that didn't reach the session log
+# (covers the sub-second window between agent return and dual-write completion).
+import hashlib
+
+def _marker_key(entry):
+    """Composite dedup key: (task_id, timestamp, type, sha256(details))."""
+    task_id = entry.get("task_id", "")
+    timestamp = entry.get("timestamp", "")
+    mtype = entry.get("type", "")
+    details = entry.get("details", "")
+    if task_id and timestamp and mtype:
+        return (task_id, timestamp, mtype, hashlib.sha256(str(details).encode()).hexdigest())
+    return hashlib.sha256(json.dumps(entry, sort_keys=True).encode()).hexdigest()
+
+def _read_jsonl(path):
+    entries = []
+    if not os.path.exists(path):
+        return entries
+    with open(path) as f:
         for line in f:
             line = line.strip()
-            if line:
-                try:
-                    markers.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue
+            if not line:
+                continue
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return entries
+
+if os.path.exists(pending_markers_path):
+    session_entries = _read_jsonl(session_log_path)
+    pending_entries = _read_jsonl(pending_markers_path)
+    seen = {_marker_key(e) for e in session_entries}
+    new_entries = [e for e in pending_entries if _marker_key(e) not in seen]
+    if new_entries:
+        with open(session_log_path, "a") as f:
+            for entry in new_entries:
+                f.write(json.dumps(entry) + "\n")
+    # Truncate pending buffer after successful merge
+    open(pending_markers_path, "w").close()
+
+markers = _read_jsonl(session_log_path)
 
 # Only write export if there are markers
 if markers:

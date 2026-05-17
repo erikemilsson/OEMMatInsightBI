@@ -41,3 +41,13 @@ If a script is absent or fails, fall back to the prose procedure.
 Each script mirrors a reference doc. When a reference doc changes, the matching script must change in lockstep — otherwise the script's output diverges from what the prose promises. Before editing the recipe in a reference doc, search for script call sites and update both.
 
 Candidate follow-up: `task-schema.json` as a single machine-readable source of truth, eliminating the dual-edit risk for `validate-tasks.py`. Deferred pending user decision.
+
+## Testing
+
+Tests live in `.claude/scripts/tests/`. Run from the repo root:
+
+```bash
+python3 -m unittest discover .claude/scripts/tests/
+```
+
+Coverage is intentionally lightweight — happy-path + key error modes per script. The intent is to catch field-name drift (the FB-039 class of bug) and obvious regressions in CLI behavior. Not a substitute for the dual-edit discipline in § "Dual-location risk".

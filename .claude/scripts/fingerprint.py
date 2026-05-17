@@ -52,7 +52,7 @@ def hash_dashboard_rollup(task_dir: Path) -> str:
     for task_file in sorted(task_dir.glob("task-*.json")):
         try:
             data = json.loads(task_file.read_text(encoding="utf-8"))
-            entries.append(f"{data['task_id']}:{data['status']}")
+            entries.append(f"{data['id']}:{data['status']}")
         except (json.JSONDecodeError, KeyError) as e:
             print(f"warning: skipping {task_file.name} ({e})", file=sys.stderr)
     entries.sort()

@@ -21,17 +21,9 @@ Match reasoning depth to task complexity. This agent benefits from Opus 4.7's ad
 
 ## Tool Preferences
 
-When running as a subagent, always prefer dedicated tools over Bash for file operations:
+See `.claude/rules/agents.md § Tool Preferences` for the canonical tool/operation mapping that applies to all subagents.
 
-| Operation | Use | NOT |
-|-----------|-----|-----|
-| Read files | `Read` tool | `cat`, `head`, `tail` |
-| Search by filename | `Glob` tool | `find`, `ls` |
-| Search file content | `Grep` tool | `grep`, `rg` |
-| Edit files | `Edit` tool | `sed`, `awk` |
-| Write files | `Write` tool | `echo >`, heredoc |
-
-**Only use Bash for operations that genuinely require shell execution:** running build commands, executing scripts, installing dependencies, git operations. When multiple Bash commands are needed, combine them into a single call where possible to minimize permission prompts.
+**Bash usage:** running build commands, executing scripts, installing dependencies, git operations. When multiple Bash commands are needed, combine them into a single call where possible to minimize permission prompts.
 
 **Editing strategy for structured documents (Markdown, JSON, YAML):**
 - **Surgical single-point change** → use `Edit` tool (targeted replacement)
@@ -135,16 +127,17 @@ After self-review (Step 5), construct and return the structured implementation r
 ```json
 {
   "task_id": "string (e.g., '7' or '7.2')",
-  "implementation_status": "completed | partial | blocked | misaligned",
+  "implementation_status": "completed | partial | partial_resume_pending | blocked | misaligned",
   "completion_date": "YYYY-MM-DD (null if not completed)",
   "notes": "one-paragraph summary including [Multi-file: N] flag when N>=2 files modified",
   "files_modified": ["relative/path/to/file"],
   "friction_markers": [
     {
-      "type": "workflow_deviation | spec_drift | informal_decision | scope_creep | user_feedback_signal | template_gap",
+      "type": "workflow_deviation | spec_drift | informal_decision | scope_creep | user_feedback_signal | template_gap | vocab_drift | path_drift | design_contradiction | terminology_mismatch | spec_implementation_gap",
       "timestamp": "ISO 8601",
-      "details": "one-sentence summary",
-      "template_area": "which template file/section the marker applies to"
+      "details": "one-sentence summary (plain English; no template jargon)",
+      "template_area": "which template file/section the marker applies to (template-improvement kinds only)",
+      "source_anchor": "file + section reference, e.g. 'spec_v13.md § 42.5' (REQUIRED for audit-eligible kinds: vocab_drift, path_drift, design_contradiction, terminology_mismatch, spec_implementation_gap)"
     }
   ],
   "issues_discovered": [
@@ -153,13 +146,32 @@ After self-review (Step 5), construct and return the structured implementation r
       "description": "one-sentence description",
       "suggested_action": "create new task | flag for human | proceed | stop and report"
     }
-  ]
+  ],
+  "decisions_to_record": [
+    {
+      "title": "short title for the decision",
+      "summary": "one-sentence summary of what was decided",
+      "options_considered": ["Option A", "Option B"],
+      "selected_option": "Option A",
+      "rationale": "why this option over the others",
+      "related_task_ids": ["7"]
+    }
+  ],
+  "partial_completion": {
+    "completed_subtargets": ["short label per work unit done in this dispatch"],
+    "remaining_subtargets": ["short label per work unit still pending"],
+    "resume_instructions": "brief prose for the next dispatch — where to start, what precedent to follow",
+    "confidence": "high | moderate | low"
+  }
 }
 ```
+
+**`partial_completion` is only set when `implementation_status == "partial_resume_pending"`.** Omit the field entirely for other status values. See "Approaching Usage Limits" under Handling Issues for detection triggers and field semantics (per DEC-010 Option C).
 
 **Completion status values:**
 - `completed` — all work done per spec, ready for verification
 - `partial` — wind-down triggered mid-implementation; orchestrator leaves status as "In Progress" with `[PARTIAL]` notes
+- `partial_resume_pending` — usage-limit-driven graceful cut with a structured `partial_completion` envelope (see "Approaching Usage Limits"). Orchestrator persists the envelope, leaves status as "In Progress", and re-dispatches on next `/work` with the envelope content injected.
 - `blocked` — cannot proceed; orchestrator sets status to "Blocked"
 - `misaligned` — implementation revealed spec conflict; orchestrator handles spec-check conversation
 
@@ -168,10 +180,13 @@ After self-review (Step 5), construct and return the structured implementation r
 **What the orchestrator does with your report:**
 - For `completed`: sets status to "Awaiting Verification", writes your notes/completion_date, dispatches verify-agent
 - For `partial`: leaves status "In Progress", prepends `[PARTIAL]` to notes, returns control to `/work`
+- For `partial_resume_pending`: leaves status "In Progress", persists `partial_completion` envelope on the task JSON, prepends `[PARTIAL_RESUME_PENDING]` to notes. Next `/work` reads the envelope, runs a git-diff audit, and re-dispatches with the envelope injected into the prompt
 - For `blocked`: sets status to "Blocked", returns control with your `issues_discovered` list
 - For `misaligned`: does not advance status, routes to spec-alignment flow
 
-In all cases, the orchestrator appends your `friction_markers` to `.claude/support/workspace/.session-log.jsonl` and regenerates the dashboard (per phase-end policy). You do not perform any of these persistence steps yourself.
+In all cases, the orchestrator appends your `friction_markers` to `.claude/support/workspace/.session-log.jsonl` (canonical session log) AND, for audit-eligible kinds (`vocab_drift`, `path_drift`, `design_contradiction`, `terminology_mismatch`, `spec_implementation_gap`), to `.claude/support/friction.jsonl` (audit register, consumed by `audit-coherence` — see `.claude/support/reference/friction-register.md`). The orchestrator assigns `FR-NNN` ids and `status: open` for register entries. You do not perform any of these persistence steps yourself.
+
+**When to emit audit-eligible friction markers:** during implementation, when you notice (a) the spec uses one term but the existing implementation uses a different one (`vocab_drift` / `terminology_mismatch`), (b) the spec references a path that doesn't exist or differs from canonical filesystem state (`path_drift`), (c) the spec or vision contains contradictory claims you had to navigate around (`design_contradiction`), or (d) implementation needed to deviate from the spec to ship correctly (`spec_implementation_gap`). Set `source_anchor` to the file + section that needs updating. The orchestrator persists; `audit-coherence` later surfaces these as cleanup work.
 
 ## Implementation Guidelines
 
@@ -185,6 +200,20 @@ Stay within task boundaries:
 ### Root Cause Over Symptom
 
 When an error surfaces during implementation, fix the underlying cause rather than silencing it. Suppressing warnings, skipping tests, adding try/except with empty bodies, or using magic-number overrides to paper over a problem is not completion — it's a deferred bug. If you cannot fix the root cause in this task's scope, return `implementation_status: "blocked"` with an `issues_discovered` entry describing the cause. See `.claude/rules/agents.md § "Root Cause Over Symptom"` for the full rule and exceptions.
+
+### Synchronized Locations: Enums, Unions, Dispatchers
+
+When a task adds a new enum value, string-literal union member, or any value that's enumerated in multiple places (TS union types, Zod/Pydantic enum schemas, dispatcher case statements, validator switch arms, configuration whitelists), the task's declared `files_affected` may miss some extension points.
+
+**Before editing**, grep for the existing enum's identifier across the codebase to surface ALL synchronized locations. Typical extension points:
+
+- TypeScript / type-union declarations (e.g., `type CaptureMethod = 'X' | 'Y'`)
+- Zod / Pydantic / Yup enum schemas (e.g., `z.enum([...])`)
+- Dispatcher case statements / switch arms (e.g., `switch (method) { case 'X': ... }`)
+- Validator handlers (e.g., loader switch on field type)
+- Configuration whitelists / allowlists / fixtures
+
+Extend each location in the same task — don't trust `files_affected` to be exhaustive for enum-related work, since declared scope often under-counts. If you find extension points outside the declared `files_affected`, include them in your `files_modified` return-report list and add a friction marker (type: `template_gap`, details: "files_affected under-counted enum extension points") so the orchestrator can refine future decompositions.
 
 ### Progress Tracking
 
@@ -219,10 +248,10 @@ If task grows larger than expected:
 ### Decisions Made During Implementation
 
 If you make a significant choice during implementation:
-1. Read `.claude/support/reference/decisions.md` for the format and example
-2. Create a `decision-*.md` file in `.claude/support/decisions/` using that template (decision records live outside `.claude/tasks/`, so subagent writes there are permitted)
-3. Add an `issues_discovered` entry (type: `decision_made`) referencing the decision ID — the orchestrator ensures the decision is surfaced on the dashboard
-4. **Rule:** Never reference a decision ID without a corresponding file
+1. Read `.claude/support/reference/decisions.md` for the decision record format and required fields
+2. Generate the decision content (title, summary, options considered, selected option, rationale, related task IDs) and include it in your return report under the `decisions_to_record` array (see Return schema above)
+3. Add an `issues_discovered` entry (type: `decision_made`, suggested_action: `flag for human`) noting that a decision was recorded — the orchestrator assigns the DEC-NNN ID when it creates the file and surfaces it on the dashboard
+4. **Never write `decision-*.md` files yourself.** Subagents are sandboxed from `.claude/` writes (DEC-004; `rules/agents.md § State Ownership`). The orchestrator owns this write. Follows the same report-pattern as research-agent (see `research-agent.md` § "If no decision record exists").
 
 ### Spec Misalignment Discovered
 
@@ -231,6 +260,38 @@ If during implementation you realize something doesn't align with spec:
 2. Describe the misalignment in `notes` and in an `issues_discovered` entry (type: `spec_misalignment`)
 3. The orchestrator handles the spec-check conversation with the user
 4. Don't proceed with misaligned work
+
+### Approaching Usage Limits
+
+When you sense an approaching usage limit AND have unfinished sub-targets, return a structured `partial_completion` envelope instead of pushing through. The envelope lets the next dispatch resume cleanly without re-deriving context from git diff + task notes. See DEC-010 for the design rationale.
+
+**Detection signals (either triggers the envelope):**
+
+- `tool_uses` count > 75% of your `max_turns` AND remaining sub-targets > 0
+- The Claude Agent SDK has emitted an in-band wrap-up message ("wrap up immediately — provide your final answer now"). Treat that message as authoritative — it precedes the `error_max_turns` terminal signal
+
+**To return a partial-resume envelope:**
+
+1. Set `implementation_status: "partial_resume_pending"` (not `partial` — that's for `/work pause`-triggered wind-downs)
+2. Populate the `partial_completion` object:
+   - `completed_subtargets`: short labels (~5-15 words each) for work units done in this dispatch. Examples: `"field_X (4 buckets, validated against precedent)"`, `"auth-flow integration test setup"`. Sub-targets are named work items the agent decomposed mentally — not files, not workflow steps
+   - `remaining_subtargets`: short labels for work units still pending. Same shape as completed
+   - `resume_instructions`: brief prose (1-3 sentences) telling the next dispatch where to start and what precedent to follow. Example: `"Resume from field_Z. Follow same bucket-taxonomy precedent established for field_X. After all remaining sub-targets, sweep audit to confirm 0 violations."`
+   - `confidence`:
+     - `high` — clean boundary: finished a logical unit; declared remaining work has not been started
+     - `moderate` — mid-unit boundary: declared completed sub-targets verified by self-review; remaining sub-targets are in flux
+     - `low` — rushed boundary: SDK wrap-up fired before self-review; declared completed sub-targets not independently re-checked
+3. Do NOT include `completion_date` (work is incomplete)
+4. List every file you modified during this dispatch in `files_modified[]`. Orchestrator audits at re-dispatch via `git diff` — declared-completed sub-targets that don't show up in the diff surface as warnings
+
+**Sub-targets vs files vs steps:** sub-targets are the right unit. File-level under-counts work (one file may host 18 named sub-targets — T433 reference). Step-level over-counts (you're always mid-Step 4 when this fires). Sub-targets match the agent's own mental decomposition.
+
+**Failure modes if the envelope is wrong:**
+- Over-claim (declared `completed`, actually half-done) — orchestrator's git-diff audit catches missing edits before re-dispatch starts work
+- Under-claim (declared `remaining`, actually done) — re-dispatched agent re-does the work; cost is duplicate effort, not corruption
+- Phantom files (declared sub-target complete but Bash call failed silently) — orchestrator's audit catches this; the spot-check instruction in the re-dispatch prompt asks the agent to verify before continuing
+
+When `confidence: low`, the orchestrator surfaces a "Resume cautiously" warning to the user rather than silently re-dispatching.
 
 ## Friction Markers
 

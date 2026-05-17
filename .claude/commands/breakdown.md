@@ -15,7 +15,7 @@ Split a complex task into smaller subtasks.
 ## Process
 
 1. Identify logical components (aim for 3-6 subtasks)
-3. Create subtask files (inheriting spec provenance from parent):
+2. Create subtask files (inheriting spec provenance from parent):
    ```json
    {
      "id": "{parent_id}_{n}",
@@ -36,7 +36,7 @@ Split a complex task into smaller subtasks.
    **Also copy eligibility flags from parent:**
    - If parent has `cross_phase: true`, each subtask inherits `cross_phase: true`. User can remove it from individual subtasks manually if needed.
    - If parent has `parallel_safe: true`, inheritance is per-subtask based on whether the subtask has file side effects (do not auto-inherit).
-4. Update parent task:
+3. Update parent task:
    ```json
    {
      "status": "Broken Down",
@@ -44,7 +44,7 @@ Split a complex task into smaller subtasks.
      "notes": "Broken down into 3 subtasks"
    }
    ```
-5. **Regenerate dashboard** - Follow `.claude/support/reference/dashboard-regeneration.md`
+4. **Regenerate dashboard** - Follow `.claude/support/reference/dashboard-regeneration.md`
    - This ensures metadata block, footer, user section backup, and section toggles are handled consistently
 
 ## Examples

@@ -109,7 +109,7 @@ Array of objects, one per task actively being worked on at wind-down. Usually on
 | `agent` | String | Yes | `"implement"`, `"verify"`, or `"coordinator"`. |
 | `agent_step` | String | Yes | Where in the agent workflow. Reference step names from agent definitions (e.g., `"Step 4 (implementation)"`, `"Step T3 (spec alignment)"`). |
 | `partial` | Boolean | Yes | Whether work is incomplete. |
-| `partial_notes` | String | No | What was done and what remains. Same style as Completion Notes Contract. Only when `partial: true`. |
+| `partial_notes` | String or Object | No | What was done and what remains. Accepts (a) a string in the Completion Notes Contract style (current shape, used for `/work pause`-triggered wind-downs), OR (b) a `partial_completion` envelope object per DEC-010 Option C for usage-limit-triggered graceful cuts. The object shape: `{ completed_subtargets: [], remaining_subtargets: [], resume_instructions: "", confidence: "high\|moderate\|low" }`. Old string-form handoffs continue to parse — the union is additive. Only when `partial: true`. |
 | `files_modified_this_session` | Array | No | Files actually touched this session. Supplements `files_affected` on task JSON. |
 | `ready_for_verify` | Boolean | Yes | Whether implementation is complete enough to spawn verify-agent. |
 

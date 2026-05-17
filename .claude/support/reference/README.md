@@ -37,6 +37,7 @@ The reference files form a layered system. Commands (`work.md`, `health-check.md
 | `extension-patterns.md` | Phases and decisions patterns for complex projects |
 | `setup-checklist.md` | Template configuration checks (CLAUDE.md placeholders, version.json), run during decomposition |
 | `automation.md` | `claude -p` primitive + fan-out pattern for inter-session automation |
+| `inline-command-pattern.md` | Canonical pattern for composable slash commands (child runs both standalone and inline from a parent). Pattern reference only — template does not ship inline-capable commands. |
 | `desktop-project-prompt.md` | Instructions for Claude Desktop ideation sessions |
 
 ## Related READMEs (in sibling directories)

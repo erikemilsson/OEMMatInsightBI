@@ -1,6 +1,6 @@
 ---
 name: decomposition-heuristics
-description: Procedure and guidelines for decomposing a spec into granular tasks. Use when decomposing a spec (e.g., running /work decomposition step), creating task JSON files from spec sections, setting task provenance fields (spec_fingerprint, section_fingerprint, phase, cross_phase), computing spec/section hashes for drift detection, or organizing tasks into implementation stages (Foundation, Core Features, Polish, Validation). Covers all 10 decomposition steps, task creation fields, difficulty bounds, phase/cross-phase assignment heuristics, and decomposition quality checks.
+description: Procedure and guidelines for decomposing a spec into granular tasks. Use when decomposing a spec (e.g., running /work decomposition step), creating task JSON files from spec sections, setting task provenance fields (spec_fingerprint, section_fingerprint, phase, cross_phase), computing spec/section hashes for drift detection, or organizing tasks into implementation stages (Foundation, Core Features, Polish, Validation). Covers all 10 decomposition steps, task creation fields, difficulty bounds, phase/cross-phase assignment heuristics, decomposition quality checks, the post-step-8 decomposition pre-pass validation (path resolution + ripple inference heuristics), and test-harness awareness for runtime-shaped tasks (scenario-authoring subtask proposal when a project-conventional harness directory exists).
 ---
 
 <!-- During Skills trial (DEC-007 Option B, 2026-04-17): this Skill mirrors `.claude/support/reference/decomposition.md`. Update both files in sync until one is retired. -->
@@ -34,10 +34,134 @@ Procedure for breaking a spec into granular tasks. Run as `/work` Step 4 "If Dec
    - `section_fingerprint` — Hash of specific section computed in step 6
    - `section_snapshot_ref` — Snapshot filename (e.g., "spec_v1_decomposed.md")
    - **Important:** Create all task JSON files before regenerating the dashboard. Every task must have a `task-*.json` file — the dashboard is generated from these files, never the other way around.
+   - **After creating task JSONs:** run the Decomposition Pre-Pass Validation (below) to catch declared-path drift and under-counted `files_affected`, and the Test-Harness Awareness check (below) to propose scenario-authoring subtasks for runtime-shaped tasks — both run before tasks ship to `/work` Step 2c.
 
 9. **Map dependencies** — What must complete before what.
 
 10. **Regenerate dashboard** — Follow `.claude/support/reference/dashboard-regeneration.md` in full.
+
+---
+
+## Decomposition Pre-Pass Validation
+
+Runs after step 8 (Create task files). Catches two recurring failure modes that surface as implementer-side friction (~3 wasted tool uses per path-correction; friction markers across ~40% of large-batch sessions).
+
+### Leg 1: Path Resolution Check
+
+For each task JSON just created, verify that every path in `files_affected` exists. Also scan the task `description` for path-shaped tokens (matches like `src/components/.../*.tsx`, `tests/.../*.test.py`) and verify those resolve too.
+
+For any non-resolving path, surface inline:
+
+```
+Decomposition warning: Task {id} references non-existent path
+  declared: src/components/grooming/GroomingSection.tsx
+  closest match: src/components/style/GroomingSection.tsx
+  → fix the task before continuing? [Y/N]
+```
+
+Use a fuzzy-match (e.g., `Glob` for the basename) to suggest the closest existing path. If no match, leave the warning and let the user correct. Do not auto-rewrite — the suggestion may be wrong.
+
+### Leg 2: Ripple Inference
+
+For each task, run targeted greps to surface ripple-affected files the declared `files_affected` may miss. Five detection heuristics:
+
+| Pattern in task description | Grep target | Add to candidates |
+|----------------------------|-------------|-------------------|
+| `remove X` / `retire X` / `deprecate X` (where X is a field, type, or constant) | `grep -r "X"` across `**/__tests__/**`, `**/*.test.{ts,py,js}`, paths matching `*fixture*` / `*mock*` | Test/fixture files containing the value |
+| `.max(N)` → `.max(M)` or any threshold change | `grep -r "{old_threshold}"` in fixture files | Fixtures with hard-coded values that share the schema-constant's name |
+| New test files under `__tests__` / sibling-test convention | Read `package.json` `scripts.test` — if it chains explicit paths (vs glob), suggest `package.json` | `package.json` for chain-style test runners |
+| Validator-walk extension (Zod/Pydantic `superRefine`, strict-parse) | `grep -r "{ParserSchemaName}\.parse\|\.{ParserSchemaName}\.safeParse"` | Downstream callers |
+| New enum / literal-union / `as const` member (e.g., `add 'foo' to CriterionId`, extending `type Kind = 'a' \| 'b'`, extending `const X = [...] as const`) | `grep -rln "{EnumName}" src/ tests/` to find importers; inspect each for `switch(...)` over the enum or `Record<EnumName, ...>` maps | Files that switch / map over the enum (parsers, formatters, header maps); barrel re-exports; test factories that build instances per enum case |
+
+For each candidate, surface:
+
+```
+Decomposition note: Task {id} may be under-counting files_affected
+  declared: [field-definitions.json]
+  candidates from ripple grep: registry-loader.test.ts (matches "life_stage" in fixture)
+  → add to files_affected? [Y/N]
+```
+
+Like Leg 1, do not auto-add — present and ask. Both legs are advisory: they reduce implementer friction without blocking decomposition if the user disagrees.
+
+### When to Run
+
+- Always after step 8 of the standard procedure
+- Optionally as a standalone check on existing task files (via `/health-check` integration — see future scope)
+- Skip for trivial decompositions (≤3 tasks, all touching disjoint single files)
+
+### Limits
+
+The heuristics are deliberately narrow — they catch the dominant friction patterns (verified across styler Phase 20: 12+ tasks, ~40% with files_affected under-counts) without trying to be exhaustive. Function-name drift, deep import-graph ripples, and runtime-only dependencies remain implementer-side discovery work; that's acceptable given the alternative (full static analysis at decomposition time) is much more expensive.
+
+---
+
+## Test-Harness Awareness
+
+When decomposing tasks for projects with a programmatic test harness (Playwright-driven scenarios, CLI-driven simulations, etc.), prefer authoring scenario scripts over manual user verification of runtime/UI behavior. Catches the pattern echothread surfaced: a reusable harness gets re-discovered each cycle because decomposition doesn't reach for it automatically.
+
+### Detection
+
+A task is **harness-eligible** if ANY of these hold:
+
+- `interaction_hint` is `cli_direct`
+- `files_affected` includes paths matching a runtime-surface glob — defaults: `src/engine/**`, `src/audio/**`, `src/renderer/**`, `src/ui/**`, `src/components/**`, `src/game/**`. Projects can extend the glob list via a one-line declaration in root `./CLAUDE.md` (e.g., `**Runtime-surface paths:** src/engine/**, src/audio/**, src/headless/**`).
+- `test_protocol` describes runtime/UI behavior (e.g., "drive the runtime through state X and observe Y", "click button Z and confirm UI", any interactive verification step)
+
+If none hold, skip the check — the task is not runtime-shaped.
+
+### Harness-directory scan
+
+Look for a project-conventional harness directory at project root:
+
+1. First, read root `./CLAUDE.md` for an explicit declaration (e.g., a one-line `**Harness directory:** path/to/scenarios/`). If present, use it.
+2. Otherwise, scan for conventional names in order: `tooling/test-scenarios/`, `tooling/scenarios/`, `tests/scenarios/`, `e2e/scenarios/`. The first one that exists wins.
+3. If none exist, the project hasn't adopted a harness convention — see fallback below.
+
+### Decomposition action
+
+**If harness directory exists AND no scenario covers this task's surface** — check for `<harness-dir>/{task-id}.{ts,py,js,mjs}` or any file containing `{task-id}` in its basename — propose a scenario-authoring subtask:
+
+```
+Task {id}_h: Author <harness-dir>/{id}.{ext}
+  description: "Author a programmatic scenario script so task {id}'s runtime
+                check can be re-run via the harness. The scenario should drive
+                the runtime surface to the state {id} verifies. See root
+                ./CLAUDE.md for the harness API."
+  difficulty: 3
+  owner: claude
+  dependencies: [{id}]
+  files_affected: [<harness-dir>/{id}.{ext}]
+```
+
+The subtask is dispatched after the parent finishes — its job is to convert the verification path from "manual user playthrough" to "re-runnable scenario." Surface the subtask inline:
+
+```
+Decomposition note: Task {id} is harness-eligible (interaction_hint: cli_direct)
+  → propose subtask: Author <harness-dir>/{id}.ts
+  Accept? [Y/N]
+```
+
+**If harness directory does NOT exist**, surface inline:
+
+```
+Decomposition note: Task {id} is harness-eligible but no harness directory found.
+  Consider authoring `tooling/test-scenarios/` (or equivalent) + documenting the
+  harness API in root ./CLAUDE.md. Capture via /feedback if worth pursuing.
+  (Continuing with manual-verification path for now.)
+```
+
+Do not force the convention — the absence of a harness directory is a legitimate project state; the note is a soft signal, not a blocker.
+
+### When to Run
+
+- Always after step 8 of the standard procedure, alongside the Pre-Pass Validation
+- Skip for trivial decompositions (≤3 tasks, all touching disjoint single files)
+- Skip when the user explicitly opts out via task notes (e.g., `notes: "no harness scenario needed — pure refactor"`)
+
+### Limits
+
+The heuristic proposes the subtask but does not author the scenario itself. The scenario author (implement-agent dispatched to the `_h` subtask) needs to know the harness API — projects with a harness directory should document their API in root `./CLAUDE.md` (entry-point function, available globals, scenario-script conventions) so the implement-agent can find it. Without that documentation, the subtask is harder to execute — the heuristic ships the suggestion but project-side documentation closes the loop.
 
 ---
 
@@ -81,6 +205,46 @@ When decomposing the spec, organize tasks into logical implementation stages:
 | **Validation** | Testing, documentation, verification | Unit tests, integration tests, documentation, acceptance checks |
 
 These are organizational stages for tasks within the Execute phase, not workflow phases.
+
+---
+
+## Research-spike Pattern
+
+Some tasks have the shape **methodology → empirical loop → analysis**: research spikes investigating a library's behavior, perceptual A/Bs (pick design A vs B), onboarding sniff tests, dogfood cycles. The empirical step requires a human-only sensor (taste, perception, paste-an-image, run-and-observe) that Claude cannot substitute for; the surrounding methodology and analysis are Claude work. Filing the whole spike as `owner: claude` leaves the human loop invisible to dispatch and the dashboard; `owner: both` is documented for review-shaped work (Claude drafts → human refines), not for empirical apparatus.
+
+### Trigger
+
+The task shape combines (a) a methodology Claude can author, (b) an empirical loop only the human can run, and (c) an analysis Claude can synthesize once results come back. If any leg is absent (e.g., pure code change, pure design review), this pattern doesn't apply.
+
+### Decomposition
+
+For spikes where the empirical loop is independently worth tracking on the dashboard, use `/breakdown` to split into 2–3 sub-tasks:
+
+```
+TXXXa (owner: claude)                       — authors methodology, drafts empirical-prompt, stubs analysis shell
+   ↓ blocks
+TXXXb (owner: human, deps: [TXXXa])         — runs empirical loop, reports inline, self-attests via /work complete
+   ↓ blocks
+TXXXc (owner: claude, deps: [TXXXa, TXXXb]) — synthesizes results into the final report  ← optional
+```
+
+### Collapse rule
+
+If the empirical step is a single user action with no iteration (e.g., "paste one image", "click one button"), collapse to a single `owner: claude` task with an in-prose hand-off. The paired structure is for spikes whose human loop is independently worth tracking — multi-step protocols, multiple trials, or branching observation paths.
+
+### Description discipline
+
+- **TXXXb's description** must include the empirical-prompt template TXXXa drafted, so the user knows exactly what to test without re-reading TXXXa.
+- **TXXXc's description** must include the analysis shell TXXXa stubbed, so the synthesis step has its scaffold ready when its deps unblock.
+
+### Verification convention
+
+- **TXXXa / TXXXc** — verified normally by verify-agent. TXXXa's acceptance question is *"did Claude produce a methodology that matches the spike's directional question?"* — NOT *"did the empirical loop produce a specific answer?"* The empirical outcome is TXXXb's content; TXXXa is judged on methodology quality alone.
+- **TXXXb** — self-attests via `/work complete` (the standard `owner: human` path; see `.claude/agents/verify-agent.md` § "Human-owned tasks"). The user IS the experimental apparatus; verify-agent has no surface to evaluate beyond the human's report.
+
+### Why this shape
+
+The 3-value `owner` enum conflates "who is responsible" with "who executes." For most tasks these match. Research spikes split them: methodology is Claude-shaped (author + self-verify), the empirical loop is human-shaped (only the human can run it), the analysis is Claude-shaped again. Decomposing surfaces the human loop as a first-class dashboard artifact (TXXXb appears in "Your Tasks") instead of hiding it inside a Claude-owned umbrella, and routes each sub-task to its native verification path. Pattern origin: styler `DEC-082` Option ε.
 
 ---
 

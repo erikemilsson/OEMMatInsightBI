@@ -110,6 +110,60 @@ ELSE:
   → Fall back to sequential execution in Step 3
 ```
 
+### 5. Scan for Shared Scaffolding Contracts
+
+After determining `parallel_mode = true`, run shared-scaffolding detection on the batch. See § "Shared Scaffolding Contracts" below.
+
+---
+
+## Shared Scaffolding Contracts
+
+When a parallel batch contains two or more tasks that share test scaffolding (allowlists, fixtures, expected-violation arrays) where one task writes the scaffolding and another drains it, the orchestrator must compose a single shared briefing block both agents receive verbatim. Without this, the dispatched briefs can contradict each other on file boundaries.
+
+**Observed gap (styler Phase 20 batch 13, 2026-04-27):** Task A's brief said "do not touch `registry-consistency.test.ts`" (B's territory). Task B's actual implementation wrote a failing-test assertion in that file requiring A to drain it. Result: A was forced to violate its own brief to keep `npm test` green. Friction marker logged.
+
+### Detection
+
+After the conflict-free batch is built (Eligibility § 3), scan for shared-scaffolding pairs. A pair triggers a shared contract when ALL of:
+
+- The two tasks have an **overlap relationship** on at least one file — either explicit `files_affected` overlap that survived conflict-detection (rare; usually a glob vs explicit path), OR an implicit overlap inferred from task descriptions (e.g., both mention the same fixture/allowlist filename)
+- One task's description (`title` + `description`) mentions any of: `expected`, `allowlist`, `fixture`, `scaffolding`, `expected_violations`
+- The other task's description mentions any of: `drain`, `drop`, `close`, `resolve`, `remove`, `clean up`
+
+When the heuristic fires for a pair, compose a `shared_contract` payload and attach it to BOTH agents' dispatch context.
+
+### Shared Contract Schema
+
+```json
+{
+  "shared_contract": {
+    "type": "allowlist_drain | fixture_sync | scaffolding_handoff",
+    "file": "path/to/shared/scaffolding/file",
+    "constants": ["EXPECTED_T463_VIOLATIONS", "..."],
+    "owner": "task-id that writes the scaffolding",
+    "drainer": "task-id that drops entries when work resolves",
+    "test_signal": "failing-test message or assertion that mediates the contract",
+    "agreement": "one-sentence statement both agents must accept verbatim — overrides any contradictory per-agent brief"
+  }
+}
+```
+
+### Briefing Behavior
+
+Both implement-agents receive the same `shared_contract` block as part of their dispatch context. The `agreement` field is presented as authoritative: if any per-agent brief contradicts it (e.g., "do not touch file X" vs the contract's "X is shared between tasks"), the contract wins.
+
+The orchestrator does NOT autonomously invent `shared_contract` payloads — it composes them only when the detection heuristic fires. The heuristic is not exhaustive (may miss less-obvious scaffolding patterns) nor perfectly precise (may fire on false positives). When a contract is composed, log the pair + match reason for post-batch review. If no contract is composed but agents still collide on scaffolding, both agents should emit friction markers (type: `template_gap`, details: "shared scaffolding contract not detected") so the heuristic can be refined.
+
+### Interaction with Pre-Dispatch Confirmation
+
+When the batch is presented to the user (Pre-Dispatch Confirmation § Format), include any composed contracts inline so the user can sanity-check the owner/drainer assignment before dispatch:
+
+```
+Shared contracts:
+  - allowlist_drain on registry-consistency.test.ts (owner: T463, drainer: T462)
+    Agreement: T463 writes EXPECTED_T463_VIOLATIONS scaffolding; T462 drains it as violations resolve.
+```
+
 ---
 
 ## Pre-Dispatch Confirmation
@@ -228,7 +282,8 @@ WHILE active_agents or active_verifiers is non-empty:
     1. Read implement-agent's return report (structured schema per implement-agent.md § Step 6)
     2. Apply "After implement-agent returns" protocol from work.md § State Persistence Protocol:
        - Status transition on task JSON per implementation_status
-       - Append friction_markers to .claude/support/workspace/.session-log.jsonl
+       - Dual-write friction_markers to .pending-markers.jsonl AND .session-log.jsonl
+         immediately upon agent return (per DEC-011 Option ABp — do NOT defer or batch)
     3. If implementation_status == "completed":
        Dispatch verify-agent for this task (Task tool, model: "opus[1m]", max_turns: 30)
        Add to active_verifiers. Verify-agent dispatch is individual — one per completed
@@ -249,7 +304,7 @@ WHILE active_agents or active_verifiers is non-empty:
     2. Apply "After verify-agent returns (per-task mode)" protocol from work.md § State Persistence Protocol:
        - Write task_verification, append verification_history, increment verification_attempts
        - Transition status (Finished / In Progress retry / Blocked escalate)
-       - Append friction_markers
+       - Dual-write friction_markers (per DEC-011 Option ABp — see work.md § State Persistence Protocol step 2)
        - Check parent auto-completion
     3. Remove verify-agent from active_verifiers
 

@@ -12,9 +12,17 @@ The project specification lives at `.claude/spec_v{N}.md` (exactly one file; `/w
 
 Present spec changes as explicit declarations (what changes, where, proposed text); apply only after user approval. Every declaration must tag each change with its origin: `[requested]`, `[proposed]`, or `[assumption]`. You CAN perform infrastructure operations autonomously (archiving, version transitions, frontmatter updates). Every spec-change proposal must end with a `## Decisions in This Proposal` section enumerating each non-trivial choice tagged `[NEEDS APPROVAL]`, `[FROM EXISTING SPEC]`, or `[USER REQUESTED]`. `/iterate` does not proceed to apply until every `[NEEDS APPROVAL]` item is resolved — this makes silent Claude-inferred decisions visible before they land in the spec.
 
-Direct edits to the spec are always safe — the decomposed snapshot preserves the before-state, and drift detection handles reconciliation.
-
 To create or revise specifications, run `/iterate`.
+
+## Direct edits to spec, decision, and vision files (DEC-016)
+
+**Substantive text edits to `.claude/spec_v*.md`, `.claude/support/decisions/decision-*.md`, and `.claude/vision/**/*.md` MUST route through `/iterate` (or, for decisions, `/research` + the decision record's `## Select an Option` checkbox; for vision, the user pastes from outside Claude Code).** This applies regardless of how small the change appears and regardless of context — including audit findings whose `iterate_routing` field already names `/iterate` as the route, drift-sweep cleanups inferred from `/work` or `/audit-coherence` output, and direct user requests that touch spec language without being formally framed as an `/iterate` proposal.
+
+**Infrastructure operations remain autonomous** under Propose-Approve-Apply's existing carveout — archiving (e.g., moving `spec_v{N}.md` to `previous_specifications/` on version bump), version transitions (creating `spec_v{N+1}.md`), and frontmatter updates (e.g., setting `decided:` on a decision record after user selection). These don't require `/iterate` because they don't change substantive text.
+
+**Structural enforcement** at `.claude/settings.json` (`permissions.ask` on `Edit` / `Write` against the three path patterns): the runtime prompts before any Edit/Write to these paths lands, regardless of provenance. Platform-native "Yes don't ask again" makes the per-`/iterate apply` cost one click per session.
+
+**Why this matters:** drift detection's fingerprint-based reconciliation catches gross changes but can miss subtle semantic shifts (e.g., word-count-preserving substitutions). Routing through `/iterate` preserves the audit trail of *intent* alongside the state change. DEC-013 already secured this property on the audit `[Fix it]` surface; DEC-016 extends it to the broader behavioral surface across all Claude `Edit`/`Write` usage.
 
 ## Vision Documents
 

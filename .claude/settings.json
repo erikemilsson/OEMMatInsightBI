@@ -8,7 +8,16 @@
       "Bash(grep:*)",
       "Bash(test:*)",
       "Bash(head:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(python3 .claude/scripts/*.py:*)"
+    ],
+    "ask": [
+      "Edit(.claude/spec_v*.md)",
+      "Write(.claude/spec_v*.md)",
+      "Edit(.claude/support/decisions/decision-*.md)",
+      "Write(.claude/support/decisions/decision-*.md)",
+      "Edit(.claude/vision/**/*.md)",
+      "Write(.claude/vision/**/*.md)"
     ]
   }
 }

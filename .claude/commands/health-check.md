@@ -282,7 +282,7 @@ When a section exceeds the soft limit, offer these options:
 
 Validates that the expected template rule files exist in `.claude/rules/`.
 
-**Expected files:** `task-management.md`, `spec-workflow.md`, `decisions.md`, `dashboard.md`, `agents.md`, `archiving.md`, `session-management.md`
+**Expected files:** `task-management.md`, `spec-workflow.md`, `decisions.md`, `dashboard.md`, `agents.md`, `archiving.md`, `session-management.md`, `feature-retirement.md`
 
 **Checks:**
 - Each expected file exists
@@ -424,17 +424,52 @@ For archived specs where tasks reference that version, check if `spec_v{i}_decom
 
 ## Part 5: Template Sync Check
 
-Checks whether the project's `.claude/` workflow files are up to date with the template repository using git-based comparison.
+Checks whether the project's `.claude/` workflow files are up to date with the template repository using git-based comparison. Skipped in the template repo (mirror of Parts 5d / 7: `system-overview.md` at project root indicates the template repo, where syncing the template against itself is self-referential and meaningless — `template_repo` points to the same URL as `origin`).
 
 ### Purpose
 
 The upstream template may improve commands, agents, and reference docs. This check uses the template repo as a git remote to compare sync files and present updates.
+
+### Repo-type skip
+
+Before running any sync step: if `system-overview.md` exists at the project root, skip Part 5 entirely and report `ℹ️ Template sync skipped (template repo — self-sync is a no-op)`. The template repo's `version.json::template_repo` points to itself; adding a `template` remote pointing to the same URL as `origin` and diffing against it produces no useful output. The template's own work uses normal git workflow (push to origin); downstream-project sync flow does not apply.
 
 ### Requirements
 
 - `.claude/version.json` — contains `template_repo` (git URL) and `template_version`
 - `.claude/sync-manifest.json` — defines `sync` (updatable) vs `customize` (user-owned) vs `ignore` (project data) file categories
 - `git` available (no `gh` CLI dependency)
+
+### Sync State Sidecar
+
+Per-file last-synced state lives in `.claude/.sync-state.json` (gitignored, in `ignore` category). The sidecar lets Part 5 distinguish two diff shapes that look identical to a naive `git diff`:
+
+- **Template content not yet applied** — local is byte-for-byte identical to the last-synced state; the diff is pure template movement. Default action: APPLY.
+- **Modified upstream** — local differs from the last-synced state (user edited it post-sync, or the file has never been synced). User adjudicates.
+
+**Schema:**
+
+```json
+{
+  "schema_version": "1.0",
+  "last_full_sync_version": "<template_version at time of sync>",
+  "last_full_sync_date": "<ISO 8601 date>",
+  "files": {
+    "<path>": { "synced_hash": "sha256:<full SHA-256 hex>" }
+  }
+}
+```
+
+**Hash format:** full SHA-256 hex with `sha256:` prefix. Aligns with `fingerprint.py`, `task_hash`, `spec_fingerprint`, dashboard META — one hash convention across the template. Computed over the file's raw bytes via `shasum -a 256 <path>` (macOS) or `sha256sum <path>` (Linux).
+
+**Lifecycle:**
+- **Read** in Step 2 to classify per-file diffs.
+- **Written/updated** in Step 4 after each successful sync — only files the user actually accepted get their `synced_hash` recorded/refreshed. Files the user skipped retain their prior entry (or remain absent if never synced).
+- **Missing entries** (file not in sidecar) fall through to "Modified upstream" — graceful migration for pre-3.15.0 projects without a sidecar, and for files newly added to the `sync` manifest that haven't been synced yet.
+
+**First-run population:** the sidecar appears silently the first time Part 5 applies updates after 3.15.0 ships. No user-facing announcement. The file is gitignored (in `sync-manifest.json` `ignore` array), so it doesn't surface in `git status`.
+
+**Recovery:** if the sidecar is deleted or corrupted, Part 5 falls through to current behavior on the next run. The next successful sync repopulates it from the post-checkout file hashes.
 
 ### Process
 
@@ -453,31 +488,39 @@ If fetch fails (offline, invalid URL) → report as informational, skip remainin
 
 #### 2. Compare Sync Files
 
-Determine the template's default branch via `git remote show template` (typically `main`). For each file matching `sync` category patterns in `sync-manifest.json`, use `git diff` to compare the local version against `template/{default_branch}:.claude/...`.
+Determine the template's default branch via `git remote show template` (typically `main`). Read `.claude/.sync-state.json` (see "Sync State Sidecar" above) if present; absence triggers fallback (every diff classifies as "Modified upstream"). For each file matching `sync` category patterns in `sync-manifest.json`, use `git diff` to compare the local version against `template/{default_branch}:.claude/...`.
 
 Per-file status:
 - **Up to date** — no diff
-- **Modified upstream** — template has changes the local copy doesn't
+- **Template content not yet applied** — template differs from local AND `local_hash == sidecar.files[path].synced_hash`. The local file is byte-for-byte identical to the last-synced state; the diff is pure template movement. Default action in Step 3: APPLY.
+- **Modified upstream** — template differs from local AND (sidecar entry is missing OR `local_hash != sidecar.files[path].synced_hash`). Local was modified post-sync, or has never been synced. Default action in Step 3: present diff for user adjudication (Apply / Keep / Show diff).
 - **New in template** — file exists upstream but not locally
 - **Local only** — exists locally but not in template (kept, never flagged)
 
 Never compare `customize` or `ignore` category files.
 
+**Compute `local_hash`:** `shasum -a 256 <path>` (macOS) or `sha256sum <path>` (Linux); prefix `sha256:` to the bare hex. Compare string-equal against the sidecar's `synced_hash`. The hash is over raw bytes — line-ending differences DO produce different hashes (intentional: a CRLF/LF normalization at sync time is a real change, not a no-op).
+
 #### 3. Present Changes
+
+Group files by the per-file status from Step 2. Files classified as "Template content not yet applied" default to APPLY; "Modified upstream" entries default to user adjudication.
 
 **Small changes** (few files, minor edits) — simple list with diff stats:
 
 ```
 Template updates available (v1.5.0 → v1.6.0):
 
-  Modified:
+  Template content not yet applied (default: APPLY):
+    .claude/skills/dashboard-style/SKILL.md (+12 -0 lines)
+
+  Modified upstream (review before applying):
     .claude/commands/work.md (+15 -8 lines)
     .claude/support/reference/paths.md (+3 -1 lines)
 
   New:
     .claude/support/reference/new-feature.md
 
-Apply these changes? [Y/N]
+Apply all / Select individually / Skip?
 ```
 
 **Bigger changes** (structural, multi-file) — group related changes and explain impact:
@@ -491,6 +534,7 @@ Template updates available (v1.5.0 → v1.6.0):
    - .claude/support/reference/workflow.md — updated process docs
 
    Impact: Adds scope validation to the verification process.
+   Classification: 2 Template content not yet applied, 1 Modified upstream
 
 2. New reference file
    - .claude/support/reference/new-feature.md
@@ -502,6 +546,20 @@ Apply all / Select individually / Skip?
 
 **Grouping heuristic:** Changes are "related" when they touch the same workflow area (e.g., a command and the reference docs it depends on, or multiple files in the verification pipeline).
 
+**Per-file actions (when selecting individually):**
+
+For each file, the menu offers:
+
+- **[A] Apply** — check out the template version (overwrites local).
+- **[K] Keep current** — leave local as-is for this sync run. The sidecar entry is NOT updated, so the file resurfaces on the next sync.
+- **[D] Show me the diff** — print `git diff template/{branch}:<path> <path>` (full output, truncate to ~100 lines if very long with a "...truncated" marker) and re-display the per-file menu.
+
+Defaults differ by status:
+- "Template content not yet applied" → default keystroke is `[A] Apply` (Enter applies).
+- "Modified upstream" → no default; the user must explicitly pick to avoid accidental overwrites of genuine local additions.
+
+The "Show me the diff" sub-action helps users adjudicate when classification is ambiguous — e.g., pre-3.15.0 projects without a sidecar (every diff falls into "Modified upstream"), or files genuinely modified locally where the user has forgotten what they changed.
+
 #### 4. Apply Updates
 
 Read the upstream `template_version` from `template/{default_branch}:.claude/version.json`.
@@ -509,6 +567,7 @@ Read the upstream `template_version` from `template/{default_branch}:.claude/ver
 For accepted changes:
 - Check out the accepted files from `template/{default_branch}` into the working tree
 - Update `template_version` in local `.claude/version.json` to match the upstream version
+- **Update the sync-state sidecar** — for each file the user accepted, compute the new local SHA-256 (post-checkout) and write/update its entry in `.claude/.sync-state.json` under `files["<path>"].synced_hash`. Refresh top-level `last_full_sync_version` (to the upstream version just synced) and `last_full_sync_date` (current date, ISO 8601). If the sidecar doesn't exist yet, create it with `schema_version: "1.0"`. Files the user skipped retain their prior sidecar entries (or remain absent if never synced).
 - Report what was changed
 
 **Post-sync dashboard re-check:** After applying template updates, check if any dashboard-related files were updated (any file matching `dashboard-regeneration.md`, `rules/dashboard.md`, or `shared-definitions.md`). If so, the dashboard was generated with older format rules — offer to regenerate: `"Dashboard format rules updated — regenerate dashboard to apply new format? [Y/N]"`. This catches the ordering issue where Part 1 ran dashboard checks before Part 5 synced the new rules. Regeneration follows `.claude/support/reference/dashboard-regeneration.md` (which is now the updated version).
@@ -520,6 +579,8 @@ For accepted changes:
 - **Local-only files are kept** — never suggest removing files that aren't in the template
 - **No silent changes** — always present changes and get confirmation before applying
 - **Fetch only** — never merge, pull, or rebase from the template remote
+- **Sidecar populates silently on first sync** — `.claude/.sync-state.json` appears the first time Step 4 applies updates after 3.15.0. No user-facing announcement; the file is gitignored.
+- **Sidecar absence is fine** — pre-3.15.0 projects (no sidecar) fall through to "Modified upstream" classification for every diff. Behavior matches pre-3.15.0; sidecar populates on the first successful sync.
 
 ### Report Format
 
@@ -572,7 +633,7 @@ Never delete or rename custom commands without user consent.
 
 ## Part 5c: Settings Boundary Validation
 
-Validates the layered-settings contract: `.claude/settings.json` is template-owned (base `permissions.allow` only); `.claude/settings.local.json` is user-owned (all user additions, hooks, env vars, theme). Enforcing the boundary prevents template sync from silently clobbering user edits.
+Validates the layered-settings contract: `.claude/settings.json` is template-owned (base `permissions.allow` + base `permissions.ask` per DEC-016); `.claude/settings.local.json` is user-owned (all user additions, hooks, env vars, theme). Enforcing the boundary prevents template sync from silently clobbering user edits.
 
 ### Process
 
@@ -583,9 +644,9 @@ Validates the layered-settings contract: `.claude/settings.json` is template-own
 2. **Validate template-owned `settings.json` scope:**
    - Parse `.claude/settings.json` as JSON.
    - If parse fails: ❌ error — "`.claude/settings.json` is not valid JSON. Sync may have been interrupted; re-run `/health-check` to re-sync."
-   - Check that the file contains **only** `permissions.allow`:
-     - ✅ Pass: the top-level object has exactly one key (`permissions`) whose value has exactly one key (`allow`).
-     - ⚠️ Warn if any of the following are present: `permissions.deny`, `permissions.ask`, `hooks`, `env`, `theme`, or any other top-level key.
+   - Check that the file contains **only** `permissions.allow` and/or `permissions.ask`:
+     - ✅ Pass: the top-level object has exactly one key (`permissions`) whose value has only the keys `allow` and/or `ask`.
+     - ⚠️ Warn if any of the following are present: `permissions.deny`, `hooks`, `env`, `theme`, or any other top-level key.
      - Warning message:
        ```
        ⚠️ Found non-base entries in `.claude/settings.json` (template-owned file).
@@ -598,7 +659,7 @@ Validates the layered-settings contract: `.claude/settings.json` is template-own
 
 3. **Validate base-set drift (template vs. local):**
    - Read the template's `.claude/settings.json` from the template remote (if configured and reachable — same fetch as Part 5). Skip this check if offline.
-   - Compare the local `permissions.allow` array against the template's.
+   - Compare the local `permissions.allow` AND `permissions.ask` arrays against the template's.
    - If entries differ: this is normal (user has not yet synced, or template has been updated). Part 5's sync flow will offer the update — no Part 5c action needed.
    - This check exists purely to reassure users that additions/removals from the template base will propagate through normal sync.
 
@@ -608,7 +669,68 @@ Validates the layered-settings contract: `.claude/settings.json` is template-own
 
 ### Rationale
 
-Claude Code's runtime concatenates `permissions.allow[]` across all settings layers, so the user's additions in `settings.local.json` combine automatically with the template's base in `settings.json`. The template-owned file exists for one job only: shipping a conservative base set. Everything else belongs in the user-owned file.
+Claude Code's runtime concatenates `permissions.allow[]` and `permissions.ask[]` across all settings layers, so the user's additions in `settings.local.json` combine automatically with the template's base in `settings.json`. The template-owned file exists for two jobs: shipping a conservative base allow-set (read-only git/filesystem commands) AND a base ask-set (template-wide guardrails for spec/decision/vision file edits per DEC-016). Everything else (project-specific permissions, hooks, env vars, theme) belongs in the user-owned file.
+
+---
+
+## Part 5d: Cross-Project Bridge Configuration (downstream projects only)
+
+Validates the `template_inbox_path` configuration that powers the cross-project feedback bridge. Skipped in the template repo (mirror of Part 7's detection: `system-overview.md` at project root indicates the template repo, where bridging to itself is not meaningful).
+
+### Process
+
+1. **Repo-type detection:** If `system-overview.md` exists at project root, skip Part 5d entirely.
+
+2. **Read configuration:** Read `.claude/version.json` → `template_inbox_path`.
+
+3. **If `template_inbox_path` is empty string (unconfigured):**
+
+   This is not an error — the bridge is optional. Inform the user once per `/health-check` run:
+   ```
+   Cross-project feedback bridge: not configured.
+
+   The bridge lets `/feedback template: <text>` carry template-relevant feedback
+   back to the template repo's inbox automatically. `/health-check` in the template
+   repo then routes those entries into `template-maintenance/feedback.md`.
+
+   Configure now? (You can do this any time later.)
+     [Y] Yes — enter the absolute path to the template repo's interaction-logs/inbox/
+     [N] No — keep the bridge disabled
+   ```
+
+   - On `[Y]`:
+     - Prompt: `Path to template inbox (absolute path, e.g. /Users/you/Developer/claude_code_environment/interaction-logs/inbox):`
+     - Expand `~` and `$HOME` if present in the user's input
+     - Validate that the path exists and is a directory
+     - If valid: update `.claude/version.json` `template_inbox_path` field with the absolute path. Report: `✓ template_inbox_path configured: {path}`
+     - If invalid: report the specific issue (not a directory / doesn't exist) and offer `[R] Retry | [S] Skip`
+   - On `[N]`: silent pass — proceed to next Part
+
+4. **If `template_inbox_path` is set and the path exists as a directory:**
+
+   Silent pass. In the final `/health-check` report, include: `✓ Cross-project bridge: enabled ({path})`
+
+5. **If `template_inbox_path` is set but the path doesn't exist or isn't a directory:**
+
+   Surface as a fixable issue:
+   ```
+   ⚠️  template_inbox_path is set to '{path}' but that path doesn't exist (or is not a directory).
+
+   Options:
+     [F] Fix — enter a corrected path (validated against filesystem)
+     [C] Clear — set to empty string (disables the bridge)
+     [S] Skip — leave as-is, surface again on next /health-check
+   ```
+
+   Apply the chosen action. On `[F]`, follow the same validation flow as step 3 `[Y]`.
+
+### When to Run
+
+Runs on every `/health-check` in downstream projects. Cost is one JSON read + one directory stat — negligible compared to other parts. Surfacing the unset state once per run keeps the bridge discoverable without being noisy (Quick capture and `/work` paths are unaffected).
+
+### Rationale
+
+The bridge is purely opt-in (per `/feedback template:` semantics — silently no-ops when unset). Without surface area in `/health-check`, the configuration is invisible to most users — the `template_inbox_path` slot ships empty, and nothing else prompts the user to set it. Part 5d closes that discoverability gap without imposing the bridge on users who don't want it.
 
 ---
 
@@ -655,12 +777,28 @@ Check if the Notes section in `dashboard.md` contains only the default placehold
 
 #### 4. Action Required Actionability (H4 — Navigation)
 
-Every item in the Action Required section should have a file link and a completion command or checkbox.
+**4a. Actionability.** Every item in the Action Required section should have a file link and a completion command or checkbox.
 
 | Condition | Result | Severity |
 |-----------|--------|----------|
 | All items have links | Pass | — |
 | Item missing link or action | Error per item: "Action Required item '{title}' has no link or completion command." | 3 |
+
+**4b. Summary-shape content (FB-015 / FB-038).** Scan the Action Required section for retrospective content that violates the rule in `support/reference/dashboard-regeneration.md` § Action Item Contract ("must NOT include work summaries, completion reports, or recent-activity recaps").
+
+Detection heuristics — flag if ANY match within the Action Required section:
+
+- **Past-tense completion verbs** in item title or body (not in the imperative form): `finished`, `completed`, `shipped`, `fixed`, `Task {N} finished/completed`, `successfully added/removed`. Watch for false positives — "Complete the form" is imperative (OK); "Form completed" is retrospective (flag).
+- **Forbidden sub-section headings:** `Recent Activity`, `Work Summary`, `Completed This Session`, `Recently Completed`, `Done` (as a section name, not a checkbox label).
+- **Long prose items:** any single item with more than 2 paragraphs of prose. Legitimate actionable items rarely need that much explanation — the contract requires "just enough context to act."
+- **Bulleted lists of finished work:** any bulleted list inside Action Required where >2 consecutive items start with past-tense verbs (e.g., "✅ Task 5 added X", "✅ Task 6 fixed Y").
+
+| Condition | Result | Severity |
+|-----------|--------|----------|
+| No summary-shape content | Pass | — |
+| Summary-shape match found | Error per match: "Action Required contains retrospective content: '{excerpt}'. Belongs in git log / task notes / nowhere — not the dashboard." | 3 |
+
+When `4b` fires repeatedly across `/health-check` runs on the same project, the root cause is likely LLM emitter compliance rather than a documentation gap — escalate to FB-011 Family C (extract dashboard regeneration into a deterministic script, tracked in `template-maintenance/scripts-candidates.md`).
 
 #### 5. Dashboard Length (H1 — Readability)
 
@@ -703,16 +841,36 @@ Processes cross-project session exports when `/health-check` runs in the templat
 1. **Check inbox:** Read `interaction-logs/inbox/` for `.json` files
 2. **If empty:** Report "No pending interaction logs" and continue
 3. **For each export file:**
-   a. Validate format (`export_version`, required fields)
-   b. Parse friction markers by template area:
-      - `verify-agent` — verification failures, false positives, verification gaps
-      - `implement-agent` — workflow deviations, scope creep, template gaps
-      - `/work` — routing issues, session recovery problems
-      - `/iterate` — spec change friction, drift issues
-      - `design-guidance` — pushback opportunities, scope pivot detection
-      - `user-experience` — dashboard issues, interaction mode mismatches
-   c. If Claude assessment is present (`export_quality: "full"`), extract design pushback opportunities and workflow friction notes
-   d. Move processed file to `interaction-logs/processed/`
+   a. Validate format (`export_version` required)
+   b. **Dispatch by `kind` field:**
+      - `kind: "user_feedback"` → go to step 3c (user-tagged feedback bridge from `/feedback template:`)
+      - Otherwise (no `kind`, or other value) → go to step 3d (session export with markers + optional assessment)
+   c. **User-feedback routing:**
+      - Read `template-maintenance/feedback.md` AND `template-maintenance/feedback-archive.md`
+      - Parse all `## FB-NNN:` headings to find the highest `FB-NNN`; next ID is `FB-{N+1}` (zero-padded to 3 digits)
+      - Construct the proposed entry:
+        ```markdown
+        ## FB-NNN: [feedback.title]
+
+        **Status:** new
+        **Captured:** [captured_date]
+        **Source:** Bridged from {source_project} {feedback.source_fb_id} (template_version {template_version}) via /feedback template:
+
+        [feedback.body]
+        ```
+      - Present the proposed entry to the user and ask for confirmation before appending — never append silently (preserves the "Claude does not make decisions for the user" rule).
+      - On confirmation: append to `template-maintenance/feedback.md`; move processed file to `interaction-logs/processed/`.
+      - On decline: leave the file in `inbox/` so the user can re-run `/health-check` later.
+   d. **Session-export marker parsing:**
+      - Parse friction markers by template area:
+        - `verify-agent` — verification failures, false positives, verification gaps
+        - `implement-agent` — workflow deviations, scope creep, template gaps
+        - `/work` — routing issues, session recovery problems
+        - `/iterate` — spec change friction, drift issues
+        - `design-guidance` — pushback opportunities, scope pivot detection
+        - `user-experience` — dashboard issues, interaction mode mismatches
+      - If Claude assessment is present (`export_quality: "full"`), extract design pushback opportunities and workflow friction notes
+      - Move processed file to `interaction-logs/processed/`
 
 4. **Aggregate across processed exports:**
    - Count recurring friction types (same `template_area` + similar `type` across multiple sessions/projects)
@@ -722,7 +880,9 @@ Processes cross-project session exports when `/health-check` runs in the templat
    - Write insight documents to `interaction-logs/insights/`
    - Format: `YYYY-MM-DD_{template-area}_{slug}.md`
 
-6. **Route to `/feedback`:** For insights above confidence threshold, auto-create feedback items in `.claude/support/feedback/feedback.md` (status: `new`, body references the insight document). Present to user for confirmation before creating.
+6. **Route to `template-maintenance/feedback.md`:** For high-confidence patterns from step 5, construct proposed feedback items as new `FB-NNN` entries in `template-maintenance/feedback.md` (status: `new`, body references the insight document). Present each proposed entry to the user for confirmation before appending.
+
+   When `/health-check` runs in the template repo, `template-maintenance/feedback.md` is the destination per root `CLAUDE.md` — `.claude/support/feedback/feedback.md` is the *shipped* path reserved for downstream projects only. (User-feedback bridges from step 3c also land here.)
 
 7. **Report:**
    ```
@@ -732,6 +892,95 @@ Processes cross-project session exports when `/health-check` runs in the templat
      Feedback items created: {Z}
      Inbox: {remaining} pending
    ```
+
+---
+
+## Part 8: Audit Dispatch
+
+Discovers and dispatches project-applicable audit commands. Audits live in `.claude/commands/audit-*.md` (template-shipped or project-local) and self-declare their applicability via `applies_when` frontmatter. This Part is the user-facing entry point for running audits — it surveys what's applicable, presents a menu, and dispatches the user's selection.
+
+Audits complement Parts 1-7: where Parts 1-7 are automated validation/processing that runs unconditionally, Part 8 is interactive — the user picks which audits to run based on what they want to investigate. See `template-maintenance/audit-command-family-proposal.md` for the full audit family design (commands, friction register, dashboard digest, [Fix it] mechanism, bundled apply).
+
+### Discovery
+
+1. Glob `.claude/commands/audit-*.md`. For each, parse YAML frontmatter:
+   ```yaml
+   ---
+   applies_when:
+     any_file_exists: ["..."]               # at least one glob pattern must match a real file
+     # OR
+     package_json_has_dep: ["..."]          # at least one listed dep must appear in package.json
+   estimated_runtime: "..."                  # informational, e.g., "2-3 min"
+   prerequisites: ["..."]                    # informational, e.g., ["dev server reachable at {url}"]
+   ---
+   ```
+2. Evaluate each `applies_when` against project state:
+   - `any_file_exists`: true if at least one glob pattern matches a real file
+   - `package_json_has_dep`: true if at least one listed dep appears in `dependencies` or `devDependencies` of any `package.json` in the project tree
+3. Build the applicable-audits list. Audits whose `applies_when` evaluates false are silently skipped (not shown in menu).
+
+### Menu Presentation
+
+If 0 applicable audits: print `No audits applicable for this project shape.` and skip Part 8.
+
+If 1+ applicable audits: present the menu inline:
+
+```
+Audits available for this project:
+
+  [1] coherence  — spec/decision/path drift detection (~2-3 min)
+  [2] ui         — web app surface walk + 7 quality lenses (~5-7 min, requires dev server)
+  [A] all applicable
+  [S] skip
+
+Pick one or more (e.g., "1,2"), or skip:
+```
+
+Prompt the user. Accept comma-separated numbers, "A" / "all", or "S" / "skip" (default).
+
+### Dispatch
+
+For each selected audit:
+
+1. **Pre-flight prerequisites.** If the audit's `prerequisites` list mentions "dev server reachable at {url}" or similar, attempt verification (curl the URL). If unreachable, print the audit's pre-flight error and SKIP this audit (continue with others, don't fail Part 8).
+2. **Invoke the audit command.** The audit runs in the same conversation context (commands are loaded as instructions). Sequence: dispatch one at a time — audits are internally parallel via lens sub-agents; sequencing across audits keeps output legible and avoids MCP collisions (per `.claude/rules/agents.md` § "MCP and Parallel Execution" — `/audit-ui` uses Playwright MCP which can't be safely fanned out across parallel command invocations either).
+3. **Capture digest.** Each audit writes `findings.md` and `digest.json` to `.claude/support/audits/{audit}-{ts}/`. Record the digest path for the aggregate summary.
+
+### Aggregate Output
+
+After all selected audits complete, print a combined summary:
+
+```
+Audit results:
+
+  /audit-coherence (2026-05-15 14:30Z):
+    23 raw findings → 8 clustered (3 bundle-eligible, 5 promote-eligible, 2 deduped to pending tasks)
+    Report: .claude/support/audits/coherence-2026-05-15-1430/findings.md
+
+  /audit-ui (2026-05-15 14:35Z):
+    47 raw findings → 18 clustered (1 bundle-eligible, 17 promote-eligible, 4 deduped to pending tasks)
+    Report: .claude/support/audits/ui-2026-05-15-1435/findings.md
+
+To act on findings:
+  Promote to feedback: /audit-{name} promote {audit-ts}
+  (Stages 6-7 will add [Fix it] inline + bundled-apply batch UX — see audit family proposal)
+```
+
+Stage 6 has shipped — `bundle-eligible` digest items surface automatically on the dashboard's `🔍 Audit Findings` section with the inline `[Fix it]` token; other kinds render with an italicized kind annotation. Promote/Dismiss invocation patterns are documented in `dashboard-regeneration.md` § "Audit Findings sub-section" (tick + bulk CLI for promote; natural-language for dismiss). The inline summary + manual review of `findings.md` + `/audit-{name} promote {ts}` remains a complementary surface for context beyond what the dashboard digest shows.
+
+### Skip Conditions
+
+Part 8 is skipped entirely if:
+- 0 applicable audits exist (silent — print one line, no menu)
+- The user selects `[S]` from the menu
+- (Future) Running with a `--no-audits` flag — not implemented yet; defer until pattern observed
+
+### Edge Cases
+
+- **Audit command malformed.** If `applies_when` parsing fails for a specific audit file, log a warning to chat (`Audit command audit-{name}.md has malformed applies_when — skipping.`) and continue. Don't fail the entire health-check.
+- **Audit invocation fails mid-run.** If an audit errors out (capture phase fails, lens agent fails, etc.), the audit's own error handling kicks in. Part 8 captures the failure (which audits succeeded vs failed) and continues to the next selected audit.
+- **Project-local audits.** A project may have its own `.claude/commands/audit-{custom}.md`. Part 8 discovers and surfaces these alongside template-shipped audits — no special treatment in the menu (just labeled by the audit name from the file). See Component 9 of the audit family proposal for the project→template graduation pattern.
+- **Sub-mode invocations like `/audit-coherence promote {ts}`.** Part 8 only dispatches the audit-run mode (no positional args); it does NOT dispatch promote / fix-it / etc. Those are direct user invocations of the audit command, outside Part 8's scope.
 
 ---
 
@@ -764,6 +1013,7 @@ FETCH template remote and diff sync files (skip if offline)
 - Part 5: Template sync + collision + settings checks
 - Part 6: UX evaluation (checks 1-6)
 - Part 7: Interaction log processing (template repo only)
+- Part 8: Audit dispatch (interactive — present applicable audits, dispatch user selection)
 
 ### Step 3: Report
 
