@@ -1,18 +1,18 @@
 # Dashboard
 
 <!-- DASHBOARD META
-generated: 2026-04-29T00:00:00Z
-task_hash: sha256:59d9d2c6710e730d
+generated: 2026-05-17T00:00:00Z
+task_hash: sha256:0d35987bf5c67db1
 task_count: 29
 spec_fingerprint: sha256:93c01f3a54750f35
-template_version: 3.0.0
+template_version: 4.0.0
 verification_debt: 0
 drift_deferrals: 0
 -->
 
 **OEMMatInsightBI** — 69% complete (20/29 atomic tasks; 16/19 spec tasks finished, 2 broken down)
 
-*Updated 2026-04-29 — may not reflect changes made outside `/work`*
+*Updated 2026-05-17 — may not reflect changes made outside `/work`*
 
 **Next:** Deploy incremental load changes to Fabric and run full + incremental tests — [task-006_3](tasks/task-006_3.json).
 
@@ -147,4 +147,4 @@ graph LR
 <!-- END USER SECTION -->
 
 ---
-*2026-04-29 · 29 tasks · [Spec aligned](# "0 drift deferrals, 0 verification debt")*
+*2026-05-17 · 29 tasks · [Spec aligned](# "0 drift deferrals, 0 verification debt")*

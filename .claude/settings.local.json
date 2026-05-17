@@ -27,12 +27,8 @@
       "Bash(unzip:*)",
       "Bash(jq:*)",
       "mcp__playwright__browser_take_screenshot",
-      "Bash(chmod +x /Users/erikemilsson/Developer/OEMMatInsightBI/.claude/hooks/pre-compact-handoff.sh)",
       "Read(//Users/erikemilsson/Developer/**)",
-      "Read(//Users/erikemilsson/Developer/OEMMatInsightBI/.claude/commands/**)",
       "Bash(git fetch:*)",
-      "Bash(for f:*)",
-      "Read(//Users/erikemilsson/Developer/OEMMatInsightBI/**)",
       "Bash(gh run:*)",
       "Bash(brew install:*)",
       "Bash(gh repo:*)",
@@ -51,7 +47,6 @@
       "WebFetch(domain:www.kevinrchant.com)",
       "WebFetch(domain:dzone.com)",
       "WebFetch(domain:www.skool.com)",
-      "Bash(head -60 /Users/erikemilsson/Developer/nordgrid-data-engineering/exercises/01-foundations/*.md)",
       "Bash(python -m pytest:*)"
     ]
   }
