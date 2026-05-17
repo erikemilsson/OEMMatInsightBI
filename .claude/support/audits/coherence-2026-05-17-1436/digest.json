@@ -1,0 +1,174 @@
+{
+  "audit": "coherence",
+  "ran_at": "2026-05-17T12:36:14Z",
+  "audit_ts": "2026-05-17-1436",
+  "findings_count": {
+    "raw": 6,
+    "clustered": 6,
+    "bundle_eligible": 0,
+    "fix_eligible": 0,
+    "promote_eligible": 6,
+    "deduped_to_pending_work": 0
+  },
+  "items": [
+    {
+      "id": "C-01",
+      "title": "Spec references obsolete clean_columnsAndHeaders.Notebook (renamed to bronze-to-silver)",
+      "description": "Spec \u00a7\u00a7 Data Transformations, Current State Assessment, and Naming Conventions still reference `clean_columnsAndHeaders.Notebook` \u2014 on disk the cleaning notebook is `bronze-to-silver.Notebook` (no archive entry of the old name).",
+      "kind": "decision",
+      "severity": "high",
+      "status": "promoted",
+      "lenses": [
+        "path-drift"
+      ],
+      "source_anchors": [
+        "spec_v1.md \u00a7 Data Transformations (lines 334, 654)",
+        "spec_v1.md \u00a7 Current State Assessment (line 856)",
+        "spec_v1.md \u00a7 Naming Conventions (line 1002)"
+      ],
+      "files_to_touch": [
+        ".claude/spec_v1.md"
+      ],
+      "iterate_routing": {
+        "reason": "spec/decision/vision file modification \u2014 read-only outside /iterate"
+      },
+      "resolved_by": {
+        "kind": "promote_fb",
+        "ref": "FB-001",
+        "at": "2026-05-17T12:42:00Z"
+      }
+    },
+    {
+      "id": "C-02",
+      "title": "Spec lists semantic_model_oeminsightbi; active model is OEMInsightBI_v2",
+      "description": "Spec \u00a7\u00a7 Technical Architecture and Semantic Model & Reporting reference `semantic_model_oeminsightbi`; the active model on disk is `OEMInsightBI_v2.SemanticModel` and the old name lives only under `fabric/archive/`.",
+      "kind": "decision",
+      "severity": "high",
+      "status": "promoted",
+      "lenses": [
+        "path-drift"
+      ],
+      "source_anchors": [
+        "spec_v1.md \u00a7 Technical Architecture (line 82)",
+        "spec_v1.md \u00a7 Semantic Model & Reporting (line 722)"
+      ],
+      "files_to_touch": [
+        ".claude/spec_v1.md"
+      ],
+      "iterate_routing": {
+        "reason": "spec/decision/vision file modification \u2014 read-only outside /iterate"
+      },
+      "resolved_by": {
+        "kind": "promote_fb",
+        "ref": "FB-002",
+        "at": "2026-05-17T12:42:00Z"
+      }
+    },
+    {
+      "id": "C-03",
+      "title": "Spec names report.Report; active artifact is report2.Report",
+      "description": "Spec \u00a7\u00a7 Semantic Model & Reporting and Dependencies still reference `report.Report` \u2014 on disk only `fabric/report2.Report` exists; the original is archived.",
+      "kind": "decision",
+      "severity": "med",
+      "status": "promoted",
+      "lenses": [
+        "path-drift"
+      ],
+      "source_anchors": [
+        "spec_v1.md \u00a7 Semantic Model & Reporting (line 822)",
+        "spec_v1.md \u00a7 Dependencies & External Systems (line 1429)"
+      ],
+      "files_to_touch": [
+        ".claude/spec_v1.md"
+      ],
+      "iterate_routing": {
+        "reason": "spec/decision/vision file modification \u2014 read-only outside /iterate"
+      },
+      "resolved_by": {
+        "kind": "promote_fb",
+        "ref": "FB-003",
+        "at": "2026-05-17T12:42:00Z"
+      }
+    },
+    {
+      "id": "C-04",
+      "title": "Spec locates Azure SQL setup scripts in azure/; actual path is secure/ (gitignored)",
+      "description": "Spec \u00a7\u00a7 Data Architecture and Security & Access list `azure/user_creation.sql` and `azure/grant_permissions.sql` \u2014 actual paths are under `secure/` (gitignored per project convention for credential-bearing scripts).",
+      "kind": "decision",
+      "severity": "med",
+      "status": "promoted",
+      "lenses": [
+        "path-drift"
+      ],
+      "source_anchors": [
+        "spec_v1.md \u00a7 Data Architecture / Azure SQL Database (lines 112, 156-160)",
+        "spec_v1.md \u00a7 Security & Access (line 1225)"
+      ],
+      "files_to_touch": [
+        ".claude/spec_v1.md"
+      ],
+      "iterate_routing": {
+        "reason": "spec/decision/vision file modification \u2014 read-only outside /iterate"
+      },
+      "resolved_by": {
+        "kind": "promote_fb",
+        "ref": "FB-004",
+        "at": "2026-05-17T12:42:00Z"
+      }
+    },
+    {
+      "id": "C-05",
+      "title": "Inconsistent 'DQ' vs 'data quality' terminology across spec sections",
+      "description": "Multiple spec sections alternate between 'DQ' and 'data quality' (e.g., 'DQ checks' in \u00a7 Next Steps vs 'data quality checks' in \u00a7 Development Workflow) without an abbreviation introduction.",
+      "kind": "decision",
+      "severity": "med",
+      "status": "promoted",
+      "lenses": [
+        "vocab-drift"
+      ],
+      "source_anchors": [
+        "spec_v1.md \u00a7 Data Quality & Validation (line 1088)",
+        "spec_v1.md \u00a7 Development Workflow (lines 980, 983)",
+        "spec_v1.md \u00a7 Next Steps & Priorities (line 1499)",
+        "spec_v1.md \u00a7 Current State Assessment (line 934)"
+      ],
+      "files_to_touch": [
+        ".claude/spec_v1.md"
+      ],
+      "iterate_routing": {
+        "reason": "spec/decision/vision file modification \u2014 read-only outside /iterate"
+      },
+      "resolved_by": {
+        "kind": "promote_fb",
+        "ref": "FB-005",
+        "at": "2026-05-17T12:42:00Z"
+      }
+    },
+    {
+      "id": "C-06",
+      "title": "'Quality observability tables' vs 'data quality observability tables' within \u00a7 Current State Assessment",
+      "description": "Spec \u00a7 Current State Assessment alternates between 'Data quality observability tables' (Gold layer) and 'Quality observability tables' (Semantic Model subsection) for the same feature.",
+      "kind": "decision",
+      "severity": "low",
+      "status": "promoted",
+      "lenses": [
+        "vocab-drift"
+      ],
+      "source_anchors": [
+        "spec_v1.md \u00a7 Current State Assessment (lines 884, 898, 947)"
+      ],
+      "files_to_touch": [
+        ".claude/spec_v1.md"
+      ],
+      "iterate_routing": {
+        "reason": "spec/decision/vision file modification \u2014 read-only outside /iterate"
+      },
+      "resolved_by": {
+        "kind": "promote_fb",
+        "ref": "FB-006",
+        "at": "2026-05-17T12:42:00Z"
+      }
+    }
+  ],
+  "annotations": []
+}

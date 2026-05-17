@@ -1,0 +1,128 @@
+[
+  {
+    "section_id": "",
+    "heading_text": "Project Overview",
+    "line_start": 26,
+    "line_end": 71,
+    "fingerprint": "sha256:6f94ed325b9bbfe3"
+  },
+  {
+    "section_id": "",
+    "heading_text": "Technical Architecture",
+    "line_start": 72,
+    "line_end": 117,
+    "fingerprint": "sha256:4f0f73c242f68f21"
+  },
+  {
+    "section_id": "",
+    "heading_text": "Data Architecture",
+    "line_start": 118,
+    "line_end": 329,
+    "fingerprint": "sha256:5f546f45cb1a3cf0"
+  },
+  {
+    "section_id": "",
+    "heading_text": "Data Transformations",
+    "line_start": 330,
+    "line_end": 606,
+    "fingerprint": "sha256:eb65b910a988629f"
+  },
+  {
+    "section_id": "",
+    "heading_text": "Orchestration",
+    "line_start": 607,
+    "line_end": 719,
+    "fingerprint": "sha256:09c663a33f150ee7"
+  },
+  {
+    "section_id": "",
+    "heading_text": "Semantic Model & Reporting",
+    "line_start": 720,
+    "line_end": 839,
+    "fingerprint": "sha256:eb2c923ee5b3b2e4"
+  },
+  {
+    "section_id": "",
+    "heading_text": "Current State Assessment",
+    "line_start": 840,
+    "line_end": 950,
+    "fingerprint": "sha256:c343b40834f4b28f"
+  },
+  {
+    "section_id": "",
+    "heading_text": "Development Workflow",
+    "line_start": 951,
+    "line_end": 1027,
+    "fingerprint": "sha256:49861cd905a1ff0c"
+  },
+  {
+    "section_id": "",
+    "heading_text": "Data Quality & Validation",
+    "line_start": 1028,
+    "line_end": 1121,
+    "fingerprint": "sha256:f7211641f2263976"
+  },
+  {
+    "section_id": "",
+    "heading_text": "Infrastructure & Deployment",
+    "line_start": 1122,
+    "line_end": 1238,
+    "fingerprint": "sha256:f4a2ad54e54dcf18"
+  },
+  {
+    "section_id": "",
+    "heading_text": "Performance Optimization",
+    "line_start": 1239,
+    "line_end": 1260,
+    "fingerprint": "sha256:8844f24704b2892d"
+  },
+  {
+    "section_id": "",
+    "heading_text": "Testing Strategy",
+    "line_start": 1261,
+    "line_end": 1284,
+    "fingerprint": "sha256:c1c5e7cd501627bf"
+  },
+  {
+    "section_id": "",
+    "heading_text": "Business Logic & Calculations",
+    "line_start": 1285,
+    "line_end": 1374,
+    "fingerprint": "sha256:afd5cf35d2769c5f"
+  },
+  {
+    "section_id": "",
+    "heading_text": "Dependencies & External Systems",
+    "line_start": 1375,
+    "line_end": 1448,
+    "fingerprint": "sha256:78e6467f673de30d"
+  },
+  {
+    "section_id": "",
+    "heading_text": "Open Questions & Decisions Needed",
+    "line_start": 1449,
+    "line_end": 1491,
+    "fingerprint": "sha256:fe0b3da859e3d49f"
+  },
+  {
+    "section_id": "",
+    "heading_text": "Next Steps & Priorities",
+    "line_start": 1492,
+    "line_end": 1524,
+    "fingerprint": "sha256:16bfabfd61045b60"
+  },
+  {
+    "section_id": "",
+    "heading_text": "Appendix: Sample Data Patterns",
+    "line_start": 1525,
+    "line_end": 1596,
+    "fingerprint": "sha256:b1f1868cf423c5f5"
+  },
+  {
+    "section_id": "",
+    "heading_text": "Contact & Ownership",
+    "line_start": 1597,
+    "line_end": 1602,
+    "fingerprint": "sha256:a213b82db79d683d"
+  }
+]

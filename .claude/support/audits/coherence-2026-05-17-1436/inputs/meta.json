@@ -1,0 +1,15 @@
+{
+  "audit": "coherence",
+  "ran_at": "2026-05-17T12:36:14Z",
+  "audit_ts": "2026-05-17-1436",
+  "lenses_requested": [
+    "superseded-decisions",
+    "vocab-drift",
+    "path-drift",
+    "feedback-decay",
+    "retired-features",
+    "friction-register"
+  ],
+  "since_filter": null,
+  "warnings": []
+}

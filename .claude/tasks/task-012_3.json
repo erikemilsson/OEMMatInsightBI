@@ -15,7 +15,7 @@
   "section_snapshot_ref": "",
   "files_affected": [
     "fabric/silver-to-gold2.Notebook/",
-    "fabric/clean_columnsAndHeaders.Notebook/"
+    "fabric/bronze-to-silver.Notebook/"
   ],
   "acceptanceCriteria": [
     "spark.sql.parquet.vorder.enabled=true set in gold notebook",
@@ -32,7 +32,7 @@
   ],
   "created_date": "2026-04-29",
   "completion_date": "",
-  "updated_date": "2026-04-29",
+  "updated_date": "2026-05-17",
   "task_verification": {},
   "verification_attempts": 0,
   "verification_history": [],

@@ -79,7 +79,7 @@ updated: 2026-04-05
 
 -   **Warehouse:** `oem_wh` (SQL-queryable layer for BI)
 
--   **Semantic Model:** `semantic_model_oeminsightbi` (Power BI data model)
+-   **Semantic Model:** `OEMInsightBI_v2` (Power BI data model; old `semantic_model_oeminsightbi` archived in `fabric/archive/`)
 
 -   **Report:** Power BI report connected to semantic model
 
@@ -109,7 +109,7 @@ updated: 2026-04-05
 
 -   **Database:** procurement-supplier-db
 
--   Authentication method: SQL authentication (see `azure/user_creation.sql`)
+-   Authentication method: SQL authentication (see `secure/user_creation.sql` — `secure/` is gitignored; credentials kept locally per project convention)
 
 -   Connection strings: Managed via Fabric dataflow connections
 
@@ -153,11 +153,15 @@ Power BI Reports
 
 -   Incremental vs Full Load: Parameters exist (`p_full_load`, `p_from_date`); incremental logic implementation is task-006
 
-**Setup Scripts:** (in `/azure` folder)
+**Setup Scripts:**
+
+**Credential scripts** (in `/secure` folder — gitignored; credentials kept locally):
 
 -   `user_creation.sql` - Database user setup
 
 -   `grant_permissions.sql` - Access control
+
+**Schema scripts** (in `/azure` folder — tracked):
 
 -   `procurement.sql` - Procurement table schema/data
 
@@ -331,7 +335,7 @@ Power BI Reports
 
 ### Bronze → Silver: Data Cleaning
 
-**Notebook:** `clean_columnsAndHeaders.Notebook`
+**Notebook:** `bronze-to-silver.Notebook`
 
 **Purpose:** Standardize raw data from multiple sources
 
@@ -651,7 +655,7 @@ Power BI Reports
 5.  `bronze-to-silver data cleaning` (Notebook Activity)
     -   Depends on: All 4 bronze activities (Succeeded)
 
-    -   Notebook: `clean_columnsAndHeaders.Notebook`
+    -   Notebook: `bronze-to-silver.Notebook`
 
     -   Output: Silver tables (silver_epi2024results, silver_globalsupplyshares, silver_WB, silver_procurement)
 
@@ -719,7 +723,7 @@ Power BI Reports
 
 ## Semantic Model & Reporting
 
-### Semantic Model: `semantic_model_oeminsightbi`
+### Semantic Model: `OEMInsightBI_v2`
 
 **Model Type:** Star Schema in **DirectLake** mode
 
@@ -819,7 +823,7 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 -   Time intelligence requires relationship to fact_procurement
 
-### Power BI Report: `report.Report`
+### Power BI Report: `report2.Report`
 
 **Report Pages:** **NEEDS REDESIGN**
 
@@ -853,7 +857,7 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 **Silver Layer:**
 
--   [x] Cleaning notebook (`clean_columnsAndHeaders.Notebook`)
+-   [x] Cleaning notebook (`bronze-to-silver.Notebook`)
 
 -   [x] Column standardization (lowercase, underscore separation)
 
@@ -895,7 +899,7 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 -   [x] 40+ DAX measures (documented in `.claude/support/documents/dax_measure_library.md`)
 
--   [x] Quality observability tables added to semantic model
+-   [x] Data quality observability tables added to semantic model
 
 -   [x] Cross-table relationship fixes for visuals
 
@@ -977,10 +981,10 @@ No open issues. Previously identified gap (data quality visibility) addressed vi
     -   Pull feature branch in Fabric
     -   Test notebooks with real data
     -   Run data quality checks
-    -   Export schemas/DQ reports
+    -   Export schemas/data quality reports
     -   Commit results back to Git
 3.  **Evening (Claude Code):**
-    -   Pull latest (includes DQ reports)
+    -   Pull latest (includes data quality reports)
     -   Sync state, review issues
     -   Create tasks for any problems
     -   Plan next day
@@ -999,7 +1003,7 @@ No open issues. Previously identified gap (data quality visibility) addressed vi
 
 -   `[purpose]_[source]to[target].Notebook`
 
-    -   Examples: `clean_columnsAndHeaders.Notebook`, `silver-to-gold2.Notebook`
+    -   Examples: `bronze-to-silver.Notebook`, `silver-to-gold2.Notebook`
 
     -   Inconsistency: Uses both underscores and hyphens
 
@@ -1085,7 +1089,7 @@ No open issues. Previously identified gap (data quality visibility) addressed vi
 
 -   [ ] Historical trend validation (no sudden spikes/drops without explanation)
 
-**Current DQ Implementation:**
+**Current Data Quality Implementation:**
 
 -   Unmapped values: Logged to audit tables, assigned to placeholder dimensions
 
@@ -1222,7 +1226,7 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 
 **Authentication:**
 
--   Azure SQL: SQL authentication (see `azure/user_creation.sql`, `azure/grant_permissions.sql`)
+-   Azure SQL: SQL authentication (see `secure/user_creation.sql`, `secure/grant_permissions.sql` — kept locally; `secure/` is gitignored)
 
 -   Lakehouse: Workspace identity
 
@@ -1426,7 +1430,7 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
 
 **Power BI Report:**
 
--   Report ID: report.Report (in /fabric folder)
+-   Report ID: `report2.Report` (in `/fabric` folder; old `report.Report` archived in `fabric/archive/`)
 
 -   Portfolio demonstration — no external consumers
 
@@ -1496,7 +1500,7 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
 | Phase | Focus | Status | Acceptance Criteria |
 |-------|-------|--------|-------------------|
 | Phase 1 | Core Data Model & Reports | Complete (9/9) | Gold tables populated, semantic model connected, Power BI report built |
-| Phase 2 | Automation & Quality | Active (4/7 done) | Incremental load works for fact_procurement, DQ checks run in pipeline, external data ingestion scripted |
+| Phase 2 | Automation & Quality | Active (4/7 done) | Incremental load works for fact_procurement, data quality checks run in pipeline, external data ingestion scripted |
 | Phase 3 | Operations & Performance | Blocked (pending task-011) | Error handling with Try-Catch in pipeline, pipeline scheduling configured, basic performance review done |
 | Phase 4 | CI/CD Deployment | Planned | GitHub Actions workflow deploys Fabric artifacts on merge to main via `fabric-cicd` |
 
