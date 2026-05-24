@@ -1,3 +1,7 @@
+---
+disable-model-invocation: true
+---
+
 # Feedback Command
 
 Quick capture and triage of project improvement ideas. Provides a structured path from fleeting thoughts to spec integration, with mandatory impact assessment before anything reaches the spec.

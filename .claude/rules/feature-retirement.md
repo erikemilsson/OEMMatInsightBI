@@ -15,6 +15,19 @@ Use this when the answer to *"do I want this code back later?"* is *"maybe"*.
 - **Live A/B toggles.** This workflow ships a snapshot at a SHA — it's not a feature flag. If you want the feature reachable to some users at runtime, build a feature flag instead.
 - **Refactoring a single helper.** Helpers don't get retired; their callsites get refactored.
 
+## Pre-Retirement Engine-Consumer Audit
+
+Before running the procedure, verify the field has no engine consumers. A snake_case-only grep gives false confidence — fields surface in multiple naming derivatives, and an incomplete audit ships a retirement that silently degrades runtime behavior (engine reads return `undefined` post-data-migration).
+
+Search across all these patterns before declaring "no consumer":
+
+- **snake_case** — original field name (e.g., `price_quality_philosophy`)
+- **CamelCase derivatives** — types and constants derived from it (e.g., `PriceQualityPhilosophy`, `PHILOSOPHY_WEIGHTS`)
+- **Shortened forms** — engine-side abbreviations (e.g., `RankerSignals.philosophy` for a field named `price_quality_philosophy`)
+- **String literals** — quoted references in dispatch tables, JSON loaders, on-disk schemas
+
+If any pattern matches, the retirement either needs an engine-consumer migration step first, or is premature (the field is still load-bearing). Either way, surface as a precondition before running the procedure.
+
 ## Procedure
 
 Five steps, in order. Each step has an artifact you can point at when verifying acceptance.

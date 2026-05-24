@@ -19,7 +19,7 @@ Examples: `decision-001-oauth-library.md`, `decision-002-database-choice.md`
 id: DEC-{NNN}
 title: [Short descriptive title]
 status: draft
-category: [architecture | technology | process | scope | methodology | vendor]
+category: [architecture | technology | process | scope | methodology | vendor | ux | design | ui-ia | ui-content]
 created: YYYY-MM-DD
 decided:
 related:
@@ -138,6 +138,10 @@ Include enough context for someone unfamiliar to understand.]
 | `scope` | Feature boundaries, priorities, trade-offs |
 | `methodology` | Approaches, algorithms, techniques |
 | `vendor` | Third-party services, APIs, integrations |
+| `ux` | User interaction patterns, flow, affordance choice (e.g., "tap-to-expand vs always-expanded") |
+| `design` | Visual identity, motion language, type system, color tokens |
+| `ui-ia` | Information architecture in the UI — section ordering, nav structure, page taxonomy |
+| `ui-content` | Copy presentation, empty-state rendering, what to show vs hide |
 
 ---
 

@@ -154,6 +154,27 @@ IF inflection_point: false (or absent):
   → Log: "Decision {id} resolved → {N} tasks unblocked"
 
 IF inflection_point: true:
+  → Run chosen-option no-op scan (Step 2a.1 below) BEFORE checking `spec_revised`
+  │
+  │  Step 2a.1: Read the chosen option's `### Option X: <name>` block under
+  │             `## Option Details`. Scan the first paragraph (lines until the
+  │             first blank line) for these case-insensitive markers:
+  │               - "no spec amendment"
+  │               - "no spec impact"
+  │               - "no spec change"
+  │               - "no-op" (with word boundary, to exclude e.g., "no-operation")
+  │
+  │  IF any marker is found in the same paragraph AND no contradicting phrase
+  │  ("will need spec", "requires spec", "spec change in v2", etc.) appears in
+  │  the same paragraph:
+  │    → No-op option chosen — no spec impact. Skip the /iterate suggestion.
+  │    → Unblock dependent tasks.
+  │    → Log: "Decision {id} resolved (inflection point, no-op option chosen) → {N} tasks unblocked"
+  │    → Continue to Step 2c
+  │
+  │  IF no marker found OR a contradicting phrase exists in same paragraph:
+  │    → Proceed to spec_revised check below
+  │
   → Check `spec_revised` field in frontmatter
   │
   │  IF spec_revised: true
@@ -172,6 +193,8 @@ IF inflection_point: true:
   │    │
   │    └─ Do NOT proceed. Wait for user to run `/iterate`.
 ```
+
+**No-op scan rationale (FB-078):** `inflection_point` declares "the option space was spec-shaping at creation"; the chosen option may still turn out to be a close/defer/no-op selection with no spec consequences. The 4-marker scan catches the common authoring pattern ("Drop this question — no spec impact") without requiring a schema change. The contradicting-phrase guard prevents false-positives on "no spec impact NOW but v2 will need it" prose. If this heuristic accumulates ≥3 false-negatives across projects within 6 months, escalate to Option 2 (per-option `spec_impact: true | false | unclear` schema field) — see `template-maintenance/feedback.md § FB-078`.
 
 **Session resilience:** The `spec_revised` field is the durable checkpoint. Across session boundaries, `/work` re-reads the decision record and checks this field — no conversation state needed.
 

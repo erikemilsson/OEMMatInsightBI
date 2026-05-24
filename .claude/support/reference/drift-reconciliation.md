@@ -40,9 +40,19 @@ Before using dashboard data, verify it's current (runs as `/work` Step 1a):
    └─ Continue with fresh dashboard
    ```
 
-A dashboard can be content-stale (task hash mismatch) or format-stale (template_version mismatch). Either condition triggers regeneration.
+5. **Check sidecar sentinel:**
+   ```
+   Read pending_full_regen from .claude/dashboard-state.json
+   If non-null:
+   ├─ Log: "Dashboard has pending targeted-edit drift — full regen required"
+   ├─ Regenerate dashboard (full regen clears pending_full_regen to null)
+   └─ Continue with fresh dashboard
+   Missing field is treated as null (back-compat for sidecars created before this convention).
+   ```
 
-**Why this matters:** Dashboard can become stale if tasks are modified outside `/work`, or if template sync updates the format rules. This check ensures you always work from accurate data with current formatting.
+A dashboard can be content-stale (task hash mismatch), format-stale (template_version mismatch), or drift-stale (sidecar sentinel set by a prior targeted edit). Any of the three triggers full regeneration; the three checks share a single full-regen invocation when more than one fires.
+
+**Why this matters:** Dashboard can become stale if tasks are modified outside `/work`, if template sync updates the format rules, or if a prior session applied targeted edits without running full regen. This check ensures you always work from accurate data with current formatting.
 
 ---
 

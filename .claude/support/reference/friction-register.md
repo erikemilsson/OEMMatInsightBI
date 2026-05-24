@@ -80,7 +80,9 @@ For each entry in `report.friction_markers`:
 
 **Atomicity:** Both writes happen synchronously in the same orchestrator step. If `friction.jsonl` doesn't exist, create it on first write. Use the same dual-write reliability pattern that DEC-011 Option ABp established for `.session-log.jsonl` (write to `.pending-markers.jsonl` first, then canonical, both before next sync point).
 
-**Existing template-only kinds** (`workflow_deviation`, `informal_decision`, `scope_creep`, `user_feedback_signal`, `template_gap`) continue to write only to `.session-log.jsonl`. They are not audit-coherence signal — they're for orchestrator self-improvement.
+**Existing template-only kinds** (`workflow_deviation`, `informal_decision`, `scope_creep`, `user_feedback_signal`, `template_gap`, `verification_gap`) continue to write only to `.session-log.jsonl`. They are not audit-coherence signal — they're for orchestrator self-improvement.
+
+**`verification_gap` sub-uses:** the `verification_gap` kind covers gaps in verify-agent's verification capability AND `files_affected` declared-vs-actual drift after multi-file dispatch (per FB-086, shipped v4.8.0; see `verify-agent.md § Step T2b step 4b`). The latter feeds the orchestrator's auto-update of declared `files_affected` (see `commands/work.md § "After verify-agent returns" step 8`).
 
 ---
 

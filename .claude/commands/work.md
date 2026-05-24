@@ -1,3 +1,7 @@
+---
+disable-model-invocation: true
+---
+
 # Work Command
 
 The intelligent entry point for all project work. Handles spec-checking, state detection, task decomposition, task completion, and routing to specialist agents.
@@ -180,6 +184,74 @@ Reconcile any friction markers persisted to the transient pending buffer in a pr
 
 **Composability with PreCompact hook:** `.claude/hooks/pre-compact-handoff.sh` runs the same catchup before its Track 1 export compile. The two entry points (here + PreCompact) cover both "normal /work resume" and "compaction-triggered wind-down" paths.
 
+#### Step 0e: Uncommitted-Work Check (FB-088)
+
+Detect silent drift between "tasks marked Finished" and "code committed". Runs once per `/work` invocation, before any agent dispatch.
+
+**Procedure:**
+
+1. If `.git` is absent (no git repository), this step is a no-op — proceed to Step 0f.
+2. Run `git log -1 --format=%ct HEAD` to get last-commit Unix timestamp. If the command fails (no commits in repo), skip Step 0e — proceed to Step 0f.
+3. Convert timestamp to YYYY-MM-DD format (last-commit date).
+4. Compute working-copy state:
+   - `MODIFIED = git diff --name-only HEAD` (excluding paths starting with `.claude/`)
+   - `UNTRACKED = git ls-files --others --exclude-standard` (excluding paths starting with `.claude/`)
+   - Count = len(MODIFIED) + len(UNTRACKED)
+5. Scan task files for finished-since-commit count: tasks where `status == "Finished"` AND `completion_date >= last-commit-date`.
+6. If `finished_since_commit < 3` OR `(MODIFIED + UNTRACKED) == 0`: silent, proceed to Step 0f.
+7. Else surface inline:
+   - Default form: `Step 0e: {N} tasks Finished since last commit ({M} files modified, {K} untracked). Consider committing before continuing. Use \`git status\` to inspect.`
+   - Post-handoff form (when Step 0a just deleted a handoff): `Step 0e: {N} tasks Finished since last commit (prior session paused without committing). Consider committing before resuming work.`
+8. Always proceed to Step 0f (never block).
+
+**Why this exists:** Long-running multi-session projects accumulate uncommitted state when sessions don't bind to git boundaries. `/work pause` writes a handoff file but does not commit; `/work complete` may complete tasks but does not enforce a commit boundary. Over many sessions, the gap between "tasks marked Finished" and "code committed" grows silently — observed in styler 2026-05-20 (~14-task uncommitted backlog discovered mid-commit).
+
+**Why threshold N≥3:** smallest count that meaningfully exceeds "single in-flight feature about to be committed." Empirical tuning is cheap (single integer constant).
+
+**Why heuristic `.claude/`-only filter:** `.claude/` is the only universally-template-owned state-not-source path. Build artifacts (`node_modules`, `dist/`, etc.) typically live in `.gitignore`; `--exclude-standard` honors `.gitignore` natively. Future configurability deferred until cross-project friction surfaces.
+
+#### Step 0f: Track 2 Stale-File Recovery (FB-089)
+
+Recover from a prior session's interrupted `/work pause` that left `.claude/support/workspace/.interaction-assessment.json` on disk. Without recovery, next session's Write tool fails on that path because the file exists but hasn't been Read.
+
+**Procedure:**
+
+1. If `.claude/support/workspace/.interaction-assessment.json` does not exist, this step is a no-op — proceed to Step 1.
+2. Read the file. If invalid JSON, surface inline `Step 0f: Stale Track 2 capture malformed — discarded.`, delete, proceed to Step 1.
+3. Read `.claude/support/workspace/.session-log.jsonl` if present (Track 1 markers also orphaned from same interrupted pause).
+4. Read `.claude/version.json` for `template_version` + `template_inbox_path`.
+5. Compile a recovered export matching `/work pause § Session Export` shape:
+   ```json
+   {
+     "export_version": 1,
+     "source_project": "[project name]",
+     "template_version": "[from version.json]",
+     "session_date": "[YYYY-MM-DD from current date]",
+     "automated_markers": [/* from .session-log.jsonl if present, else [] */],
+     "session_metrics": {
+       "tasks_completed": [computed from current task files],
+       "verification_pass_rate": [computed],
+       "recovery_events": 0
+     },
+     "claude_assessment": [/* parsed Track 2 JSON */],
+     "export_quality": "recovered"
+   }
+   ```
+6. Compute timestamp `YYYY-MM-DD-HHMM` (minute-granular per FB-079).
+7. Write the recovered export to `.claude/support/workspace/.session-export-{timestamp}-recovered.json`.
+8. If `template_inbox_path` is configured, copy the export there (parallel to Session Export step 6).
+9. Delete `.interaction-assessment.json` AND `.session-log.jsonl`.
+10. Surface inline: `Step 0f: Recovered stale Track 2 capture from interrupted pause → .session-export-{timestamp}-recovered.json` (Inform — not an error.)
+11. Proceed to Step 1.
+
+**Why this exists:** `/work pause § Session Export step 7` cleans up `.interaction-assessment.json` after compiling the export. If pause is interrupted between the write (Interaction Assessment sub-section) and step 7 cleanup — usage limit, user `Ctrl+C`, harness crash — the file persists. Observed in echothread 2026-05-17.
+
+**Why `export_quality: "recovered"` is a new enum value:** distinguishes recovered exports (`session_metrics` computed at recovery time, not at original pause time — lossy property) from canonical exports. Coexists with `"full"` (canonical `/work pause`) and `"markers_only"` (PreCompact hook fallback).
+
+**No PreCompact hook coordination needed:** the hook never reads `.interaction-assessment.json` (it writes `claude_assessment: None` and produces markers-only exports). Step 0f and the hook operate on disjoint Track 2 territory — no double-ingestion risk.
+
+**`.session-log.jsonl` standalone case:** if Track 2 is absent but Track 1 markers exist, Step 0f does NOT trigger recovery — Step 0d's catchup already handles the pending-buffer half, and the PreCompact hook is the canonical disposal mechanism for orphan logs.
+
 ### Step 1: Gather Context
 
 **Version discovery:** Determine the current spec version:
@@ -208,6 +280,8 @@ Read and analyze:
 Verify the dashboard is current before using its data. Compute a SHA-256 hash of all task IDs, statuses, difficulties, and owners, compare against the dashboard's `<!-- DASHBOARD META -->` block. If the hash differs or no metadata exists, regenerate the dashboard from task JSON files before continuing.
 
 Also compare `template_version` in the META block against `template_version` in `.claude/version.json`. If they differ or the META field is absent, the dashboard was generated with older format rules and should be regenerated (see dashboard-regeneration.md § "Format Staleness").
+
+Also read `.claude/dashboard-state.json`'s `pending_full_regen` field. If non-null, a prior-session targeted edit set the sentinel and full regen must run even when `task_hash` matches (see dashboard-regeneration.md § "Targeted Edits"). Full regen clears the field to `null`. A missing field is treated as `null` (back-compat).
 
 **Full procedure:** `.claude/support/reference/drift-reconciliation.md` § "Dashboard Freshness Check"
 
@@ -470,6 +544,20 @@ After phase and decision checks, assess whether multiple tasks can be dispatched
 
 **Auto-continuation within phases:** After a task finishes (passes per-task verification), `/work` loops back to Step 3 to determine the next action — no user prompt, no pause. Each iteration starts with an inline announcement: `Moving to task {id}: "{title}"`. Before dispatching the next task, check if any human-owned or both-owned tasks just became unblocked — if so, mention them inline: `Note: Task {id} ("{title}") is now available for you — {brief description}`. This continues automatically until a natural stopping point: phase boundary (gate approval needed), blocking decision, verification failure requiring human escalation, or all remaining tasks non-actionable (human-owned, blocked, or on hold — see Step 1d). The value of front-loaded decomposition and structured verification is that work flows autonomously between these stops.
 
+**Autonomous batch heartbeat (FB-081):** maintain an in-memory `autonomous_batch_position` counter, incremented by 1 on each sequential auto-continuation loop iteration. The counter resets to 0 on: (a) any natural stopping point (phase boundary, blocking decision, verification failure, all-tasks-non-actionable), (b) any user message arriving during the loop, (c) `/work` exit. Parallel-batch dispatches do NOT increment the counter (the user already approved at parallel pre-dispatch confirmation); only sequential auto-continuations increment.
+
+When `autonomous_batch_position >= 3`, replace the standard `Moving to task {id}: "{title}"` line with a heartbeat line:
+
+```
+[Auto-batch: task {position} of {batch_total} — {task_id}: "{title}"]
+```
+
+Where `batch_total` is the count of pending sequential tasks projected to dispatch in the current batch (computed from the routing-eligible task list at counter-start). Below `position >= 3`, use the standard `Moving to task` line. The counter is invocation-scoped — a new `/work` after `/work complete` starts fresh at 0.
+
+This is a Tier 2 inline message; do NOT write heartbeats to dashboard Recent Activity (heartbeats are progress signals, not state transitions — flooding Recent Activity would violate its 7-entry cap and chronological-pointer-not-narrative rule).
+
+See `.claude/rules/agents.md § "Behavioral Rules" — "Acknowledge mid-batch user messages"` for the complementary reactive rule that handles user pings during long autonomous batches.
+
 **Important — spec tasks vs out-of-spec tasks:** Phase routing is based on spec tasks only (excluding `out_of_spec: true`). Out-of-spec tasks are excluded from **phase detection** (determining whether a phase is complete, triggering phase-level verification, or reaching project completion) to prevent a verify → execute → verify infinite loop. However, out-of-spec tasks still run the **full implement → verify cycle** — they are not exempt from per-task verification. The structural invariant applies universally: no task (spec or out-of-spec) can reach "Finished" without `task_verification.result == "pass"`.
 
 **Out-of-spec task handling:** After phase routing completes (or at phase boundaries), check for pending out-of-spec tasks: `[A]` Accept (sets `out_of_spec_approved: true`), `[R]` Reject, `[D]` Defer, `[AA]` Accept all. Never auto-execute out-of-spec tasks. Accepted out-of-spec tasks are routed to implement-agent → verify-agent like any other task.
@@ -546,6 +634,8 @@ The safety gate applies to implement-agent dispatch, verify-agent runtime valida
 
 Read `.claude/support/reference/decomposition.md` and follow its 10-step procedure to break the spec into granular tasks with full provenance fields.
 
+**Capability-claim cross-check (DEC-017):** when decomposing spec sections that reference Claude Code primitives (skill `model:`/`effort:` frontmatter, subagent dispatch, MCP fan-out, `Agent` tool model granularity, parallel execution boundaries), cross-reference `.claude/support/reference/claude-code-authoring.md` before generating task JSON. The reference doc surfaces load-bearing platform facts that aren't obvious from spec text alone (e.g., `model:` is turn-scoped, not session-scoped — multi-turn chat skills cannot use it for cross-turn model continuity). Task descriptions that depend on unsupported platform behavior produce wasted-iteration cycles at implementation time.
+
 #### State Persistence Protocol
 
 After any agent (implement-agent or verify-agent) returns a structured report, the orchestrator is responsible for all state transitions, JSON persistence, and dashboard updates. Agents cannot write to `.claude/` paths — this is enforced by the Claude Code harness (see DEC-004). Follow this protocol precisely to preserve the atomic implement→verify contract.
@@ -597,7 +687,8 @@ After any agent (implement-agent or verify-agent) returns a structured report, t
 5. **Timeout detection:** if verify-agent exhausted max_turns without returning a valid report, treat as fail: increment `verification_attempts`, set status to "Blocked", add `[VERIFICATION TIMEOUT]` note
 6. **Append friction markers** from `report.friction_markers` (same as implement-agent)
 7. **Parent auto-completion:** if task has `parent_task` and all siblings are now "Finished", set parent to "Finished"
-8. **Dashboard regeneration:** sequential mode — regenerate now; parallel mode — defer
+8. **`files_affected` drift update (FB-086):** if `report.issues[]` contains a minor severity entry with the form "files_affected declared {N} files but implementation touched {M}" AND `report.friction_markers[]` includes a `verification_gap` marker with `template_area: "task-schema files_affected"`, update the task JSON's `files_affected` to match the union of declared and actually-touched files (excluding infrastructure paths filtered in verify-agent T2b step 3). This keeps Step 2c's parallel-batch heuristic accurate for future dispatches.
+9. **Dashboard regeneration:** sequential mode — regenerate now; parallel mode — defer
 
 **After verify-agent returns (phase-level mode):**
 
@@ -1050,8 +1141,10 @@ After writing both the handoff file and interaction assessment, compile the sess
 }
 ```
 
-5. Write to `.claude/support/workspace/.session-export-YYYY-MM-DD.json`
+5. Write to `.claude/support/workspace/.session-export-YYYY-MM-DD-HHMM.json` (minute-granularity timestamp; same-day pauses do not collide per FB-079)
 6. If `template_inbox_path` is configured in `.claude/version.json`, copy the export there
 7. Clean up: delete `.session-log.jsonl` and `.interaction-assessment.json` (data is now in the export)
+
+**Interrupted-pause recovery (FB-089):** if `/work pause` is interrupted between writing `.interaction-assessment.json` and step 7 cleanup (usage limit, Ctrl+C, harness crash), the stale file persists into the next session. The next `/work` invocation's Step 0f compiles a recovered export from the orphaned files (Track 1 + Track 2), copies to inbox if configured, then deletes both stale files. See Step 0f above.
 
 **If `/work pause` is not run** (PreCompact hook fires instead): The hook compiles a markers-only export (`"export_quality": "markers_only"`, `"claude_assessment": null`) from whatever Track 1 markers exist on disk. See the updated hook in `context-transitions.md`.

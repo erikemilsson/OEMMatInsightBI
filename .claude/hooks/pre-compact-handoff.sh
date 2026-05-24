@@ -227,14 +227,16 @@ if markers:
         "export_quality": "markers_only"
     }
 
-    export_path = os.path.join(workspace_dir, f".session-export-{today}.json")
+    # Minute-granularity timestamp prevents same-day pause collisions (FB-079)
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M")
+    export_path = os.path.join(workspace_dir, f".session-export-{timestamp}.json")
     with open(export_path, "w") as f:
         json.dump(export_data, f, indent=2)
 
     # Copy to template inbox if configured
     if template_inbox_path and os.path.isdir(template_inbox_path):
         import shutil
-        dest = os.path.join(template_inbox_path, f"{os.path.basename(project_dir)}-{today}.json")
+        dest = os.path.join(template_inbox_path, f"{os.path.basename(project_dir)}-{timestamp}.json")
         shutil.copy2(export_path, dest)
 
     # Clean up session log (data is now in the export)

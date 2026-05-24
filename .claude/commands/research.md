@@ -1,3 +1,7 @@
+---
+disable-model-invocation: true
+---
+
 # Research Command
 
 Investigate options for decisions, technology choices, or architectural questions. Spawns the research-agent to gather evidence and populate decision records.

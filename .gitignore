@@ -80,3 +80,6 @@ Desktop.ini
 .claude/support/workspace/scratch/
 .claude/support/workspace/drafts/
 .claude/support/workspace/research/
+# Transient machine/session state (template treats these as ignore-category)
+.claude/.sync-state.json
+.claude/tasks/.handoff.json

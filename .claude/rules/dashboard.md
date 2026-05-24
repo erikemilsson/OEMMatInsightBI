@@ -18,6 +18,8 @@ Dashboard does NOT regenerate on every task change. Two tiers:
 - **Tier 1 (Strategic Regen):** Decomposition complete, parallel batch end, session boundaries, `/work complete`, phase gates, decision resolution
 - **Tier 2 (Inline CLI Messages):** Brief contextual updates for routine changes — task starts, verification passes/fails
 
+For single-section changes that would otherwise trigger Tier 1, the orchestrator may apply a **targeted `Edit`** to the affected section instead and set a `pending_full_regen` sentinel in `.claude/dashboard-state.json` so the next Step 1a still runs full regen. See `.claude/skills/dashboard-style/SKILL.md § "Targeted Edits (mid-session lite path)"` for the decision table and procedure.
+
 ## Sections
 
 The dashboard has a **Sections** checklist at the top — check or uncheck items to control which sections Claude generates:

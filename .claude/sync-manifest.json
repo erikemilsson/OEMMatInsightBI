@@ -27,6 +27,7 @@
       ".claude/support/reference/dashboard-regeneration.md",
       ".claude/support/reference/drift-reconciliation.md",
       ".claude/support/reference/friction-register.md",
+      ".claude/support/reference/claude-code-authoring.md",
       ".claude/support/reference/audit-fix-workflow.md",
       ".claude/support/reference/parallel-execution.md",
       ".claude/support/reference/session-recovery.md",

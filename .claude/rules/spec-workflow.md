@@ -30,15 +30,18 @@ Every project starts with ideation. A vision document is required before spec cr
 
 1. Brainstorm in Claude Desktop (or any tool)
 2. Save the result to `.claude/vision/`
-3. Run `/iterate distill` to extract a buildable spec
+3. *(Optional pre-distill enrichment)* Run `/grill {vision-file}` to surface fuzzy language, sharpen domain vocabulary against `./CONTEXT.md` (created lazily on first resolved term), and resolve ambiguity branch-by-branch before distilling. See `.claude/commands/grill.md`.
+4. Run `/iterate distill` to extract a buildable spec
 
-Vision docs can be added throughout the project lifecycle — the vision folder is a living input, not a one-time artifact.
+Vision docs can be added throughout the project lifecycle — the vision folder is a living input, not a one-time artifact. `/grill` can be re-run mid-project when fuzzy language creeps into the spec or codebase; it updates `./CONTEXT.md` inline as terms resolve.
 
 ## Workflow Cycle
 
 **Spec** (define requirements) → **Execute** (implement-agent) → **Verify** (verify-agent).
 
 Primary command: `/work` — checks spec alignment, decomposes tasks, routes to specialist agents.
+
+**Bug tasks:** when a task's failure mode isn't obvious from inspection (hard bugs, non-deterministic failures, performance regressions), prefer `/diagnose` (`.claude/commands/diagnose.md`) — its 6-phase methodology produces a falsifiable hypothesis + regression test before the fix lands, which is what verify-agent expects under `.claude/rules/agents.md § "Root Cause Over Symptom"`.
 
 Parallel execution is the default when `/work` finds multiple pending tasks with no mutual dependencies or file conflicts.
 

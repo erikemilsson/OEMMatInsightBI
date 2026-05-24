@@ -21,12 +21,14 @@ This environment is designed for **Claude Opus 4.7** (`claude-opus-4-7[1m]`). Al
 | Agent definitions | `.claude/agents/*.md` |
 | Decisions | `.claude/support/decisions/decision-*.md` |
 | Reference docs | `.claude/support/reference/` |
+| Claude Code authoring hazards | `.claude/support/reference/claude-code-authoring.md` (DEC-017) |
 | Vision documents | `.claude/vision/` |
 | Workspace (scratch) | `.claude/support/workspace/` |
 | Reference documents (inputs) | `.claude/support/documents/` |
 | Feedback | `.claude/support/feedback/` |
 | Project extension hooks | `.claude/support/reference/extension-hooks.md` |
 | Project instructions | `./CLAUDE.md` (root) |
+| Project domain glossary (lazy, optional) | `./CONTEXT.md` (created by `/grill` on first resolved term) |
 
 ## Critical Invariants
 
@@ -49,6 +51,7 @@ This environment is designed for **Claude Opus 4.7** (`claude-opus-4-7[1m]`). Al
 | `/work pause` | Graceful wind-down (preserve context before compaction) |
 | `/work complete` | Complete current in-progress task |
 | `/iterate` | Spec review and refinement |
+| `/grill` | Interview-style interrogation; no-args triages candidate areas first; auto-detects `./CONTEXT.md` |
 | `/review` | Implementation quality review (advisory, read-only) |
 | `/status` | Quick view of project state |
 | `/research` | Investigate options for decisions |

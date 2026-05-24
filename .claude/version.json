@@ -1,14 +1,14 @@
 {
-  "template_version": "4.0.0",
-  "template_release_date": "2026-05-16",
+  "template_version": "4.10.0",
+  "template_release_date": "2026-05-24",
   "template_repo": "https://github.com/erikemilsson/claude_code_environment",
   "project_version": "1.0.0",
   "project_initialized": "2026-02-13",
   "migrated_at": "2026-03-10",
   "migrated_from": "template v1.5.0 (2026-01-26)",
-  "synced_at": "2026-05-17",
-  "synced_from": "3.0.0",
-  "template_inbox_path": "",
+  "synced_at": "2026-05-24",
+  "synced_from": "4.0.0",
+  "template_inbox_path": "/Users/erikemilsson/Developer/claude_code_environment/interaction-logs/inbox",
   "structured_artifact_path": "",
-  "notes": "Synced to v4.0.0: validate-tasks.py bug fix (task_id → id), DEC-016 ask-gate on spec/decision/vision edits, streamlined commands and rules, added audit-coherence and audit-ui commands. Sync completed 2026-05-17 (initial pass missed feature-retirement.md, friction-register.md, audit-fix-workflow.md, extension-hooks.md, inline-command-pattern.md, support/retired/README.md, scripts/tests/* — restored via /health-check)."
+  "notes": "Synced 4.0.0 -> 4.10.0 via /health-check 2026-05-24. Applied 27 template-owned files (23 modified + 4 new: diagnose.md, grill.md, zoom-out.md, claude-code-authoring.md) plus sync-manifest.json (added claude-code-authoring.md to sync category). 12 project-owned Fabric domain commands kept local-only. Created .sync-state.json sidecar (first population)."
 }

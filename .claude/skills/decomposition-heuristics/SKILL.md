@@ -165,6 +165,58 @@ The heuristic proposes the subtask but does not author the scenario itself. The 
 
 ---
 
+## Test-Protocol Runtime Constraints
+
+When authoring `test_protocol` steps for phone-side or mobile-runtime surfaces, pre-tag steps that exercise behavior not testable under the project's primary runtime (e.g., Expo Go). Eliminates mid-attestation reframings where the user discovers a step is unrunnable.
+
+### Detection patterns
+
+A test_protocol step is **runtime-constrained** if it combines any of these (when project runs on Expo Go):
+
+- **Force-quit + airplane mode + cold-launch** — Expo Go fetches its JS bundle from Metro on every cold-launch; airplane-mode cold-launch freezes Expo Go itself, regardless of in-app cache correctness.
+- **Native modules outside Expo Go's fixed set** — modules requiring a dev-client install.
+
+### Substitution patterns
+
+For cache-path verification without a dev client, substitute one of:
+
+1. **Background mode** (lock screen → unlock, no force-quit): JS stays in memory; tests the cache resume path without cold-launch.
+2. **Server-only kill** (stop dev server, keep WiFi, force-quit + relaunch): Expo Go bundle loads, app starts, foundation fetch fails, cache fallback fires.
+3. **Defer to dev client** (post-EAS): the only path that mirrors a production install.
+
+### Annotation pattern
+
+When no substitution is suitable, annotate the step with a `constraint` informational field:
+
+```json
+{
+  "instruction": "Force-quit, enable airplane mode, relaunch — verify cache renders",
+  "expected": "App paints from cache without server",
+  "type": "interactive",
+  "constraint": "Requires dev client (EAS); skip in Expo Go"
+}
+```
+
+The `constraint` field is informational; verify-agent surfaces it during guided testing so the user defers the step until the dev client lands.
+
+### Project-side declaration
+
+Projects can declare their primary phone runtime in root `./CLAUDE.md`:
+
+```markdown
+**Primary phone runtime:** Expo Go (dev client planned post-EAS)
+```
+
+When absent, verify-agent infers from `package.json` (presence of `expo` + absence of dev-client convention). Inference failures degrade to "no pre-tag" — the constraint surfaces at attestation time as today.
+
+### When to Apply
+
+- Authoring test_protocol for any `owner: "both"` phone task
+- Skip for purely-static verification (lint, type-check, snapshot tests)
+- Skip if the project declares a dev-client runtime (no Expo Go limitation)
+
+---
+
 ## Task Creation Guidelines
 
 - Clear, actionable titles ("Add user validation" not "Backend stuff")

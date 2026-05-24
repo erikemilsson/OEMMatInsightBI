@@ -168,6 +168,21 @@ Detect files modified during implementation that were NOT listed in `files_affec
    - Minor violations: set scope_validation to "pass", record in issues/notes as informational
    - Major violations: set scope_validation to "fail" (this fails the overall result)
 
+4b. files_affected declaration-drift detection (FB-086):
+    IF undeclared_files is non-empty AND impl `notes` includes `[Multi-file: N]` flag:
+      - This is the scope-drift case (decomp under-counted, impl correctly expanded scope),
+        distinct from the scope-violation case in step 4.
+      - For files classified as same-directory (minor) under step 4: ALSO emit a
+        `verification_gap` friction marker with:
+          - template_area: "task-schema files_affected"
+          - details: "files_affected drift: declared=[{declared_list}], actual=[{actual_list}], delta=[{undeclared_list}]"
+      - scope_validation remains "pass" (work is correct; declared metadata is just stale)
+      - Add to issues: severity "minor", description "files_affected declared {N} files but
+        implementation touched {M}; orchestrator should update declared scope for future
+        parallel-dispatch accuracy"
+      - The orchestrator will update the task JSON's files_affected to match actual before
+        the next Step 2c composition (see commands/work.md § "After verify-agent returns").
+
 5. IF unable to determine modified files (no git, permission denied, no timestamps):
    - Set scope_validation to "pass" with note: "Scope validation skipped — no git available or permission denied"
 ```

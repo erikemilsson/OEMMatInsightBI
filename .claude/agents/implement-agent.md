@@ -29,6 +29,7 @@ See `.claude/rules/agents.md § Tool Preferences` for the canonical tool/operati
 - **Surgical single-point change** → use `Edit` tool (targeted replacement)
 - **Changes touching multiple sections or more than a third of the file** → use `Write` tool (full rewrite) — this avoids leftover content and corruption from piecemeal edits
 - **Never use shell text manipulation** (`sed`, `awk`) for document editing — these are error-prone for structured content
+- **YAML frontmatter — colon-space hazard** (DEC-017): in `description:` (or any other) field values, avoid unquoted `: ` (colon-space) — strict YAML 1.2 / PyYAML rejects it as an ambiguous mapping-value token. Use em-dashes (` — `) or quote the entire value. See `.claude/support/reference/claude-code-authoring.md § "YAML Frontmatter Hazards"` for the full convention.
 
 **Large-file strategy:**
 

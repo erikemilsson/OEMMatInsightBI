@@ -78,6 +78,7 @@ User-authored content is persisted in `.claude/dashboard-state.json` as a durabl
     "items": [],
     "dismissed_ids": []
   },
+  "pending_full_regen": null,
   "updated": "2026-01-28T14:30:00Z"
 }
 ```
@@ -92,6 +93,7 @@ User-authored content is persisted in `.claude/dashboard-state.json` as a durabl
 | `inline_feedback` | Object | Keyed by task ID. Value: string content between `<!-- FEEDBACK:{id} -->` markers |
 | `custom_views_instructions` | String | Content between `<!-- CUSTOM VIEWS INSTRUCTIONS -->` markers |
 | `audit_digest` | Object | `latest_audit` (string, e.g. `"coherence-2026-05-15-1430"`), `items[]` (digest item objects, projection of latest digest.json), `dismissed_ids[]` (item IDs the user dismissed via dashboard). See `.claude/support/reference/audit-fix-workflow.md` for the dashboard digest section spec. |
+| `pending_full_regen` | String \| null | ISO 8601 timestamp set by the orchestrator when a targeted edit is applied in lieu of a full regen (see § "Targeted Edits"). Read by `/work` Step 1a freshness check: if non-null, full regen runs even when `task_hash` matches. Cleared (set to `null`) by full regen. Missing field is treated as `null` (back-compat for sidecars created before this convention). |
 | `updated` | String | ISO 8601 timestamp of last write |
 
 **Lifecycle:**
@@ -140,6 +142,51 @@ The dashboard META block includes a `template_version` field (copied from `.clau
 | Auto-continuation step | `Moving to task {id}: "{title}"` |
 
 **In parallel mode:** Individual agents never regenerate. The `/work` coordinator regenerates once after all agents complete.
+
+*Some Tier 1 triggers permit a targeted-edit alternative — see § "Targeted Edits (mid-session lite path)" below.*
+
+---
+
+## Targeted Edits (mid-session lite path)
+
+For single-section changes that would otherwise trigger Tier 1 full regen, the orchestrator may apply a **targeted `Edit`** to the affected section instead. This preserves mid-session dashboard currency without the cost of the 8-step regen procedure, while a sidecar sentinel ensures the next Step 1a still runs full regen to catch any drift the targeted edits introduced.
+
+### When to use targeted edit vs full regen
+
+| Pattern | Targeted edit | Full regen |
+|---------|:----:|:----:|
+| Single phase decision resolved | ✓ | |
+| Single task moved into Action Required | ✓ | |
+| META `generated` timestamp refresh after a status flip | ✓ | |
+| Format-staleness fix that touches only META | ✓ | |
+| Decomposition complete (new tasks added) | | ✓ |
+| Parallel batch end (multi-task changes land together) | | ✓ |
+| `/work complete` | | ✓ |
+| Session boundaries (Step 1a freshness check, `/work pause`) | | ✓ |
+| Multi-task status changes (≥3 tasks) | | ✓ |
+| Spec version transitions | | ✓ |
+
+**Default to full regen when in doubt.** Targeted edit is permitted only when a single section's content is the only thing changing AND no derived data (status summary, critical path, decision counts) needs recomputation across sections.
+
+### Procedure for a targeted edit
+
+When the orchestrator chooses the targeted-edit path:
+
+1. **Use the `Edit` tool** to update the affected section in `.claude/dashboard.md`. Match existing section formatting (see § "Section Format Reference"). Do NOT touch sections that aren't changing.
+2. **Update META block in place** — recompute `task_hash` from current task state (so the next freshness check sees a fresh hash), refresh `generated` ISO timestamp. Leave other META fields unchanged unless the targeted edit actually affected them.
+3. **Set sidecar sentinel** — write `pending_full_regen: "<ISO timestamp>"` to `.claude/dashboard-state.json`. The next `/work` Step 1a sees the sentinel and runs full regen even though `task_hash` matches, catching any drift the targeted edits may have introduced (cross-section consistency, status-summary recalculation, critical-path refresh, etc.).
+4. **No regen-procedure invocation** — Steps 1-8 of "Regeneration Steps" are skipped for the targeted edit. They run on the next Tier 1 trigger or at the next Step 1a freshness check.
+
+### Cycle and clearing
+
+- Targeted edits accumulate the `pending_full_regen` sentinel; multiple targeted edits in one session leave a single ISO timestamp (last-edit's value).
+- Next session's Step 1a sees the sentinel → full regen → clears the sentinel to `null`.
+- Step 1a's existing `task_hash` mismatch check is unaffected. If `pending_full_regen` is set AND `task_hash` also mismatches, a single full regen handles both — no double-regen.
+- Missing `pending_full_regen` field is treated as `null` (back-compat for sidecars created before this convention).
+
+### Rationale
+
+The pattern codifies observed orchestrator behavior (targeted inline `Edit` calls for single-section updates) into an explicit sanctioned path. The sentinel guarantees full regen at session start, so targeted edits cannot accumulate stale drift across sessions.
 
 ---
 

@@ -17,6 +17,8 @@ verify-agent always runs as a separate Task agent, dispatched by the `/work` orc
 
 All `.claude/` state transitions (task JSON writes, dashboard regeneration, verification-result.json, session-log.jsonl) are owned by the `/work` orchestrator. Subagents (implement-agent, verify-agent, research-agent) return structured reports; they do not write to `.claude/` paths. This is a hard constraint of the Claude Code harness (subagents are sandboxed from `.claude/` writes per Anthropic issue #38806) and is not expected to change. See DEC-004 for the full rationale.
 
+**Capability grounding:** the subagent boundaries above (no `.claude/` writes, no nested `Task` calls, no `permissions.allow` inheritance, Explore/Plan agents skip CLAUDE.md + git status) are documented in `.claude/support/reference/claude-code-authoring.md § "Subagent Boundaries"` as load-bearing constraints for spec/skill/agent authors who would otherwise design workflows that violate them. The reference doc is the canonical home for "facts about Claude Code that authors trip over" (DEC-017).
+
 ## Root Cause Over Symptom
 
 When a test fails, a build breaks, a type error surfaces, or a runtime error occurs: fix the underlying cause, not the symptom.
@@ -38,6 +40,22 @@ When a test fails, a build breaks, a type error surfaces, or a runtime error occ
 
 In those cases, the suppression is the fix — not a symptom hiding a bug.
 
+**For hard bugs where the root cause isn't obvious from inspection** — non-deterministic failures, performance regressions, tests that fail in unclear ways — route through `/diagnose` (`.claude/commands/diagnose.md`). The 6-phase methodology (feedback loop → reproduce → falsifiable hypotheses → instrument → fix + regression test → cleanup + post-mortem) is the structural enforcement mechanism for this rule on multi-turn debugging. The Phase 3 falsifiable-hypothesis discipline is what prevents the "swap-and-see" pattern that produces symptom-only fixes.
+
+## Domain Glossary Awareness
+
+Projects may keep `./CONTEXT.md` at the project root — a project-owned domain glossary populated by `/grill`. **Lazily-created**: the template never ships a placeholder; `/grill` creates it on the first resolved term. Absent in projects that haven't run `/grill` (fine — agents fall back to spec/code vocabulary).
+
+**implement-agent:** when `./CONTEXT.md` is present, read it before producing deliverables; match its terminology in code, comments, task descriptions, and user-facing artifacts. If the user's request uses an alias listed in CONTEXT.md's `_Avoid:` field, surface the mismatch (`scope_clarification_needed` in the return report) rather than silently translating.
+
+**verify-agent:** when `./CONTEXT.md` is present, treat its glossary as authoritative for vocabulary checks during `spec_alignment` / `consistency_check`. A load-bearing domain noun absent from CONTEXT.md (appears 3+ times across implementation) signals either glossary drift or a missing entry — emit a `vocab_drift` friction marker rather than failing verification.
+
+**Maintenance.** `/grill` grows and refines CONTEXT.md inline as terms resolve in conversation. Agents do **not** batch-extract terms or autogenerate placeholder glossaries (per Pocock's deprecation lesson — pre-populated glossaries don't get maintained, organically-grown ones do).
+
+**Layer distinction.** `./CONTEXT.md` is project domain vocabulary (your Customer/Order/Invoice or equivalent). `.claude/support/reference/shared-definitions.md` is environment vocabulary (Pending/In Progress statuses, difficulty 1-10, owner enums). Both coexist; never collapse.
+
+`/audit-coherence`'s `vocab-drift` lens consumes CONTEXT.md when present (see `commands/audit-coherence.md § "Lens 2 — vocab-drift"`).
+
 ## Behavioral Rules
 
 **Respect prior kills.** When the user kills a long-running process (dev server, file watcher, batch loop, mass-file processor, external-API scan), do not restart it in the same session without renewed approval. "Kill" signals: explicit user message ("kill it", "stop the server", "cancel"), pressing Ctrl+C in a captured terminal, `/work pause`, or any explicit halt instruction.
@@ -47,6 +65,28 @@ The rule applies to the killed process AND to semantically equivalent replacemen
 This complements DEC-005's permission-layer gate (which stops unauthorized tool calls): that gate catches unapproved starts; this rule catches authorized-but-destructive re-starts after an explicit halt. Behavioral rule, not a permission — auto mode (which approves tool calls by classifier) does not absorb it.
 
 Note: starting a dev server for UI verification is a feature (per root `CLAUDE.md` guidance on UI testing), not a violation. The rule applies to *restarting after a kill*, not to initial starts.
+
+**Acknowledge mid-batch user messages.** When the user sends any message during an active autonomous batch (`autonomous_batch_position >= 3` per `commands/work.md § "Autonomous batch heartbeat"`), default to: (a) acknowledge receipt of the message, (b) summarize current batch state (which task is in progress, position N of M, what was verified so far), and (c) offer the user `[C] Continue batch | [P] Pause here | [reply with instructions to redirect]`. Do NOT treat the message as a green light to auto-continue — even seemingly-incidental remarks during long autonomous stretches are likely check-in signals.
+
+The rule applies regardless of message intent (question, observation, instruction). The user can override by replying `C`, `continue`, or `keep going` — the explicit override is the green light. Below `autonomous_batch_position < 3`, the orchestrator's normal message-interpretation flow applies.
+
+This complements the heartbeat (which reduces ping frequency) by catching the pings that still happen. Both rules share the same `autonomous_batch_position >= 3` threshold — one configuration knob, one set of reset rules, one mental model.
+
+## Command Invocation Gates
+
+Slash commands that perform substantive or irreversible work carry `disable-model-invocation: true` in YAML frontmatter to prevent autonomous invocation by the model. User-typed slash invocation continues to work; the model can still *suggest* the command in conversation. The gate only blocks the model's autonomous decision to fire the command via the `Skill` tool.
+
+**Gated commands (template-shipped):** `/breakdown`, `/research`, `/iterate`, `/work`, `/feedback`.
+
+**Selection criteria:**
+- **Gate**: substantive writes, irreversible state transitions, ledger changes, expensive/long-running flows where autonomous fire is a foot-gun.
+- **Leave open**: read-only audits (`/status`, `/health-check`, `/review`, `/audit-coherence` / `/audit-ui` non-triage modes) and conversational entry points where the model legitimately benefits from being able to ambient-invoke.
+
+**Sub-mode coupling.** `disable-model-invocation` is per-file. Multi-mode commands (`/iterate`, `/work`, `/feedback`) gate as a whole — the model can no longer ambient-invoke their read-only sub-modes (`/work` no-args, `/iterate` no-args, `/feedback [text]` capture, `/feedback list`) either. Acceptable because user-typed slash invocation continues to work for all sub-modes, and the model can still surface suggestions in conversation. Future refactor option: split multi-mode files (e.g., `work-complete.md` separate from `work.md`) if the coupling produces observed friction.
+
+**Defense-in-depth.** Upstream of DEC-005 (permission-layer auto mode) and DEC-016 (spec/decision/vision Edit/Write ask). DEC-005 catches tool calls the model shouldn't make; DEC-016 catches writes to protected paths; this gate prevents the model's *decision* to fire the command in the first place. All three layers compound.
+
+**Authoring hazards.** Skill frontmatter scoping (`disable-model-invocation`, turn-scoped `model:` / `effort:`, `context: fork` + `agent:` pattern, `allowed-tools`) is documented in `.claude/support/reference/claude-code-authoring.md § "Skill Frontmatter Scope"` (DEC-017). Spec authors writing flows that depend on these primitives should consult that reference to avoid the "design pattern only obvious after hitting a wall" failure mode.
 
 ## Cross-Project Capture Protocol
 
@@ -85,6 +125,14 @@ Single-session MCP servers cannot be safely fanned out across parallel subagents
 True parallel browser inspection would require multiple MCP server instances on different ports or `user-data-dir`s — not how the template ships and not trivial to set up. Out of scope for most projects.
 
 **Detection (lower priority):** `/work` Step 2c parallel-batch heuristic currently keys on `files_affected` only. It could be extended to check `mcp_resource_overlap` (any pair of tasks both expected to use the same single-instance MCP server) — same dispatch site as `shared_contract` detection in `parallel-execution.md`. Tracked separately if it becomes a recurring foot-gun.
+
+## MCP and Result-Size Constraints
+
+Playwright MCP `browser_snapshot` returns the full accessibility tree of the current page. For long-scroll pages or sites with many sections (over ~10K characters of DOM), the result can exceed the model's per-tool-call token budget and truncate silently — the snapshot appears empty or partial without an error.
+
+For audits and verifications that only need specific elements, prefer `browser_evaluate` with targeted DOM queries (e.g., `document.querySelectorAll('h2').map(h => h.textContent)`). Reserve `browser_snapshot` for small pages or when you genuinely need the full tree.
+
+The same pattern applies to other MCP servers that return large result objects: prefer targeted queries over full-state dumps when the task only needs specific data.
 
 ## Tool Preferences
 

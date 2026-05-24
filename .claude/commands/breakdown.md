@@ -1,3 +1,7 @@
+---
+disable-model-invocation: true
+---
+
 # Breakdown Task
 
 Split a complex task into smaller subtasks.

@@ -216,17 +216,19 @@ Be evidence-first. Quote the spec text and the decision text. Use the lens outpu
 ```
 You are auditing a project for the VOCAB-DRIFT lens only.
 
-Read {AUDIT_DIR}/inputs/spec-sections.json and {AUDIT_DIR}/inputs/friction-open.jsonl (open friction register entries with kind=vocab_drift or terminology_mismatch).
+Read {AUDIT_DIR}/inputs/spec-sections.json and {AUDIT_DIR}/inputs/friction-open.jsonl (open friction register entries with kind=vocab_drift or terminology_mismatch). Also read `./CONTEXT.md` at the project root if it exists — it is the canonical domain glossary populated by `/grill` (project-owned, lazy-created; absent for projects that haven't run `/grill`).
 
 What counts:
 1. Same concept named with different terms across spec sections — e.g., "sub-tab" in § 9.1 but "section nav" in § 42.5; "personalized principles" in § 5.2 but "maintainer-curated principles" in § 5.5.
 2. Spec uses term X but the friction register has open entries reporting that implementation uses term Y for the same concept (cross-reference register entries against spec).
 3. Plural / spelling drift on the same noun across spec sections ("outerwears" vs "outerwear", "Bottoms" vs "Trouser") if the same noun appears in multiple sections.
+4. **CONTEXT.md violation (only when present)**: spec text uses an alias listed in CONTEXT.md's `_Avoid:` field (the term should be the canonical), OR spec text introduces a load-bearing domain noun absent from CONTEXT.md's Language section (signal: appears 3+ times across 2+ sections — load-bearing enough to belong in the glossary; surface as "missing glossary entry; consider `/grill` to add it"). When CONTEXT.md exists, it is the canonical naming reference — overrides per-section voting heuristics for items #1 and #3.
 
 Your method:
 1. Open the active spec file. Scan for noun phrases that appear in multiple sections.
-2. For each candidate noun phrase, search for synonyms or close variants in the spec. If found in different sections without cross-reference, flag.
-3. Read open friction register entries with `kind: vocab_drift` or `kind: terminology_mismatch`. For each, surface the friction's evidence as a finding (it was already flagged by an agent during /work).
+2. **If `./CONTEXT.md` exists:** load its glossary terms + `_Avoid:` aliases. For each candidate noun phrase, check: (a) is it the canonical term? (b) is it an `_Avoid:` alias? (c) is it absent from CONTEXT.md but load-bearing? Flag (b) as "alias used in place of canonical: should be {canonical}" and (c) as "missing glossary entry: load-bearing term {term} not in CONTEXT.md".
+3. **If `./CONTEXT.md` is absent:** for each candidate noun phrase, search for synonyms or close variants in the spec. If found in different sections without cross-reference, flag.
+4. Read open friction register entries with `kind: vocab_drift` or `kind: terminology_mismatch`. For each, surface the friction's evidence as a finding (it was already flagged by an agent during /work).
 
 What does NOT count:
 - Same word used in genuinely different contexts (e.g., "session" in spec § 3 means HTTP session; in § 12 means user session — distinct concepts that happen to share a word).
