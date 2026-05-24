@@ -16,5 +16,11 @@
   },
   "inline_feedback": {},
   "custom_views_instructions": "",
-  "updated": "2026-05-17T00:00:00Z"
+  "audit_digest": {
+    "latest_audit": "",
+    "items": [],
+    "dismissed_ids": []
+  },
+  "pending_full_regen": null,
+  "updated": "2026-05-24T02:49:31Z"
 }

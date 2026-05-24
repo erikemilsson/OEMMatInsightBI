@@ -1,18 +1,24 @@
 # Dashboard
 
 <!-- DASHBOARD META
-generated: 2026-05-17T00:00:00Z
-task_hash: sha256:0d35987bf5c67db1
+generated: 2026-05-24T02:49:31Z
 task_count: 29
-spec_fingerprint: sha256:93c01f3a54750f35
-template_version: 4.0.0
+task_hash: sha256:dea05a9d934ed365d5ef3003d4e0d7fcd06138740fcc5fc720eb159d6a7931ad
+spec_version: spec_v1
+spec_status: active
+spec_fingerprint: sha256:97eaf7a5fa75e0e92938687bbb3ab657163920349814845ce998d95640600088
+template_version: 4.10.0
 verification_debt: 0
 drift_deferrals: 0
+decision_count: 0
+decisions_approved: 0
+decisions_superseded: 0
+decisions_partially_superseded: 0
 -->
 
-**OEMMatInsightBI** — 69% complete (20/29 atomic tasks; 16/19 spec tasks finished, 2 broken down)
+**OEMMatInsightBI** — 74% complete (20/27 atomic tasks finished; 2 parent tasks broken down)
 
-*Updated 2026-05-17 — may not reflect changes made outside `/work`*
+*Updated 2026-05-24 02:49 — may not reflect changes made outside `/work`*
 
 **Next:** Deploy incremental load changes to Fabric and run full + incremental tests — [task-006_3](tasks/task-006_3.json).
 
@@ -33,13 +39,15 @@ drift_deferrals: 0
 
 ## 🚨 Action Required
 
+<!-- PHASE GATE:1→2 APPROVED -->
+
 ### Your Tasks
 
 | Task | What To Do | Where |
 |------|-----------|-------|
-| 006_3 | Deploy incremental load changes to Fabric, run full + incremental tests, verify no duplicates | [task-006_3.json](tasks/task-006_3.json) |
-| 010 | Configure pipeline scheduling in Fabric UI (daily 6:00 AM) | [task-010.json](tasks/task-010.json) |
-| 012_1 | Run baseline performance measurements in Fabric (3 pipeline runs, record activity durations) | [task-012_1.json](tasks/task-012_1.json) |
+| 006_3 | Deploy incremental load changes to Fabric, run full + incremental test loads, verify no duplicate rows — then run `/work complete 006_3` | [task-006_3.json](tasks/task-006_3.json) |
+| 010 | Configure pipeline scheduling in Fabric UI (daily 6:00 AM trigger + notification emails) — then run `/work complete 010` | [task-010.json](tasks/task-010.json) |
+| 012_1 | Run baseline performance measurements in Fabric (3 pipeline runs, record per-activity durations) — then run `/work complete 012_1` | [task-012_1.json](tasks/task-012_1.json) |
 
 <!-- FEEDBACK:task-006_3 -->
 **Task 006_3 — Feedback:**
@@ -48,56 +56,58 @@ drift_deferrals: 0
 
 <!-- FEEDBACK:task-010 -->
 **Task 010 — Feedback:**
-[Leave feedback here, then run /work complete task-010]
+[Leave feedback here, then run /work complete 010]
 <!-- END FEEDBACK:task-010 -->
 
 <!-- FEEDBACK:task-012_1 -->
 **Task 012_1 — Feedback:**
-[Leave feedback here, then run /work complete task-012_1]
+[Leave feedback here, then run /work complete 012_1]
 <!-- END FEEDBACK:task-012_1 -->
 
 ---
 
 ## 📊 Progress
 
+| Status | Count |
+|--------|-------|
+| Finished | 20 |
+| Pending | 7 |
+| Broken Down | 2 |
+
 | Phase | Done | Total | Status |
 |-------|------|-------|--------|
 | Phase 1 — Core Data Model & Reports | 9 | 9 | Complete |
-| Phase 2 — Automation & Quality | 6 | 7 | 1 task awaiting your action (006_3) |
-| Phase 3 — Operations & Performance | 1 | 7 | Pipeline scheduling (010) + 5 performance subtasks (012_1–012_5) |
+| Phase 2 — Automation & Quality | 10 | 11 | Active — 1 task awaiting your action (006_3) |
+| Phase 3 — Operations & Performance | 1 | 7 | Active — scheduling (010) + 5 performance subtasks |
 
-**What was done this session:**
-- ✅ Incremental load: bronze date filtering (006_1a), silver Delta MERGE (006_1b), gold Delta MERGE (006_1c), pipeline wiring (006_2)
-- ✅ External data automation: EPI + WGI ingestion notebooks (005)
-- ✅ Data quality framework: 9 check functions across all layers (007)
-- ✅ Error handling: retry logic + execution logging + recovery playbook (011)
+*Counts are atomic tasks (subtasks count individually; the 2 broken-down parents 006 & 012 are excluded).*
 
-**Remaining:** 7 tasks (1 incremental test + 1 scheduling + 5 performance subtasks)
+**Critical path:** ❗ 012_1 (baseline) → 🤖 012_2 (partitioning) → 🤖 012_3 (V-Order) → ❗ 012_5 (retest) → Done — *4 steps; 👥 012_4 (warehouse indexes) runs parallel after 012_1; 👥 006_3 and 👥 010 are independent.*
 
 ### Project Overview
 
 ```mermaid
 graph LR
-    P1["✅ Phase 1 (9/9)"]
-    T006_3["👥 Test Incremental"]
+    P1["✅ Phase 1 — Core Data Model & Reports (9/9)"]
+    T006_3["👥 Test Incremental Load"]
     T010["👥 Pipeline Scheduling"]
-    T012_1["👥 Baseline"]
+    T012_1["❗ Perf Baseline"]
     T012_2["🤖 Partitioning"]
     T012_3["🤖 V-Order"]
-    T012_4["👥 Indexes"]
-    T012_5["👥 Validate"]
+    T012_4["👥 Warehouse Indexes"]
+    T012_5["❗ Perf Retest"]
 
-    T006_3 --> T010
     T012_1 --> T012_2 --> T012_3 --> T012_5
     T012_1 --> T012_4 --> T012_5
 
     classDef done fill:#c8e6c9,stroke:#2e7d32
+    classDef active fill:#bbdefb,stroke:#1565c0
     classDef human fill:#fff9c4,stroke:#f57f17
-    classDef claude fill:#bbdefb,stroke:#1565c0
+    classDef blocked fill:#f5f5f5,stroke:#9e9e9e
 
     class P1 done
     class T006_3,T010,T012_1,T012_4,T012_5 human
-    class T012_2,T012_3 claude
+    class T012_2,T012_3 blocked
 ```
 
 ---
@@ -108,7 +118,7 @@ graph LR
 
 ✅ 9 tasks finished
 
-### Phase 2 — Automation & Quality (6/7)
+### Phase 2 — Automation & Quality (10/11)
 
 | ID | Title | Status | Diff | Owner | Deps |
 |----|-------|--------|------|-------|------|
@@ -120,10 +130,10 @@ graph LR
 | ↳ 006_2 | Wire pipeline parameters to activities | Finished | 4 | 🤖 | 006_1a, 006_1b, 006_1c ✅ |
 | ↳ 006_3 | Test incremental load end-to-end | **Pending** | 3 | 👥 | 006_2 ✅ |
 | 007 | Add Comprehensive Data Quality Checks | Finished | 6 | 🤖 | task-018 ✅ |
-| 016 | Guided Power BI Dashboard Building | Finished | 3 | 👥 | — |
-| 017 | Populate Quality History with Sample Data | Finished | 4 | 🤖 | — |
+| 016 | Guided Power BI Dashboard Building | Finished | 3 | 👥 | task-015 ✅ |
+| 017 | Populate Quality History with Sample Data | Finished | 4 | 🤖 | task-018, task-019 ✅ |
 | 018 | Implement Quality Observability Tables | Finished | 5 | 🤖 | — |
-| 019 | Add Quality Tables to Semantic Model | Finished | 4 | 🤖 | — |
+| 019 | Add Quality Tables to Semantic Model | Finished | 4 | 🤖 | task-018 ✅ |
 
 ### Phase 3 — Operations & Performance (1/7)
 
@@ -132,11 +142,11 @@ graph LR
 | 010 | Configure Pipeline Scheduling | **Pending** | 3 | 👥 | task-011 ✅ |
 | 011 | Implement Error Handling & Retry Logic | Finished | 6 | 🤖 | — |
 | 012 | Optimize Pipeline Performance | Broken Down | 7 | 👥 | — |
-| ↳ 012_1 | Establish performance baseline | **Pending** | 3 | 👥 | — |
+| ↳ 012_1 | Establish performance baseline | **Pending** | 3 | ❗ | — |
 | ↳ 012_2 | Implement partitioning on fact tables | **Pending** | 5 | 🤖 | 012_1 |
 | ↳ 012_3 | Enable V-Order and add broadcast hints | **Pending** | 4 | 🤖 | 012_2 |
 | ↳ 012_4 | Author warehouse index DDL | **Pending** | 4 | 👥 | 012_1 |
-| ↳ 012_5 | Performance retest and validation | **Pending** | 4 | 👥 | 012_2, 012_3, 012_4 |
+| ↳ 012_5 | Performance retest and validation | **Pending** | 4 | ❗ | 012_2, 012_3, 012_4 |
 
 ---
 
@@ -147,4 +157,4 @@ graph LR
 <!-- END USER SECTION -->
 
 ---
-*2026-05-17 · 29 tasks · [Spec aligned](# "0 drift deferrals, 0 verification debt")*
+*2026-05-24 · 29 tasks · [Spec aligned](# "0 drift deferrals, 0 verification debt")*
