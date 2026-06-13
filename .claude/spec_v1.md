@@ -2,7 +2,7 @@
 version: 1
 status: active
 created: 2025-11-14
-updated: 2026-04-05
+updated: 2026-05-24
 ---
 
 # OEMMatInsightBI - Project Definition for Claude Code
@@ -789,15 +789,13 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 -   gold_dim_country plays two roles in fact_procurement (supplier HQ and production country)
 
-**Key Measures/Calculations:** (in `expressions.tmdl`)
+**Key Measures/Calculations:**
 
--   **NOTE:** No custom DAX measures found in current semantic model files
+-   The semantic model redesign and DAX measure implementation are complete (task-002, task-009).
 
--   Only database connection expression exists
+-   40+ DAX measures are implemented and documented in `.claude/support/documents/dax_measure_library.md`.
 
--   Measures likely defined in Power BI Desktop file (.pbix) not synced to git
-
--   **Expected measures based on business requirements:**
+-   Representative measures:
 
     -   Total Spend = SUM(fact_procurement\[spend_eur\])
 
@@ -811,8 +809,6 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
     -   YoY Growth = \[Calculate current vs previous year\]
 
-    -   **NOTE:** The current semantic model and DAX measures are slated for a complete redesign. The primary goal is to explore effective data presentation and then implement robust DAX measures to support it. A task has been created for this exploration and implementation.
-
 **Date Table Configuration:**
 
 -   Date dimension connected to: fact_procurement\[date_key\] only
@@ -825,19 +821,13 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 ### Power BI Report: `report2.Report`
 
-**Report Pages:** **NEEDS REDESIGN**
-
-**Key Visuals:** **NEEDS REDESIGN**
-
-**Filters/Slicers:** **NEEDS REDESIGN**
-
-**Drill-through Pages:** None currently — report is being redesigned
+The report was redesigned and rebuilt from scratch after the semantic model was finalized (task-003, task-013, task-014, task-016). The earlier report was discarded.
 
 **RLS (Row-Level Security):** Designed (6 roles, see `.claude/support/documents/rls_security_strategy.md`). Portfolio demonstration only.
 
 **Theme:** CY24SU10.json (Fabric default theme)
 
-**NOTE:** The existing report will be discarded. A new set of visualizations and pages will be designed from scratch after the semantic model is finalized.
+*Page/visual inventory remains to be documented — tracked under § Current State Assessment → Documentation.*
 
 ------------------------------------------------------------------------
 
@@ -854,6 +844,8 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 -   [x] WGI file ingestion (`WGI_file2table.Dataflow`)
 
 -   [x] HTTP copy job for EU supply shares (`bronzecopy_EUSupplyShares`)
+
+-   [x] Automated external data ingestion scripting (task-005)
 
 **Silver Layer:**
 
@@ -923,6 +915,8 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 -   [x] Dependency management configured
 
+-   [x] Error handling & retry logic — Try-Catch pattern, activity-level retry (task-011)
+
 **Reporting:**
 
 -   [x] Power BI report created
@@ -933,12 +927,9 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 **Remaining Technical Work** (mapped to tasks):
 
--   [ ] Incremental load implementation (task-006)
--   [ ] Automated external data ingestion (task-005)
--   [ ] Comprehensive data quality checks in pipeline (task-007)
--   [ ] Error handling & retry logic in pipeline (task-011)
+-   [ ] Incremental load — implementation done (006_1a/1b/1c/2); end-to-end testing in Fabric remains (task-006_3)
 -   [ ] Pipeline scheduling (task-010)
--   [ ] Performance review (task-012)
+-   [ ] Performance optimization (task-012, broken into 012_1–012_5)
 -   [ ] CI/CD deployment via `fabric-cicd` (Phase 4)
 
 **Documentation:**
@@ -1059,35 +1050,37 @@ No open issues. Previously identified gap (data quality visibility) addressed vi
 
 ### Data Quality Checks Needed
 
+*9 of these are implemented in `data_quality_checks.Notebook` (task-007) — checked below. Unchecked items remain outstanding.*
+
 **Bronze Layer Checks:**
 
--   [ ] Row count validation (expected vs actual)
+-   [x] Row count validation (expected vs actual)
 
--   [ ] Schema drift detection
+-   [x] Schema drift detection
 
--   [ ] Null checks on required fields
+-   [x] Null checks on required fields
 
--   [ ] Duplicate detection (primary keys)
+-   [x] Duplicate detection (primary keys)
 
 -   [ ] Date range validation (no future dates, etc.)
 
 **Silver Layer Checks:**
 
--   [ ] Referential integrity (orphaned records)
+-   [x] Referential integrity (orphaned records)
 
--   [ ] Business rule validation
+-   [x] Business rule validation
 
 -   [ ] Data type consistency
 
--   [ ] Outlier detection (amounts, quantities)
+-   [x] Outlier detection (amounts, quantities)
 
 -   [ ] Completeness checks
 
 **Gold Layer Checks:**
 
--   [ ] Aggregate totals reconciliation
+-   [x] Aggregate totals reconciliation
 
--   [ ] Historical trend validation (no sudden spikes/drops without explanation)
+-   [x] Historical trend validation (no sudden spikes/drops without explanation)
 
 **Current Data Quality Implementation:**
 
@@ -1098,6 +1091,10 @@ No open issues. Previously identified gap (data quality visibility) addressed vi
 -   Results: Stored in gold_data_quality_metrics table
 
 -   Visualization: quality_category field available in facts for filtering
+
+-   DQ framework: 9 check functions across bronze/silver/gold in `data_quality_checks.Notebook` (task-007); results persisted to gold_quality_history
+
+-   Observability tables: gold_quality_history, gold_gap_registry, gold_low_confidence_audit (task-018)
 
 ### Expected Data Profiles
 
@@ -1266,11 +1263,13 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 
 ### Current Testing Status
 
-**Unit Tests:** None exist **Integration Tests:** None exist **Data Validation Tests:** Partial (quality checks in gold layer)
+**Unit Tests:** 33 tests for transformation logic in `tests/` (task-008). **Integration Tests:** None yet. **Data Validation Tests:** Quality checks in gold layer + observability tables.
 
-**Desired Testing Approach:**
+**Testing Approach:**
 
--   [ ] Unit tests for transformation functions (stable_key, clean_and_rename, etc.)
+-   [x] Unit tests for transformation functions (stable_key, clean_and_rename, etc.) — task-008
+
+-   [x] CI pipeline: GitHub Actions matrix testing (Python 3.10–3.12)
 
 -   [ ] Schema validation tests
 
@@ -1500,8 +1499,8 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
 | Phase | Focus | Status | Acceptance Criteria |
 |-------|-------|--------|-------------------|
 | Phase 1 | Core Data Model & Reports | Complete (9/9) | Gold tables populated, semantic model connected, Power BI report built |
-| Phase 2 | Automation & Quality | Active (4/7 done) | Incremental load works for fact_procurement, data quality checks run in pipeline, external data ingestion scripted |
-| Phase 3 | Operations & Performance | Blocked (pending task-011) | Error handling with Try-Catch in pipeline, pipeline scheduling configured, basic performance review done |
+| Phase 2 | Automation & Quality | Active (10/11) — only task-006_3 (incremental-load testing in Fabric) remains | Incremental load works for fact_procurement, data quality checks run in pipeline, external data ingestion scripted |
+| Phase 3 | Operations & Performance | Active (1/7) — task-011 done; task-010 (scheduling) + task-012_1–012_5 (performance) pending | Error handling with Try-Catch in pipeline, pipeline scheduling configured, basic performance review done |
 | Phase 4 | CI/CD Deployment | Planned | GitHub Actions workflow deploys Fabric artifacts on merge to main via `fabric-cicd` |
 
 ### Phase 4 — CI/CD Deployment
@@ -1520,8 +1519,8 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
 ### Priority Order
 
 Complete in sequence:
-1. Phase 2 remaining (tasks 005, 006, 007) — incremental load is the highest-value item
-2. Phase 3 (tasks 011, 010, 012) — error handling unblocks scheduling
+1. Phase 2 remaining: task-006_3 (test incremental load in Fabric) — the last Phase 2 item
+2. Phase 3: task-010 (scheduling) + task-012_1–012_5 (performance) — task-011 (error handling) is done
 3. Phase 4 — CI/CD builds on the completed pipeline
 
 ------------------------------------------------------------------------
