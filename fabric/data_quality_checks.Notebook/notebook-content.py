@@ -17,17 +17,20 @@
 
 # MARKDOWN ********************
 
-# # Data Quality Checks (Task 007)
+# # Data Quality Checks (Task 007 + Task 020)
 #
-# **Purpose:** Comprehensive data quality framework with 9 check functions across
+# **Purpose:** Comprehensive data quality framework with 12 check functions across
 # bronze, silver, and gold layers using ISO 25012 quality dimensions.
 #
 # **Quality Dimensions:** Completeness, Accuracy, Consistency, Timeliness, Validity, Uniqueness
 #
 # **Check Functions:**
-# - Bronze (4): Row count validation, Schema validation, Required field completeness, Duplicate detection
-# - Silver (3): Referential integrity, Business rule validation, Outlier detection (Z-score)
+# - Bronze (5): Row count validation, Schema validation, Required field completeness, Duplicate detection, Date range validation
+# - Silver (5): Referential integrity, Business rule validation, Outlier detection (Z-score), Data type consistency, Completeness (post-join)
 # - Gold (2): Aggregate reconciliation, Trend validation (anomaly detection)
+#
+# **Task 020 additions:** date_range_validation (Bronze), data_type_consistency (Silver),
+# silver_completeness (Silver) — see in-notebook rationale on the silver completeness cell.
 #
 # **Output:** Results are scored (0-100 scale), categorized (Excellent/Good/Fair/Poor/Critical),
 # and persisted to `gold_quality_history` for trend tracking.
@@ -182,7 +185,7 @@ def log_check_result(check_name, layer, table_name, status, score, details,
 
 # MARKDOWN ********************
 
-# ## 1. Bronze Layer Checks (4 checks)
+# ## 1. Bronze Layer Checks (5 checks)
 # Validate data at ingestion to catch source system issues early.
 
 # CELL ********************
@@ -540,15 +543,115 @@ for table, keys in duplicate_checks:
 # META   "language_group": "synapse_pyspark"
 # META }
 
+# CELL ********************
+
+# =============================================================================
+# CHECK 5: DATE RANGE VALIDATION
+# =============================================================================
+
+def validate_date_range(table_name, date_column, min_date, max_date,
+                        tolerance_pct=0.0):
+    """
+    Validate that date values fall within a plausible [min_date, max_date] window.
+
+    Flags two classes of bad dates (both informational on the synthetic dataset):
+      - Future dates: later than max_date (typically today).
+      - Implausible / out-of-range dates: earlier than min_date (a project floor).
+
+    NULL dates are not counted here — null handling belongs to the completeness
+    checks — so date-range and completeness never double-flag the same row.
+
+    This check is informational (status is "pass" unless dates fall outside the
+    window beyond tolerance), mirroring outlier_detection's non-failing posture.
+
+    Args:
+        table_name: Fully qualified table name
+        date_column: Date column to validate
+        min_date: Earliest acceptable date (datetime.date)
+        max_date: Latest acceptable date (datetime.date)
+        tolerance_pct: Max acceptable % of out-of-range dates before status="warning"
+
+    Returns:
+        dict with out-of-range date statistics
+    """
+    start_ms = time.time()
+
+    df = spark.table(table_name).filter(F.col(date_column).isNotNull())
+    total_rows = df.count()
+
+    if total_rows == 0:
+        elapsed_ms = int((time.time() - start_ms) * 1000)
+        log_check_result("date_range_validation", "Bronze", table_name, "pass", 100.0,
+                         f"No non-null dates in {date_column}", 0, 0, elapsed_ms)
+        return {"table": table_name, "column": date_column, "status": "pass", "score": 100.0}
+
+    # Count dates outside the plausible window (future or implausibly old)
+    out_of_range_df = df.filter(
+        (F.col(date_column) < F.lit(min_date)) | (F.col(date_column) > F.lit(max_date))
+    )
+    future_count = df.filter(F.col(date_column) > F.lit(max_date)).count()
+    out_of_range_count = out_of_range_df.count()
+    out_of_range_pct = (out_of_range_count / total_rows) * 100.0
+
+    score = max(0.0, (1.0 - out_of_range_pct / 100.0) * 100.0)
+    # Informational: pass unless out-of-range rate exceeds tolerance
+    status = "pass" if out_of_range_pct <= tolerance_pct else "warning"
+
+    elapsed_ms = int((time.time() - start_ms) * 1000)
+
+    details = (f"{out_of_range_count:,} out-of-range dates ({out_of_range_pct:.2f}%) "
+               f"in {date_column} [{future_count:,} future] "
+               f"(window [{min_date}, {max_date}])")
+
+    log_check_result(
+        "date_range_validation", "Bronze", table_name, status, score,
+        details, failed_rows=out_of_range_count, total_rows=total_rows,
+        execution_time_ms=elapsed_ms
+    )
+
+    return {"table": table_name, "column": date_column,
+            "out_of_range_count": out_of_range_count, "future_count": future_count,
+            "out_of_range_pct": out_of_range_pct, "status": status, "score": score}
+
+print("\n--- Bronze Check 5: Date Range Validation ---")
+
+# Plausible date window: procurement should not be in the future nor before the
+# project's data floor. current_date() resolves at runtime in Fabric.
+from datetime import date as _date
+_today = _date.today()
+_data_floor = _date(2015, 1, 1)  # earliest plausible procurement date for this dataset
+
+date_range_checks = [
+    ("oem_lh.bronze_procurement_transactional", "Date", _data_floor, _today),
+]
+
+date_range_results = []
+for table, date_col, min_d, max_d in date_range_checks:
+    try:
+        result = validate_date_range(table, date_col, min_d, max_d)
+        date_range_results.append(result)
+    except Exception as e:
+        print(f"  [SKIP] {table}.{date_col}: {str(e)}")
+        log_check_result("date_range_validation", "Bronze", table, "pass", 100.0,
+                         f"Column not accessible: {str(e)}")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # MARKDOWN ********************
 
-# ## 2. Silver Layer Checks (3 checks)
-# Validate transformations, business rules, and referential integrity.
+# ## 2. Silver Layer Checks (5 checks)
+# Validate transformations, business rules, referential integrity, type
+# conformance, and post-join completeness.
 
 # CELL ********************
 
 # =============================================================================
-# CHECK 5: REFERENTIAL INTEGRITY
+# CHECK 6: REFERENTIAL INTEGRITY
 # =============================================================================
 
 def validate_referential_integrity(fact_table, fact_key, dim_table, dim_key,
@@ -604,7 +707,7 @@ def validate_referential_integrity(fact_table, fact_key, dim_table, dim_key,
     return {"fact_table": fact_table, "dim_table": dim_table,
             "orphaned_count": orphaned_count, "status": status, "score": score}
 
-print("\n--- Silver Check 5: Referential Integrity ---")
+print("\n--- Silver Check 6: Referential Integrity ---")
 
 ri_checks = [
     ("oem_lh.fact_procurement", "material_key", "oem_lh.gold_dim_material", "material_key"),
@@ -634,7 +737,7 @@ for fact_tbl, fact_col, dim_tbl, dim_col in ri_checks:
 # CELL ********************
 
 # =============================================================================
-# CHECK 6: BUSINESS RULE VALIDATION
+# CHECK 7: BUSINESS RULE VALIDATION
 # =============================================================================
 
 def validate_business_rules(table_name, rules):
@@ -713,7 +816,7 @@ def validate_business_rules(table_name, rules):
 
     return {"table": table_name, "rule_results": rule_results, "status": status, "score": score}
 
-print("\n--- Silver Check 6: Business Rule Validation ---")
+print("\n--- Silver Check 7: Business Rule Validation ---")
 
 # Procurement business rules
 procurement_rules = [
@@ -760,7 +863,7 @@ except Exception as e:
 # CELL ********************
 
 # =============================================================================
-# CHECK 7: OUTLIER DETECTION (Z-SCORE)
+# CHECK 8: OUTLIER DETECTION (Z-SCORE)
 # =============================================================================
 
 def detect_outliers_zscore(table_name, numeric_column, z_threshold=3.0):
@@ -832,7 +935,7 @@ def detect_outliers_zscore(table_name, numeric_column, z_threshold=3.0):
     return {"table": table_name, "column": numeric_column, "outlier_count": outlier_count,
             "outlier_pct": outlier_pct, "status": status, "score": score}
 
-print("\n--- Silver Check 7: Outlier Detection (Z-Score) ---")
+print("\n--- Silver Check 8: Outlier Detection (Z-Score) ---")
 
 outlier_checks = [
     ("oem_lh.fact_procurement", "unitprice_eur"),
@@ -858,6 +961,200 @@ for table, column in outlier_checks:
 # META   "language_group": "synapse_pyspark"
 # META }
 
+# CELL ********************
+
+# =============================================================================
+# CHECK 9: DATA TYPE CONSISTENCY
+# =============================================================================
+
+def validate_data_type_consistency(table_name, expected_types):
+    """
+    Validate that silver column types conform to the expected schema after the
+    bronze->silver casts.
+
+    Distinct from the bronze schema_validation check: that one runs on raw bronze
+    tables (pre-cast), whereas this confirms the transformation layer produced the
+    intended Spark types (e.g. DECIMAL bronze quantity surfaced as the expected
+    silver numeric type). Matching is case-insensitive on column name and uses a
+    substring match on the simple Spark type string so it tolerates the differing
+    str(dataType) representations across PySpark versions.
+
+    Args:
+        table_name: Fully qualified silver table name
+        expected_types: dict of {column_name: expected_type_substring}, e.g.
+            {"quantity": "decimal", "unit": "string"}
+
+    Returns:
+        dict with type-conformance results
+    """
+    start_ms = time.time()
+
+    actual_schema = spark.table(table_name).schema
+    actual_map = {field.name.lower(): str(field.dataType) for field in actual_schema.fields}
+
+    mismatches = []
+    for col_name, expected_type in expected_types.items():
+        col_lower = col_name.lower()
+        if col_lower not in actual_map:
+            mismatches.append(f"{col_name}: column missing")
+        elif expected_type.lower() not in actual_map[col_lower].lower():
+            mismatches.append(f"{col_name}: expected {expected_type}, got {actual_map[col_lower]}")
+
+    total_expected = len(expected_types)
+    issues = len(mismatches)
+    score = max(0.0, ((total_expected - issues) / total_expected) * 100.0) if total_expected > 0 else 100.0
+    status = "pass" if issues == 0 else "fail"
+
+    elapsed_ms = int((time.time() - start_ms) * 1000)
+
+    if mismatches:
+        details = f"Type mismatches: {mismatches}"
+    else:
+        details = f"All {total_expected} silver columns conform to expected types"
+
+    log_check_result(
+        "data_type_consistency", "Silver", table_name, status, score,
+        details, failed_rows=issues, total_rows=total_expected,
+        execution_time_ms=elapsed_ms
+    )
+
+    return {"table": table_name, "mismatches": mismatches, "status": status, "score": score}
+
+print("\n--- Silver Check 9: Data Type Consistency ---")
+
+# Expected silver types after bronze->silver casts.
+# silver_procurement = bronze procurement joined to supplier_ref, columns
+# lowercased/underscored. Numeric source columns (DECIMAL/DOUBLE) must remain
+# numeric; descriptive columns must remain strings; date must remain a date.
+type_consistency_checks = {
+    "oem_lh.silver_procurement": {
+        "date": "date",
+        "materialname": "string",
+        "suppliername": "string",
+        "quantity": "decimal",
+        "unit": "string",
+        "unitpriceeur": "decimal",
+        "headquarterscountry": "string",
+        "productioncountry": "string",
+    },
+}
+
+type_consistency_results = []
+for table, expected in type_consistency_checks.items():
+    try:
+        result = validate_data_type_consistency(table, expected)
+        type_consistency_results.append(result)
+    except Exception as e:
+        print(f"  [SKIP] {table}: {str(e)}")
+        log_check_result("data_type_consistency", "Silver", table, "fail", 0.0,
+                         f"Table not accessible: {str(e)}")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# =============================================================================
+# CHECK 10: SILVER COMPLETENESS (POST-JOIN)
+# =============================================================================
+#
+# RATIONALE — why a SILVER completeness check in addition to the bronze
+# required_field_completeness check (Bronze Check 3):
+#
+# Bronze required_field_completeness validates nulls on the RAW source columns
+# before any transformation. silver_procurement, however, is produced by a LEFT
+# JOIN of bronze procurement onto bronze_supplier_ref on SupplierName. That join
+# introduces a NEW completeness risk bronze cannot see: a supplier present in
+# procurement but absent from supplier_ref leaves headquarterscountry /
+# productioncountry NULL on an otherwise-valid row. This is exactly the
+# "post-join completeness" condition the task notes flag, so the silver check is
+# non-redundant rather than a duplicate of the bronze check. It measures
+# row-level completeness (a row is incomplete if ANY required column is null),
+# which is the right shape for catching join misses.
+
+def validate_silver_completeness(table_name, required_columns, null_tolerance_pct=0.0):
+    """
+    Row-level completeness check for a silver table: a row is incomplete if ANY
+    of `required_columns` is null. Targets columns populated by silver joins so
+    that join misses (e.g. unmatched supplier_ref) surface as incompleteness.
+
+    Args:
+        table_name: Fully qualified silver table name
+        required_columns: Columns that must all be non-null for a complete row
+        null_tolerance_pct: Max acceptable % of incomplete rows before status="fail"
+
+    Returns:
+        dict with completeness results
+    """
+    start_ms = time.time()
+
+    df = spark.table(table_name)
+    total_rows = df.count()
+
+    if total_rows == 0:
+        elapsed_ms = int((time.time() - start_ms) * 1000)
+        log_check_result("silver_completeness", "Silver", table_name, "pass", 100.0,
+                         "Table is empty - no incompleteness possible", 0, 0, elapsed_ms)
+        return {"table": table_name, "status": "pass", "score": 100.0}
+
+    # A row is incomplete if any required column is null
+    condition = F.col(required_columns[0]).isNull()
+    for col_name in required_columns[1:]:
+        condition = condition | F.col(col_name).isNull()
+
+    incomplete_count = df.filter(condition).count()
+    incomplete_pct = (incomplete_count / total_rows) * 100.0
+
+    score = max(0.0, (1.0 - incomplete_pct / 100.0) * 100.0)
+    status = "pass" if incomplete_pct <= null_tolerance_pct else "fail"
+
+    elapsed_ms = int((time.time() - start_ms) * 1000)
+
+    if incomplete_count > 0:
+        details = (f"{incomplete_count:,} incomplete rows ({incomplete_pct:.2f}%) "
+                   f"missing one of {required_columns}")
+    else:
+        details = f"All {total_rows:,} rows complete across {required_columns}"
+
+    log_check_result(
+        "silver_completeness", "Silver", table_name, status, score,
+        details, failed_rows=incomplete_count, total_rows=total_rows,
+        execution_time_ms=elapsed_ms
+    )
+
+    return {"table": table_name, "incomplete_count": incomplete_count,
+            "incomplete_pct": incomplete_pct, "status": status, "score": score}
+
+print("\n--- Silver Check 10: Completeness (Post-Join) ---")
+
+# Required columns including the supplier_ref join outputs (the join-miss surface)
+silver_completeness_checks = [
+    ("oem_lh.silver_procurement",
+     ["date", "materialname", "suppliername", "quantity", "unitpriceeur",
+      "headquarterscountry", "productioncountry"]),
+]
+
+silver_completeness_results = []
+for table, cols in silver_completeness_checks:
+    try:
+        result = validate_silver_completeness(table, cols)
+        silver_completeness_results.append(result)
+    except Exception as e:
+        print(f"  [SKIP] {table}: {str(e)}")
+        log_check_result("silver_completeness", "Silver", table, "fail", 0.0,
+                         f"Table not accessible: {str(e)}")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # MARKDOWN ********************
 
 # ## 3. Gold Layer Checks (2 checks)
@@ -866,7 +1163,7 @@ for table, column in outlier_checks:
 # CELL ********************
 
 # =============================================================================
-# CHECK 8: AGGREGATE RECONCILIATION
+# CHECK 11: AGGREGATE RECONCILIATION
 # =============================================================================
 
 def reconcile_aggregates(source_table, target_table, source_column, target_column,
@@ -921,7 +1218,7 @@ def reconcile_aggregates(source_table, target_table, source_column, target_colum
             "source_total": source_total, "target_total": target_total,
             "difference_pct": difference_pct, "status": status, "score": score}
 
-print("\n--- Gold Check 8: Aggregate Reconciliation ---")
+print("\n--- Gold Check 11: Aggregate Reconciliation ---")
 
 # Reconcile silver procurement spend with gold fact procurement spend
 reconciliation_checks = [
@@ -948,7 +1245,7 @@ for src_tbl, tgt_tbl, src_col, tgt_col, tol in reconciliation_checks:
 # CELL ********************
 
 # =============================================================================
-# CHECK 9: TREND VALIDATION (ANOMALY DETECTION)
+# CHECK 12: TREND VALIDATION (ANOMALY DETECTION)
 # =============================================================================
 
 def validate_historical_trend(table_name, metric_column, date_column,
@@ -1028,7 +1325,7 @@ def validate_historical_trend(table_name, metric_column, date_column,
             "previous_value": previous_value, "pct_change": pct_change,
             "is_anomaly": is_anomaly, "status": status, "score": score}
 
-print("\n--- Gold Check 9: Trend Validation ---")
+print("\n--- Gold Check 12: Trend Validation ---")
 
 # Trend checks on quality history metrics
 trend_checks = [
@@ -1083,9 +1380,12 @@ CHECK_TO_DIMENSION = {
     "schema_validation": "validity",
     "required_field_completeness": "completeness",
     "duplicate_detection": "uniqueness",
+    "date_range_validation": "validity",
     "referential_integrity": "consistency",
     "business_rule_validation": "validity",
     "outlier_detection": "accuracy",
+    "data_type_consistency": "validity",
+    "silver_completeness": "completeness",
     "aggregate_reconciliation": "consistency",
     "trend_validation": "timeliness",
 }

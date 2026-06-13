@@ -5,16 +5,23 @@ Tests functions that validate data quality during transformations,
 including unmapped value detection and quality categorization.
 """
 
+from datetime import date
+
 import pytest
 from pyspark.sql import functions as F
-from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType
+from pyspark.sql.types import (
+    StructType, StructField, StringType, IntegerType, DoubleType, DateType
+)
 
 from src.transformations.data_quality import (
     check_unmapped,
     check_nulls,
     check_duplicates,
     validate_range,
-    categorize_quality
+    categorize_quality,
+    count_out_of_range_dates,
+    find_type_mismatches,
+    count_incomplete_rows,
 )
 
 
@@ -295,3 +302,187 @@ class TestCategorizeQuality:
 
         assert categorize_quality(0.499) == "Unmapped"  # Just below Low threshold
         assert categorize_quality(0.500) == "Low"       # At Low threshold
+
+
+class TestCountOutOfRangeDates:
+    """Tests for count_out_of_range_dates() — bronze date_range_validation logic."""
+
+    def _date_df(self, spark, dates):
+        schema = StructType([StructField("Date", DateType(), True)])
+        return spark.createDataFrame([(d,) for d in dates], schema)
+
+    @pytest.mark.unit
+    def test_all_dates_in_window(self, spark):
+        """No false positives when all dates fall inside the plausible window."""
+        df = self._date_df(spark, [date(2020, 1, 1), date(2022, 6, 15), date(2023, 12, 31)])
+
+        count = count_out_of_range_dates(
+            df, "Date", min_date=date(2015, 1, 1), max_date=date(2024, 12, 31)
+        )
+
+        assert count == 0
+
+    @pytest.mark.unit
+    def test_detects_future_dates(self, spark):
+        """Dates after max_date (future) are flagged."""
+        df = self._date_df(spark, [date(2023, 1, 1), date(2030, 1, 1), date(2099, 12, 31)])
+
+        count = count_out_of_range_dates(
+            df, "Date", min_date=date(2015, 1, 1), max_date=date(2024, 12, 31)
+        )
+
+        assert count == 2
+
+    @pytest.mark.unit
+    def test_detects_implausibly_old_dates(self, spark):
+        """Dates before min_date (implausibly old) are flagged."""
+        df = self._date_df(spark, [date(1900, 1, 1), date(2010, 1, 1), date(2020, 1, 1)])
+
+        count = count_out_of_range_dates(
+            df, "Date", min_date=date(2015, 1, 1), max_date=date(2024, 12, 31)
+        )
+
+        assert count == 2  # 1900 and 2010 are before the 2015 floor
+
+    @pytest.mark.unit
+    def test_boundary_dates_are_inclusive(self, spark):
+        """Dates exactly on min/max boundaries are in range (inclusive window)."""
+        df = self._date_df(spark, [date(2015, 1, 1), date(2024, 12, 31)])
+
+        count = count_out_of_range_dates(
+            df, "Date", min_date=date(2015, 1, 1), max_date=date(2024, 12, 31)
+        )
+
+        assert count == 0
+
+    @pytest.mark.unit
+    def test_null_dates_not_counted(self, spark):
+        """Null dates are ignored here — they are the completeness check's concern."""
+        df = self._date_df(spark, [None, date(2020, 1, 1), None])
+
+        count = count_out_of_range_dates(
+            df, "Date", min_date=date(2015, 1, 1), max_date=date(2024, 12, 31)
+        )
+
+        assert count == 0
+
+
+class TestFindTypeMismatches:
+    """Tests for find_type_mismatches() — silver data_type_consistency logic."""
+
+    @pytest.mark.unit
+    def test_all_types_conform(self, spark, sample_procurement_data):
+        """No mismatches when expected types match the actual schema."""
+        # sample_procurement_data: Date=date, MaterialName=string, Quantity=double, ...
+        expected = {
+            "Date": "date",
+            "MaterialName": "string",
+            "Quantity": "double",
+            "UnitPriceEUR": "double",
+        }
+
+        mismatches = find_type_mismatches(sample_procurement_data, expected)
+
+        assert mismatches == []
+
+    @pytest.mark.unit
+    def test_case_insensitive_column_match(self, spark, sample_procurement_data):
+        """Column-name matching is case-insensitive (silver lowercases names)."""
+        expected = {"date": "date", "materialname": "string", "quantity": "double"}
+
+        mismatches = find_type_mismatches(sample_procurement_data, expected)
+
+        assert mismatches == []
+
+    @pytest.mark.unit
+    def test_detects_type_mismatch(self, spark):
+        """A column whose actual type differs from expected is reported."""
+        schema = StructType([
+            StructField("quantity", StringType(), True),  # should be numeric
+            StructField("unit", StringType(), True),
+        ])
+        df = spark.createDataFrame([("100", "kg")], schema)
+
+        mismatches = find_type_mismatches(df, {"quantity": "double", "unit": "string"})
+
+        assert len(mismatches) == 1
+        assert "quantity" in mismatches[0]
+
+    @pytest.mark.unit
+    def test_detects_missing_column(self, spark):
+        """A column named in expected_types but absent from the schema is a mismatch."""
+        schema = StructType([StructField("unit", StringType(), True)])
+        df = spark.createDataFrame([("kg",)], schema)
+
+        mismatches = find_type_mismatches(df, {"quantity": "double", "unit": "string"})
+
+        assert len(mismatches) == 1
+        assert "quantity" in mismatches[0]
+        assert "missing" in mismatches[0]
+
+    @pytest.mark.unit
+    def test_extra_columns_ignored(self, spark, sample_procurement_data):
+        """Columns present in the DataFrame but not in expected_types are not failures."""
+        expected = {"Date": "date"}  # only check one of many columns
+
+        mismatches = find_type_mismatches(sample_procurement_data, expected)
+
+        assert mismatches == []
+
+
+class TestCountIncompleteRows:
+    """Tests for count_incomplete_rows() — silver completeness logic."""
+
+    @pytest.mark.unit
+    def test_all_rows_complete(self, spark):
+        """No incomplete rows when every required column is populated."""
+        data = [("USA", "DE"), ("CHN", "CN")]
+        df = spark.createDataFrame(data, ["headquarterscountry", "productioncountry"])
+
+        count = count_incomplete_rows(df, ["headquarterscountry", "productioncountry"])
+
+        assert count == 0
+
+    @pytest.mark.unit
+    def test_detects_join_miss_nulls(self, spark):
+        """Rows with a null in any required column (e.g. a join miss) are counted."""
+        data = [
+            ("USA", "DE"),
+            ("CHN", None),   # production country join miss
+            (None, "FR"),    # hq country join miss
+        ]
+        df = spark.createDataFrame(data, ["headquarterscountry", "productioncountry"])
+
+        count = count_incomplete_rows(df, ["headquarterscountry", "productioncountry"])
+
+        assert count == 2
+
+    @pytest.mark.unit
+    def test_row_counted_once_when_multiple_nulls(self, spark):
+        """A row missing several required columns counts once, not per-null."""
+        data = [(None, None), ("USA", "DE")]
+        df = spark.createDataFrame(data, ["headquarterscountry", "productioncountry"])
+
+        count = count_incomplete_rows(df, ["headquarterscountry", "productioncountry"])
+
+        assert count == 1
+
+    @pytest.mark.unit
+    def test_single_required_column(self, spark):
+        """Works with a single required column."""
+        data = [("USA",), (None,), ("CHN",)]
+        df = spark.createDataFrame(data, ["headquarterscountry"])
+
+        count = count_incomplete_rows(df, ["headquarterscountry"])
+
+        assert count == 1
+
+    @pytest.mark.unit
+    def test_empty_required_columns_returns_zero(self, spark):
+        """No required columns means nothing can be incomplete."""
+        data = [("USA",), (None,)]
+        df = spark.createDataFrame(data, ["headquarterscountry"])
+
+        count = count_incomplete_rows(df, [])
+
+        assert count == 0

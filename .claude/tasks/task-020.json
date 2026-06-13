@@ -1,0 +1,122 @@
+{
+  "id": "task-020",
+  "title": "Add remaining bronze/silver data quality checks",
+  "description": "Extend data_quality_checks.Notebook with the 3 checks not covered by task-007's 9 functions: bronze date-range validation, silver data-type consistency, and silver completeness. Identified by the 2026-05-24 spec reconciliation of section Data Quality Checks Needed.",
+  "status": "Finished",
+  "priority": "P3",
+  "difficulty": 3,
+  "owner": "claude",
+  "phase": "2",
+  "spec_section": "Data Quality & Validation",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "files_affected": [
+    "fabric/data_quality_checks.Notebook/notebook-content.py",
+    "src/transformations/data_quality.py",
+    "tests/test_data_quality.py"
+  ],
+  "acceptanceCriteria": [
+    "Bronze: date_range_validation check added — flags future dates and implausible/out-of-range dates on date fields (e.g. dbo.Procurement.Date); informational, no false positives on synthetic data",
+    "Silver: data_type_consistency check added — validates column types conform to the expected schema after the bronze-to-silver casts",
+    "Silver: completeness check added — OR documented in-notebook that bronze required_field_completeness already covers it (implementer decides and records the rationale)",
+    "Each new check follows the established task-007 pattern: returns a metric, persists to gold_quality_history (refresh_timestamp, layer, entity, metric_name, metric_value, threshold, breach_flag), graceful try/except, wired into the notebook's check sequence",
+    "Spec section Data Quality Checks Needed boxes flipped to [x] for whichever checks are implemented (via /iterate, per DEC-016)"
+  ],
+  "dependencies": [
+    "task-007"
+  ],
+  "notes": [
+    "The 3 unchecked items remaining in spec section Data Quality & Validation after the task-007 audit on 2026-05-24 (9 of 12 framework checks were already implemented).",
+    "Portfolio-scale polish, not blocking core work (006_3, 010, 012 take priority).",
+    "Completeness nuance: bronze required_field_completeness already validates required-field nulls before silver; add a silver completeness check only if post-join completeness matters — otherwise document that bronze covers it rather than adding a redundant check.",
+    "Spec checkbox updates must route through /iterate (DEC-016), not a direct edit.",
+    "--- HANDOFF ---",
+    "CLAUDE: Add the check functions to data_quality_checks.Notebook following the task-007 pattern (Claude can do this autonomously).",
+    "ERIK: Deploy the updated notebook to Fabric and run it to confirm the new checks pass on real data (runtime validation is not_applicable locally — Fabric needs a PySpark environment).",
+    "--- IMPLEMENTED 2026-05-24 (implement-agent, completed) ---",
+    "Added 3 checks mirroring task-007 pattern (spark.table() read, graceful try/except that never false-positives on missing tables, log_check_result -> gold_quality_history with the 7-column schema, registered in CHECK_TO_DIMENSION): (1) Bronze date_range_validation — informational (pass/warning, never fail), flags future and implausibly-old dates on bronze_procurement_transactional.Date via a [2015-01-01, today] window (today resolves at runtime in Fabric); zero false positives on ~2024 synthetic data. (2) Silver data_type_consistency — validates silver_procurement column types after bronze->silver casts (date/string/decimal), case-insensitive name + substring type match (PySpark-version tolerant); distinct from bronze schema_validation which runs pre-cast. (3) Silver completeness — CHOSE TO ADD (not document bronze as covering it): silver_procurement is a LEFT JOIN onto bronze_supplier_ref on SupplierName, so an unmatched supplier leaves headquarterscountry/productioncountry NULL on an otherwise-valid row — a post-join risk bronze required_field_completeness (pre-join) structurally cannot see; in-notebook RATIONALE comment added.",
+    "Pure predicate logic extracted to src/transformations/data_quality.py (mirrored inline in the notebook since Fabric notebooks cannot import src/); 15 new unit tests added to tests/test_data_quality.py; full suite 62/62 pass, 0 regressions. Renumbered check banners to a global 1-12 sequence (Bronze 1-5, Silver 6-10, Gold 11-12). Notebook format verified: 17 CELL / 8 MARKDOWN / 18 METADATA markers balanced, 17/17 code cells parse.",
+    "FOLLOW-UP (orchestrator/user): flip spec section Data Quality Checks Needed boxes [ ]->[x] for the 3 checks via /iterate (DEC-016); optionally update the status note from '9 of these are implemented' -> '12 of these are implemented'.",
+    "DECISION (not formalized as DEC record — implementation-level, documented in-notebook per decisions.md 'Skip Records For'): chose to ADD a silver completeness check rather than declare bronze sufficient, because the silver left-join introduces post-join null risk bronze cannot detect. Options considered: (a) add silver check [selected], (b) document bronze covers it.",
+    "--- VERIFIED 2026-05-24 (verify-agent, PASS attempt 1) --- 7 checks pass (runtime_validation partial: 62/62 unit tests green locally, live Fabric run deferred to deployment per HANDOFF). Minor doc nit found and fixed post-verification by orchestrator: section banner check-counts were stale after renumber (Bronze/Silver), corrected to actual counts. user_review_pending set — Erik's Fabric deploy+run tracked via test_protocol."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-05-24",
+  "completion_date": "2026-05-24",
+  "updated_date": "2026-05-24",
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-05-24T19:10:00Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "partial",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "Notebook section banner check-counts were stale after the global renumber (e.g. 'Bronze Layer Checks (4 checks)' with 5 present). Fixed post-verification by orchestrator. No functional impact."
+      }
+    ],
+    "notes": "All 3 intended DQ checks implemented correctly: Bronze date_range_validation (informational, null-orthogonal, [2015-01-01, today] window), Silver data_type_consistency (post-cast, distinct from bronze pre-cast schema_validation), Silver completeness (post-join LEFT-JOIN null risk, sound in-notebook rationale). All follow task-007's pattern (graceful try/except, log_check_result -> gold_quality_history 7-col schema, registered in CHECK_TO_DIMENSION + check sequence). 15 new unit tests pass; full suite 62/62, 0 regressions. Notebook format intact (17 CELL/8 MARKDOWN/18 METADATA, valid Python). Scope clean (3 declared files match diff; spec checkboxes correctly left for /iterate per DEC-016). Runtime: unit tests validate predicate logic locally; live Fabric Delta-table execution deferred to Erik's deployment (same not_applicable-locally constraint as task-007)."
+  },
+  "verification_attempts": 1,
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-05-24T19:10:00Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "partial",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "minor",
+          "description": "Stale section-banner check-counts after renumber; fixed post-verification."
+        }
+      ],
+      "notes": "PASS attempt 1. 3 checks correct + pattern-faithful; 62/62 tests; notebook format intact; live Fabric run deferred to deployment (test_protocol written)."
+    }
+  ],
+  "test_protocol": {
+    "summary": "Deploy the updated data_quality_checks notebook to Fabric and run it to confirm the 3 new checks execute against live bronze/silver Delta tables (local PySpark cannot reach the lakehouse).",
+    "steps": [
+      {
+        "instruction": "Sync the updated notebook to the Fabric workspace and open data_quality_checks.Notebook",
+        "expected": "Notebook loads; Bronze section shows the Date Range Validation check, Silver shows Data Type Consistency and Completeness (Post-Join)",
+        "type": "interactive"
+      },
+      {
+        "instruction": "Run all cells against the live lakehouse (oem_lh)",
+        "expected": "Bronze date-range prints [PASS] (0 out-of-range dates on ~2024 synthetic data); Silver type-consistency prints [PASS] (all silver_procurement columns conform); Silver completeness prints [PASS] or a small post-join incomplete count if any supplier_ref join misses exist. No [SKIP] for these tables.",
+        "type": "visual"
+      },
+      {
+        "instruction": "Query gold_quality_history for this run's new metrics",
+        "expected": "3 new rows present with the 7-column schema (refresh_timestamp, layer, entity, metric_name, metric_value, threshold, breach_flag)",
+        "type": "command",
+        "command": "SELECT metric_name, metric_value, breach_flag FROM oem_lh.gold_quality_history WHERE metric_name IN ('dq_date_range_validation','dq_data_type_consistency','dq_silver_completeness') ORDER BY refresh_timestamp DESC"
+      }
+    ],
+    "automated_results": "Local runtime validation passed: 15 new unit tests + 62/62 full suite green (predicate logic confirmed). Remaining: notebook execution against live Fabric Delta tables (cannot run locally).",
+    "estimated_time": "10 minutes (Fabric deployment + run)"
+  },
+  "user_review_pending": true,
+  "interaction_hint": "dashboard",
+  "decision_dependencies": [],
+  "recovery_state": "",
+  "out_of_spec": false,
+  "absorbed_into": ""
+}

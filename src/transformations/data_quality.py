@@ -5,6 +5,7 @@ This module provides functions for validating data quality during transformation
 including unmapped value detection, null checks, and quality scoring.
 """
 
+from datetime import date
 from pyspark.sql import DataFrame, functions as F
 from typing import Optional
 
@@ -223,3 +224,133 @@ def categorize_quality(confidence: float) -> str:
         return "Low"
     else:
         return "Unmapped"
+
+
+def count_out_of_range_dates(
+    df: DataFrame,
+    date_column: str,
+    min_date: date,
+    max_date: date,
+    table_name: str = ""
+) -> int:
+    """
+    Count rows whose date falls outside an expected [min_date, max_date] window.
+
+    Detects two classes of date-quality problems:
+    - Future dates: dates after `max_date` (typically current_date()).
+    - Implausibly old / out-of-range dates: dates before `min_date` (a project
+      floor such as the earliest plausible procurement date).
+
+    Rows with a NULL date are NOT counted here (null handling is the concern of
+    the completeness check, not the range check) so the two checks stay
+    orthogonal and neither double-flags the same row.
+
+    Args:
+        df: DataFrame to check.
+        date_column: Name of the date/timestamp column to validate.
+        min_date: Earliest acceptable date (inclusive).
+        max_date: Latest acceptable date (inclusive).
+        table_name: Table name for log messages.
+
+    Returns:
+        int: Count of rows with a non-null date outside [min_date, max_date].
+
+    Examples:
+        >>> # Flag procurement dates in the future or before 2015
+        >>> bad = count_out_of_range_dates(df, "Date", date(2015, 1, 1), date.today())
+    """
+    out_of_range = df.filter(
+        F.col(date_column).isNotNull()
+        & (
+            (F.col(date_column) < F.lit(min_date))
+            | (F.col(date_column) > F.lit(max_date))
+        )
+    )
+
+    count = out_of_range.count()
+
+    if count > 0:
+        print(f"ℹ️  Found {count:,} out-of-range dates in {table_name}.{date_column}")
+        print(f"    Expected window: [{min_date}, {max_date}]")
+
+    return count
+
+
+def find_type_mismatches(
+    df: DataFrame,
+    expected_types: dict
+) -> list:
+    """
+    Compare a DataFrame's actual column types against an expected-type mapping.
+
+    Used by the silver data-type-consistency check to confirm that bronze→silver
+    casts produced the intended Spark types. Matching is case-insensitive on the
+    column name and uses a substring match on the simple Spark type string
+    (e.g. expected "double" matches actual "DoubleType()") so it tolerates the
+    differing `str(dataType)` representations across PySpark versions.
+
+    Columns present in `df` but absent from `expected_types` are ignored (extra
+    columns are not a type-consistency failure). Columns named in `expected_types`
+    but missing from `df` are reported as a mismatch.
+
+    Args:
+        df: DataFrame whose schema is inspected.
+        expected_types: dict of {column_name: expected_type_substring}, e.g.
+            {"quantity_base": "double", "date_key": "int"}.
+
+    Returns:
+        list[str]: Human-readable mismatch descriptions. Empty list = all conform.
+
+    Examples:
+        >>> find_type_mismatches(df, {"quantity": "double", "unit": "string"})
+        []
+    """
+    actual_map = {
+        field.name.lower(): str(field.dataType)
+        for field in df.schema.fields
+    }
+
+    mismatches = []
+    for col_name, expected_type in expected_types.items():
+        col_lower = col_name.lower()
+        if col_lower not in actual_map:
+            mismatches.append(f"{col_name}: column missing")
+        elif expected_type.lower() not in actual_map[col_lower].lower():
+            mismatches.append(
+                f"{col_name}: expected {expected_type}, got {actual_map[col_lower]}"
+            )
+
+    return mismatches
+
+
+def count_incomplete_rows(
+    df: DataFrame,
+    required_columns: list
+) -> int:
+    """
+    Count rows where ANY of the given required columns is null.
+
+    This is a row-level completeness measure (a row is incomplete if at least one
+    required column is null), distinct from the bronze field-level null rate. It
+    is the right shape for post-join completeness on silver tables, where a join
+    miss leaves an otherwise-valid row with nulls in the joined-in columns.
+
+    Args:
+        df: DataFrame to check.
+        required_columns: Columns that must all be non-null for a row to be complete.
+
+    Returns:
+        int: Count of rows missing at least one required column value.
+
+    Examples:
+        >>> # Rows where a supplier_ref join failed to populate HQ country
+        >>> incomplete = count_incomplete_rows(df, ["headquarterscountry"])
+    """
+    if not required_columns:
+        return 0
+
+    condition = F.col(required_columns[0]).isNull()
+    for col_name in required_columns[1:]:
+        condition = condition | F.col(col_name).isNull()
+
+    return df.filter(condition).count()
