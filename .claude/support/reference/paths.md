@@ -7,6 +7,7 @@
 | Purpose | Path |
 |---------|------|
 | Current spec | `.claude/spec_v{N}.md` |
+| Spec section index (generated, DEC-021) | `.claude/spec_v{N}.index.json` |
 | Archived specs | `.claude/support/previous_specifications/` |
 | Decomposed spec snapshots | `.claude/support/previous_specifications/spec_v{N}_decomposed.md` |
 | Tasks | `.claude/tasks/` |
@@ -34,6 +35,7 @@
 - **Spec versioning**: The `{N}` in spec paths is replaced with the version number (e.g., `spec_v1.md`, `spec_v2.md`)
 - **Single-spec invariant**: There must be exactly one `spec_v{N}.md` in `.claude/` at all times. Version transitions archive the old file before creating the new one. `/health-check` enforces this.
 - **Version discovery**: `/work` globs for `.claude/spec_v*.md` and uses the highest N as the current version.
+- **Spec section index (DEC-021)**: `.claude/spec_v{N}.index.json` is a *derived, regenerable* artifact (`fingerprint.py --index`) that enables section-scoped spec reads; regenerated when the full-spec fingerprint changes. Carries no task provenance — never participates in drift detection. See `rules/spec-workflow.md § "Section-scoped spec reading"`.
 - **Archive convention**: Archived items retain their original filename structure within their archive directory
 - **Workspace is ephemeral**: Files in workspace may be deleted between sessions; use for scratch work only
 - **Handoff is one-time-use**: `.handoff.json` is written before compaction, read at next `/work` start, then deleted. Not an accumulating log.

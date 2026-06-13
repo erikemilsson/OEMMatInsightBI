@@ -15,7 +15,7 @@ Canonical terminology used across the system.
 
 ## Difficulty Scale (1-10)
 
-> **Calibrated for Claude Opus 4.7** (`claude-opus-4-7[1m]`). These difficulty ratings and breakdown thresholds assume Opus 4.7-level reasoning — including adaptive thinking, interleaved reasoning between tool calls, and sustained agentic execution. Tasks rated 5-6 ("Substantial") are at the upper limit of what should be attempted without breakdown — Opus 4.7 can handle the design decisions and multi-step reasoning involved. Tasks at 7+ **must** be broken down regardless of model confidence.
+> **Calibrated for the current Claude Opus tier** (the floating `opus[1m]` alias per `.claude/CLAUDE.md § Model Requirement`; calibration originally validated on Opus 4.7). These difficulty ratings and breakdown thresholds assume Opus-tier reasoning — including adaptive thinking, interleaved reasoning between tool calls, and sustained agentic execution. Tasks rated 5-6 ("Substantial") are at the upper limit of what should be attempted without breakdown — the Opus tier can handle the design decisions and multi-step reasoning involved. Tasks at 7+ **must** be broken down regardless of model confidence.
 
 | Level | Category | Action | Examples |
 |-------|----------|--------|----------|

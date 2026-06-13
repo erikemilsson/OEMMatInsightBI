@@ -89,6 +89,8 @@ Each hypothesis must be **falsifiable**: state the prediction it makes.
 
 If you cannot state the prediction, the hypothesis is a vibe — discard or sharpen it.
 
+**Assert the outcome, not the mechanism.** Phrase each prediction as an *observable end-state* — "after `<X>`, `<measured value Y>` is within tolerance `<T>`" — never as a claim about *how* the system gets there ("because `<Z>` re-evaluates mid-operation"). A mechanism-shaped prediction can be rubber-stamped by anyone who shares the same wrong model of how the system works — writer and reviewer agree, and both are wrong. An outcome-shaped prediction stays falsifiable regardless of your mental model: if the mechanism belief was wrong, the outcome assertion fails on its own and forces the next hypothesis.
+
 **Show the ranked list to the user before testing.** They often have domain knowledge that re-ranks instantly ("we just deployed a change to #3"), or know hypotheses they've already ruled out. Cheap checkpoint, big time saver. Don't block on it — proceed with your ranking if the user is AFK.
 
 ## Phase 4 — Instrument
@@ -141,6 +143,17 @@ If the answer involves an architectural change (no good test seam, tangled calle
 Make the recommendation **after** the fix is in, not before — you have more information now than when you started.
 
 (FB-067 Wave 2 includes `/improve-codebase-architecture` as a future complement to this phase. Until that ships, the friction-register / `/research` path above is the canonical route.)
+
+## Visual / browser-rendering bugs
+
+For layout, geometry, scroll, computed-style, and rendering bugs — the class where a load-bearing browser-behavior assumption can be confirmed wrongly by code-reading alone (writer and reviewer share the same docs-derived model, and both are wrong; FB-085). The six phases apply unchanged; this recipe pins the visual-specific choices so they aren't re-derived per bug:
+
+- **Run at orchestrator level** (main conversation), not in a dispatched subagent — browser MCP access is not reliably inherited by Task subagents, and a single browser session cannot fan out (`.claude/support/reference/mcp-patterns.md § "MCP and Parallel Execution"`). If Playwright tools aren't in the loaded toolset, load them via ToolSearch first. Starting a dev server for the loop is sanctioned; respect-prior-kills applies.
+- **Contract (Phases 1–2):** the feedback loop is a set of falsifiable assertions on *measured values* — geometry (bounding rects, scroll positions) and computed style (`getComputedStyle`), including sampled interaction states (hover, mid-scroll). **No pixel-diffs or golden-image comparisons:** they need a baseline the broken state can't provide, carry rendering noise, and "looks different" isn't falsifiable.
+- **Measure with `browser_evaluate`** using targeted queries (`.claude/support/reference/mcp-patterns.md § "MCP and Result-Size Constraints"`). `browser_take_screenshot` is reporting evidence for the user — never the pass/fail arbiter.
+- **Loop (Phases 3–5):** N=3 iterations by default (configurable). Each iteration carries ONE falsifiable hypothesis with a **predicted value-effect computed before touching code** ("moving to `object-position: 50% 30%` should put the subject's bounding-box top at ~120±10px"). Phase 3's outcome-not-mechanism rule applies with full force here. Early-exit when out of distinct hypotheses — don't pad the count with tweak-and-see variants.
+- **Non-convergence at the cap:** surface a report — the unmet contract, the per-iteration hypothesis → prediction → measured-result trace, and before/after screenshots. Never auto-declare success, never silently stop, never keep iterating past the cap.
+- **Persistence (Phase 5):** if the project has a test harness with a correct seam, offer to persist the passing contract as a regression test; otherwise the loop is ephemeral and the final measured values go in the task's verification notes.
 
 ## Out of scope
 

@@ -1,5 +1,3 @@
-<!-- During Skills trial (DEC-007 Option B, 2026-04-17): this file mirrors `.claude/skills/spec-checklist/SKILL.md`. Update both files in sync until one is retired. -->
-
 # Spec Readiness Guide
 
 Defines "complete enough" for a specification to move to task decomposition.

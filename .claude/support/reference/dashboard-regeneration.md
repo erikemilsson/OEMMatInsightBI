@@ -1,8 +1,31 @@
-<!-- During Skills trial (DEC-007 Option B, 2026-04-17): this file mirrors `.claude/skills/dashboard-style/SKILL.md`. Update both files in sync until one is retired. -->
-
 # Dashboard Regeneration Procedure
 
 Every dashboard regeneration MUST follow this procedure. All commands and agents reference this file for consistency.
+
+---
+
+## Script-First Rendering (Family C full port, v4.22.0)
+
+Structural sections are rendered by the deterministic script — the LLM no longer hand-writes them:
+
+```
+python3 .claude/scripts/dashboard-render.py --render --claude-dir .claude [--now <ISO>]
+```
+
+**Division of labor:**
+
+| Owner | Sections |
+|-------|----------|
+| **Script** (deterministic) | `# Dashboard` title, META block (incl. the canonical `task_hash`), section-toggle checklist, header/completion/freshness lines, 📊 Progress (status summary, phase table, acceptance criteria, timeline, critical path, Project Overview Mermaid, this-week, recent activity), 📋 Tasks (archive-aware), 📋 Decisions, Notes preservation (sidecar `user_notes` between markers), Custom Views instruction-marker block, footer line |
+| **LLM** (synthesis) | 🚨 Action Required (every sub-section — the Action Item Contract + human-gated coverage need judgment) and Custom Views *rendered* content. The script emits `<!-- CLAUDE: fill … -->` placeholders for these; filling them is a REQUIRED step, validated in Step 8 |
+
+**Flow:** run Step 2 (extract/merge/write sidecar) first — the script reads user content from the **sidecar**, not from dashboard markers — then run the script, `Write` its stdout to `.claude/dashboard.md`, and fill the placeholders via `Edit` per the Section Format Reference below. The script is read-only (per `scripts/README.md` invocation contract); the orchestrator performs all writes.
+
+**The script is the executable contract** for the structural rules in this file (§ Regeneration Steps 3–6, § Section Display Rules for Tasks/Progress/Decisions, § Critical Path Generation, § Project Overview Diagram). On divergence between prose and script for a script-owned section, the script is authoritative; fix the prose (or the script, deliberately) rather than hand-rendering. Documented simplifications live in the script's docstring. The prose remains load-bearing for: Action Required (LLM-owned), targeted edits (§ below), and as the specification the script's tests pin.
+
+**Canonical `task_hash`:** `dashboard-render.py --task-hash` (sha256 over sorted `id:status:difficulty:owner` rows, newline-joined + trailing newline, active tasks only). This is the single hash authority — `fingerprint.py --dashboard-rollup` computes a *different* hash (`id:status`, for `/status`) and must not be used for dashboard META.
+
+**When the script is unavailable** (e.g., no python3): the prose procedure below remains the complete fallback — render by hand exactly as pre-v4.22.0.
 
 ---
 
@@ -159,6 +182,7 @@ For single-section changes that would otherwise trigger Tier 1 full regen, the o
 | Single task moved into Action Required | ✓ | |
 | META `generated` timestamp refresh after a status flip | ✓ | |
 | Format-staleness fix that touches only META | ✓ | |
+| Recent Activity cap-trim (drop entries above the 7-entry cap) | ✓ | |
 | Decomposition complete (new tasks added) | | ✓ |
 | Parallel batch end (multi-task changes land together) | | ✓ |
 | `/work complete` | | ✓ |
@@ -239,6 +263,8 @@ This ensures user content is always persisted in a structured file before the da
 
 ### 3. Generate Dashboard
 
+**Script-first (v4.22.0):** run `dashboard-render.py --render` and `Write` its output (see § "Script-First Rendering" above) — it implements this step plus Steps 4–6 for the structural sections; then fill the `<!-- CLAUDE: fill … -->` placeholders (Action Required, Custom Views content) per the rules below. The bullets that follow are the full specification — the script's contract for its sections, the LLM's instructions for placeholder sections, and the hand-render fallback.
+
 - Follow the Section Format Reference below for all formatting rules
 - Use exact section headings: `# Dashboard`, `## 🚨 Action Required`, `## 📊 Progress`, `## 📋 Tasks`, `## 📋 Decisions`, `## 💡 Notes`
 - **Freshness line:** After the completion % line, add a visible timestamp: `*Updated [YYYY-MM-DD HH:MM] — may not reflect changes made outside `/work`*`. This warns users who view the dashboard without running a command that data could be stale.
@@ -287,7 +313,7 @@ This ensures user content is always persisted in a structured file before the da
   - [ ] Session expires after 1h — *Currently no expiration*
   **4/5 criteria passed**
   ```
-  Rules: `status: "pass"` renders as `[x]`, `status: "fail"` renders as `[ ]`. Notes are italicized and truncated at 60 characters. The summary count line uses `criteria_passed` / (`criteria_passed` + `criteria_failed`). When the `criteria` array is absent (backward compatibility), fall back to summary-only: `**{criteria_passed}/{criteria_passed + criteria_failed} criteria passed**`.
+  Rules: `status: "pass"` renders as `[x]`, `status: "fail"` renders as `[ ]`. Notes are italicized and truncated at 60 characters. The summary count line uses `criteria_passed` / (`criteria_passed` + `criteria_failed`). When the `criteria` array is absent (backward compatibility), fall back to summary-only: `**{criteria_passed}/{criteria_passed + criteria_failed} criteria passed**`. **This checklist is the authoritative acceptance-*status* surface (DEC-022)** — distinct from any inline `- [ ]` acceptance boxes a project may render in the spec, which are authored input, not live status; divergence is surfaced by `/audit-coherence`'s `acceptance-reconciliation` lens.
 - **Spec Drift sub-section:** When `drift-deferrals.json` exists with active deferrals, render each deferred section:
   ```
   - ⚠️ **{section}** — {N} tasks affected, deferred {M} days ago
@@ -384,6 +410,7 @@ After writing the new dashboard.md, verify structural integrity:
 1. **Marker pair check:** For each expected marker type, confirm both open and close markers exist in the output
 2. **Section order check:** Verify required headings appear in correct order (same as health-check Part 1 Check 5)
 3. **Metadata check:** Confirm `<!-- DASHBOARD META -->` block was written with valid task_hash
+4. **Placeholder check (v4.22.0):** Confirm no `<!-- CLAUDE: fill` placeholder remains — an unfilled synthesis section means the regeneration is incomplete; fill it before finishing
 
 If any check fails:
 - Log: "Dashboard regeneration produced invalid output — {specific issue}"
@@ -406,6 +433,8 @@ Every item in "Action Required" must be:
 5. **Instructional** — for human-owned tasks, include a brief "how to proceed" note. If the task requires external tools, name them. If it requires access to specific systems, say so. The user should never need to open the task JSON to understand what to do next
 
 **Must NOT include:** work summaries, completion reports, or recent-activity recaps. "Action Required" is a list of things the user still needs to do — not a record of what has happened. Git log and task JSON already preserve history; duplicating it here slows the user down when scanning for next actions. If an item describes completed work (e.g., "Task 5 finished — added X"), it belongs elsewhere (or nowhere). This rule applies to every sub-section under Action Required (Phase Transitions, Verification Pending, Your Tasks, Reviews, etc.): each entry must be an action the user takes, not a status report on one they already took. Do not add a "Recent Activity", "Work Summary", "Completed This Session" or similar sub-section — the canonical Sections list in `.claude/rules/dashboard.md` intentionally omits them.
+
+**Coverage (human-gated items — the other half of the contract):** beyond per-item quality, Action Required must be *complete* over user-gated state. Every one of the following must appear as a row: `owner: "human"` tasks with all dependencies Finished; `owner: "both"` tasks with `user_review_pending: true`; On Hold tasks; unresolved decision records; and any question asked of the user during a session that went unanswered (recorded at `/work pause`). An item blocked on the user that exists only in the handoff file violates the contract — the handoff may reference rows, never replace them. `/work` Step 0g cross-checks coverage at session start; the pause flow's open-question sweep enforces it at session end (both may use the targeted-edit path with the `pending_full_regen` sentinel).
 
 ### Review Item Derivation
 
@@ -483,6 +512,7 @@ The user selects an option when prompted, and `/work` updates the task according
 - Timeline sub-section in Progress: only render when tasks have `due_date` or `external_dependency.expected_date` (part of Progress, not an independent toggle)
 - **Recent Activity sub-section in Progress** (auto-renders when ≥3 tasks transitioned status in the last 7 days):
   - **Strict cap: max 7 entries, each ≤1 line.**
+  - **Cap enforcement is non-discretionary (FB-090):** whenever any edit touches this section — full regen OR a targeted edit (see § "Targeted Edits (mid-session lite path)") — trim to the 7-entry cap as a required step, dropping the oldest entries first. FB-080 made a single-section trim a cheap targeted edit, so there is no regen-cost justification for letting the list drift past the cap; do not defer the trim to "next full regen".
   - Format per entry: `- **YYYY-MM-DD** — {Task ID or short commit ref} — {one-line outcome}`
   - **Strictly forbidden in entries:** prose paragraphs (>1 line per entry), friction markers, session-summary blocks, scope contradictions, design-thesis narratives, embedded "captured for /iterate" notes, multi-part outcome lists. All of those belong in the friction register (`.claude/support/friction.jsonl` once Stage 2 lands), task JSON `notes`, handoff file, or git log. Dashboard Recent Activity is a chronological pointer, not narrative.
   - **Migration on existing dashboards with prose-style entries:** during regeneration, condense each entry to its task ID + 1-line outcome (drop the prose). Do not archive the prose anywhere new — it belongs in handoff/git log, not duplicated. If an entry's content can't compress to 1 line meaningfully, drop the entry entirely.

@@ -2,11 +2,11 @@
 
 Specialist for testing and validating implementations against the specification.
 
-**Model: Claude Opus 4.7** (`claude-opus-4-7[1m]`). When spawning this agent via the `Task` tool, always set `model: "opus[1m]"`.
+**Model:** per `.claude/CLAUDE.md § Model Requirement` — the canonical source for both the pin and the `Task` dispatch value.
 
 ## Reasoning Effort
 
-Verification demands the deepest reasoning in the system — this is where mistakes get caught. Opus 4.7's adaptive thinking automatically reasons between tool calls, which is critical here: each check result should inform how you approach subsequent checks.
+Verification demands the deepest reasoning in the system — this is where mistakes get caught. The Opus tier's adaptive thinking automatically reasons between tool calls, which is critical here: each check result should inform how you approach subsequent checks.
 
 - **Per-task verification:** Apply thorough reasoning. Re-evaluate your assessment after each check — runtime validation results (T4b) may change how you interpret spec alignment (T3). Use the think tool for genuinely ambiguous judgments (see below).
 - **Phase-level verification:** This requires maximum reasoning depth. Cross-cutting concerns, integration gaps, and subtle spec deviations only surface with careful analysis. On subscription plans where effort defaults to medium, phase-level verification benefits from elevated reasoning — consider using "ultrathink" when spawning this mode.
@@ -34,6 +34,8 @@ When `/work` invokes this agent, it specifies the mode. Follow the corresponding
 See `.claude/rules/agents.md § Tool Preferences` for the canonical tool/operation mapping that applies to all subagents.
 
 **Bash usage:** git commands, running test suites, running CLI/script deliverables, `curl` for API testing. When a Bash call is needed, combine related commands into a single call (e.g., `git diff --name-only && git status --short`) to minimize permission prompts.
+
+**Negative findings:** any absence claim ("no consumer found", "code path never fires", "field unused") destined for your report's `issues[]`, `friction_markers[]`, or `notes` must satisfy `rules/agents.md § "Negative Findings Require a Positive Control"` — produce it with the `Grep` tool, or include the positive control (the same probe finding a known-present target) in the report. Absent both, phrase it as "unverified absence" and do not present it as a finding.
 
 ## When to Follow This Workflow
 
@@ -118,7 +120,7 @@ Follow this workflow when spawned in **per-task** mode — a single task was jus
 ### Step T1: Read Task and Spec Context
 
 1. Read the task JSON file in full (status should be "Awaiting Verification")
-2. Read the spec section referenced by `spec_section` field
+2. Read the spec section referenced by `spec_section` field — **section-scoped**: if `.claude/spec_v{N}.index.json` exists, resolve the heading to its `line_start`/`line_end` and `Read` only that range; else `Grep` + scoped-`Read` (specs can exceed 200K tokens). See `rules/spec-workflow.md § "Section-scoped spec reading"`.
 3. Read the task description and completion notes
 4. Verify independently without assumptions. Judge solely on task JSON, spec, and file artifacts.
 
@@ -305,6 +307,8 @@ Also set `interaction_hint` in your return report:
 - `"dashboard"` — when review is async and benefits from extended reading time (documents, design decisions, phase gates)
 
 Default when absent: `"dashboard"` (preserves current behavior).
+
+**5. Name empirical assertions for the orchestrator (web-UI tasks):** when the task's output is a web-UI route/component and `runtime_validation` is `"partial"` — or `"pass"` was reached without browser measurement — include an `empirical_assertions[]` array in your return report: 2-6 concrete measured-value checks for the orchestrator to run before persisting the pass (as a subagent you may lack browser-MCP access; the orchestrator executes them and records `task_verification.evidence[]` per `task-schema.md § "Evidence Sub-field"`). Use measured-value phrasing (`commands/diagnose.md § "Visual / browser-rendering bugs"`): HTTP status per affected route, a console-error scan, and a geometry/computed-style assertion for each load-bearing visual claim in the implementation report. Skip for non-web tasks.
 
 **Impact on overall verification:**
 - `"pass"` or `"not_applicable"` — no impact on overall result

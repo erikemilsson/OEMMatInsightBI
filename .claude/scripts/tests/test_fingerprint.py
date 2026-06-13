@@ -97,6 +97,75 @@ class FingerprintCLITests(unittest.TestCase):
             self.assertEqual(r2.returncode, 0)
             self.assertNotEqual(r1.stdout.strip(), r2.stdout.strip())
 
+    # --- DEC-021: --index + --depth 3 (section index + finer ### fingerprinting) ---
+
+    def _write(self, content):
+        f = tempfile.NamedTemporaryFile("w", suffix=".md", delete=False)
+        f.write(content)
+        f.close()
+        self.addCleanup(os.unlink, f.name)
+        return f.name
+
+    def test_index_emits_sections_with_line_ranges(self):
+        path = self._write(
+            "Preamble\n\n## Section A\n\nContent A\n\n## Section B\n\nContent B\n"
+        )
+        r = subprocess.run([sys.executable, str(SCRIPT), "--index", path],
+                           capture_output=True, text=True, timeout=10)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        idx = json.loads(r.stdout)
+        self.assertTrue(idx["spec_fingerprint"].startswith("sha256:"))
+        self.assertEqual(idx["section_count"], 2)
+        a, b = idx["sections"]
+        self.assertEqual(a["heading"], "## Section A")
+        self.assertEqual((a["line_start"], a["line_end"]), (3, 6))
+        self.assertEqual(b["heading"], "## Section B")
+        self.assertEqual((b["line_start"], b["line_end"]), (7, 9))
+        self.assertEqual(a["synopsis"], "Content A")
+        self.assertTrue(a["fingerprint"].startswith("sha256:"))
+
+    def test_index_fingerprint_matches_sections(self):
+        """Per-section index fingerprints equal the --sections (depth 2) values — the
+        index and the drift map stay consistent."""
+        path = self._write("## Section A\n\nContent A\n\n## Section B\n\nContent B\n")
+        ri = subprocess.run([sys.executable, str(SCRIPT), "--index", path],
+                            capture_output=True, text=True, timeout=10)
+        rs = subprocess.run([sys.executable, str(SCRIPT), "--sections", path],
+                            capture_output=True, text=True, timeout=10)
+        idx = json.loads(ri.stdout)
+        secs = json.loads(rs.stdout)
+        for entry in idx["sections"]:
+            self.assertEqual(entry["fingerprint"], secs[entry["heading"]])
+
+    def test_index_synopsis_skips_subheadings(self):
+        path = self._write("## A\n\n### Sub\n\nProse line\n")
+        r = subprocess.run([sys.executable, str(SCRIPT), "--index", path],
+                           capture_output=True, text=True, timeout=10)
+        idx = json.loads(r.stdout)
+        self.assertEqual(idx["sections"][0]["synopsis"], "Prose line")
+
+    def test_sections_depth3_is_additive(self):
+        """--depth 3 is a strict superset of --depth 2: identical ## keys AND values,
+        plus the ### subsection hashes. (No churn to existing ## fingerprints.)"""
+        path = self._write("## A\n\nintro\n\n### A1\n\nx\n\n### A2\n\ny\n")
+        r2 = subprocess.run([sys.executable, str(SCRIPT), "--sections", path],
+                            capture_output=True, text=True, timeout=10)
+        r3 = subprocess.run([sys.executable, str(SCRIPT), "--sections", path, "--depth", "3"],
+                            capture_output=True, text=True, timeout=10)
+        d2 = json.loads(r2.stdout)
+        d3 = json.loads(r3.stdout)
+        self.assertEqual(set(d2), {"## A"})
+        self.assertEqual(d3["## A"], d2["## A"])  # ## hash UNCHANGED by depth
+        self.assertIn("### A1", d3)
+        self.assertIn("### A2", d3)
+        self.assertNotIn("### A1", d2)
+
+    def test_depth_rejects_invalid_value(self):
+        path = self._write("## A\n\nx\n")
+        r = subprocess.run([sys.executable, str(SCRIPT), "--sections", path, "--depth", "4"],
+                           capture_output=True, text=True, timeout=10)
+        self.assertNotEqual(r.returncode, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

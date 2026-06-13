@@ -39,7 +39,7 @@ claude -p "Commit the staged changes with a useful message." --allowedTools "Bas
 **Working-directory and model:**
 
 ```bash
-claude -p "..." --cwd /path/to/project --model claude-opus-4-7
+claude -p "..." --cwd /path/to/project --model claude-opus-4-8
 ```
 
 ### When to reach for `claude -p`

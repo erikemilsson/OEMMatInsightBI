@@ -137,7 +137,7 @@ Enter distill mode. Extract buildable spec from a vision document.
    Both mechanisms are required: per-section origin labels (so the user can review each piece individually) AND the summary section (so the user can see all assumptions in one place before approving).
 
 6. **Apply on approval:**
-   On user approval (`[Y]`, `[M]`, or `[P]`), create or update the spec file:
+   On user approval (`[Y]`, `N{n}:` overrides, or `[M]` after the item walk — `[P]` postpones without creating anything), create or update the spec file:
    - If no spec exists: create `.claude/spec_v1.md` with the approved content
    - If a spec exists: apply changes per the standard Step 5 flow (archive if warranted, then edit)
    ```
@@ -339,16 +339,18 @@ MANDATORY section — every spec-change proposal must end with this list. Enumer
 - `[FROM EXISTING SPEC]` — a decision already present in the current spec that the proposal inherits
 - `[USER REQUESTED]` — a decision the user explicitly asked for in this conversation or a prior one
 
-**Format:**
-- [ ] `[NEEDS APPROVAL]` Chose table layout for acceptance criteria section — rationale: easier to scan than prose list
+**Format** — number the `[NEEDS APPROVAL]` items (`N1`, `N2`, …) so one batch response can address any of them individually:
+- [ ] `N1` `[NEEDS APPROVAL]` Chose table layout for acceptance criteria section — rationale: easier to scan than prose list
+- [ ] `N2` `[NEEDS APPROVAL]` Scoped retry handling to network errors only — rationale: vision mentions flaky API, nothing else
 - [x] `[USER REQUESTED]` Added "Deferred to Future Phases" section per user ask
 - [x] `[FROM EXISTING SPEC]` Retained phased structure from spec_v{N-1}
 
-Rule: every `[NEEDS APPROVAL]` item MUST be resolved before Step 5 applies changes. If no decisions were made (rare — only for trivial wording changes), write `No non-trivial decisions — all changes are mechanical`.
+Rule: every `[NEEDS APPROVAL]` item MUST be resolved before Step 5 applies changes — resolution is batched: one response covers the whole table (see the prompt below and the Step 5 gate). If no decisions were made (rare — only for trivial wording changes), write `No non-trivial decisions — all changes are mechanical`.
 
 ---
 
-Approve these changes? [Y] Apply all | [M] Modify (tell me what to adjust) | [P] Partial (pick which changes) | [N] Skip
+Approve these changes? One response resolves the whole batch:
+[Y] Apply all (every [NEEDS APPROVAL] item approved as listed) | N{n}: <choice> (override specific items, rest approved as listed — e.g. "N1: prose list, N2: include timeouts") | [M] Walk item-by-item | [P] Postpone (nothing applied)
 ```
 
 **Declaration principles:**
@@ -366,14 +368,22 @@ Mark each change with its origin: `[requested]`, `[proposed]`, or `[assumption]`
 
 ### Step 5: Apply or Continue
 
-**Mandatory gate — Decisions resolved:** Before applying, verify the `## Decisions in This Proposal` section has zero unchecked `[NEEDS APPROVAL]` items. If any remain unresolved, block apply and ask the user to resolve each. This rule applies even to `[Y] Apply all` — the `[NEEDS APPROVAL]` items must be checked first.
+**Mandatory gate — Decisions resolved (batch resolution):** Before applying, verify the `## Decisions in This Proposal` section has zero unchecked `[NEEDS APPROVAL]` items. The gate requires items *resolved*, not N serial prompts — one response resolves the whole table:
+
+- A bare `[Y]` resolves every open `[NEEDS APPROVAL]` item as approved-as-listed (check each `[x]`), then applies. No follow-up per-item prompts.
+- `N{n}: <choice>` overrides resolve the named items per the user's choice and all unnamed items as listed. If an override changes proposed text, revise the affected change and show the revised text in the apply report; re-present the full declaration only when an override materially alters other changes.
+- `[M]` walks the unchecked items one at a time (per-item resolution, preserved for when the user wants the guided pass), then applies.
+- If any item remains unresolved after the response (e.g., an override referenced a nonexistent `N{n}`), block apply and ask about the unresolved items only.
+
+**Visibility is non-negotiable (FB-032):** batch resolution compresses *responses*, never *information* — the full enumeration with origin tags and proposed text always precedes the single response. Never trim the table to make batching feel lighter. DEC-016 compliance is unchanged: the declaration remains the audit trail of intent, and the `permissions.ask` gate still fires on the spec write — DEC-016 requires routing through `/iterate`, never N serial prompts.
 
 Based on user response:
 
-- **[Y] Apply all:** Execute the changes — archive current spec if warranted (see Spec Versioning below), then apply edits to the spec file. Report what was changed.
-- **[M] Modify:** User describes adjustments. Revise the declaration and re-present.
-- **[P] Partial:** User indicates which changes to apply. Apply selected, skip others.
-- **[N] Skip:** No changes applied.
+- **[Y] Apply all:** Resolve all `[NEEDS APPROVAL]` items as listed, then execute the changes — archive current spec if warranted (see Spec Versioning below), then apply edits to the spec file. Report what was changed, including the resolved decision list.
+- **`N{n}: <choice>` overrides:** Resolve named items per the override, the rest as listed; apply with the revised text.
+- **[M] Walk item-by-item:** Resolve each unchecked item individually, then apply.
+- **[P] Postpone (or [N]):** No changes applied. The proposal can be revisited on the next `/iterate` run.
+- **Free text:** Treat as modification instructions — revise the declaration and re-present (the previous `[M] Modify` semantics).
 
 After applying (or skipping):
 

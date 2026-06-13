@@ -4,13 +4,35 @@ Combined system health check for tasks, decisions, instruction files, rules, and
 
 ## Usage
 ```
-/health-check                    # Run all checks, offer fixes
-/health-check --report           # Show issues only, no fix prompts
+/health-check                    # Run all checks, collect fixes, one end-of-run triage prompt
+/health-check --report           # Show issues only, no fix queue
 ```
 
 ## Purpose
 
 Manual maintenance tool that validates tasks, decisions, instruction files (`.claude/CLAUDE.md`, `./CLAUDE.md`, `.claude/rules/`), and template sync. Operational checks for `/work` are defined inline in `work.md`.
+
+---
+
+## Fix Queue Protocol (collect, don't prompt)
+
+Parts 1–7 NEVER prompt inline during the run. Every fixable issue becomes a **queued fix item**; the run ends with one consolidated triage table and a single response (see "Step 4: Batch Fix Triage"). One `/health-check` run = one fix prompt, regardless of how many parts found issues.
+
+**Queue item shape:** `id` (sequential number in queue order) · `part` · `file` · one-line proposed fix (with diff stats where applicable) · `risk` flag.
+
+**Risk flags:**
+- `—` — safe to bundle: concrete fix, nothing locally-authored is lost (regen, add missing field, move entries between files).
+- `⚠ overwrites local` — applying replaces locally-modified content: ALL sync-category file applies (Part 5), `.claude/CLAUDE.md` revert (Part 2a). Excluded from bare `[A]`; explicit inclusion required. Sync rows the sidecar hash-verifies as unmodified since last sync carry the annotation `(hash-verified: no local edits)` so inclusion is an easy call — but they are still ⚠, never bundled silently.
+- `⚠ unreviewed append` — adds new ledger content the user hasn't read (Part 7 proposed FB entries). Excluded from bare `[A]`; review via `[D]` or include explicitly.
+- `needs-input` — the fix can't be computed without an answer (which task to keep, a path, revert-vs-keep-vs-merge). The row carries the question and choices inline; resolved only by a per-item reply (`{id}: <answer>`). Bare `[A]` skips these; unresolved rows are reported as still-open, never silently dropped.
+
+Where an auto-fix table entry says "Ask user: …", that question becomes the row's inline question — it does not become a mid-run prompt.
+
+**Exceptions (still interactive):**
+- **Part 8** (audit dispatch) keeps its menu — it gates expensive audit runs, not fixes.
+- **Sub-flows of an explicitly included fix** — e.g., Part 2d's `[V]` verify pass adjudicates per-section diffs interactively once the user has included that row; the *offer* is batched, the flow's intrinsic judgments are not.
+
+With `--report`, skip the queue and table entirely (report only).
 
 ---
 
@@ -128,6 +150,8 @@ verification_debt = count of tasks where:
 
 **Note:** Workflow bypass warnings are informational. Some tasks may legitimately have brief notes. The intent is to surface patterns, not block individual tasks.
 
+**Acceptance-status authority (DEC-022):** `.claude/verification-result.json`'s `criteria[]` (rendered as the dashboard's `### Acceptance Criteria`) is the authoritative surface for "phase acceptance criteria met." If a project also renders acceptance criteria as inline `- [ ]` boxes in the spec, those are authored input, not live status — do not treat unticked spec boxes as a completion failure. `/audit-coherence`'s `acceptance-reconciliation` lens surfaces box-vs-`criteria[]` divergence advisorily.
+
 **Script alternative:** `.claude/scripts/validate-tasks.py .claude/tasks` runs schema + verification-debt checks deterministically and prints a combined report. `--json` flag emits structured output for downstream consumption.
 
 #### 8. Workspace Staleness
@@ -143,7 +167,7 @@ Reports tasks with `"out_of_spec": true` in a separate section of the report. In
 #### 10. Dashboard Staleness
 
 **Task state hash check:**
-1. Compute: `SHA-256(sorted list of task_id + ":" + status + ":" + difficulty + ":" + owner)`
+1. Compute: `python3 .claude/scripts/dashboard-render.py --task-hash` — the canonical convention (sha256 over sorted `id:status:difficulty:owner` rows, newline-joined + trailing newline). Hand-compute only when the script is unavailable. Do NOT use `fingerprint.py --dashboard-rollup` (different algorithm, for `/status`).
 2. Read dashboard metadata block (if exists)
 3. Compare hashes — if different, dashboard is stale
 
@@ -170,6 +194,8 @@ A dashboard can be content-stale (task hash mismatch), format-stale (template_ve
 - Invalid format: ERROR — "Task {id} has malformed decision dependency `{value}`"
 
 ### Task Auto-Fixes
+
+Per the Fix Queue Protocol: each detected issue queues one fix item; "Ask user: …" entries become `needs-input` rows with the question inline. Nothing here prompts mid-run.
 
 | Issue | Auto-Fix |
 |-------|----------|
@@ -218,10 +244,10 @@ Two separate checks: environment CLAUDE.md template alignment, and project root 
 **Process:**
 1. If template remote is configured (Part 5), diff `.claude/CLAUDE.md` against `template/{default_branch}:.claude/CLAUDE.md`
 2. If no template remote, compare against a known hash stored in `.claude/version.json` (field: `claude_md_hash`)
-3. If the file has been modified locally, present the deviations and ask the user:
-   - **Revert** — restore template version
-   - **Keep** — acknowledge deviation (record in `version.json` as `claude_md_override: true`)
-   - **Merge** — show diff, let user decide line by line
+3. If the file has been modified locally, report the deviations and queue a `needs-input` fix item with the choices inline (reply `{id}: revert` / `{id}: keep` / `{id}: merge`):
+   - **revert** — restore template version (⚠ overwrites local — explicit choice required, never bundled)
+   - **keep** — acknowledge deviation (record in `version.json` as `claude_md_override: true`)
+   - **merge** — show diff, decide line by line (interactive sub-flow once chosen)
 
 **What to report:**
 - ✓ if `.claude/CLAUDE.md` matches template
@@ -236,9 +262,8 @@ The root `./CLAUDE.md` contains project-specific instructions and is user-owned.
 
 If `./CLAUDE.md` does not exist at the project root:
 1. Report: ℹ️ "No root CLAUDE.md found — this file holds project-specific instructions for Claude"
-2. Offer to create one from the template at `.claude/support/reference/root-claude-md-template.md`
-3. If the user accepts, copy the template to `./CLAUDE.md`
-4. If the user declines, note as informational and continue
+2. Queue a fix item: create `./CLAUDE.md` from the template at `.claude/support/reference/root-claude-md-template.md` (risk `—`; new file, nothing overwritten)
+3. If included in the triage response, copy the template to `./CLAUDE.md`; if excluded, note as informational and continue
 
 #### Bloat Thresholds
 
@@ -259,7 +284,7 @@ If `./CLAUDE.md` does not exist at the project root:
 
 #### Condensation Guidance
 
-When a section exceeds the soft limit, offer these options:
+When a section exceeds the soft limit, queue a `needs-input` fix item per section with these choices inline (reply e.g. `{id}: extract`):
 
 1. **Extract** — Move verbose content to `.claude/support/reference/project-{section-slug}.md`, replace with a link. Project reference docs use the `project-` prefix to distinguish from template-owned reference docs.
 2. **Condense** — Rewrite to fewer lines. Apply the "would removing this cause Claude to make mistakes?" test. Cut:
@@ -311,18 +336,15 @@ Validates that `.claude/support/reference/claude-code-authoring.md` has been ver
    - If `days_stale <= 90`: silent (pass)
    - If `90 < days_stale <= 180`: surface inline `Part 2d: ⚠ Capability doc not verified in {days_stale} days (threshold: 90). Consider verifying against Claude Code docs.`
    - If `days_stale > 180`: surface inline `Part 2d: ⚠⚠ Capability doc not verified in {days_stale} days (threshold: 90, hard threshold: 180). Strongly recommended to verify before authoring spec/skill/agent content that references Claude Code primitives.`
-6. Regardless of staleness, offer the verification action:
-   ```
-   Actions: [V] Verify against current docs | [S] Skip | [D] Defer (suppress warning until next sync)
-   ```
-7. If user selects `[V]`:
+6. Regardless of staleness (when the doc is stale or the footer is malformed), queue a fix item per the Fix Queue Protocol: `Run [V] verify-against-docs pass` (risk `—`; the row notes "reply '{id}: defer' to suppress 30 days"). Do NOT prompt inline.
+7. If the row is included in the triage response (the `[V]` flow — interactive by nature, runs after the batch response):
    - WebFetch the docs URL from the footer
    - Diff the fetched content against the current doc body section by section
    - Present each diff as `[A] Accept change | [R] Reject (keep current) | [S] Skip section`
    - On any accept, update the doc body for that section
    - After all sections processed, update the footer date to today + `template_version` from `.claude/version.json`
-8. If user selects `[S]`: leave doc unchanged, leave footer unchanged.
-9. If user selects `[D]`: write a sentinel in `.claude/dashboard-state.json` (`capability_doc_defer_until: YYYY-MM-DD`, 30 days from today) to suppress the Part 2d warning until that date. Next `/health-check` after the defer-until date will surface the warning again.
+8. If the row is excluded: leave doc unchanged, leave footer unchanged (the warning resurfaces next run).
+9. If the user replies `{id}: defer`: write a sentinel in `.claude/dashboard-state.json` (`capability_doc_defer_until: YYYY-MM-DD`, 30 days from today) to suppress the Part 2d warning until that date. Next `/health-check` after the defer-until date will surface the warning again.
 
 **Why this matters:** the capability doc encodes load-bearing facts about Claude Code (turn-scoped `model:` / `effort:`, subagent isolation, MCP constraints, Agent tool model granularity, skill content lifecycle). These facts evolve as Claude Code ships features. The footer + lens combination keeps the reference doc honest without silent auto-sync (which would risk silent contradiction with current spec) and without requiring maintainer-driven version pinning (which decouples from Claude Code's release cadence). See DEC-017 for full rationale.
 
@@ -392,6 +414,8 @@ This is a reporting check. The primary enforcement and interactive resolution ha
 
 ### Decision Auto-Fixes
 
+Per the Fix Queue Protocol: each detected issue queues one fix item; "Ask user: …" entries become `needs-input` rows with the question inline. Nothing here prompts mid-run.
+
 | Issue | Auto-Fix |
 |-------|----------|
 | File missing from dashboard | Add entry to dashboard's Decisions table |
@@ -447,6 +471,23 @@ Scan non-canonical locations for `spec_v*.md` files:
 #### 4. Decomposed Spec Validation
 
 For archived specs where tasks reference that version, check if `spec_v{i}_decomposed.md` exists. Warning-level only.
+
+#### 5. Untracked Source-of-Truth (informational, FB-099)
+
+The project's authored memory under `.claude/` — the spec (`.claude/spec_v*.md`), task files (`.claude/tasks/`), and decision records (`.claude/support/decisions/`) — is the source of truth. When a project gitignores these paths (a deliberate fork convention in some projects), they are never committed: invisible to git history, `git diff`, and recovery. This check surfaces that once per run so the choice is conscious, not accidental. It never blocks and never auto-fixes.
+
+```
+For each of `.claude/spec_v*.md` (current spec), `.claude/tasks/`, `.claude/support/decisions/`:
+  run `git check-ignore -q <path>` (exit 0 = ignored, 1 = not ignored, 128 = no git / error)
+
+IF git absent (128 for all) OR none are ignored → silent (no finding)
+IF any are ignored → Info (not a warning), once per run:
+  "Part 4.5: Source-of-truth state is untracked — {gitignored paths} match this project's .gitignore.
+   Deliberate? If so, consider a backup convention (periodic archive, a separate private remote, or export).
+   If not, removing the ignore rule restores git's safety net."
+```
+
+Use `git check-ignore` (reliable exit-code semantics), not a grep against `.gitignore` text — a path can be ignored by a parent-directory or negated rule that a literal grep misses. Informational only; respects deliberate conventions. Distinct from FB-063 (worktree reads of gitignored state) and `/work` Step 0e (uncommitted *tracked* work — the inverse: tracked `.claude/` files that git *does* see).
 
 ### Archive Auto-Fixes
 
@@ -538,64 +579,32 @@ Never compare `customize` or `ignore` category files.
 
 **Compute `local_hash`:** `shasum -a 256 <path>` (macOS) or `sha256sum <path>` (Linux); prefix `sha256:` to the bare hex. Compare string-equal against the sidecar's `synced_hash`. The hash is over raw bytes — line-ending differences DO produce different hashes (intentional: a CRLF/LF normalization at sync time is a real change, not a no-op).
 
-#### 3. Present Changes
+#### 3. Present Changes (report) and Queue Apply Rows
 
-Group files by the per-file status from Step 2. Files classified as "Template content not yet applied" default to APPLY; "Modified upstream" entries default to user adjudication.
-
-**Small changes** (few files, minor edits) — simple list with diff stats:
+Group files by the per-file status from Step 2 and present them in the report — grouped and impact-annotated for bigger changes:
 
 ```
 Template updates available (v1.5.0 → v1.6.0):
 
-  Template content not yet applied (default: APPLY):
-    .claude/skills/dashboard-style/SKILL.md (+12 -0 lines)
+  Template content not yet applied (hash-verified: no local edits):
+    .claude/support/reference/dashboard-regeneration.md (+12 -0 lines)
 
-  Modified upstream (review before applying):
+  Modified upstream (local edits — review before including):
     .claude/commands/work.md (+15 -8 lines)
     .claude/support/reference/paths.md (+3 -1 lines)
 
   New:
     .claude/support/reference/new-feature.md
-
-Apply all / Select individually / Skip?
 ```
 
-**Bigger changes** (structural, multi-file) — group related changes and explain impact:
+**Grouping heuristic** (bigger changes): group related files by workflow area (e.g., a command and the reference docs it depends on) and state the impact per group, plus the per-file classification.
 
-```
-Template updates available (v1.5.0 → v1.6.0):
+**Queue one fix item per file** (per the Fix Queue Protocol) instead of prompting:
 
-1. Verification workflow update (3 files)
-   - .claude/commands/work.md — new verification step
-   - .claude/agents/verify-agent.md — updated check criteria
-   - .claude/support/reference/workflow.md — updated process docs
+- Sync-category file applies (both classifications) → `⚠ overwrites local`, excluded from bare `[A]`, explicit inclusion required. "Template content not yet applied" rows carry the `(hash-verified: no local edits)` annotation so inclusion is an easy call; "Modified upstream" rows carry the diff stats.
+- "New in template" files → risk `—` (new file, nothing overwritten).
 
-   Impact: Adds scope validation to the verification process.
-   Classification: 2 Template content not yet applied, 1 Modified upstream
-
-2. New reference file
-   - .claude/support/reference/new-feature.md
-
-   Impact: Documentation only. No effect on existing workflow.
-
-Apply all / Select individually / Skip?
-```
-
-**Grouping heuristic:** Changes are "related" when they touch the same workflow area (e.g., a command and the reference docs it depends on, or multiple files in the verification pipeline).
-
-**Per-file actions (when selecting individually):**
-
-For each file, the menu offers:
-
-- **[A] Apply** — check out the template version (overwrites local).
-- **[K] Keep current** — leave local as-is for this sync run. The sidecar entry is NOT updated, so the file resurfaces on the next sync.
-- **[D] Show me the diff** — print `git diff template/{branch}:<path> <path>` (full output, truncate to ~100 lines if very long with a "...truncated" marker) and re-display the per-file menu.
-
-Defaults differ by status:
-- "Template content not yet applied" → default keystroke is `[A] Apply` (Enter applies).
-- "Modified upstream" → no default; the user must explicitly pick to avoid accidental overwrites of genuine local additions.
-
-The "Show me the diff" sub-action helps users adjudicate when classification is ambiguous — e.g., pre-3.15.0 projects without a sidecar (every diff falls into "Modified upstream"), or files genuinely modified locally where the user has forgotten what they changed.
+Exclusion = the old "Keep current": the sidecar entry is NOT updated, so the file resurfaces on the next sync. Full diffs are available pre-decision via the triage table's `[D]` (prints `git diff template/{branch}:<path> <path>`, truncated to ~100 lines with a "...truncated" marker) — the route for adjudicating ambiguous classifications, e.g. pre-3.15.0 projects without a sidecar (every diff falls into "Modified upstream"), or files genuinely modified locally where the user has forgotten what they changed.
 
 #### 4. Apply Updates
 
@@ -607,7 +616,7 @@ For accepted changes:
 - **Update the sync-state sidecar** — for each file the user accepted, compute the new local SHA-256 (post-checkout) and write/update its entry in `.claude/.sync-state.json` under `files["<path>"].synced_hash`. Refresh top-level `last_full_sync_version` (to the upstream version just synced) and `last_full_sync_date` (current date, ISO 8601). If the sidecar doesn't exist yet, create it with `schema_version: "1.0"`. Files the user skipped retain their prior sidecar entries (or remain absent if never synced).
 - Report what was changed
 
-**Post-sync dashboard re-check:** After applying template updates, check if any dashboard-related files were updated (any file matching `dashboard-regeneration.md`, `rules/dashboard.md`, or `shared-definitions.md`). If so, the dashboard was generated with older format rules — offer to regenerate: `"Dashboard format rules updated — regenerate dashboard to apply new format? [Y/N]"`. This catches the ordering issue where Part 1 ran dashboard checks before Part 5 synced the new rules. Regeneration follows `.claude/support/reference/dashboard-regeneration.md` (which is now the updated version).
+**Post-sync dashboard re-check:** If any included sync row touches a dashboard-rule file (`dashboard-regeneration.md`, `rules/dashboard.md`, or `shared-definitions.md`), the dashboard was generated with older format rules — regenerate it as part of applying that row (no extra prompt; the row's one-line description notes "includes dashboard regen", so the user sees the consequence before responding). This catches the ordering issue where Part 1 ran dashboard checks before Part 5 synced the new rules, and dedupes with any Part 1 regen row — the dashboard regenerates at most once per run, last. Regeneration follows `.claude/support/reference/dashboard-regeneration.md` (which is now the updated version).
 
 ### Key Rules
 
@@ -657,7 +666,7 @@ Detects when custom commands in `.claude/commands/` overlap with template comman
 
 ### Process
 
-1. **Identify template commands** — known set: `work.md`, `iterate.md`, `breakdown.md`, `health-check.md`, `status.md`, `research.md`, `feedback.md`, `review.md`, `audit-coherence.md`, `audit-ui.md`, `diagnose.md`, `grill.md`, `zoom-out.md`
+1. **Identify template commands** — known set: `work.md`, `iterate.md`, `breakdown.md`, `health-check.md`, `status.md`, `research.md`, `feedback.md`, `review.md`, `audit-coherence.md`, `audit-ui.md`, `diagnose.md`, `grill.md`, `zoom-out.md`, `shakedown.md`
 2. **Scan `.claude/commands/`** for all `.md` files not in the template set
 3. **Detect collisions:**
    - **Name collision:** custom file has same name as template command
@@ -684,15 +693,13 @@ Validates the layered-settings contract: `.claude/settings.json` is template-own
    - Check that the file contains **only** `permissions.allow` and/or `permissions.ask`:
      - ✅ Pass: the top-level object has exactly one key (`permissions`) whose value has only the keys `allow` and/or `ask`.
      - ⚠️ Warn if any of the following are present: `permissions.deny`, `hooks`, `env`, `theme`, or any other top-level key.
-     - Warning message:
+     - Warning message (report):
        ```
        ⚠️ Found non-base entries in `.claude/settings.json` (template-owned file).
           Unexpected keys: {list}
           These will be overwritten on next template sync.
-          Move them to `.claude/settings.local.json` to preserve them.
-          [M] Move automatically  [S] Skip (accept overwrite on next sync)
        ```
-     - On `[M]`: merge the unexpected entries into `.claude/settings.local.json` (create if missing, concatenate+dedupe for array fields like `permissions.allow`, preserve existing keys for object fields like `hooks`), then strip them from `.claude/settings.json`. On `[S]`: leave files as-is; next sync will overwrite.
+     - Queue a fix item: move the unexpected entries to `.claude/settings.local.json` (risk `—`; content is moved, not lost — create the local file if missing, concatenate+dedupe for array fields like `permissions.allow`, preserve existing keys for object fields like `hooks`, then strip them from `.claude/settings.json`). If excluded: leave files as-is; next sync will overwrite.
 
 3. **Validate base-set drift (template vs. local):**
    - Read the template's `.claude/settings.json` from the template remote (if configured and reachable — same fetch as Part 5). Skip this check if offline.
@@ -722,26 +729,23 @@ Validates the `template_inbox_path` configuration that powers the cross-project 
 
 3. **If `template_inbox_path` is empty string (unconfigured):**
 
-   This is not an error — the bridge is optional. Inform the user once per `/health-check` run:
+   This is not an error — the bridge is optional. Report once per `/health-check` run:
    ```
    Cross-project feedback bridge: not configured.
 
    The bridge lets `/feedback template: <text>` carry template-relevant feedback
    back to the template repo's inbox automatically. `/health-check` in the template
    repo then routes those entries into `template-maintenance/feedback.md`.
-
-   Configure now? (You can do this any time later.)
-     [Y] Yes — enter the absolute path to the template repo's interaction-logs/inbox/
-     [N] No — keep the bridge disabled
    ```
 
-   - On `[Y]`:
-     - Prompt: `Path to template inbox (absolute path, e.g. /Users/you/Developer/claude_code_environment/interaction-logs/inbox):`
+   Queue a `needs-input` fix item: configure the bridge — reply `{id}: <absolute path to the template repo's interaction-logs/inbox/>` (or exclude to keep the bridge disabled).
+
+   - On a path reply:
      - Expand `~` and `$HOME` if present in the user's input
      - Validate that the path exists and is a directory
      - If valid: update `.claude/version.json` `template_inbox_path` field with the absolute path. Report: `✓ template_inbox_path configured: {path}`
-     - If invalid: report the specific issue (not a directory / doesn't exist) and offer `[R] Retry | [S] Skip`
-   - On `[N]`: silent pass — proceed to next Part
+     - If invalid: report the specific issue (not a directory / doesn't exist) in the post-apply summary; the item resurfaces next run
+   - If excluded: silent pass — the bridge stays disabled
 
 4. **If `template_inbox_path` is set and the path exists as a directory:**
 
@@ -749,17 +753,12 @@ Validates the `template_inbox_path` configuration that powers the cross-project 
 
 5. **If `template_inbox_path` is set but the path doesn't exist or isn't a directory:**
 
-   Surface as a fixable issue:
+   Report the issue and queue a `needs-input` fix item:
    ```
    ⚠️  template_inbox_path is set to '{path}' but that path doesn't exist (or is not a directory).
-
-   Options:
-     [F] Fix — enter a corrected path (validated against filesystem)
-     [C] Clear — set to empty string (disables the bridge)
-     [S] Skip — leave as-is, surface again on next /health-check
    ```
 
-   Apply the chosen action. On `[F]`, follow the same validation flow as step 3 `[Y]`.
+   Row choices inline: reply `{id}: <corrected absolute path>` (validated against the filesystem, same flow as step 3) · `{id}: clear` (set to empty string, disables the bridge) · exclude to leave as-is (surfaces again on next `/health-check`).
 
 ### When to Run
 
@@ -895,9 +894,9 @@ Processes cross-project session exports when `/health-check` runs in the templat
 
         [feedback.body]
         ```
-      - Present the proposed entry to the user and ask for confirmation before appending — never append silently (preserves the "Claude does not make decisions for the user" rule).
-      - On confirmation: append to `template-maintenance/feedback.md`; move processed file to `interaction-logs/processed/`.
-      - On decline: leave the file in `inbox/` so the user can re-run `/health-check` later.
+      - Queue the proposed entry as a fix item (`⚠ unreviewed append` — excluded from bare `[A]`; the full entry text is viewable via the triage table's `[D]`). Never append silently — the visible row + explicit inclusion preserves the "Claude does not make decisions for the user" rule.
+      - If included: append to `template-maintenance/feedback.md`; move processed file to `interaction-logs/processed/`.
+      - If excluded: leave the file in `inbox/` so the user can re-run `/health-check` later.
    d. **Session-export marker parsing:**
       - Parse friction markers by template area:
         - `verify-agent` — verification failures, false positives, verification gaps
@@ -917,7 +916,7 @@ Processes cross-project session exports when `/health-check` runs in the templat
    - Write insight documents to `interaction-logs/insights/`
    - Format: `YYYY-MM-DD_{template-area}_{slug}.md`
 
-6. **Route to `template-maintenance/feedback.md`:** For high-confidence patterns from step 5, construct proposed feedback items as new `FB-NNN` entries in `template-maintenance/feedback.md` (status: `new`, body references the insight document). Present each proposed entry to the user for confirmation before appending.
+6. **Route to `template-maintenance/feedback.md`:** For high-confidence patterns from step 5, construct proposed feedback items as new `FB-NNN` entries in `template-maintenance/feedback.md` (status: `new`, body references the insight document). Queue each proposed entry as a fix item (`⚠ unreviewed append` — excluded from bare `[A]`; full text via `[D]`) rather than prompting per entry.
 
    When `/health-check` runs in the template repo, `template-maintenance/feedback.md` is the destination per root `CLAUDE.md` — `.claude/support/feedback/feedback.md` is the *shipped* path reserved for downstream projects only. (User-feedback bridges from step 3c also land here.)
 
@@ -980,7 +979,7 @@ Prompt the user. Accept comma-separated numbers, "A" / "all", or "S" / "skip" (d
 For each selected audit:
 
 1. **Pre-flight prerequisites.** If the audit's `prerequisites` list mentions "dev server reachable at {url}" or similar, attempt verification (curl the URL). If unreachable, print the audit's pre-flight error and SKIP this audit (continue with others, don't fail Part 8).
-2. **Invoke the audit command.** The audit runs in the same conversation context (commands are loaded as instructions). Sequence: dispatch one at a time — audits are internally parallel via lens sub-agents; sequencing across audits keeps output legible and avoids MCP collisions (per `.claude/rules/agents.md` § "MCP and Parallel Execution" — `/audit-ui` uses Playwright MCP which can't be safely fanned out across parallel command invocations either).
+2. **Invoke the audit command.** The audit runs in the same conversation context (commands are loaded as instructions). Sequence: dispatch one at a time — audits are internally parallel via lens sub-agents; sequencing across audits keeps output legible and avoids MCP collisions (per `.claude/support/reference/mcp-patterns.md` § "MCP and Parallel Execution" — `/audit-ui` uses Playwright MCP which can't be safely fanned out across parallel command invocations either).
 3. **Capture digest.** Each audit writes `findings.md` and `digest.json` to `.claude/support/audits/{audit}-{ts}/`. Record the digest path for the aggregate summary.
 
 ### Aggregate Output
@@ -1073,11 +1072,39 @@ FETCH template remote and diff sync files (skip if offline)
 
 Each section uses `✓` for passes, `⚠️` for warnings, `❌` for errors.
 
-### Step 4: Offer Fixes
+### Step 4: Batch Fix Triage (one consolidated prompt)
 
-For each fixable issue, present options and apply immediately before moving to next.
+Render the fix queue (collected per the Fix Queue Protocol) as ONE table after the report, and take ONE response. If the queue is empty, skip silently. If `--report` flag is set, skip this step and show report only.
 
-If `--report` flag is set, skip this step and show report only.
+```
+Proposed fixes (7):
+
+| # | Part | File | Proposed fix | Risk |
+|---|------|------|--------------|------|
+| 1 | 1  | .claude/dashboard.md            | Regenerate (stale hash + format)          | — |
+| 2 | 3  | decision-004-*.md               | Add missing dashboard Decisions entry      | — |
+| 3 | 5  | .claude/commands/work.md        | Apply template version (+15 -8)            | ⚠ overwrites local |
+| 4 | 5  | .claude/rules/dashboard.md      | Apply template version (+4 -1; includes dashboard regen) | ⚠ overwrites local (hash-verified: no local edits) |
+| 5 | 2d | claude-code-authoring.md        | Run [V] verify-against-docs pass ("5: defer" suppresses 30d) | — |
+| 6 | 7  | template-maintenance/feedback.md | Append FB-097 "verify-agent: …"            | ⚠ unreviewed append |
+| 7 | 1  | task-12.json                    | Stale In Progress (9d) — reply "7: pending / on-hold / blocked / keep" | needs-input |
+
+One response resolves the queue:
+  [A] apply all unflagged (⚠ and needs-input rows excluded — listed back as still-open)
+  "A except 1,2" — exclude specific unflagged rows
+  "A include 3,4" — ⚠ rows apply only on explicit inclusion by id
+  [N] none
+  "[D] 3,6" — show full diffs / full text for those ids first, then re-prompt (the [D] round doesn't consume the response)
+  Per-item answers combine freely: "A include 4, 5: defer, 7: on-hold"
+```
+
+**Apply mechanics:**
+
+- Apply included fixes in part order (1 → 7). Dashboard regeneration runs at most once, last — dedupe Part 1 regen rows with sync-triggered regens.
+- A fix that fails to apply does not abort the batch: report it in the post-apply summary and continue.
+- `needs-input` rows without an answer in the response stay open — list them back ("Still open: 7 — stale In Progress task-12") so nothing silently drops.
+- Interactive sub-flows of included rows (Part 2d `[V]`, Part 2a `merge`) run after the batch applies, one at a time.
+- Post-apply summary: what was applied, what failed, what remains open.
 
 ---
 
@@ -1087,7 +1114,7 @@ If `--report` flag is set, skip this step and show report only.
 
 **Large root `./CLAUDE.md` (>200 lines):** Flags as error, suggests extracting sections to `.claude/support/reference/project-*.md`
 
-**`.claude/CLAUDE.md` deviations:** Presents diff and asks user to revert, keep, or merge
+**`.claude/CLAUDE.md` deviations:** Reports diff summary; revert/keep/merge choice rides the fix queue as a `needs-input` row
 
 **Subtask ID collisions:** Detects `5_1` already exists before creating duplicate
 

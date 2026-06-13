@@ -16,6 +16,12 @@ npm run test         # Run tests
 npm run lint         # Lint check
 ```
 
+## Verification Hooks
+
+[Optional — consumed by /work's Empirical Evidence Gate and verify-agent]
+
+**Build command:** `npm run build` — run before passing tasks that touch client-marked files (catches client/server bundle breaks).
+
 ## Conventions
 
 [Project-specific conventions: naming patterns, code style, document formats, branching strategy]

@@ -18,12 +18,14 @@ Dashboard does NOT regenerate on every task change. Two tiers:
 - **Tier 1 (Strategic Regen):** Decomposition complete, parallel batch end, session boundaries, `/work complete`, phase gates, decision resolution
 - **Tier 2 (Inline CLI Messages):** Brief contextual updates for routine changes — task starts, verification passes/fails
 
-For single-section changes that would otherwise trigger Tier 1, the orchestrator may apply a **targeted `Edit`** to the affected section instead and set a `pending_full_regen` sentinel in `.claude/dashboard-state.json` so the next Step 1a still runs full regen. See `.claude/skills/dashboard-style/SKILL.md § "Targeted Edits (mid-session lite path)"` for the decision table and procedure.
+For single-section changes that would otherwise trigger Tier 1, the orchestrator may apply a **targeted `Edit`** to the affected section instead and set a `pending_full_regen` sentinel in `.claude/dashboard-state.json` so the next Step 1a still runs full regen. See `.claude/support/reference/dashboard-regeneration.md § "Targeted Edits (mid-session lite path)"` for the decision table and procedure.
+
+**Script-first (v4.22.0):** full regens render the structural sections via `python3 .claude/scripts/dashboard-render.py --render` — the LLM writes the output, then fills only the synthesis placeholders (Action Required, Custom Views content). See `dashboard-regeneration.md § "Script-First Rendering"` for the division of labor and the canonical `task_hash` mode.
 
 ## Sections
 
 The dashboard has a **Sections** checklist at the top — check or uncheck items to control which sections Claude generates:
-- 🚨 Action Required — decisions, tasks, reviews needing user input
+- 🚨 Action Required — decisions, tasks, reviews needing user input. **Human-gated coverage invariant:** every item blocked on the user — `owner: human` tasks with satisfied dependencies, `owner: both` tasks awaiting review, On Hold tasks, unresolved decisions, and unanswered questions from a paused session — must have a row here with the concrete question/action inline; handoff prose must never be a blocking item's only home. `/work` prints this queue at session start (Step 0g) and sweeps it at pause.
 - 📊 Progress — phase breakdown, critical path, timeline, status summary (>20 tasks)
 - 📋 Tasks — task list by phase (auto-collapses completed and fully-blocked phases)
 - 📋 Decisions — decision log with status

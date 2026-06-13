@@ -193,9 +193,9 @@ Detect silent drift between "tasks marked Finished" and "code committed". Runs o
 1. If `.git` is absent (no git repository), this step is a no-op — proceed to Step 0f.
 2. Run `git log -1 --format=%ct HEAD` to get last-commit Unix timestamp. If the command fails (no commits in repo), skip Step 0e — proceed to Step 0f.
 3. Convert timestamp to YYYY-MM-DD format (last-commit date).
-4. Compute working-copy state:
-   - `MODIFIED = git diff --name-only HEAD` (excluding paths starting with `.claude/`)
-   - `UNTRACKED = git ls-files --others --exclude-standard` (excluding paths starting with `.claude/`)
+4. Compute working-copy state (git's native gitignore handling does the `.claude/` scoping — see note below):
+   - `MODIFIED = git diff --name-only HEAD` (tracked files only — gitignored `.claude/` state never appears here)
+   - `UNTRACKED = git ls-files --others --exclude-standard` (`--exclude-standard` omits gitignored paths)
    - Count = len(MODIFIED) + len(UNTRACKED)
 5. Scan task files for finished-since-commit count: tasks where `status == "Finished"` AND `completion_date >= last-commit-date`.
 6. If `finished_since_commit < 3` OR `(MODIFIED + UNTRACKED) == 0`: silent, proceed to Step 0f.
@@ -208,7 +208,7 @@ Detect silent drift between "tasks marked Finished" and "code committed". Runs o
 
 **Why threshold N≥3:** smallest count that meaningfully exceeds "single in-flight feature about to be committed." Empirical tuning is cheap (single integer constant).
 
-**Why heuristic `.claude/`-only filter:** `.claude/` is the only universally-template-owned state-not-source path. Build artifacts (`node_modules`, `dist/`, etc.) typically live in `.gitignore`; `--exclude-standard` honors `.gitignore` natively. Future configurability deferred until cross-project friction surfaces.
+**Why gitignore-scoped (not blanket) `.claude/` filter (FB-099):** whether `.claude/` is state-not-source is decided by whether the project tracks it — exactly what `.gitignore` already encodes. Projects that gitignore `.claude/**` (a deliberate fork convention) never surface `.claude/` paths here: `git diff HEAD` lists only tracked files and `--exclude-standard` honors `.gitignore`, so gitignored state (spec, tasks, dashboard) is already excluded with no manual filter. Projects that *track* `.claude/` (committed vision docs, command edits, or task JSON under version control) should see those uncommitted source changes counted — an earlier blanket `.claude/` exclusion silently hid git-tracked `.claude/vision/*.md` edits. So: rely on git's native gitignore semantics and do not blanket-filter `.claude/`. Build artifacts (`node_modules`, `dist/`, etc.) live in `.gitignore` and are already excluded. Future configurability deferred until cross-project friction surfaces. (A complementary informational surfacing of *untracked source-of-truth* lives in `/health-check` Part 4 check 5.)
 
 #### Step 0f: Track 2 Stale-File Recovery (FB-089)
 
@@ -252,6 +252,21 @@ Recover from a prior session's interrupted `/work pause` that left `.claude/supp
 
 **`.session-log.jsonl` standalone case:** if Track 2 is absent but Track 1 markers exist, Step 0f does NOT trigger recovery — Step 0d's catchup already handles the pending-buffer half, and the PreCompact hook is the canonical disposal mechanism for orphan logs.
 
+#### Step 0g: Waiting-on-You Queue (always runs)
+
+Enumerate every item currently gated on the user and surface it before routing. This is the session-start half of the **human-gated coverage invariant** (`rules/dashboard.md § Sections`): nothing blocked on the user may live only in handoff prose.
+
+1. Scan task files for: `owner: "human"` with status `"Pending"` and all dependencies `"Finished"`; `owner: "both"` with `user_review_pending: true`; any task with status `"On Hold"`.
+2. Scan `.claude/support/decisions/decision-*.md` for unresolved records (status `proposed`/`draft` — a selection is awaited).
+3. If a handoff was consumed in Step 0a: extract any questions asked of the user last session that were never answered (mid-decision pauses).
+4. Output, merged into Step 0c's summary when both fire (skip the block entirely when N == 0):
+   ```
+   Waiting on you ({N}):
+   1. {item} — {concrete question or action} → {file link}
+   ...
+   ```
+5. **Dashboard cross-check:** every item found must have a 🚨 Action Required row with the question/action inline. Add missing rows via the targeted-edit path (set the `pending_full_regen` sentinel per FB-080) — do not defer to the next full regen.
+
 ### Step 1: Gather Context
 
 **Version discovery:** Determine the current spec version:
@@ -287,9 +302,11 @@ Also read `.claude/dashboard-state.json`'s `pending_full_regen` field. If non-nu
 
 ### Step 1b: Spec Drift Detection
 
-Compare the current spec's SHA-256 fingerprint against task fingerprints. If different, perform section-level analysis to identify which sections changed and group affected tasks.
+Compare the current spec's SHA-256 fingerprint against task fingerprints. If different, perform section-level analysis to identify which sections changed and group affected tasks. For a large changed `## ` section, narrow to `### ` subsection level so tasks in unchanged subsections aren't re-flagged (DEC-021; see `drift-reconciliation.md § "Subsection-level drift narrowing"`).
 
 **Script alternative:** `.claude/scripts/fingerprint.py --spec` / `--sections` for deterministic hashes when the orchestrator runs the drift check.
+
+**Spec index refresh (DEC-021):** while you have the full-spec fingerprint in hand, refresh the section index if stale — if `.claude/spec_v{N}.index.json` is missing or its `spec_fingerprint` ≠ the current full-spec hash, regenerate it: `python3 .claude/scripts/fingerprint.py --index .claude/spec_v{N}.md > .claude/spec_v{N}.index.json`. The index powers section-scoped spec reads (`rules/spec-workflow.md § "Section-scoped spec reading"`); it carries no task provenance, so this never affects drift reconciliation. Full rule: `drift-reconciliation.md § "Spec Index Freshness"`.
 
 **Full procedure:** `.claude/support/reference/drift-reconciliation.md` § "Spec Drift Detection"
 
@@ -332,10 +349,13 @@ After Step 1c, check whether the project state has any Claude-actionable work. T
 IF remaining_tasks is NOT empty
    AND every task in remaining_tasks satisfies at least one of:
      - owner == "human" (regardless of status)
+     - owner == "both" AND user_review_pending == true (Claude's half done, awaiting the user — FB-100)
      - status == "Blocked"
      - status == "On Hold"
    → FAST EXIT
 ```
+
+**`owner: "both"` and the fast path (FB-100):** a both-owned task is Claude-actionable while Claude's half is unstarted — it becomes non-actionable only once Claude's contribution is delivered and the task is waiting on the user, signalled by `user_review_pending == true` (set when verify-agent passes Claude's half, per the State Persistence Protocol). A both-owned task gated on a *physical-world prerequisite before Claude can act* should carry `status: "Blocked"` (e.g., a dependency on a human-owned setup task) or `"On Hold"` so it is caught by those clauses — do not leave it `Pending`, or the fast path will treat the project as having actionable work when it does not.
 
 **Before presenting fast-exit output:** Verify dashboard freshness (same check as Step 5 item 4). If stale, regenerate first — the user may check the dashboard after seeing this message.
 
@@ -632,71 +652,15 @@ The safety gate applies to implement-agent dispatch, verify-agent runtime valida
 
 #### If Decomposing (spec → tasks)
 
-Read `.claude/support/reference/decomposition.md` and follow its 10-step procedure to break the spec into granular tasks with full provenance fields.
+Read `.claude/support/reference/decomposition.md` and follow its 10-step procedure to break the spec into granular tasks with full provenance fields. (First decomposition legitimately reads the whole spec — the "whole when warranted" case in `rules/spec-workflow.md § "Section-scoped spec reading"`. Afterward, generate the section index so downstream per-task agents scope-read: `python3 .claude/scripts/fingerprint.py --index .claude/spec_v{N}.md > .claude/spec_v{N}.index.json`.)
 
 **Capability-claim cross-check (DEC-017):** when decomposing spec sections that reference Claude Code primitives (skill `model:`/`effort:` frontmatter, subagent dispatch, MCP fan-out, `Agent` tool model granularity, parallel execution boundaries), cross-reference `.claude/support/reference/claude-code-authoring.md` before generating task JSON. The reference doc surfaces load-bearing platform facts that aren't obvious from spec text alone (e.g., `model:` is turn-scoped, not session-scoped — multi-turn chat skills cannot use it for cross-turn model continuity). Task descriptions that depend on unsupported platform behavior produce wasted-iteration cycles at implementation time.
 
 #### State Persistence Protocol
 
-After any agent (implement-agent or verify-agent) returns a structured report, the orchestrator is responsible for all state transitions, JSON persistence, and dashboard updates. Agents cannot write to `.claude/` paths — this is enforced by the Claude Code harness (see DEC-004). Follow this protocol precisely to preserve the atomic implement→verify contract.
+**STOP — read `.claude/support/reference/work-procedures.md § "State Persistence Protocol"` NOW (once per session, before processing any agent return).** It is the canonical body for the three after-return protocols this file references by name: **"After implement-agent returns"** (status transitions for completed/partial/partial_resume_pending/blocked/misaligned; DEC-011 dual-write friction-marker append — immediate, never deferred — plus audit-register projection; decision persistence; dashboard regen; verify dispatch on `completed`), **"After verify-agent returns (per-task mode)"** (attempts + history; `task_verification` write incl. `evidence[]` from the Empirical Evidence Gate; pass/fail/escalate transitions; timeout detection; parent auto-completion; FB-086 `files_affected` drift update), and **"After verify-agent returns (phase-level mode)"** (`verification-result.json`; fix-task creation; loop-or-complete).
 
-**Schemas:** The two agent return schemas are defined in `.claude/agents/implement-agent.md` § "Step 6: Return Structured Report" and `.claude/agents/verify-agent.md` § "Step T6: Construct Verification Report" (per-task) + § "Step 7: Include Verification Result in Report" (phase-level).
-
-**After implement-agent returns:**
-
-1. **Status transition** based on `implementation_status`:
-   - `completed`: write `{ "status": "Awaiting Verification", "completion_date": report.completion_date, "updated_date": today, "notes": report.notes }` to task JSON
-   - `partial`: leave status "In Progress"; prepend `[PARTIAL]` to notes
-   - `partial_resume_pending` (per DEC-010): leave status "In Progress"; write `{ "partial_completion": report.partial_completion, "updated_date": today, "notes": "[PARTIAL_RESUME_PENDING] " + report.notes }` to task JSON. Surface inline: `Task {id} returned partial — resume scheduled. Confidence: {confidence}. Run /work again to re-dispatch.` Do NOT dispatch verify-agent — verification is gated on `completed`.
-   - `blocked`: write `{ "status": "Blocked", "notes": "...", "updated_date": today }`; surface `issues_discovered[]` to user
-   - `misaligned`: do not advance status; route to spec-alignment flow with `issues_discovered[]` context
-
-2. **Append friction markers (DEC-011 Option ABp + audit register).** For each marker in `report.friction_markers`, add `task_id: report.task_id` and **dual-write the marker as a JSON line to BOTH** `.claude/support/workspace/.pending-markers.jsonl` (transient buffer; survives abrupt termination) **AND** `.claude/support/workspace/.session-log.jsonl` (canonical log; consumed by PreCompact + Track 1 export). Append immediately within this step — **do NOT defer to `/work pause` or batch across multiple agent returns**. Markers between an agent return and the next sync point are at risk of permanent loss if the session terminates abruptly; the dual-write narrows that loss window to sub-second.
-
-   - Pending-buffer write is append-only: open in append mode, write `{...}\n`, close. No read-modify-write cycle.
-   - Session-log write also appends. If file doesn't exist, create it.
-   - The next `/work` invocation (or PreCompact hook) will reconcile the two files via the catchup procedure in § "Step 0d: Friction-Marker Catchup" below.
-   - If `report.friction_markers` is empty, this step is a no-op — skip all writes.
-
-   **Friction register projection (audit-eligible kinds):** For each marker whose `type` is one of `vocab_drift`, `path_drift`, `design_contradiction`, `terminology_mismatch`, or `spec_implementation_gap`, ALSO append to `.claude/support/friction.jsonl` (the audit register — see `.claude/support/reference/friction-register.md`). The register entry has additional structure beyond the session-log raw marker:
-   - `id`: assigned at append time. Read existing `friction.jsonl` (create if missing), find max existing `FR-NNN`, increment by 1 (zero-padded to 3 digits, starting at FR-001).
-   - `captured`: ISO timestamp from the marker.
-   - `captured_in`: `{"agent": "{agent_type}", "task": "{task_id}", "command": "/work"}`.
-   - `kind`: copy from marker `type`.
-   - `what`: copy from marker `details`.
-   - `source_anchor`: copy from marker `source_anchor` (REQUIRED — if missing on an audit-eligible kind, log a warning and skip the register write; session-log write still happens).
-   - `status`: `"open"`.
-
-   Register write is append-only at insert time. Status updates (later, by `audit-coherence` or user dismissal) use a read-modify-write of the entire file keyed by `id` — see friction-register.md § "Status update protocol".
-
-3. **Persist decisions:** for each entry in `report.decisions_to_record[]`, scan `.claude/support/decisions/decision-*.md` for the highest existing DEC-NNN, assign the next available ID (zero-padded to 3 digits), and Write a new `decision-NNN-{slug}.md` file using the template in `.claude/support/reference/decisions.md`. Populate the Selected/Rationale/Options sections from the report entry. Set frontmatter `status: approved`, `decided: today`, `decided_by: implement-agent`. Subagents cannot write under `.claude/`, so this step is the orchestrator's responsibility — implement-agent only generates content (DEC-004; `rules/agents.md § State Ownership`).
-
-4. **Dashboard regeneration:** in sequential mode, regenerate `dashboard.md` per `.claude/support/reference/dashboard-regeneration.md` — newly persisted decisions surface in the Decisions section. In parallel mode, defer — handled at batch-end.
-
-5. **For `completed` status:** dispatch verify-agent (see "If Verifying (Per-Task)" section) and then apply the "After verify-agent returns" protocol below.
-
-**After verify-agent returns (per-task mode):**
-
-1. **Read task's current `verification_attempts`** (default 0), compute `new_attempts = current + 1`
-2. **Build `verification_history` entry** from report's `checks`, `issues`, `notes`, with `{"attempt": new_attempts, "result": report.result, "timestamp": report.timestamp}`. Append to task's `verification_history[]` array (create array if absent).
-3. **Write `task_verification`** field to task JSON using report's `result`, `timestamp`, `checks`, `notes`, `issues`
-4. **Status transition** based on `result`:
-   - `pass`: set `status: "Finished"`, `updated_date: today`. If `report.user_review_pending == true`, also write `user_review_pending: true`, `test_protocol: report.test_protocol`, `interaction_hint: report.interaction_hint`
-   - `fail` AND `new_attempts < 3`: set `status: "In Progress"`, `updated_date: today`. Clear `completion_date`. Prepend `[VERIFICATION FAIL #{new_attempts}]` to notes with the fail summary
-   - `fail` AND `new_attempts >= 3`: set `status: "Blocked"`, `updated_date: today`. Prepend `[VERIFICATION ESCALATED]` note — "3 attempts exhausted — requires human review"
-5. **Timeout detection:** if verify-agent exhausted max_turns without returning a valid report, treat as fail: increment `verification_attempts`, set status to "Blocked", add `[VERIFICATION TIMEOUT]` note
-6. **Append friction markers** from `report.friction_markers` (same as implement-agent)
-7. **Parent auto-completion:** if task has `parent_task` and all siblings are now "Finished", set parent to "Finished"
-8. **`files_affected` drift update (FB-086):** if `report.issues[]` contains a minor severity entry with the form "files_affected declared {N} files but implementation touched {M}" AND `report.friction_markers[]` includes a `verification_gap` marker with `template_area: "task-schema files_affected"`, update the task JSON's `files_affected` to match the union of declared and actually-touched files (excluding infrastructure paths filtered in verify-agent T2b step 3). This keeps Step 2c's parallel-batch heuristic accurate for future dispatches.
-9. **Dashboard regeneration:** sequential mode — regenerate now; parallel mode — defer
-
-**After verify-agent returns (phase-level mode):**
-
-1. **Write `.claude/verification-result.json`** using the report's payload: `result`, `timestamp`, `spec_version`, `spec_fingerprint`, `summary`, `criteria_passed`, `criteria_failed`, `criteria`, `issues`, plus a `tasks_created[]` array populated with the IDs of task files you create in the next step
-2. **Create fix task files:** for each entry in `report.fix_tasks_to_create[]`, write `task_{id}.json` with the entry's `task_json` payload plus `out_of_spec` flag
-3. **Append friction markers**
-4. **Regenerate dashboard** — include Verification Debt sub-section if debt exists; show out-of-spec tasks with ⚠️ prefix
-5. **If result is `fail`:** loop back to Execute phase for fix tasks. If `pass`: proceed to "If Completing"
+The orchestrator owns ALL `.claude/` state transitions — agents cannot write there (DEC-004). Do not improvise any after-return step from this summary; the procedure file is the contract.
 
 #### If Executing
 
@@ -722,7 +686,7 @@ After any agent (implement-agent or verify-agent) returns a structured report, t
    ```
 5. **After re-dispatch returns** `completed` or a fresh `partial_resume_pending`: clear the `partial_completion` field from the task JSON. (For fresh `partial_resume_pending`, the new envelope replaces the old.)
 
-Dispatch implement-agent (Task tool with `model: "opus[1m]"`) instructing it to read `.claude/agents/implement-agent.md` and follow Steps 1-6. Agent returns a structured report.
+Dispatch implement-agent (Task tool; set `model` per `.claude/CLAUDE.md § Model Requirement`) instructing it to read `.claude/agents/implement-agent.md` and follow Steps 1-6. Agent returns a structured report.
 
 **After agent returns:** apply "After implement-agent returns" from State Persistence Protocol. Then, if `implementation_status == "completed"`, dispatch verify-agent per "If Verifying (Per-Task)" and apply "After verify-agent returns" protocol.
 
@@ -751,7 +715,7 @@ When Step 2c produces a parallel batch of >= 2 tasks, execute them concurrently.
 ```
 Task tool call:
   subagent_type: "general-purpose"
-  model: "opus[1m]"
+  model: "opus[1m]"  # canonical value: .claude/CLAUDE.md § Model Requirement
   max_turns: 30
   description: "Verify task {id}"
   prompt: |
@@ -766,7 +730,17 @@ Task tool call:
 
 **Timeout handling:** If verify-agent exhausts `max_turns` without returning a valid report, treat as verification failure — per State Persistence Protocol, increment `verification_attempts`, set task to "Blocked" with `[VERIFICATION TIMEOUT]` note, report to user.
 
-**After per-task verification completes:** verify-agent returns a structured per-task report. Apply "After verify-agent returns (per-task mode)" from State Persistence Protocol.
+**Empirical Evidence Gate (before persisting a pass):** when `report.result == "pass"` AND the task's output is a web-UI route/component in a project with a web framework (same applies-when detection as `/audit-ui`) AND `checks.runtime_validation` is `"partial"` — or `"pass"` reached without browser measurement — run the evidence step at orchestrator level BEFORE applying the persistence protocol:
+
+1. Ensure Playwright MCP tools are loaded (ToolSearch if absent) and a dev server is available (starting one for verification is sanctioned; respect-prior-kills applies).
+2. Execute `report.empirical_assertions[]` (named by verify-agent per `verify-agent.md § Step T4b` item 5; if absent, default to HTTP status + console-error scan per affected route). Use `browser_evaluate` targeted queries — never full-tree snapshots on long pages.
+3. **Client-bundle check (FB-076 mitigation 1):** if the task touched client-marked files (`'use client'` or framework equivalent) and root `./CLAUDE.md` declares a build command (§ Verification Hooks), run the production build; record as a `build`-type evidence entry.
+4. Record each outcome into `task_verification.evidence[]` (schema: `task-schema.md § "Evidence Sub-field"`).
+5. Any failing assertion → treat the verification as `fail`: route through the normal fail path with the failing evidence appended to `issues[]`. All passing → proceed to the persistence protocol with `evidence[]` included.
+
+Non-web tasks, projects without a web framework, and `runtime_validation: "not_applicable"` tasks skip this gate entirely — zero change for non-software domains.
+
+**After per-task verification completes:** verify-agent returns a structured per-task report. Run the Empirical Evidence Gate above when it applies, then apply "After verify-agent returns (per-task mode)" from State Persistence Protocol.
 
 **Auto-continuation:** after the orchestrator persists verification state:
 - **Pass**: announce inline `Task {id} verified`. If `report.user_review_pending == true`, check `interaction_hint` for routing (see below). Before looping, check if any human-owned or both-owned tasks just became unblocked by this completion — if so, surface them inline: `Note: Task {id} ("{title}") is now available for you — {brief description}`. Then loop back to Step 3 (auto-continuation). Dashboard regen deferred to next strategic moment.
@@ -834,7 +808,7 @@ Task {id}: "{title}" — ready for your review
 ```
 Task tool call:
   subagent_type: "general-purpose"
-  model: "opus[1m]"
+  model: "opus[1m]"  # canonical value: .claude/CLAUDE.md § Model Requirement
   max_turns: 50
   description: "Phase-level verification"
   prompt: |
@@ -851,6 +825,8 @@ Task tool call:
 ```
 
 **After phase-level verification completes:** verify-agent returns a structured phase-level report. Apply "After verify-agent returns (phase-level mode)" from State Persistence Protocol.
+
+**Phase UI smoke (orchestrator-level, web projects only):** before acting on a phase-level `pass`, if any task in the phase touched web-UI routes/components (same applies-when detection as `/audit-ui`), run one lite pass over the affected routes: navigate each, assert HTTP status, scan console errors, and re-check that the phase's accumulated `task_verification.evidence[]` assertions still hold (`browser_evaluate` targeted queries; load Playwright tools via ToolSearch if absent). Failures create fix tasks exactly like phase-level verification failures — loop to Execute. For depth beyond the smoke (visual quality, IA, affordances), suggest `/audit-ui`; this gate is the in-loop minimum, not a replacement. Non-web projects skip.
 
 | Result | Action |
 |--------|--------|
@@ -926,154 +902,15 @@ Reports:
 
 ## Task Completion (`/work complete`)
 
-Use `/work complete` for manual task completion outside of implement-agent's workflow. This is useful when:
-- Completing human-owned tasks
-- Marking tasks done that were worked on outside the normal flow
-- Quick tasks that don't need the full implement-agent process
+Manual task completion outside implement-agent's workflow — human-owned tasks, work done outside the normal flow, quick tasks. (implement-agent handles its own completion internally; `/work complete` is not needed after it finishes.)
 
-**Note:** When implement-agent executes tasks, it handles completion internally (Steps 3-6 of its workflow). You don't need to run `/work complete` after implement-agent finishes.
-
-### Process
-
-1. **Identify task** - If no ID provided, use current "In Progress" task
-2. **Validate task is completable:**
-   - Status must be "In Progress", OR "Finished" with `user_review_pending: true`
-   - Reject: "Pending", "Broken Down", "On Hold", "Absorbed", or "Finished" without `user_review_pending`
-   - For quick tasks, first set status to "In Progress", then complete
-   - Dependencies must all be "Finished"
-3. **Verification enforcement:**
-   - If the task has `task_verification.result == "pass"` → proceed (already verified)
-   - If the task has `user_review_pending: true` → proceed (verification already passed, user is completing their review)
-   - If the task has `owner: "human"` AND no `task_verification` → auto-generate self-attestation:
-     ```json
-     {
-       "task_verification": {
-         "result": "pass",
-         "timestamp": "ISO 8601",
-         "checks": { "self_attested": "pass" },
-         "notes": "Human task — completed by user",
-         "issues": []
-       }
-     }
-     ```
-     Write to task JSON and proceed. Human tasks are verified by the user's attestation of completion, not by verify-agent.
-   - If the task has NO `task_verification` or `task_verification.result != "pass"` → **spawn verify-agent (per-task)** before allowing completion. Do not mark Finished without passing verification.
-   - This ensures the structural invariant: no task reaches "Finished" without `task_verification.result == "pass"`.
-3b. **Human deliverable validation** (for `human` and `both`-owned tasks):
-   When the user completes a task that required them to provide deliverables (files, documents, configuration, credentials setup, etc.), validate before continuing:
-   - **Check quantity:** Does what was provided match what the task expected? (e.g., task said "provide 2-3 CSV files" but user provided 1, or 5)
-   - **Check usability:** Are the deliverables in a usable state? (e.g., files parse correctly, headers contain expected fields, format matches what downstream tasks need)
-   - **Check plan validity:** Given what was actually provided, do dependent tasks still make sense as written, or do they need adjustment?
-   - If any mismatch: surface the discrepancy and assess impact on dependent tasks. Options:
-     ```
-     Deliverable check for Task {id}:
-     [issue description — e.g., "Expected 2-3 CSV files, received 1"]
-
-     [A] Adjust — update dependent tasks to work with what was provided
-     [P] Proceed — continue as-is (deliverables are sufficient despite the difference)
-     [W] Wait — task stays in progress until deliverables are corrected
-     ```
-   - If deliverables pass validation: proceed silently to step 3c
-3c. **Collect completion notes (interactive):**
-
-   Ask for two clearly-separated kinds of notes so the user does not have to context-switch between project-focused and template-focused thinking. The two prompts run in sequence; each is independently skippable with Enter.
-
-   **First prompt — Project notes (always shown):**
-
-   ```
-   Task {id}: "{title}" — any notes about the work itself? (Enter to skip)
-   (decisions made, follow-ups, gotchas, anything worth remembering for this task)
-   >
-   ```
-
-   - If non-empty: store in the task's `user_feedback` field
-   - If empty: proceed without setting `user_feedback`
-
-   **Second prompt — Template notes (shown only if `template_inbox_path` is configured in `.claude/version.json`):**
-
-   ```
-   Any notes about how Claude or the workflow handled this? (Enter to skip — bridges to template repo)
-   (e.g. a step that felt off, an instruction that was unclear, something the template could do better)
-   >
-   ```
-
-   - If non-empty: invoke the `/feedback template:` Mode 1 procedure with these notes as the capture body. Prepend a source line to the body so the template-side FB entry carries task context:
-     ```
-     Captured during /work complete on Task {id}: "{title}".
-
-     [user's template notes]
-     ```
-     Mode 1 writes the local `FB-NNN` entry and, since `template_inbox_path` is set, writes the bridge export to the template inbox.
-   - If empty: proceed without creating a template feedback item.
-
-   **Why the conditional second prompt:** When `template_inbox_path` is unset, capturing template notes would create local-only FB entries in the downstream project that the user then has to carry over manually — the same friction the bridge was built to eliminate. Skipping the prompt when the bridge is disabled keeps the UX honest: we only ask the user to write template feedback when there is a destination for it.
-
-   **Language principles for both prompts:**
-   - Plain English only. Do not use template-internal terminology in user-facing prompt text (no "spec drift", "friction signal", "scope creep", "user_feedback signal", etc.).
-   - Each label states what the prompt is for AND where the input lands. The user should not have to guess.
-   - The two prompts are visually adjacent but clearly labeled — the user can tell at a glance which slot they are filling in.
-
-   This is the PRIMARY feedback path for `/work complete`. Dashboard FEEDBACK markers remain as an ASYNC alternative for project notes — if the user wrote feedback in the dashboard before running `/work complete`, Step 4b captures it as fallback. (A template-side dashboard marker is not yet implemented; the second prompt is currently the only path for template notes during `/work complete`.)
-4. **Check work** - Review all changes made for this task
-   - Look for bugs, edge cases, inefficiencies
-   - If issues found, fix them before proceeding
-4b. **Capture dashboard feedback (fallback)** - Read dashboard for `<!-- FEEDBACK:{id} -->` markers matching the completing task
-   - If non-empty content found AND no inline feedback was captured in Step 3c, save to task JSON `user_feedback` field
-   - If both inline (Step 3c) and marker feedback exist, concatenate: inline first, then marker content (newline-separated)
-5. **Update task file:**
-   ```json
-   {
-     "status": "Finished",
-     "completion_date": "YYYY-MM-DD",
-     "updated_date": "YYYY-MM-DD",
-     "notes": "What was done, any follow-ups needed",
-     "user_feedback": "Use OAuth2 instead of JWT. The client requires SSO support."
-   }
-   ```
-   - If `user_review_pending` is `true`, clear it.
-   - If `test_protocol` exists and guided testing was completed, record results in `user_feedback`.
-6. **Check parent auto-completion:**
-   - If parent_task exists and all non-Absorbed sibling subtasks are "Finished"
-   - Set parent status to "Finished"
-7. **Regenerate dashboard** - Follow `.claude/support/reference/dashboard-regeneration.md` (this is user-initiated, so the dashboard should be current when they're done)
-8. **Surface unblocked tasks** - After regen, check if this completion unblocked any human-owned or both-owned tasks. If so, announce inline: `Note: Task {id} ("{title}") is now available for you — {brief description}`.
-9. **Auto-archive check** - If active task count > 100, archive old tasks
-10. **Post-dispatch validation** - Run main `/work` Step 5 checks (task file integrity, dashboard exists, session sentinel)
-
-### Rules
-
-- Never work on "Broken Down", "On Hold", or "Absorbed" tasks directly
-- Parent tasks auto-complete when all non-Absorbed subtasks finish
-- Always add notes about what was actually done
+**STOP — read `.claude/support/reference/work-procedures.md § "Task Completion (/work complete)"` NOW and follow its 10-step Process + Rules.** Hard invariants enforced there: no task reaches "Finished" without `task_verification.result == "pass"` (human tasks auto-generate `self_attested`; unverified tasks get verify-agent dispatched first); deliverable validation for `human`/`both` tasks (`[A]/[P]/[W]`); the two-prompt completion-notes collection (project notes always; template notes only when `template_inbox_path` is configured); dashboard-marker fallback capture; parent auto-completion; dashboard regen + unblocked-task surfacing; auto-archive check; Step 5 post-dispatch validation. Do not improvise the flow from this summary.
 
 ---
 
 ## Auto-Archive
 
-After regenerating the dashboard, check if archiving is needed:
-
-1. **Count active tasks** - All non-archived task-*.json files
-2. **If count > 100:**
-   - Identify finished tasks older than 7 days
-   - Move to `.claude/tasks/archive/`
-   - Update archive-index.json with lightweight summaries
-   - Regenerate dashboard again
-
-### Archive Structure
-
-```
-.claude/tasks/archive/
-├── task-1.json           # Full task data (preserved)
-├── task-2.json
-└── archive-index.json    # Lightweight summary
-```
-
-### Referencing Archived Tasks
-
-When a task ID is referenced but not found in active tasks:
-- Check `.claude/tasks/archive/` for context
-- Read archived task for reference (provides historical context)
-- Archived tasks are read-only reference material
+When active task count exceeds 100 (checked after dashboard regen), archive finished tasks older than 7 days to `.claude/tasks/archive/` — full task JSON preserved, `archive-index.json` updated with lightweight summaries, dashboard regenerated again. Archived tasks are read-only reference material (check the archive when a referenced task ID isn't in active tasks). **Procedure: read `work-procedures.md § "Auto-Archive"` before archiving.**
 
 ---
 
@@ -1087,64 +924,8 @@ Read `.claude/support/reference/context-transitions.md` and follow the Path A (U
 - Do NOT increment `verification_attempts` if verify-agent was interrupted
 - Do NOT skip the handoff file — that's the whole point
 - `session_knowledge` captures what would otherwise be lost: user preferences, informal decisions, discovered patterns
+- **Open-question sweep (human-gated coverage):** before writing the handoff, enumerate every question asked of the user this session that went unanswered, plus any newly user-gated items (tasks put On Hold, unblocked `owner: "human"` tasks, unresolved decisions). Each MUST land as a dashboard 🚨 Action Required row with the concrete question inline — the targeted-edit path + `pending_full_regen` sentinel (FB-080) is sufficient. The handoff may point at those rows; it must never be a blocking question's only home. (Counterpart: Step 0g prints this queue at the next session start.)
 
-### Interaction Assessment (Track 2 — Cross-Project Logging)
+### Interaction Assessment + Session Export (Track 2 — Cross-Project Logging)
 
-After writing the handoff file but before ending the session, generate an interaction assessment. This is the nuanced "why" layer that automated friction markers (Track 1) cannot capture — insights about design pushback opportunities, workflow friction patterns, and observations that only Claude with conversation context can identify.
-
-**Write to:** `.claude/support/workspace/.interaction-assessment.json`
-
-```json
-{
-  "session_date": "YYYY-MM-DD",
-  "template_version": "[from version.json]",
-  "design_pushback_opportunities": [
-    "Description of a moment where Claude should have suggested a different approach"
-  ],
-  "workflow_friction_notes": [
-    "Description of template workflow friction observed during the session"
-  ],
-  "unstructured_observations": "Free-form text about anything else relevant to template improvement"
-}
-```
-
-**Guidelines:**
-- Focus on template-improvement signals, not project-specific details
-- `design_pushback_opportunities` captures the "styler scenario" — moments where a different approach would have been better
-- `workflow_friction_notes` captures repeated user workarounds or skipped steps
-- Keep it concise — this supplements Track 1 markers, not replaces them
-- If the session had no template-relevant observations, write the file with empty arrays
-
-### Session Export
-
-After writing both the handoff file and interaction assessment, compile the session export:
-
-1. Read `.claude/support/workspace/.session-log.jsonl` (Track 1 friction markers, if any exist)
-2. Read `.claude/support/workspace/.interaction-assessment.json` (Track 2, just written above)
-3. Read `.claude/version.json` for template version
-4. Compile into a unified export:
-
-```json
-{
-  "export_version": 1,
-  "source_project": "[project name from git remote or root CLAUDE.md]",
-  "template_version": "[from version.json]",
-  "session_date": "YYYY-MM-DD",
-  "automated_markers": [ /* Track 1 markers from session log */ ],
-  "session_metrics": {
-    "tasks_completed": 0,
-    "verification_pass_rate": 0.0,
-    "recovery_events": 0
-  },
-  "claude_assessment": { /* Track 2 assessment */ },
-  "export_quality": "full"
-}
-```
-
-5. Write to `.claude/support/workspace/.session-export-YYYY-MM-DD-HHMM.json` (minute-granularity timestamp; same-day pauses do not collide per FB-079)
-6. If `template_inbox_path` is configured in `.claude/version.json`, copy the export there
-7. Clean up: delete `.session-log.jsonl` and `.interaction-assessment.json` (data is now in the export)
-
-**Interrupted-pause recovery (FB-089):** if `/work pause` is interrupted between writing `.interaction-assessment.json` and step 7 cleanup (usage limit, Ctrl+C, harness crash), the stale file persists into the next session. The next `/work` invocation's Step 0f compiles a recovered export from the orphaned files (Track 1 + Track 2), copies to inbox if configured, then deletes both stale files. See Step 0f above.
-
-**If `/work pause` is not run** (PreCompact hook fires instead): The hook compiles a markers-only export (`"export_quality": "markers_only"`, `"claude_assessment": null`) from whatever Track 1 markers exist on disk. See the updated hook in `context-transitions.md`.
+After the handoff file is written, complete the pause: generate the interaction assessment (`.interaction-assessment.json`), compile the session export (`.session-export-YYYY-MM-DD-HHMM.json`; copy to `template_inbox_path` when configured), then clean up the working files. **Procedure + schemas: `context-transitions.md § "Pause Follow-Through (Track 2 — Cross-Project Logging)"`** — the same file the pause procedure above already directs you to read; do not improvise the export shape from memory. Interrupted-pause recovery is Step 0f's job (FB-089); if the PreCompact hook fires instead of `/work pause`, it compiles a markers-only export on its own.

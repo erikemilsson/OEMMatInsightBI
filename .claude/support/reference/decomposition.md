@@ -1,5 +1,3 @@
-<!-- During Skills trial (DEC-007 Option B, 2026-04-17): this file mirrors `.claude/skills/decomposition-heuristics/SKILL.md`. Update both files in sync until one is retired. -->
-
 # Spec Decomposition
 
 Procedure for breaking a spec into granular tasks. Run as `/work` Step 4 "If Decomposing."
@@ -28,6 +26,7 @@ Procedure for breaking a spec into granular tasks. Run as `/work` Step 4 "If Dec
    - `spec_section` — Originating section heading (e.g., "## Authentication")
    - `section_fingerprint` — Hash of specific section computed in step 6
    - `section_snapshot_ref` — Snapshot filename (e.g., "spec_v1_decomposed.md")
+   - `spec_subsection` + `subsection_fingerprint` *(optional, DEC-021)* — when a task's work is scoped to a single `### ` subsection of a **large** `## ` section (consult the section index `char_count` from `fingerprint.py --index`; "large" = big enough that a one-line edit elsewhere in it would needlessly re-flag this task), record the `### ` heading + its hash (`fingerprint.py --sections --depth 3`). Lets drift detection spare this task when a *different* subsection of the same `## ` section changes. Skip for tasks in small sections or tasks that span a whole section — they use `## `-level drift.
    - **Important:** Create all task JSON files before regenerating the dashboard. Every task must have a `task-*.json` file — the dashboard is generated from these files, never the other way around.
    - **Script alternative:** Capture hashes via `.claude/scripts/fingerprint.py --spec` / `--sections`; orchestrator writes the `sha256:...` strings into task JSON `spec_fingerprint` and `section_fingerprint` fields.
    - **After creating task JSONs:** run the Decomposition Pre-Pass Validation (below) to catch declared-path drift and under-counted `files_affected`, and the Test-Harness Awareness check (below) to propose scenario-authoring subtasks for runtime-shaped tasks — both run before tasks ship to `/work` Step 2c.
@@ -158,6 +157,58 @@ Do not force the convention — the absence of a harness directory is a legitima
 ### Limits
 
 The heuristic proposes the subtask but does not author the scenario itself. The scenario author (implement-agent dispatched to the `_h` subtask) needs to know the harness API — projects with a harness directory should document their API in root `./CLAUDE.md` (entry-point function, available globals, scenario-script conventions) so the implement-agent can find it. Without that documentation, the subtask is harder to execute — the heuristic ships the suggestion but project-side documentation closes the loop.
+
+---
+
+## Test-Protocol Runtime Constraints
+
+When authoring `test_protocol` steps for phone-side or mobile-runtime surfaces, pre-tag steps that exercise behavior not testable under the project's primary runtime (e.g., Expo Go). Eliminates mid-attestation reframings where the user discovers a step is unrunnable.
+
+### Detection patterns
+
+A test_protocol step is **runtime-constrained** if it combines any of these (when project runs on Expo Go):
+
+- **Force-quit + airplane mode + cold-launch** — Expo Go fetches its JS bundle from Metro on every cold-launch; airplane-mode cold-launch freezes Expo Go itself, regardless of in-app cache correctness.
+- **Native modules outside Expo Go's fixed set** — modules requiring a dev-client install.
+
+### Substitution patterns
+
+For cache-path verification without a dev client, substitute one of:
+
+1. **Background mode** (lock screen → unlock, no force-quit): JS stays in memory; tests the cache resume path without cold-launch.
+2. **Server-only kill** (stop dev server, keep WiFi, force-quit + relaunch): Expo Go bundle loads, app starts, foundation fetch fails, cache fallback fires.
+3. **Defer to dev client** (post-EAS): the only path that mirrors a production install.
+
+### Annotation pattern
+
+When no substitution is suitable, annotate the step with a `constraint` informational field:
+
+```json
+{
+  "instruction": "Force-quit, enable airplane mode, relaunch — verify cache renders",
+  "expected": "App paints from cache without server",
+  "type": "interactive",
+  "constraint": "Requires dev client (EAS); skip in Expo Go"
+}
+```
+
+The `constraint` field is informational; verify-agent surfaces it during guided testing so the user defers the step until the dev client lands.
+
+### Project-side declaration
+
+Projects can declare their primary phone runtime in root `./CLAUDE.md`:
+
+```markdown
+**Primary phone runtime:** Expo Go (dev client planned post-EAS)
+```
+
+When absent, verify-agent infers from `package.json` (presence of `expo` + absence of dev-client convention). Inference failures degrade to "no pre-tag" — the constraint surfaces at attestation time as today.
+
+### When to Apply
+
+- Authoring test_protocol for any `owner: "both"` phone task
+- Skip for purely-static verification (lint, type-check, snapshot tests)
+- Skip if the project declares a dev-client runtime (no Expo Go limitation)
 
 ---
 

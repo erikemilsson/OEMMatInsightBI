@@ -70,11 +70,20 @@ DELETE — after successful restoration
 
   "decisions_in_flight": [],
 
-  "session_knowledge": "User prefers explicit error messages over silent fallbacks. The prototype audience is non-technical analysts.",
+  "open_question_refs": ["dashboard § Action Required → DEC-007", "dashboard § Action Required → task 12 (API key)"],
 
-  "recovery_action": "Continue implementation of task 7. Column mapping and type coercion are complete, aggregation pipeline remains."
+  "session_knowledge": [
+    "User prefers explicit error messages over silent fallbacks",
+    "The prototype audience is non-technical analysts"
+  ],
+
+  "recovery_action": "Continue implementation of task 7. Column mapping and type coercion are complete, aggregation pipeline remains.",
+
+  "overflow_ref": null
 }
 ```
+
+**The handoff is a bounded index, not a memoir.** Target ≤ ~2.5KB total. Every field has a cap (see "Bounds and Overflow" below); detail that exceeds a cap goes to a workspace overflow file that `overflow_ref` points at. A 7.8KB free-prose handoff is write-expensive and read-unreliable — the next session skims it; the dashboard's Action Required rows and task JSONs carry the durable load.
 
 ---
 
@@ -131,31 +140,54 @@ Null when not in parallel mode. When parallel execution was in progress:
 
 Array of decision IDs actively being researched or awaiting user input during this session. Empty array if none.
 
+### `open_question_refs`
+
+Optional array of short pointer strings — one per user-gated item the pause sweep wrote to the dashboard (per `work.md § Context Transition` key rules: every open question lands as a 🚨 Action Required row with the concrete question inline). Pointers only (e.g., `"dashboard § Action Required → DEC-007"`) — the rows hold the questions; the handoff must never be a blocking question's only home.
+
 ### `session_knowledge`
 
-Free-form string capturing insights from conversation not persisted elsewhere:
+Array of bullet strings capturing insights from conversation not persisted elsewhere:
 - User preferences stated in conversation (not in CLAUDE.md or spec)
 - Informal decisions not yet in decision records
 - Patterns discovered during implementation
 - Warnings or gotchas encountered
 
+**Bounds:** ≤ ~10 bullets, one fact each (≤ ~25 words). More to say → keep the 10 most load-bearing bullets here, move the rest to the overflow file (see "Bounds and Overflow"). Legacy string form still parses (additive union, same convention as `partial_notes`); new handoffs use the array.
+
 **Guidelines:**
 - Include things the next session's Claude would benefit from knowing
 - Don't repeat what's already in task JSONs, spec, or decision records
 - Favor "why" over "what" — files have the "what"; conversation has the "why"
-- Keep it concise — a paragraph, not an essay
 - May be empty if the session was purely mechanical
 
 **Boundary:** `session_knowledge` is available to the `/work` coordinator for routing decisions and implement-agent context enrichment. It is NOT passed to verify-agent — context separation is preserved.
 
 ### `recovery_action`
 
-Free-form string giving the next session explicit instructions for how to resume. A note from current-Claude to future-Claude.
+Free-form string giving the next session explicit instructions for how to resume. A note from current-Claude to future-Claude. **Bound: ≤ ~3 sentences** — name the task, the resume point, and any special handling; anything longer belongs in `partial_notes` or the overflow file.
 
 **Guidelines:**
 - Be specific: "Continue task 7, aggregation pipeline remains" not "Continue working"
 - Call out special handling: "Task 7 has partial files — don't restart from scratch"
 - Mention if normal `/work` routing will handle it or if something unusual is needed
+
+### `overflow_ref`
+
+Optional path to a workspace overflow file, null when everything fit. Set it when any field's content exceeds its bound.
+
+## Bounds and Overflow
+
+Per-field caps (the handoff targets ≤ ~2.5KB total):
+
+| Field | Bound |
+|-------|-------|
+| `position.phase_context` | 1–2 sentences (existing rule) |
+| `active_work[].partial_notes` | ≤ ~6 sentences (string form) or the DEC-010 envelope |
+| `open_question_refs` | pointers only — never question text + discussion |
+| `session_knowledge` | ≤ ~10 bullets, ≤ ~25 words each |
+| `recovery_action` | ≤ ~3 sentences |
+
+**Overflow procedure:** when content genuinely exceeds a bound, write the excess to `.claude/support/workspace/handoff-overflow-{YYYY-MM-DD}.md` (organized by field name), set `overflow_ref` to that path, and keep only the most load-bearing content inline. The next session reads the handoff always, the overflow file only when `overflow_ref` is non-null and the inline summary isn't enough. Do not create the overflow file preemptively — most sessions fit the bounds.
 
 ---
 
@@ -317,4 +349,69 @@ Turn Budget Protocol already handles writing partial `verification-result.json`.
 
 ### Empty session (no work done)
 If `/work pause` is triggered but no work was in flight, write a minimal handoff with only `position` and empty `active_work`. Or skip the handoff entirely — if nothing is in flight, session recovery handles everything.
+
+## Pause Follow-Through (Track 2 — Cross-Project Logging)
+
+After the Path A handoff file is written, two more artifacts complete the pause. *(Moved here verbatim from `commands/work.md` in v4.18.0 — this file is where the pause procedure already lives; work.md keeps a stub.)*
+
+### Interaction Assessment
+
+After writing the handoff file but before ending the session, generate an interaction assessment. This is the nuanced "why" layer that automated friction markers (Track 1) cannot capture — insights about design pushback opportunities, workflow friction patterns, and observations that only Claude with conversation context can identify.
+
+**Write to:** `.claude/support/workspace/.interaction-assessment.json`
+
+```json
+{
+  "session_date": "YYYY-MM-DD",
+  "template_version": "[from version.json]",
+  "design_pushback_opportunities": [
+    "Description of a moment where Claude should have suggested a different approach"
+  ],
+  "workflow_friction_notes": [
+    "Description of template workflow friction observed during the session"
+  ],
+  "unstructured_observations": "Free-form text about anything else relevant to template improvement"
+}
+```
+
+**Guidelines:**
+- Focus on template-improvement signals, not project-specific details
+- `design_pushback_opportunities` captures the "styler scenario" — moments where a different approach would have been better
+- `workflow_friction_notes` captures repeated user workarounds or skipped steps
+- Keep it concise — this supplements Track 1 markers, not replaces them
+- If the session had no template-relevant observations, write the file with empty arrays
+
+### Session Export
+
+After writing both the handoff file and interaction assessment, compile the session export:
+
+1. Read `.claude/support/workspace/.session-log.jsonl` (Track 1 friction markers, if any exist)
+2. Read `.claude/support/workspace/.interaction-assessment.json` (Track 2, just written above)
+3. Read `.claude/version.json` for template version
+4. Compile into a unified export:
+
+```json
+{
+  "export_version": 1,
+  "source_project": "[project name from git remote or root CLAUDE.md]",
+  "template_version": "[from version.json]",
+  "session_date": "YYYY-MM-DD",
+  "automated_markers": [ /* Track 1 markers from session log */ ],
+  "session_metrics": {
+    "tasks_completed": 0,
+    "verification_pass_rate": 0.0,
+    "recovery_events": 0
+  },
+  "claude_assessment": { /* Track 2 assessment */ },
+  "export_quality": "full"
+}
+```
+
+5. Write to `.claude/support/workspace/.session-export-YYYY-MM-DD-HHMM.json` (minute-granularity timestamp; same-day pauses do not collide per FB-079)
+6. If `template_inbox_path` is configured in `.claude/version.json`, copy the export there as `{project-slug}-session-export-YYYY-MM-DD-HHMM.json` — derive `{project-slug}` from `source_project` (kebab-case short form). NEVER copy the dot-prefixed working filename verbatim: dot-files are invisible to plain `ls` in the template inbox (19 exports silently accumulated unseen before this was caught, 2026-06-11). The same rename rule applies to every inbox copy — Step 0f recovery exports and PreCompact markers-only exports included.
+7. Clean up: delete `.session-log.jsonl` and `.interaction-assessment.json` (data is now in the export)
+
+**Interrupted-pause recovery (FB-089):** if `/work pause` is interrupted between writing `.interaction-assessment.json` and step 7 cleanup (usage limit, Ctrl+C, harness crash), the stale file persists into the next session. The next `/work` invocation's Step 0f compiles a recovered export from the orphaned files (Track 1 + Track 2), copies to inbox if configured, then deletes both stale files. See work.md § "Step 0f: Track 2 Stale-File Recovery".
+
+**If `/work pause` is not run** (PreCompact hook fires instead): The hook compiles a markers-only export (`"export_quality": "markers_only"`, `"claude_assessment": null`) from whatever Track 1 markers exist on disk. See § "Path B: PreCompact Hook" above.
 

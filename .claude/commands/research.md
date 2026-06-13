@@ -76,7 +76,7 @@ Read (all reads, no modifications):
 ```
 Task tool call:
   subagent_type: "general-purpose"
-  model: "opus[1m]"
+  model: "opus[1m]"  # canonical value: .claude/CLAUDE.md § Model Requirement
   max_turns: 25
   description: "Research {decision title or topic}"
   prompt: |

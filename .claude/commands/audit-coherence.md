@@ -20,13 +20,13 @@ This command is the first audit shipped by the audit family (proposal: `template
 ## Usage
 
 ```
-/audit-coherence                            # full audit, all 6 lenses
+/audit-coherence                            # full audit, all 7 lenses
 /audit-coherence --lens {name}              # run only the listed lens (comma-separated for multiple)
 /audit-coherence --since {YYYY-MM-DD}       # restrict to friction register entries / FB items captured after date
 /audit-coherence triage [audit-ts]          # interactive walker: per-finding fix/promote/dismiss (default audit-ts: latest)
 /audit-coherence promote {audit-ts}         # promote ticked findings → feedback.md (same shape as /audit-ui promote)
 /audit-coherence promote {audit-ts} --all   # bulk promote everything in the report
-/audit-coherence promote {audit-ts} F-01,F-07
+/audit-coherence promote {audit-ts} C-01,C-07
 /audit-coherence fix {audit-ts} {C-ID}      # apply a single bundle-eligible finding inline
 ```
 
@@ -36,7 +36,7 @@ Stage 5 (`/health-check` Part 6) will dispatch this command automatically based 
 
 ## Lenses
 
-Six lenses, each running as a fresh-context sub-agent in parallel:
+Seven lenses, each running as a fresh-context sub-agent in parallel:
 
 | Lens | Catches | Detection mode |
 |------|---------|---------------|
@@ -46,6 +46,7 @@ Six lenses, each running as a fresh-context sub-agent in parallel:
 | `feedback-decay` | `FB-*` entries open >30 days with no status change | Parse feedback.md status fields |
 | `retired-features` | Manifests in `.claude/support/retired/` without a corresponding retirement marker in spec | Filesystem + spec scan |
 | `friction-register` | Cluster open `friction.jsonl` entries by `kind` and `source_anchor`, surface high-frequency themes | Read register + thematic grouping |
+| `acceptance-reconciliation` | Spec inline `- [ ]` acceptance boxes unticked despite a verified phase PASS, across **all completed phases** — DEC-022 | Spec box scan + verification-result (latest, authoritative) + per-phase task-verification rollup (history, proxy); advisory |
 
 Bias preservation: each lens runs with no knowledge of other lenses' output, mirroring `audit-ui`'s context-separation pattern.
 
@@ -61,6 +62,8 @@ Bias preservation: each lens runs with no knowledge of other lenses' output, mir
 │   ├── friction-open.jsonl      # open entries from friction.jsonl
 │   ├── feedback-status.json     # parsed FB-* entries with status + age
 │   ├── retired-manifests.json   # contents of all .claude/support/retired/*/manifest.json
+│   ├── verification-result.json # copy of .claude/verification-result.json (LATEST phase criteria[]) if present
+│   ├── phase-verification.json  # per-phase task-verification rollup (historical proxy — DEC-022 v4.27.0)
 │   └── meta.json                # audit run config: timestamp, lenses requested, --since filter
 ├── lenses/
 │   ├── superseded-decisions.md
@@ -68,7 +71,8 @@ Bias preservation: each lens runs with no knowledge of other lenses' output, mir
 │   ├── path-drift.md
 │   ├── feedback-decay.md
 │   ├── retired-features.md
-│   └── friction-register.md
+│   ├── friction-register.md
+│   └── acceptance-reconciliation.md
 ├── findings.md                  # full clustered report (Claude-readable)
 ├── digest.json                  # 4-8 user-facing items with kind classification + eligibility flags
 └── synth-input.md               # concatenated lens output passed to synthesizer (audit trail)
@@ -83,17 +87,20 @@ Project rule (DEC-004): sub-agents cannot write to `.claude/`. The orchestrator 
 ### Phase 1 — Capture (orchestrator drives directly)
 
 1. Compute audit dir: `.claude/support/audits/coherence-{YYYY-MM-DD-HHmm}/`. Create with subdirs `inputs/` and `lenses/`.
-2. Write `meta.json` with run config: timestamp, lenses requested (default: all 6), `--since` filter if set.
+2. Write `meta.json` with run config: timestamp, lenses requested (default: all 7), `--since` filter if set.
 3. **Capture decisions.** Glob `.claude/support/decisions/decision-*.md`. For each file, parse YAML frontmatter and extract: `id`, `title`, `status`, `superseded_by` (if present), `superseded_date` (if present), `related.tasks` (if present). Write the array to `inputs/decisions.json`.
 4. **Capture spec.** Read the active `.claude/spec_v*.md` (exactly one per single-spec invariant). Build a section map: for each `## ` heading, record `{heading_text, section_id (e.g. "5.2"), line_start, line_end, fingerprint: sha256(section_body)}`. Write to `inputs/spec-sections.json`.
 5. **Capture friction register.** If `.claude/support/friction.jsonl` exists, read all lines, filter `status == "open"` (and `captured >= --since` if set), write to `inputs/friction-open.jsonl`. If file doesn't exist, write empty file.
 6. **Capture feedback statuses.** If `.claude/support/feedback/feedback.md` exists, parse for `## FB-NNN` headers and `**Status:**` + `**Captured:**` lines beneath. For each FB entry, compute age in days from captured date. Write `[{id, status, captured, age_days, title}]` to `inputs/feedback-status.json`.
 7. **Capture retired-feature manifests.** Glob `.claude/support/retired/*/manifest.json`. Read each. Write the combined array to `inputs/retired-manifests.json`.
 8. **(Optional) Sample task notes for friction-marker prose.** This is a fallback for projects that haven't accumulated friction register entries yet — sample up to 20 most-recently-modified `.claude/tasks/task-*.json`, extract any `notes` containing keywords `"friction"`, `"captured for /iterate"`, `"spec drift"`. Append to `friction-open.jsonl` as synthetic register entries with `id: "FR-SYNTHETIC-{N}"`, `kind: "spec_implementation_gap"`, `captured_in: {agent: "task_notes_sample"}`.
+9. **Capture verification state (for the `acceptance-reconciliation` lens).** Two artifacts:
+   - **Latest phase-level result:** if `.claude/verification-result.json` exists, copy it to `inputs/verification-result.json` (the authoritative latest-phase `criteria[]` PASS/FAIL). If absent, write `{}`.
+   - **Per-phase task-verification rollup (historical proxy):** glob `.claude/tasks/task-*.json`, group by `phase`, and for each phase write `{phase, phase_name, task_count, finished, verified_pass, phase_complete, task_ids}` to `inputs/phase-verification.json` — where `phase_complete` = every non-`Absorbed`, non-`On Hold` task in the phase has `status == "Finished"` AND `task_verification.result == "pass"` (the phase gate's own completion condition). This lets the lens reconcile *every completed phase*, not just the latest. If no task files exist, write `[]`.
 
 Capture should complete within 30s. If any input source is missing or fails to parse, log a warning to `meta.json` and continue with empty data — lenses handle empty inputs gracefully (return 0 findings).
 
-### Phase 2 — Lenses (6 parallel sub-agents)
+### Phase 2 — Lenses (7 parallel sub-agents)
 
 Spawn N sub-agents in a **single Task tool message** so they run concurrently. Each:
 - Runs as `general-purpose` agent (per `.claude/rules/agents.md` § "Dispatch Convention" — persona-via-prompt-content)
@@ -106,13 +113,13 @@ Orchestrator:
 2. Write to `lenses/{lens-name}.md`.
 3. Concatenate all into `synth-input.md` for Phase 3.
 
-If `--lens` is set, run only those lenses; if unset, run all 6.
+If `--lens` is set, run only those lenses; if unset, run all 7.
 
 ### Phase 3 — Synthesize
 
 Spawn one general-purpose agent with:
 - Path to `lenses/`, `inputs/`, and the full `inputs/decisions.json` + `inputs/spec-sections.json`
-- The **Synthesizer prompt** below
+- The **Synthesizer prompt** below, with the shared contract spliced in: read `.claude/support/reference/audit-family-core.md` §§ "Synthesizer shared contract" + "digest.json schema (shipped canonical)" and insert their verbatim text at the prompt's `{SPLICE HERE}` marker before dispatching (sub-agents get inline text, never a read-this-file instruction)
 - Instruction to return both `findings.md` (full clustered report) and `digest.json` (machine-readable digest)
 
 Orchestrator writes both files to the audit dir and prints a summary to chat:
@@ -162,7 +169,7 @@ Findings: {N}
 ...
 ```
 
-`lens-prefix` = first three letters of the lens name (`sup`, `voc`, `pat`, `fee`, `ret`, `fri`).
+`lens-prefix` = first three letters of the lens name (`sup`, `voc`, `pat`, `fee`, `ret`, `fri`, `acc`).
 
 If the lens has no findings:
 ```markdown
@@ -267,7 +274,7 @@ Your method:
 What does NOT count:
 - Paths in code blocks intended as illustrative examples (e.g., `path/to/your/file.ts` placeholders).
 - Generic patterns (e.g., `**/*.test.ts`, `src/components/`) without specific filenames — too vague to verify.
-- Paths to template files that legitimately don't exist in this specific project (`.claude/support/reference/audit-template-pattern.md` if the project hasn't installed the audit family yet).
+- Paths to template files that legitimately don't exist in this specific project (e.g., `.claude/support/reference/audit-fix-workflow.md` if the project hasn't installed the audit family).
 
 For each finding, set:
 - **Source anchor:** the spec section containing the stale path
@@ -364,14 +371,56 @@ For each finding, set:
 If the register is empty or has <3 open entries, return `Findings: 0` — no premature clustering.
 ```
 
+### Lens 7 — `acceptance-reconciliation`
+
+```
+You are auditing a project for the ACCEPTANCE-RECONCILIATION lens only (DEC-022).
+
+Read:
+- {AUDIT_DIR}/inputs/verification-result.json — the LATEST phase-level verification result (`criteria[]` of `{name, status, notes}`; may be `{}` if absent). AUTHORITATIVE for the phase it covers.
+- {AUDIT_DIR}/inputs/phase-verification.json — a per-phase task-verification rollup `[{phase, phase_name, task_count, finished, verified_pass, phase_complete, task_ids}]` (may be `[]`). `phase_complete: true` means every non-Absorbed / non-On-Hold task in that phase is Finished with passing verification — a PROXY for "this phase's work is done".
+- the active `.claude/spec_v*.md`.
+
+**This lens only applies when the project renders acceptance criteria as inline `- [ ]` / `- [x]` checkboxes in the spec.** If the spec has no inline acceptance checkboxes, return `Findings: 0` — there is nothing to reconcile (inline boxes are an optional project convention).
+
+Background (DEC-022): the AUTHORITATIVE acceptance-*status* surface is `verification-result.json` `criteria[]` (rendered as the dashboard's `### Acceptance Criteria`). Inline spec `- [ ]` boxes are authored input and are NOT auto-ticked on phase PASS — so they can read stale. This lens surfaces that staleness ADVISORILY across ALL completed phases; it never edits the spec.
+
+**Two evidence tiers (DEC-022 v4.27.0 — full historical reconciliation).** `verification-result.json` is overwritten each phase, so it only holds the latest phase's `criteria[]`. To reconcile earlier phases too:
+- **Authoritative (the latest phase):** use `verification-result.json`'s real `criteria[]` PASS/FAIL.
+- **Proxy (earlier completed phases):** use `phase-verification.json` — a phase with `phase_complete: true` is done, so its unticked acceptance boxes are stale. There is no persisted `criteria[]` for these phases, so label the finding as a per-task proxy.
+
+What counts:
+1. A phase the spec renders inline boxes for, whose boxes are unticked (`- [ ]`) AND the phase is verified done — either (a) it is the latest phase and `verification-result.json` records `result: "pass"` (authoritative), or (b) `phase-verification.json` marks it `phase_complete: true` (proxy). This is the flirty-gym symptom, now caught for every completed phase, not only the latest.
+2. Lower severity: a box ticked `- [x]` while the matching `criteria[]` entry is `status: "fail"` (latest phase), or while the phase is NOT complete per the rollup — an over-claim.
+
+Your method:
+1. Scan the active spec for inline acceptance checkboxes (`- [ ]` / `- [x]`), grouping by the phase / section they sit under. If none, return Findings: 0.
+2. For each phase that renders boxes, determine its verified status: the latest phase → `verification-result.json` (`result` + `criteria[]`); any other phase → look up `phase_complete` in `phase-verification.json` by `phase`.
+3. For the latest phase, match boxes to `criteria[]` entries ADVISORILY by fuzzy text similarity (free-text names, re-segmented, no ID link — DEC-022 Q2). Treat a match as a *suspected* correspondence; when you cannot confidently match a box to a criterion, say so rather than guessing. For proxy phases there is no `criteria[]` to match — flag at phase granularity ("all N boxes unticked for a completed phase").
+4. Flag divergence per phase, naming the tier: e.g. "Phase 2 (authoritative): 0/4 boxes ticked but verification-result.json records result=pass (7/7)." or "Phase 1 (proxy): 0/3 boxes ticked but all 6 tasks Finished+verified (phase_complete)."
+
+What does NOT count:
+- Specs with no inline acceptance checkboxes (the common case).
+- Phases that are NOT complete — the current / in-progress phase, or any phase with `phase_complete: false` that the latest `verification-result.json` does not record as passed. Unticked boxes there are legitimate (the work isn't done).
+- A box/criterion pair you cannot match with reasonable confidence (latest phase) — note the ambiguity; do not assert divergence on a guess.
+
+For each finding, set:
+- **Source anchor:** the spec phase / section whose boxes diverge (e.g., "spec_v2.md § Phase 2 — Acceptance Criteria")
+- **Files to touch (potential fix):** spec_v*.md — synthesizer will classify as `kind: decision` (reconciliation routes via /iterate; boxes are spec body)
+- **Evidence:** state the tier (authoritative / proxy) and the numbers (boxes ticked vs phase status).
+- **Suggested fix:** "Reconcile via /iterate: spec § {phase} acceptance boxes are stale vs verified status (DEC-022 — boxes are authored input; the dashboard `### Acceptance Criteria` is the live status). Tick to match, or drop the inline boxes and rely on the dashboard."
+
+Cluster per phase: one finding per phase (listing its unticked boxes), never one per box. If several completed phases are stale with the same root, you may emit a single clustered finding ("Phases 1–3 acceptance boxes never ticked despite completion"). The match is advisory — never edit the spec; only surface.
+```
+
 ---
 
 ## Synthesizer prompt
 
 ```
-You are merging the output of 6 parallel coherence-audit lens agents into one ranked report. You did not run the lenses yourself. You have:
+You are merging the output of 7 parallel coherence-audit lens agents into one ranked report. You did not run the lenses yourself. You have:
 
-- {AUDIT_DIR}/lenses/*.md  — 6 lens reports (some may be "Findings: 0")
+- {AUDIT_DIR}/lenses/*.md  — 7 lens reports (some may be "Findings: 0")
 - {AUDIT_DIR}/inputs/*     — the raw inputs (decisions, spec-sections, friction-open, feedback-status, retired-manifests, meta)
 - Read access to project files for verification (especially `.claude/spec_v*.md`, `.claude/support/decisions/decision-*.md`, `.claude/tasks/task-*.json`)
 
@@ -393,21 +442,9 @@ Your job: dedupe, cluster, classify by `kind`, dedupe against in-flight task wor
    - lenses_seen = set of all contributing lens names
    - severity = max in cluster
    - Drop the original IDs; assign a fresh `C-NN` sequence in cluster order
-   - **Write `description`** — a plain-English one-line summary suitable for at-a-glance dashboard triage. Derive from the canonical finding's `What` line; expand with `Why` context only if the bare `What` would be opaque without it. Constraints: complete sentence, period-terminated, ~80-140 chars (hard cap 200 to prevent wrap disasters), self-contained (names the artifact / file / section affected so the user doesn't need to open `findings.md`). Distinct from `title` — `title` is a short cluster identifier (used as findings.md cluster header + FB title on promote); `description` is the readable sentence rendered on the dashboard digest. Example: title `"Spec § 5.2 still describes per-user generation; DEC-050 selected maintainer-curated"`, description `"Spec §§ 5.2, 5.3, 5.5 still describe per-user generation, but DEC-050 selected maintainer-curated — 3 unfixed references in the active spec."`
+   - **Write `description`** — per § "Write `description`" in the spliced shared contract below. Example: title `"Spec § 5.2 still describes per-user generation; DEC-050 selected maintainer-curated"`, description `"Spec §§ 5.2, 5.3, 5.5 still describe per-user generation, but DEC-050 selected maintainer-curated — 3 unfixed references in the active spec."`
 
-5. **Classify `kind` per cluster (DEC-013 Option C is now an action layer — bundle-eligible classification triggers actual inline-apply at Fix-it time, so be conservative):**
-   - **HARD RULE FIRST.** If `files_to_touch` includes ANY of: `.claude/spec_v*.md`, `.claude/support/decisions/decision-*.md`, `.claude/vision/**/*.md` → `kind: decision` (always; no exceptions; this enforces Component 6 hard exclusion). Set `iterate_routing.reason: "spec/decision/vision file modification — read-only outside /iterate"`.
-   - If suggested_kind is `design` from any contributing lens (e.g., friction-register cluster of `design_contradiction` entries) → `kind: design`. No [Fix it] action; promote to FB only.
-   - **Bundle-eligible classification (DEC-013 Option C — triggers actual inline-apply via [Fix it])** — only when ALL hold:
-     a. Implementation-file-only (no spec/decision/vision per HARD RULE above)
-     b. Source-confirmed: the fix is a sync from one authoritative source (cited concretely in `source_anchors[]`) to a derived/dependent location. NOT bundle-eligible if the only "source" is the lens's inference.
-     c. Reversible: text edit, dep removal, file deletion of clearly-orphaned items
-     d. No new judgment: the fix's content is already present somewhere authoritative (audit syncs, doesn't decide)
-     e. Bounded scope: ≤3 files
-     f. **Orphan-dep removal (special-case per DEC-013 Q3):** still classify as bundle-eligible (it's the canonical case) but set `bundle_eligibility.transitive_consumer_risk: true` so the action layer warns the user to run tests after apply (dynamic require / `importlib.import_module` / string-keyed import patterns aren't statically detectable).
-     g. **When in doubt → fix-eligible, not bundle-eligible.** The action layer's at-apply re-read invariant cannot catch semantic mismatches that the synthesizer creates. Conservative classification at synthesis time is the load-bearing safety property.
-     Set on bundle-eligible items: `bundle_eligibility.source_confirmed: true`, `reversible: true`, `files_count: {N}`, `touches_spec_or_decisions: false`, `transitive_consumer_risk: {bool}`.
-   - Otherwise (implementation-only but doesn't meet ALL bundle-eligible criteria above, or >3 files, or ambiguous fix) → `kind: fix-eligible`. Surfaces on dashboard with the italicized `*(fix-eligible — manual review pending future DEC)*` kind annotation only — no inline `[Fix it]` until a future DEC expands inline-apply per DEC-013 telemetry validation gate. (Promote/Dismiss actions are available via tick + bulk CLI / natural-language to Claude; not rendered per-item — see `dashboard-regeneration.md` § "Audit Findings sub-section".)
+5. **Classify `kind` per cluster** — apply § "Classify `kind` per cluster" from the spliced shared contract below (DEC-013 Option C; HARD RULE FIRST; bundle-eligible only when ALL criteria hold; when in doubt → fix-eligible). Promote/Dismiss actions for `fix-eligible` items are available via tick + bulk CLI / natural-language to Claude; not rendered per-item — see `dashboard-regeneration.md` § "Audit Findings sub-section".
 
 6. **Pending-work dedupe.** For each clustered finding, scan `.claude/tasks/task-*.json` for tasks with `status` in `{Pending, In Progress, Awaiting Verification}`. Match if:
    - The task's `files_affected` overlaps with the finding's `files_to_touch`, OR
@@ -442,7 +479,7 @@ Return TWO artifacts:
 ```markdown
 # Coherence Audit — {today} — {project name from CLAUDE.md or directory name}
 
-`{audit dir relative path}` · 6 lenses · {raw} raw findings → {clustered} after dedupe → {items_count} surfaced ({deduped_count} routed to in-flight tasks)
+`{audit dir relative path}` · 7 lenses · {raw} raw findings → {clustered} after dedupe → {items_count} surfaced ({deduped_count} routed to in-flight tasks)
 
 ## Top findings
 
@@ -486,7 +523,7 @@ Tick the box, then run `/audit-coherence promote {audit-ts}`.
 
 ### 2. `digest.json` — machine-readable digest
 
-Format per `template-maintenance/audit-command-family-proposal.md` Component 2 schema:
+Format per the spliced § "digest.json schema (shipped canonical)" below — set `"audit": "coherence"`, omit `viewport`. Envelope:
 
 ```json
 {
@@ -500,120 +537,41 @@ Format per `template-maintenance/audit-command-family-proposal.md` Component 2 s
     "promote_eligible": {decision + design counts},
     "deduped_to_pending_work": {Z}
   },
-  "items": [ {full item objects per Component 2 schema} ],
+  "items": [ {full item objects per the canonical item schema} ],
   "annotations": [ {full annotation objects} ]
 }
 ```
 
 Both files MUST be returned. The orchestrator writes both to disk.
+
+## Shared contract
+
+{SPLICE HERE — the orchestrator inserts the verbatim text of `.claude/support/reference/audit-family-core.md` §§ "Synthesizer shared contract" and "digest.json schema (shipped canonical)" at dispatch time.}
 ```
 
 ---
 
 ## Promote mode
 
-`/audit-coherence promote {audit-ts} [--all | F-IDs]`
+`/audit-coherence promote {audit-ts} [--all | C-IDs]`
 
-Same shape as `/audit-ui promote`:
-
-1. Read `audit-{ts}/findings.md`. Find the `## Promote to feedback` section.
-2. Determine selection (--all, explicit IDs, or ticked boxes).
-3. For each selected finding, read its full body from `findings.md`.
-4. Read `.claude/support/feedback/feedback.md` and `.claude/support/feedback/archive.md`. Compute next `FB-NNN`.
-5. **Dedupe pass.** For each selection, scan both feedback files for entries with matching source / similar title. On match, prompt user `[S]kip / [U]persede / [M]erge / [N]ew anyway`.
-6. For each non-deduped selection, append to `feedback.md` an entry shaped per the audit-ui promote-mode template (with `**Source:** audit-coherence-{audit-ts} {C-ID}` line).
-7. Update `digest.json` in place: set `items[i].status = "promoted"`, `items[i].resolved_by = {kind: "promote_fb", ref: "FB-NNN", at: now}`.
-8. For any friction register entries cited by the promoted findings: update `friction.jsonl` in place to mark `status: resolved`, `resolved_by: {kind: "promote_fb", ref: "FB-NNN", at: now}` per `friction-register.md` § "Status update protocol".
-9. Update `findings.md` in place: replace `- [x] C-NN — title` with `- [x] C-NN → FB-NNN promoted {date}`.
-10. Print summary.
-
-The existing `/feedback review` → `/iterate` flow is unchanged. The audit just produces feedback-shaped artifacts.
+**Canonical algorithm:** `.claude/support/reference/audit-family-core.md § "Promote mode (canonical)"` — execute it with this command's substitution row (`{AUDIT}: coherence` · `{P}: C` · `{DIR-GLOB}: coherence-*` · `{CMD}: /audit-coherence`). The FB-entry template, dedupe options, and `digest.json` / `friction.jsonl` / `findings.md` cascades are all defined there; no divergence.
 
 ---
 
 ## Fix mode (bundle-eligible only — DEC-013 Option C)
 
-`/audit-coherence fix {audit-ts} {C-ID}` — apply a single bundle-eligible finding inline.
+`/audit-coherence fix {audit-ts} {C-ID}` · `/audit-coherence fix latest {C-ID}` — apply a single bundle-eligible finding inline.
 
-Available only for findings with `kind: bundle-eligible`. Other kinds (`fix-eligible`, `decision`, `design`) require manual review or `/iterate` routing — see kind-availability table in `.claude/support/reference/audit-fix-workflow.md` § "Per-kind action availability".
-
-**Mechanism:** see canonical reference at `.claude/support/reference/audit-fix-workflow.md` § "Action protocol — Stage 6 (Option C per DEC-013)" / "[Fix it] — inline apply (bundle-eligible only)". In short:
-
-1. Read finding from this audit's `digest.json` + `findings.md#{C-ID}`
-2. Verify kind is `bundle-eligible` (refuse with kind-specific message otherwise)
-3. Verify finding `status == "pending"` (not already resolved/dismissed/promoted)
-4. Re-read cited `source_anchors[]` to verify finding's claim still holds (refuse if stale)
-5. Re-verify hard-exclusion (no spec/decision/vision in `files_to_touch[]` — defense-in-depth against mis-classification)
-6. Show concrete change + ask single approval
-7. On approval: apply, single commit `audit-fix: {C-ID} — {summary}`, update `digest.json` + `friction.jsonl`
-
-**Important:** after any [Fix it] touching `package.json`, run your test suite to catch transitive consumers static analysis missed (DEC-013 Q3 — orphan-dep removal can break dynamic-require / `importlib` / string-keyed import patterns). Same applies to source-code deletions.
-
-`/audit-coherence fix latest {C-ID}` — convenience: resolves "latest" to the newest `coherence-*` audit dir by `ran_at`.
+**Canonical algorithm:** `.claude/support/reference/audit-family-core.md § "Fix mode (canonical)"` (kind gate, staleness re-read, hard-exclusion re-check, single-approval apply, commit + state cascade, and the run-tests-after-removal rule) — execute with this command's substitution row. Full mechanism: `audit-fix-workflow.md § "[Fix it] — inline apply"`.
 
 ---
 
 ## Triage mode
 
-`/audit-coherence triage [audit-ts]` — interactive walker through the audit's pending findings.
+`/audit-coherence triage [audit-ts]` — interactive walker through the audit's pending findings; the preferred entry point when an audit has multiple pending findings. Closes the dashboard-tick → CLI re-specification courier pattern and the audit-name memory burden (FB-006 sub-issues 1+2).
 
-The preferred entry point when an audit has multiple pending findings. The walker iterates each pending non-dismissed finding, presents its `description` + kind + kind-conditional actions, dispatches the user's choice (Fix it / Promote / Dismiss / Skip / Quit), and continues to the next. Closes the dashboard-tick → CLI re-specification courier pattern and the audit-name memory burden (FB-006 sub-issues 1+2).
-
-**Default for `audit-ts`:** `latest` — resolves to the newest `coherence-*` audit dir by `ran_at` (same resolution as `/audit-coherence fix latest`). User never types the audit name unless they want an older audit explicitly.
-
-### Algorithm
-
-1. **Resolve audit dir.** No arg or `latest` → newest `coherence-*` dir by `ran_at`. Explicit `{audit-ts}` → `.claude/support/audits/coherence-{audit-ts}/`.
-2. **Empty-state checks** (exit cleanly, no state mutation):
-   - Audit dir does not exist → `No coherence audit has run in this project yet. Run /audit-coherence first.`
-   - Audit dir exists but no findings have `status: pending` (all resolved/dismissed/promoted) → `No pending findings in latest coherence audit. Nothing to triage.\n(Last audit ran {ran_at date}. Run /audit-coherence to refresh.)`
-3. **Read pending findings.** From `digest.json items[]`, filter where `status == "pending"` AND `id NOT IN` sidecar's `audit_digest.dismissed_ids[]`. Preserve digest order. (Sidecar missing → treat `dismissed_ids` as `[]`.)
-4. **Print walk header.** `Reading latest coherence audit: coherence-{ts} ({N} pending of {M} total)`.
-5. **Per-finding loop** (for each of the `N` pending findings):
-   - **Print finding card** — `[{i+1}/{N}] {C-ID} ({kind})` followed by `item.description ?? item.title` (title fallback for pre-v3.18.0 digests), then `Files to touch:` and `Source anchors:` lines, then the kind-conditional `Actions:` prompt (see § "Per-kind action gates" below).
-   - **Read user action.** Accept single-letter shorthand (case-insensitive) OR natural-language with a verb (`fix it`, `promote`, `dismiss because X`, `skip`, `quit`). Map to `F` / `P` / `D` / `S` / `Q`.
-   - **Kind-action validation.** If the user picks an action the kind doesn't support (e.g., `F` on a `decision` kind), print the kind-specific refuse message from `audit-fix-workflow.md § "Action protocol — Stage 6 (Option C per DEC-013)"` step 3 and re-prompt the same finding.
-   - **Dispatch** to the canonical per-action mechanics (no divergence):
-     - `F` → `audit-fix-workflow.md § "[Fix it] — inline apply"` steps 4-10 (at-apply re-read + hard-exclusion + show + approve + commit + state update).
-     - `P` → `## Promote mode` steps 3-9 (read body, dedupe, append to `feedback.md`, update `digest.json` + `friction.jsonl` + `findings.md`). Single-finding subset of bulk promote.
-     - `D` → if user typed bare `D`, follow up with `Reason (optional, blank to skip): ` and read one line. If user typed `dismiss because X`, parse `X` as the reason inline. Then dispatch to `audit-fix-workflow.md § "[Dismiss]"` steps 1-4.
-     - `S` → no mutation; advance.
-     - `Q` → break loop, jump to step 6.
-   - **Auto-advance** after dispatch completes — print a one-line result, then immediately print the next finding's card. No `Continue? [Y/N]` confirmation between findings (the user can `[Q]uit` at any prompt to step out).
-6. **End-of-walk summary.** `Triaged {X} of {N} findings. {Z} still pending. Run /audit-coherence triage again later to revisit.` where `Z` = skipped + remainder-after-quit.
-
-### Per-kind action gates
-
-Mirrors `audit-fix-workflow.md § "Per-kind action availability"`:
-
-| Finding kind | Actions prompt |
-|--------------|----------------|
-| `bundle-eligible` | `[F]ix it · [P]romote to FB · [D]ismiss · [S]kip · [Q]uit` |
-| `fix-eligible` | `[P]romote to FB · [D]ismiss · [S]kip · [Q]uit` (no `[F]ix it` — deferred per DEC-013) |
-| `decision` | `[P]romote to FB · [D]ismiss · [S]kip · [Q]uit` (no `[F]ix it` — routes via `/iterate`) |
-| `design` | `[P]romote to FB · [D]ismiss · [S]kip · [Q]uit` (no `[F]ix it` — promote → `/research`) |
-
-The kind annotation is printed alongside the card header (`{C-ID} ({kind})`) so the reason for the action list is transparent.
-
-### State mutations — atomic per action
-
-Each action's mutation is identical to the existing per-action flow; no divergence:
-
-- **Fix it** → single commit `audit-fix: {C-ID} — {summary}`; `digest.json items[i].status: "resolved"`; `friction.jsonl` cascades.
-- **Promote** → next `FB-NNN` computed, dedupe pass, append to `feedback.md`; `digest.json items[i].status: "promoted"`; `friction.jsonl` + `findings.md` cascades.
-- **Dismiss** → append id to sidecar's `audit_digest.dismissed_ids[]`; `digest.json items[i].status: "dismissed"` + `dismiss_reason` + `dismissed_at`.
-- **Skip** → no mutation.
-
-`Ctrl+C` mid-walk is safe — completed actions stay committed, remaining stay pending. The next `/audit-coherence triage` resumes from whichever findings are still `pending`.
-
-### Edge cases
-
-- **Pre-v3.18.0 digests without `description`** → render `item.title` (same `{description ?? title}` fallback as `dashboard-regeneration.md § "Body field selection"`).
-- **Parallel-session collision.** Same caveat as `[Fix it]` (per `audit-fix-workflow.md § "Known limitations"` → "Parallel-session collision"): don't run `/audit-coherence triage` while another session is running `/work` on overlapping files. The at-apply re-read invariant catches stale source for the Fix-it dispatch path, but doesn't lock against concurrent edits.
-- **Mixed audit kinds in the project.** Each audit family member has its own `triage` sub-command. No unified `/triage` across audit kinds — run `/audit-coherence triage` and `/audit-ui triage` separately.
-- **Re-running `/audit-coherence` mid-triage.** A fresh audit replaces sidecar items at next dashboard regen. The next `triage` invocation walks the new digest; pending items from the older audit are decoupled from the dashboard. Acceptable — `triage` operates on a named digest, not the dashboard.
-
-`/audit-coherence triage latest` (explicit `latest` keyword) is equivalent to the no-arg form.
+**Canonical algorithm, per-kind action gates, state mutations, and edge cases:** `.claude/support/reference/audit-family-core.md § "Triage mode (canonical)"` — execute with this command's substitution row (`{AUDIT}: coherence` · `{P}: C` · `{DIR-GLOB}: coherence-*` · `{CMD}: /audit-coherence`). `latest` (or no arg) resolves to the newest `coherence-*` audit dir by `ran_at`; the user never types the audit name unless they want an older audit explicitly.
 
 ---
 

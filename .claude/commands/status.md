@@ -141,9 +141,11 @@ Focus on task breakdown:
 
 ## Status Icons
 
+Display-layer labels for `/status` output — not task-status values (the canonical 8 task statuses live in `shared-definitions.md`). ✅ renders task status "Finished"; ⚠️ / 🔴 / 🚀 are timeline-health annotations computed from dates and recency, not statuses.
+
 | Icon | Meaning |
 |------|---------|
-| ✅ | Complete |
+| ✅ | Complete (task status: Finished) |
 | 🔄 | In Progress |
 | ⏳ | Pending / Not started |
 | ⚠️ | At Risk (approaching or past due) |

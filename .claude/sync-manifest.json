@@ -6,7 +6,6 @@
       ".claude/settings.json",
       ".claude/commands/*.md",
       ".claude/agents/*.md",
-      ".claude/skills/*/SKILL.md",
       ".claude/scripts/*.py",
       ".claude/scripts/README.md",
       ".claude/scripts/tests/*.py",
@@ -40,6 +39,9 @@
       ".claude/support/reference/automation.md",
       ".claude/support/reference/known-issues.md",
       ".claude/support/reference/extension-hooks.md",
+      ".claude/support/reference/mcp-patterns.md",
+      ".claude/support/reference/audit-family-core.md",
+      ".claude/support/reference/work-procedures.md",
       ".claude/support/reference/desktop-project-prompt.md",
       ".claude/support/reference/root-claude-md-template.md",
       ".claude/support/reference/README.md",
@@ -49,6 +51,7 @@
       ".claude/vision/README.md",
       ".claude/support/feedback/README.md",
       ".claude/support/retired/README.md",
+      ".claude/support/shakedowns/README.md",
       ".claude/hooks/pre-compact-handoff.sh"
     ],
     "customize": [

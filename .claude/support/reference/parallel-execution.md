@@ -257,7 +257,7 @@ The orchestrator performs all writes: it sets `conflict_note` fields before disp
 
 ### 3. Spawn Parallel Agents
 
-Use Claude Code's `Task` tool to spawn one agent per task. **Always set `model: "opus[1m]"` and `max_turns: 40`** to ensure agents run on Claude Opus 4.7 (1M context) with a bounded turn limit. Each agent receives:
+Use Claude Code's `Task` tool to spawn one agent per task. **Always set `model: "opus[1m]"` and `max_turns: 40`** so agents run on the Opus tier (1M context) with a bounded turn limit (canonical dispatch value + pin relationship: `.claude/CLAUDE.md § Model Requirement`). Each agent receives:
 - The task JSON to execute
 - Instructions to read `.claude/agents/implement-agent.md`
 - Instructions to follow Steps 1-6 (understand, implement, self-review, return structured report)

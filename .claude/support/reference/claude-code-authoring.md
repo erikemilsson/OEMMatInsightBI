@@ -77,9 +77,14 @@ A skill can declare `context: fork` to execute in a forked context (separate fro
 
 A skill's `allowed-tools` frontmatter declares which tools it expects to use. This pre-approves those tools for the skill's invocation (subject to project-level `permissions.allow` settings). Skills should declare only the tools they actually need — over-declaration grants unnecessary access; under-declaration triggers permission prompts mid-execution.
 
-### Skill listing budget: 1,536 character cap on `description + when_to_use`
+### Skill listing budget: dynamic total (~1% of context) + 1,536-char per-entry cap
 
-The skill listing context window has a budget for each skill's metadata. `description` + `when_to_use` combined must fit within ~1,536 characters or the listing truncates. Authors should keep `when_to_use` focused — usage criteria, not feature catalog.
+Two distinct limits govern the skill listing (the metadata the model sees to decide what to invoke) — don't conflate them:
+
+- **Total listing budget — dynamic, not fixed.** It scales at **~1% of the model's context window**. All skill *names* are always included; when the budget overflows, the *descriptions* of the least-invoked skills are dropped first, so the skills you actually use keep their full text. Raise it with the `skillListingBudgetFraction` setting (e.g. `0.02` = 2%) or the `SLASH_COMMAND_TOOL_CHAR_BUDGET` env var (fixed char count); set low-priority entries to `"name-only"` in `skillOverrides` to reclaim budget.
+- **Per-entry cap — 1,536 chars.** Each skill's combined `description` + `when_to_use` is capped at **1,536 characters regardless of the total budget** (configurable via `maxSkillDescriptionChars`). Put the key use case first; keep `when_to_use` to usage criteria, not a feature catalog.
+
+**Observability:** `/doctor` reports whether the listing budget is overflowing and which skills are affected; the `/skills` menu shows per-skill visibility state.
 
 ### Auto-compaction re-attachment budget: 25K tokens
 
@@ -125,9 +130,11 @@ Skills declared with `context: fork` inherit SKILL.md body + agent system prompt
 
 ### `Agent` tool `model` parameter granularity
 
-The `Agent` tool's `model` parameter exposes only `sonnet | opus | haiku`. There is no per-call effort control, no model-version specificity (no `claude-opus-4-7[1m]` granularity), no per-call thinking-budget setting. Effort selection is conversation-level (set at session start), not call-level.
+The subagent model surface (per-invocation `model` parameter + agent-definition `model:` frontmatter) accepts: the aliases `sonnet | opus | haiku | fable`; a **full model ID** (e.g., `claude-opus-4-8` — same values as the `--model` flag); or `inherit` (the default — use the main conversation's model). Per-invocation resolution order: `CLAUDE_CODE_SUBAGENT_MODEL` env var → per-invocation `model` parameter → agent definition's `model:` frontmatter → main conversation's model. (Verified against the sub-agents docs page 2026-06-11. The template's dispatch value `"opus[1m]"` — alias + `[1m]` context modifier — is harness-observed working but not enumerated in the docs' value list.)
 
-**Implication:** spec authors cannot write task descriptions that vary effort per subagent dispatch. If a spec needs different effort levels for different tasks, the orchestrator (`/work`) must handle that through prompt-engineering ("ultrathink" inclusion), not through `model` parameters.
+Effort: there is no per-invocation effort parameter, but agent definitions take an `effort:` frontmatter field (`low | medium | high | xhigh | max`; available levels depend on the model) that overrides the session effort while that subagent is active. Ad-hoc dispatches without a custom agent definition inherit session-level effort — prompt-engineering ("ultrathink") remains the lever there.
+
+**Implication:** spec authors CAN vary the model per subagent dispatch (alias or explicit full-ID pin), and can vary effort by defining a custom agent with `effort:` frontmatter. For ad-hoc dispatches, effort still rides the session level.
 
 ### `subagent_type: "general-purpose"` portability convention
 
@@ -141,9 +148,9 @@ Per `rules/agents.md § "Dispatch Convention"`: the three dispatch sites (`comma
 
 (Pointers — do NOT consolidate. Full rules live with the surrounding agent dispatch context.)
 
-- **`rules/agents.md § "MCP and Parallel Execution"`** — single-session MCPs (Playwright, browser automation) cannot be safely fanned out across parallel subagents. Orchestrator pattern: route MCP-driving work through one agent; parallelize the rest.
-- **`rules/agents.md § "MCP and Result-Size Constraints"`** — Playwright MCP `browser_snapshot` returns full accessibility tree; on long-scroll pages (~10K+ char DOM) the result truncates silently. Prefer `browser_evaluate` with targeted DOM queries.
+- **`support/reference/mcp-patterns.md § "MCP and Parallel Execution"`** — single-session MCPs (Playwright, browser automation) cannot be safely fanned out across parallel subagents. Orchestrator pattern: route MCP-driving work through one agent; parallelize the rest.
+- **`support/reference/mcp-patterns.md § "MCP and Result-Size Constraints"`** — Playwright MCP `browser_snapshot` returns full accessibility tree; on long-scroll pages (~10K+ char DOM) the result truncates silently. Prefer `browser_evaluate` with targeted DOM queries.
 
 ---
 
-<!-- Last verified against Claude Code docs: https://code.claude.com/docs @ 2026-05-24; against template_version: 4.9.0 -->
+<!-- Last verified against Claude Code docs: https://code.claude.com/docs @ 2026-06-11; against template_version: 4.21.3 -->

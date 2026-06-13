@@ -220,7 +220,7 @@ If `--vector` is set, run only those lenses; if unset, run all that apply (skip 
 Spawn one general-purpose agent with:
 - The path to `lenses/`, `routes.json`, and `pages/*.meta.json`
 - Project config from `meta.json` (surface_buckets if present)
-- The **Synthesizer prompt** below
+- The **Synthesizer prompt** below, with the shared contract spliced in: read `.claude/support/reference/audit-family-core.md` §§ "Synthesizer shared contract" + "digest.json schema (shipped canonical)" and insert their verbatim text at the prompt's `{SPLICE HERE}` marker before dispatching (sub-agents get inline text, never a read-this-file instruction)
 - Instruction to return BOTH `findings.md` (full report) AND `digest.json` (audit family schema)
 
 Orchestrator writes both to disk and prints a 10-line summary to chat:
@@ -245,94 +245,21 @@ Promote with: /audit-ui promote {ts}
 
 `/audit-ui promote {audit-ts} [--all | F-IDs]`
 
-1. Read `audit-{ts}/findings.md`. Find the `## Promote to feedback` section.
-2. Determine selection:
-   - `--all` → all `F-NN` in the report
-   - explicit IDs → only those
-   - default → only ticked checkboxes (`- [x] F-NN — ...`)
-3. For each selected finding, read its full body from `findings.md`.
-4. Read `.claude/support/feedback/feedback.md` and `.claude/support/feedback/archive.md`. Compute next `FB-NNN`.
-5. **Dedupe pass.** For each selection, scan both feedback files for entries whose `**Source:**` line references the same audit (or any prior audit) AND whose title fuzzy-matches (≥0.8 token overlap) OR whose `**Where:**` references the same surface. For each match, prompt the user:
-   - `[S] Skip` — already captured as FB-NNN
-   - `[U] Supersede` — close existing, create new with `**Supersedes:** FB-NNN`
-   - `[M] Merge` — append this finding's evidence to existing entry's body
-   - `[N] New anyway` — proceed without dedupe
-6. For each non-deduped selection, append to `feedback.md` an entry shaped like:
-   ```markdown
-   ## FB-NNN: {finding title}
-
-   **Status:** new
-   **Captured:** {today YYYY-MM-DD}
-   **Source:** audit-ui-{audit-ts} {F-ID}
-   **Kind:** {fix | decision | design}
-   **Lenses:** {comma-separated lens names}
-   **Severity:** {high | med | low}
-   **Effort:** {S | M | L} · **Impact:** {S | M | L}
-
-   **Where:** {from finding}
-
-   **Evidence:** {from finding}
-
-   **Why it matters:** {from finding}
-
-   **Fix candidate:** {from finding}
-   ```
-7. Update `digest.json` in place: set `items[i].status = "promoted"`, `items[i].resolved_by = {kind: "promote_fb", ref: "FB-NNN", at: now}`.
-8. For any friction register entries cited by promoted findings: update `friction.jsonl` in place to mark `status: resolved`, `resolved_by: {kind: "promote_fb", ref: "FB-NNN", at: now}` per `.claude/support/reference/friction-register.md` § "Status update protocol".
-9. Update `findings.md` in place: replace `- [x] F-NN — title` with `- [x] F-NN → FB-NNN promoted {date}`.
-10. Print summary:
-    ```
-    Promoted {N} findings → FB-{first}…FB-{last}
-    Skipped {M} (deduped)
-    Run /feedback review to triage.
-    ```
-
-The existing `/feedback review` → `/iterate` flow is unchanged. The audit just produces feedback-shaped artifacts.
+**Canonical algorithm:** `.claude/support/reference/audit-family-core.md § "Promote mode (canonical)"` — execute it with this command's substitution row (`{AUDIT}: ui` · `{P}: F` · `{DIR-GLOB}: ui-*` · `{CMD}: /audit-ui`). The FB-entry template (UI items include the `**Effort:** · **Impact:**` line), dedupe options, and `digest.json` / `friction.jsonl` / `findings.md` cascades are all defined there; no divergence.
 
 ### Fix mode (bundle-eligible only — DEC-013 Option C)
 
-`/audit-ui fix {audit-ts} {F-ID}` — apply a single bundle-eligible finding inline.
+`/audit-ui fix {audit-ts} {F-ID}` · `/audit-ui fix latest {F-ID}` — apply a single bundle-eligible finding inline.
 
-Available only for findings with `kind: bundle-eligible`. Other kinds (`fix-eligible`, `decision`, `design`) require manual review or `/iterate` routing — see kind-availability table in `.claude/support/reference/audit-fix-workflow.md` § "Per-kind action availability".
-
-**Mechanism:** see canonical reference at `.claude/support/reference/audit-fix-workflow.md` § "Action protocol — Stage 6 (Option C per DEC-013)" / "[Fix it] — inline apply (bundle-eligible only)". In short:
-
-1. Read finding from this audit's `digest.json` + `findings.md#{F-ID}`
-2. Verify kind is `bundle-eligible` (refuse with kind-specific message otherwise)
-3. Verify finding `status == "pending"` (not already resolved/dismissed/promoted)
-4. Re-read cited `source_anchors[]` / `files_to_touch[]` to verify finding's claim still holds (refuse if stale)
-5. Re-verify hard-exclusion (no spec/decision/vision in `files_to_touch[]` — defense-in-depth)
-6. Show concrete change + ask single approval
-7. On approval: apply, single commit `audit-fix: {F-ID} — {summary}`, update `digest.json` + `friction.jsonl`
+**Canonical algorithm:** `.claude/support/reference/audit-family-core.md § "Fix mode (canonical)"` (kind gate, staleness re-read, hard-exclusion re-check, single-approval apply, commit + state cascade, run-tests-after-removal rule) — execute with this command's substitution row. Full mechanism: `audit-fix-workflow.md § "[Fix it] — inline apply"`.
 
 For UI audits, bundle-eligible findings are rare — most UI fixes need copy/IA decisions and route via `[Promote to FB]` → `/iterate`. The typical bundle-eligible UI case is dead-link removal where the link target is a route the spec also dropped, or deletion of a single orphan component file.
 
-`/audit-ui fix latest {F-ID}` — convenience: resolves "latest" to the newest `ui-*` audit dir by `ran_at`.
-
 ### Triage mode
 
-`/audit-ui triage [audit-ts]` — interactive walker through the audit's pending findings.
+`/audit-ui triage [audit-ts]` — interactive walker through the audit's pending findings; the preferred entry point when a UI audit has multiple pending findings. Closes the dashboard-tick → CLI re-specification courier pattern and the audit-name memory burden (FB-006 sub-issues 1+2).
 
-The preferred entry point when a UI audit has multiple pending findings. Walker iterates each pending non-dismissed finding, presents its `description` + kind + kind-conditional actions, dispatches the user's choice (Fix it / Promote / Dismiss / Skip / Quit), and continues to the next. Closes the dashboard-tick → CLI re-specification courier pattern and the audit-name memory burden (FB-006 sub-issues 1+2). Parallel structure to `/audit-coherence triage` — see `commands/audit-coherence.md § "Triage mode"` for the canonical algorithm.
-
-**Default for `audit-ts`:** `latest` — resolves to the newest `ui-*` audit dir by `ran_at` (same resolution as `/audit-ui fix latest`).
-
-**Algorithm:** identical to `/audit-coherence triage` § "Algorithm" with these substitutions:
-- Audit dir glob: `.claude/support/audits/ui-*/` (instead of `coherence-*/`).
-- Finding ID prefix: `F-NN` (instead of `C-NN`).
-- Empty-state messages: `No pending findings in latest ui audit.` / `No ui audit has run in this project yet. Run /audit-ui first.`
-
-**Per-kind action gates:** same as `/audit-coherence triage`. For UI audits, most findings are `decision` or `design` kind (copy/IA changes); `bundle-eligible` is rare (typical case: dead-link removal where the target route is also spec-dropped, or deletion of a single orphan component file). The kind-conditional gate works identically — `[F]ix it` is presented only for `bundle-eligible` items.
-
-**State mutations:** same canonical dispatch (no divergence):
-- Fix it → `audit-fix-workflow.md § "[Fix it] — inline apply"` (single commit `audit-fix: {F-ID} — {summary}`; `digest.json` + `friction.jsonl` cascades).
-- Promote → `### Promote mode` above (compute next `FB-NNN`, dedupe, append `feedback.md`; cascades).
-- Dismiss → `audit-fix-workflow.md § "[Dismiss]"` (sidecar `dismissed_ids[]` + `digest.json status: dismissed`).
-- Skip → no mutation.
-
-**Edge cases:** identical to `/audit-coherence triage § "Edge cases"`. Title fallback for pre-v3.18.0 digests; parallel-session collision caveat; per-audit-family scope (no unified `/triage`); re-running `/audit-ui` mid-triage decouples the new digest from in-flight walker state.
-
-`/audit-ui triage latest` (explicit `latest` keyword) is equivalent to the no-arg form.
+**Canonical algorithm, per-kind action gates, state mutations, and edge cases:** `.claude/support/reference/audit-family-core.md § "Triage mode (canonical)"` — execute with this command's substitution row (`{AUDIT}: ui` · `{P}: F` · `{DIR-GLOB}: ui-*` · `{CMD}: /audit-ui`). `latest` (or no arg) resolves to the newest `ui-*` audit dir by `ran_at`. For UI audits, most findings are `decision` or `design` kind (copy/IA changes) — the kind-conditional gate presents `[F]ix it` only for the rare `bundle-eligible` items.
 
 ---
 
@@ -682,46 +609,15 @@ task work, write findings.md AND digest.json.
    - lenses_seen = set of all lens names that contributed (pre + cross).
    - severity = max in cluster.
    - Drop the original IDs; assign a fresh `F-NN` sequence in dedupe order.
-   - **Write `description`** — a plain-English one-line summary suitable for
-     at-a-glance dashboard triage. Derive from the canonical finding's `What`
-     line; expand with `Why` context only if the bare `What` would be opaque
-     without it. Constraints: complete sentence, period-terminated, ~80-140
-     chars (hard cap 200 to prevent wrap disasters), self-contained (names
-     the page / element / surface affected so the user doesn't need to open
-     `findings.md`). Distinct from `title` — `title` is a short cluster
-     identifier (used as findings.md cluster header + FB title on promote);
-     `description` is the readable sentence rendered on the dashboard digest.
-     Example: title `"Login page has no email-format hint pre-submission"`,
-     description `"The /login email field shows no inline format hint before
-     submission; users only learn the format requirement from the post-submit
-     error, breaking the affordance loop."`
+   - **Write `description`** — per § "Write `description`" in the spliced shared
+     contract below. Example: title `"Login page has no email-format hint
+     pre-submission"`, description `"The /login email field shows no inline
+     format hint before submission; users only learn the format requirement
+     from the post-submit error, breaking the affordance loop."`
 
-5. **Classify `kind` per cluster (DEC-013 Option C is now an action layer — bundle-eligible classification triggers actual inline-apply at Fix-it time, so be conservative):**
-   - **HARD RULE FIRST.** If `files_to_touch` includes ANY of: `.claude/spec_v*.md`,
-     `.claude/support/decisions/decision-*.md`, `.claude/vision/**/*.md`
-     → `kind: decision` (always; no exceptions; this enforces Component 6
-     hard exclusion of the audit family proposal). Set
-     `iterate_routing.reason: "spec/decision/vision file modification — read-only outside /iterate"`.
-   - If suggested_kind is `design` from any contributing lens → `kind: design`.
-     No [Fix it] action; promote to FB only.
-   - **Bundle-eligible classification (DEC-013 Option C — triggers actual inline-apply via [Fix it])** — only when ALL hold:
-     a. Implementation-file-only (no spec/decision/vision per HARD RULE)
-     b. Source-confirmed: the fix is a sync from one authoritative source (cited concretely
-        in `source_anchors[]` / `files_to_touch[]`) to a derived/dependent location.
-     c. Reversible: text edit, dead-link removal, single-file orphan delete
-     d. No new judgment: the fix's content is already established (audit syncs, doesn't decide)
-     e. Bounded scope: ≤3 files
-     f. **When in doubt → fix-eligible, not bundle-eligible.** The action layer's at-apply
-        re-read invariant cannot catch semantic mismatches the synthesizer creates —
-        conservative classification at synthesis time is the load-bearing safety property.
-     Set on bundle-eligible items: `bundle_eligibility.source_confirmed: true`,
-     `reversible: true`, `files_count: {N}`, `touches_spec_or_decisions: false`.
-   - Otherwise (implementation-only but doesn't meet ALL bundle-eligible criteria,
-     or >3 files, or ambiguous fix) → `kind: fix-eligible`. Surfaces on dashboard with
-     the italicized `*(fix-eligible — manual review pending future DEC)*` kind annotation
-     only — no inline `[Fix it]` until a future DEC expands inline-apply.
-     (Promote/Dismiss actions are available via tick + bulk CLI / natural-language;
-     not rendered per-item — see `dashboard-regeneration.md` § "Audit Findings sub-section".)
+5. **Classify `kind` per cluster** — apply § "Classify `kind` per cluster" from
+   the spliced shared contract below (DEC-013 Option C; HARD RULE FIRST;
+   bundle-eligible only when ALL criteria hold; when in doubt → fix-eligible).
 
    Note: most UI audit findings will be `decision` kind because UI fixes
    typically require copy/IA decisions that should route through `/iterate`.
@@ -852,6 +748,9 @@ Tick the box, then run `/audit-ui promote {audit-ts}`.
 
 ### `digest.json` — machine-readable digest (audit family schema)
 
+Format per the spliced § "digest.json schema (shipped canonical)" below — set
+`"audit": "ui"` and include `"viewport"`. Envelope:
+
 ```json
 {
   "audit": "ui",
@@ -865,8 +764,8 @@ Tick the box, then run `/audit-ui promote {audit-ts}`.
     "promote_eligible": {decision + design counts},
     "deduped_to_pending_work": {Z}
   },
-  "items": [ {full item objects per audit family Component 2 schema} ],
-  "annotations": [ {full annotation objects} ]
+  "items": [ {full item objects per the canonical item schema; UI items also carry effort + impact} ],
+  "annotations": [ {full annotation objects; may carry page instead of source_anchors} ]
 }
 ```
 
@@ -874,6 +773,12 @@ The Promote checklist in findings.md is mandatory and machine-parsed by
 the promote mode. Do not omit any finding from it. Default state is unticked.
 
 Both artifacts MUST be returned. The orchestrator writes both.
+
+## Shared contract
+
+{SPLICE HERE — the orchestrator inserts the verbatim text of
+`.claude/support/reference/audit-family-core.md` §§ "Synthesizer shared contract"
+and "digest.json schema (shipped canonical)" at dispatch time.}
 ```
 
 ---
@@ -894,7 +799,7 @@ Both artifacts MUST be returned. The orchestrator writes both.
 ## Why this shape
 
 - **One file, multiple modes.** Walk + lenses + synth + promote in one command keeps state colocated. The artifact dir is the only persistence beyond `friction.jsonl` updates (via promote).
-- **Walker is the orchestrator, not a sub-agent.** Playwright MCP is a single browser session — parallel walkers would conflict (`.claude/rules/agents.md` § "MCP and Parallel Execution"). Lens parallelism happens AFTER capture, against static artifact files.
+- **Walker is the orchestrator, not a sub-agent.** Playwright MCP is a single browser session — parallel walkers would conflict (`.claude/support/reference/mcp-patterns.md` § "MCP and Parallel Execution"). Lens parallelism happens AFTER capture, against static artifact files.
 - **Lenses cap context.** Each lens agent reads only what it needs (the artifact dir), with sharp in/out-of-scope rules. No anchor bias from other lenses' findings.
 - **Synthesizer does not see the live UI.** It only sees lens reports + meta. This forces it to trust the lens evidence, not re-litigate.
 - **Synthesizer enforces the hard rule structurally.** The "spec/decision/vision read-only outside /iterate" rule is enforced in step 5 (HARD RULE FIRST) AND in the post-synth sanity check (step 12). Two independent enforcement points.

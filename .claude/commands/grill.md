@@ -146,6 +146,7 @@ They coexist. Don't collapse them.
 - **Before `/iterate distill`** — grill a vision doc to surface and resolve ambiguity, then distill the enriched doc into a spec.
 - **Before `/research`** — grill the design until you know which decision needs formal investigation, then route through `/research`.
 - **Mid-project** — when fuzzy language is creeping into the spec or code, run `/grill` to sharpen vocabulary and update `./CONTEXT.md`.
+- **Inverse sibling — `/shakedown`** — where `/grill` drills *down* to sharpen what you *mean*, `/shakedown` sweeps *across* to test the built system against real-use examples (acceptance-by-example). `/shakedown`'s Phase 0 reuses this command's interrogation discipline to build its lens, then runs the examples against it. See `.claude/commands/shakedown.md` (DEC-019).
 
 ## References
 

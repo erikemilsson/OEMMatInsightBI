@@ -115,6 +115,8 @@
 | spec_section | String | Originating section heading from spec |
 | section_fingerprint | String | SHA-256 hash of the specific section content at decomposition |
 | section_snapshot_ref | String | Reference to snapshot file for generating diffs (e.g., "spec_v1_decomposed.md") |
+| spec_subsection | String (optional) | `### ` subsection heading a task maps to, when its work is scoped to one subsection of a large `spec_section`. Enables subsection-level drift narrowing (DEC-021). Absent → drift uses `## `-level only (default). |
+| subsection_fingerprint | String (optional) | SHA-256 of the `### ` subsection (from `fingerprint.py --sections --depth 3`) at decomposition. Paired with `spec_subsection`. |
 | out_of_spec | Boolean | Task not aligned with spec (user chose "proceed anyway") |
 | out_of_spec_rejected | Boolean | Task rejected during out-of-spec review (archived, preserved for audit) |
 | rejection_reason | String | User's reason for rejecting an out-of-spec task (optional) |
@@ -179,6 +181,8 @@ These fields track spec-to-task alignment. All are set during decomposition (see
 
 The fields `spec_fingerprint`, `spec_version`, `spec_section`, `section_fingerprint`, and `section_snapshot_ref` are defined in the Field Definitions table above. Together they enable granular per-section drift detection: when `/work` runs, it compares current section hashes against task fingerprints and only flags tasks from changed sections.
 
+The optional `spec_subsection` + `subsection_fingerprint` add a finer tier (DEC-021): when a large `## ` section changes, drift detection drills into `### ` subsections (`fingerprint.py --sections --depth 3`) and a task carrying these fields is narrowed out if its own subsection is unchanged — sparing tasks in unchanged subsections of a changed mega-section. Tasks without them fall back to `## `-level flagging (no regression). See `drift-reconciliation.md § "Subsection-level drift narrowing"`.
+
 The `out_of_spec` and `out_of_spec_rejected` fields mark tasks outside the spec scope. See `workflow.md` § "Out-of-Spec Task Handling" for behavior rules.
 
 ## Task Verification Field
@@ -216,8 +220,33 @@ Per-task verification result recorded by verify-agent when a task is in "Awaitin
 | `checks.self_attested` | String | `"pass"` | Present only on human-owned tasks. Indicates the user attested to completion via `/work complete`. When present, the standard 7 checks are absent. |
 | `issues` | Array | Issue objects `{severity, description}` | Issues found during verification |
 | `notes` | String | Free text | Brief summary of verification |
+| `evidence` | Array | Evidence objects (optional) | Empirical artifacts backing the result on runtime-validatable tasks — written by the orchestrator's Empirical Evidence Gate. See Evidence Sub-field below |
 
 **Human task self-attestation:** When `/work complete` is run for an `owner: "human"` task that has no existing `task_verification`, a self-attestation record is auto-generated with `checks: { "self_attested": "pass" }`. This satisfies the structural invariant (every Finished task has `task_verification.result == "pass"`) without spawning verify-agent. The standard 7-check suite does not apply to human tasks since there is no Claude-produced implementation to verify.
+
+### Evidence Sub-field
+
+Optional `task_verification.evidence[]` — empirical artifacts backing a pass on tasks whose failure mode is runtime-observable. Written by the **orchestrator** (not verify-agent — subagents lack reliable browser-MCP access); verify-agent *names* the assertions to run via `empirical_assertions[]` in its report (`verify-agent.md § Step T4b` item 5). Populated by the Empirical Evidence Gate in `commands/work.md § "If Verifying (Per-Task)"`.
+
+```json
+{
+  "evidence": [
+    {"type": "http_status", "target": "/outfits", "assertion": "GET returns 200", "observed": "200", "result": "pass"},
+    {"type": "computed_style", "target": ".score-pill", "assertion": "font-variant-numeric is tabular-nums", "observed": "tabular-nums", "result": "pass"},
+    {"type": "build", "target": "npm run build", "assertion": "production build exits 0", "observed": "exit 0", "result": "pass"}
+  ]
+}
+```
+
+| Field | Values |
+|-------|--------|
+| `type` | `"http_status"` \| `"console"` \| `"computed_style"` \| `"geometry"` \| `"screenshot"` \| `"build"` |
+| `target` | Route, selector, command, or artifact the assertion addresses |
+| `assertion` | The falsifiable expectation — measured-value phrasing per `commands/diagnose.md § "Visual / browser-rendering bugs"` |
+| `observed` | What was actually measured |
+| `result` | `"pass"` \| `"fail"` |
+
+**When expected:** web-UI tasks with `runtime_validation` `"partial"` (or `"pass"` reached without browser measurement) in projects with a web framework — a pass on such tasks without `evidence[]` is incomplete; the gate runs before `result: "pass"` is persisted. Optional everywhere else (back-compat: absent field is valid).
 
 ### State Detection
 
@@ -356,7 +385,7 @@ Written by verify-agent when runtime validation is `"partial"` or the task needs
 
 ### Runtime Constraints
 
-When a test_protocol step exercises behavior not runnable under the project's primary runtime (e.g., Expo Go can't cold-launch offline because it fetches its JS bundle from Metro on every cold-launch), the step should be either substituted (background-mode / server-only-kill) or annotated as deferred. Steps can carry an optional `constraint` informational field (e.g., `"constraint": "Requires dev client (EAS); skip in Expo Go"`) that verify-agent surfaces during guided testing. See `.claude/skills/decomposition-heuristics/SKILL.md § Test-Protocol Runtime Constraints` for authoring guidance.
+When a test_protocol step exercises behavior not runnable under the project's primary runtime (e.g., Expo Go can't cold-launch offline because it fetches its JS bundle from Metro on every cold-launch), the step should be either substituted (background-mode / server-only-kill) or annotated as deferred. Steps can carry an optional `constraint` informational field (e.g., `"constraint": "Requires dev client (EAS); skip in Expo Go"`) that verify-agent surfaces during guided testing. See `.claude/support/reference/decomposition.md § Test-Protocol Runtime Constraints` for authoring guidance.
 
 ## Interaction Hint Field
 
