@@ -1,4 +1,5 @@
 {
-  "timestamp": "2026-05-24T19:30:00Z",
-  "in_progress_tasks": []
+  "timestamp": "2026-06-13T23:39:19Z",
+  "in_progress_tasks": ["task-010"],
+  "note": "task-010 Claude documentation half (pipeline_schedule.md) completed + verified (pass, attempt 2). user_review_pending: true — awaiting Erik's Fabric configuration (criteria 1,2,4,5). No other Claude-actionable work: 006_3 is Fabric-gated, 012_1 is human, 012_2/3/4/5 have unmet deps."
 }

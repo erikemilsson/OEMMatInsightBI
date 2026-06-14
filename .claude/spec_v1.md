@@ -1050,7 +1050,7 @@ No open issues. Previously identified gap (data quality visibility) addressed vi
 
 ### Data Quality Checks Needed
 
-*9 of these are implemented in `data_quality_checks.Notebook` (task-007) — checked below. Unchecked items remain outstanding.*
+*All 12 of these are implemented in `data_quality_checks.Notebook` — 9 from task-007, plus 3 from task-020 (bronze date-range validation, silver data-type consistency, silver completeness).*
 
 **Bronze Layer Checks:**
 
@@ -1062,7 +1062,7 @@ No open issues. Previously identified gap (data quality visibility) addressed vi
 
 -   [x] Duplicate detection (primary keys)
 
--   [ ] Date range validation (no future dates, etc.)
+-   [x] Date range validation (no future dates, etc.)
 
 **Silver Layer Checks:**
 
@@ -1070,11 +1070,11 @@ No open issues. Previously identified gap (data quality visibility) addressed vi
 
 -   [x] Business rule validation
 
--   [ ] Data type consistency
+-   [x] Data type consistency
 
 -   [x] Outlier detection (amounts, quantities)
 
--   [ ] Completeness checks
+-   [x] Completeness checks
 
 **Gold Layer Checks:**
 
@@ -1092,7 +1092,7 @@ No open issues. Previously identified gap (data quality visibility) addressed vi
 
 -   Visualization: quality_category field available in facts for filtering
 
--   DQ framework: 9 check functions across bronze/silver/gold in `data_quality_checks.Notebook` (task-007); results persisted to gold_quality_history
+-   DQ framework: 12 check functions across bronze/silver/gold in `data_quality_checks.Notebook` (9 from task-007, 3 from task-020); results persisted to gold_quality_history
 
 -   Observability tables: gold_quality_history, gold_gap_registry, gold_low_confidence_audit (task-018)
 

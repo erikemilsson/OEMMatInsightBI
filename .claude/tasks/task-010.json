@@ -2,7 +2,7 @@
   "id": "task-010",
   "title": "Configure Pipeline Scheduling",
   "description": "Configure automated scheduling for the orchestrator pipeline to eliminate manual execution. Currently runs manually, needs daily schedule at 6:00 AM.",
-  "status": "Pending",
+  "status": "In Progress",
   "priority": "P3",
   "difficulty": 3,
   "estimatedEffort": "0.5-1 day",
@@ -23,7 +23,7 @@
   ],
   "relatedFiles": [
     "/fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/",
-    "To create: /.claude/support/documents/pipeline_schedule.md",
+    "docs/guides/pipeline_schedule.md",
     "/.claude/spec_v1.md (line 697)"
   ],
   "notes": [
@@ -41,15 +41,26 @@
   "phase": "3",
   "spec_section": "",
   "files_affected": [
-    "fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/"
+    "fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/",
+    "docs/guides/pipeline_schedule.md"
   ],
   "created_date": "",
-  "updated_date": "2026-03-10",
-  "task_verification": {},
-  "verification_attempts": 0,
-  "verification_history": [],
+  "updated_date": "2026-06-14",
+  "task_verification": {
+    "result": "pass",
+    "attempt_number": 2,
+    "timestamp": "2026-06-14T00:00:00Z",
+    "checks": {"files_exist": "pass", "consistency_check": "pass", "spec_alignment": "pass", "output_quality": "pass", "runtime_validation": "not_applicable", "integration_ready": "pass", "scope_validation": "pass"},
+    "issues": [],
+    "notes": "Criterion 3 (documentation) only — owner:both. docs/guides/pipeline_schedule.md verified complete, honest (non-active status banner), and grounded in Microsoft Learn; archived semantic-model name corrected to OEMInsightBI_v2 (0 occurrences of old name, probe-validated). Erik's Fabric configuration (criteria 1,2,4,5) remains — user_review_pending."
+  },
+  "verification_attempts": 2,
+  "verification_history": [
+    {"attempt": 1, "result": "fail", "timestamp": "2026-06-13T23:32:54Z", "summary": "Doc named archived semantic model (line 149); live is OEMInsightBI_v2. One-token fix applied by orchestrator."},
+    {"attempt": 2, "result": "pass", "timestamp": "2026-06-14T00:00:00Z", "summary": "Archived name eliminated (0 occurrences, probe-validated); OEMInsightBI_v2 in place; runbook coherent. Criterion 3 verified."}
+  ],
   "test_protocol": null,
-  "user_review_pending": false,
+  "user_review_pending": true,
   "interaction_hint": "dashboard",
   "decision_dependencies": [],
   "recovery_state": "",
