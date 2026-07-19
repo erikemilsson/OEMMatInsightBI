@@ -1,0 +1,132 @@
+{
+  "audit": "coherence",
+  "ran_at": "2026-06-21T21:41:00Z",
+  "findings_count": {
+    "raw": 4,
+    "clustered": 4,
+    "bundle_eligible": 0,
+    "fix_eligible": 1,
+    "promote_eligible": 3,
+    "deduped_to_pending_work": 0
+  },
+  "items": [
+    {
+      "id": "C-01",
+      "title": "Three renamed Fabric artifacts still named by old names across portfolio docs",
+      "description": "README, docs/ and commands still name three renamed Fabric artifacts (semantic model, cleaning notebook, report) by their old archived names as 'active'; the spec was fixed but the cross-surface doc sweep was never completed.",
+      "kind": "fix-eligible",
+      "severity": "high",
+      "lenses": ["path-drift"],
+      "fix_one_liner": "Sweep old->new names for 3 artifacts across non-spec docs/commands, preserving historical/convention/activity-name references (per-file judgment; >20 files).",
+      "source_anchors": [
+        "docs/architecture/fabric-artifacts-inventory.md § Active Artifacts",
+        "README.md:33-36",
+        "FR-001 (friction.jsonl, open)",
+        "FB-001 (feedback/archive.md, archived but sweep incomplete)"
+      ],
+      "files_to_touch": [
+        "README.md",
+        "project_definition.md",
+        "docs/README.md",
+        "docs/architecture/fabric-artifacts-inventory.md",
+        "docs/architecture/data-flow-diagram.md",
+        "docs/portfolio/PORTFOLIO_ASSETS_README.md",
+        "docs/guides/FAQ.md",
+        "docs/setup/TROUBLESHOOTING.md",
+        ".claude/commands/sync-from-fabric.md",
+        ".claude/commands/sync-to-fabric.md",
+        ".claude/commands/run-full-pipeline.md",
+        ".claude/commands/run-silver.md",
+        ".claude/commands/review-transformations.md",
+        ".claude/commands/validate-schema.md",
+        ".claude/support/documents/architecture/semantic_model.md",
+        ".claude/support/documents/architecture/medallion_architecture.md",
+        ".claude/support/documents/architecture/orchestration.md",
+        ".claude/support/documents/dax_measures.md",
+        ".claude/support/documents/fabric_workspace.md",
+        ".claude/support/documents/standards/naming_standards.md",
+        ".claude/support/documents/incremental_load_strategy.md",
+        ".claude/support/documents/error_handling_strategy.md"
+      ],
+      "sub_instances": [
+        {
+          "rename": "semantic_model_oeminsightbi -> OEMInsightBI_v2",
+          "tracker": "FR-001 (open friction)",
+          "raw_refs": 46,
+          "note": "Flagged by 2026-05-17 audit; spec fixed (L82/L726); cross-surface sweep never completed."
+        },
+        {
+          "rename": "clean_columnsAndHeaders.Notebook -> bronze-to-silver.Notebook",
+          "tracker": "FB-001 (archived 'resolved' — but spec-only)",
+          "raw_refs": 40,
+          "note": "FB-001 swapped the 4 spec references; the ~36 doc/command references were never swept. Preserve the pipeline ACTIVITY name 'clean_columnsAndHeaders' in error_handling_strategy.md and naming-convention discussions."
+        },
+        {
+          "rename": "report.Report -> report2.Report",
+          "tracker": "none (orchestrator-surfaced)",
+          "raw_refs": 15,
+          "note": "README:36, project_definition.md:823, fabric-artifacts-inventory.md:85, PORTFOLIO_ASSETS_README.md, dax_measures.md, etc."
+        }
+      ],
+      "evidence_path": ".claude/support/audits/coherence-2026-06-21-2141/findings.md#C-01",
+      "pending_work_dedupe_note": "NOT suppressed to task-010 despite FR-001.task_id==task-010: task-010 is 'Configure Pipeline Scheduling' and FR-001 explicitly scopes the sweep out of it. No pending task touches these surfaces.",
+      "fix_eligibility": {
+        "bundle_eligible": false,
+        "reason": ">3 files and per-file judgment required (exclude historical/convention/activity-name refs); fails bundle criteria (e) bounded-scope and (d)/(g) no-judgment. No inline [Fix it]; route via triage or a /work task."
+      },
+      "status": "pending"
+    },
+    {
+      "id": "C-02",
+      "title": "EU supply-shares bronze table named two ways in spec",
+      "description": "spec_v1.md names the EU CRM bronze table bronze_GlobalSupplyShares in Data Architecture/Transformations but bronze_EUSupplyShares in Orchestration (L626) — the bronze->silver lineage is ambiguous.",
+      "kind": "decision",
+      "severity": "med",
+      "lenses": ["vocab-drift"],
+      "fix_one_liner": "Spec amendment via /iterate to standardize on bronze_GlobalSupplyShares in § Orchestration (L626).",
+      "source_anchors": [
+        "spec_v1.md § Data Architecture (L320)",
+        "spec_v1.md § Orchestration (L626)"
+      ],
+      "files_to_touch": [".claude/spec_v1.md"],
+      "evidence_path": ".claude/support/audits/coherence-2026-06-21-2141/findings.md#C-02",
+      "iterate_routing": { "reason": "spec file modification — read-only outside /iterate" },
+      "status": "pending"
+    },
+    {
+      "id": "C-03",
+      "title": "Data-quality observability third table named two ways in spec",
+      "description": "spec_v1.md names the third data-quality observability table gold_quality_snapshot in § Current State (L880) but gold_low_confidence_audit in § Data Quality (L1097) — readers can't tell which Delta table exists.",
+      "kind": "decision",
+      "severity": "med",
+      "lenses": ["vocab-drift"],
+      "fix_one_liner": "Spec amendment via /iterate to standardize the third observability table name (task-018-anchored gold_low_confidence_audit is better-provenanced); confirm against what task-018 built.",
+      "source_anchors": [
+        "spec_v1.md § Current State Assessment (L880)",
+        "spec_v1.md § Data Quality & Validation (L1097)"
+      ],
+      "files_to_touch": [".claude/spec_v1.md"],
+      "evidence_path": ".claude/support/audits/coherence-2026-06-21-2141/findings.md#C-03",
+      "iterate_routing": { "reason": "spec file modification — read-only outside /iterate" },
+      "status": "pending"
+    },
+    {
+      "id": "C-04",
+      "title": "silver_WB vs silver_wb casing drift in spec",
+      "description": "spec_v1.md writes the World Bank silver table silver_WB in most sections but silver_wb in the gold-dimension source notes (L530, L570) — cosmetic (Spark is case-insensitive) but reads as inconsistency in a portfolio spec.",
+      "kind": "decision",
+      "severity": "low",
+      "lenses": ["vocab-drift"],
+      "fix_one_liner": "Spec amendment via /iterate to standardize on silver_WB at § Data Architecture L530 and L570.",
+      "source_anchors": [
+        "spec_v1.md § Data Transformations (silver_WB)",
+        "spec_v1.md § Data Architecture L530/L570 (silver_wb)"
+      ],
+      "files_to_touch": [".claude/spec_v1.md"],
+      "evidence_path": ".claude/support/audits/coherence-2026-06-21-2141/findings.md#C-04",
+      "iterate_routing": { "reason": "spec file modification — read-only outside /iterate" },
+      "status": "pending"
+    }
+  ],
+  "annotations": []
+}

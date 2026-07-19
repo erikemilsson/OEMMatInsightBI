@@ -136,6 +136,140 @@
         "dependsOn": []
       },
       {
+        "type": "Copy",
+        "typeProperties": {
+          "source": {
+            "type": "DelimitedTextSource",
+            "formatSettings": {
+              "type": "DelimitedTextReadSettings",
+              "skipLineCount": 0
+            },
+            "storeSettings": {
+              "type": "HttpReadSettings",
+              "requestMethod": "GET"
+            },
+            "datasetSettings": {
+              "type": "DelimitedText",
+              "typeProperties": {
+                "location": {
+                  "type": "HttpServerLocation"
+                },
+                "columnDelimiter": ",",
+                "quoteChar": "\"",
+                "escapeChar": "\\",
+                "firstRowAsHeader": true
+              },
+              "schema": [],
+              "externalReferences": {
+                "connection": "97124587-4fe9-43ee-bd6c-6a0fe3bc5664"
+              },
+              "annotations": []
+            }
+          },
+          "sink": {
+            "type": "LakehouseTableSink",
+            "tableActionOption": "OverwriteSchema",
+            "partitionOption": "None",
+            "datasetSettings": {
+              "type": "LakehouseTable",
+              "typeProperties": {
+                "table": "bronze_GlobalSupplyShares"
+              },
+              "schema": [],
+              "linkedService": {
+                "name": "oem_lh",
+                "properties": {
+                  "type": "Lakehouse",
+                  "typeProperties": {
+                    "artifactId": "ee9dfadb-ba4f-90c4-4683-e635488fb9f8",
+                    "workspaceId": "00000000-0000-0000-0000-000000000000",
+                    "rootFolder": "Tables"
+                  },
+                  "annotations": []
+                }
+              },
+              "annotations": []
+            }
+          },
+          "translator": {
+            "type": "TabularTranslator",
+            "mappings": [
+              {
+                "source": {
+                  "name": "Material",
+                  "type": "String",
+                  "physicalType": "String"
+                },
+                "sink": {
+                  "name": "Material",
+                  "physicalType": "string"
+                }
+              },
+              {
+                "source": {
+                  "name": "Stage",
+                  "type": "String",
+                  "physicalType": "String"
+                },
+                "sink": {
+                  "name": "Stage",
+                  "physicalType": "string"
+                }
+              },
+              {
+                "source": {
+                  "name": "Country",
+                  "type": "String",
+                  "physicalType": "String"
+                },
+                "sink": {
+                  "name": "Country",
+                  "physicalType": "string"
+                }
+              },
+              {
+                "source": {
+                  "name": "Share",
+                  "type": "String",
+                  "physicalType": "String"
+                },
+                "sink": {
+                  "name": "Share",
+                  "physicalType": "string"
+                }
+              },
+              {
+                "source": {
+                  "name": "t",
+                  "type": "String",
+                  "physicalType": "String"
+                },
+                "sink": {
+                  "name": "t",
+                  "physicalType": "string"
+                }
+              }
+            ],
+            "typeConversion": true,
+            "typeConversionSettings": {
+              "allowDataTruncation": true,
+              "treatBooleanAsNumber": false
+            }
+          },
+          "enableStaging": false
+        },
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 3,
+          "retryIntervalInSeconds": 300,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "bronzecopy_GlobalSupplyShares",
+        "description": "Copy Global CRM github repo csv file (fact_GlobalSupplyShares&t.csv). ACTION before first run: point this activity's source connection to the GLOBAL csv — it currently inherits the EU connection (97124587), which would load EU data (907 rows) into bronze_GlobalSupplyShares instead of Global (2561 rows). Replaces the legacy 22x-duplicated load (task-022 / FR-004).",
+        "dependsOn": []
+      },
+      {
         "type": "RefreshDataflow",
         "typeProperties": {
           "dataflowId": "34dbecdd-73ff-8048-4c9f-21c5453ee038",
@@ -227,6 +361,12 @@
             ]
           },
           {
+            "activity": "bronzecopy_GlobalSupplyShares",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          },
+          {
             "activity": "bronze_WGI",
             "dependencyConditions": [
               "Succeeded"
@@ -279,6 +419,30 @@
         "dependsOn": [
           {
             "activity": "bronze-to-silver data cleaning",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "a1b2c3d4-5e6f-7890-abcd-ef1234567890",
+          "workspaceId": "00000000-0000-0000-0000-000000000000"
+        },
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 1,
+          "retryIntervalInSeconds": 120,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "data_quality_checks",
+        "description": "Task 026: run the data-quality framework after gold is built, so quality history is populated every orchestrated run. Blocking check failures (schema, procurement completeness, procurement duplicates, referential integrity, lookup/grain uniqueness) raise DataQualityException and fail this activity, halting the pipeline; advisory checks are logged/scored to gold_quality_history only.",
+        "dependsOn": [
+          {
+            "activity": "silver-to-gold",
             "dependencyConditions": [
               "Succeeded"
             ]

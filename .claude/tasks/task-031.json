@@ -1,0 +1,48 @@
+{
+  "id": "task-031",
+  "title": "Silver WGI drops the governance scores it ingests — preserve Year/Value (or descope), fix the 5-of-6 coverage rule",
+  "description": "bronze_ingest_wgi fetches six WGI indicators WITH Year and Value from the World Bank API, but bronze-to-silver selects only (country_iso3, country_name, indicator_name) — dropping Year/Value and keeping ~27 duplicate rows per country-indicator (one per year, values discarded). Gold uses silver_wgi only for existence flags in gold_data_gaps, so nothing errors, but the governance scores are silently unusable downstream despite being ingested. Related: the coverage rule HAVING COUNT(DISTINCT indicator_name) >= 5 is commented 'ALL 5 WGI indicators' but SIX are ingested — a country missing one indicator still counts as full coverage (data_quality_architecture.md:237 repeats the 'all 5' claim, likely a relic of the old 5-indicator CSV). Also: medallion_architecture.md:142 describes a silver WGI transformation ('unpivot year columns, filter to 2020, join with metadata') that matches the retired CSV pipeline, not the API-based reality.",
+  "status": "Pending",
+  "priority": "P2",
+  "difficulty": 4,
+  "owner": "both",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "spec_section": "Data Architecture / Silver Layer",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "estimated_hours": 3,
+  "files_affected": [
+    "fabric/bronze-to-silver.Notebook/notebook-content.py",
+    "fabric/silver-to-gold2.Notebook/notebook-content.py"
+  ],
+  "acceptanceCriteria": [
+    "Decision made and recorded: (a) silver_wgi carries year + value (deduped grain: country x indicator x year) so governance scores are usable in gold — the audit-preferred option since DEC-001's SR formula needs WGI weights (see task-022 notes: HHI_WGI,t weights shares by governance) — or (b) scores are formally descoped: bronze_ingest_wgi stops fetching values it won't use, and silver_wgi's coverage-flag-only role is documented.",
+    "If (a): silver_wgi grain is (country_iso3, indicator_name, year) with value, deduplicated; gold_data_gaps' existence check updated to the new grain (COUNT DISTINCT indicator_name is unaffected but verify).",
+    "Coverage rule corrected: HAVING COUNT(DISTINCT indicator_name) >= 6 (all six ingested indicators) at silver-to-gold2:1754-1760, or an explicit documented choice that 5-of-6 counts as covered; the 'ALL 5' comment is fixed either way.",
+    "medallion_architecture.md silver-WGI description (line 142) and data_quality_architecture.md:237 ('requires all 5 indicators') updated to match reality (may be delegated to task-033's doc sweep — cross-reference, don't double-do).",
+    "[Erik/Fabric] /run-silver + /run-gold; gold_data_gaps coverage flags spot-checked for a country known to have all six indicators and one known partial."
+  ],
+  "dependencies": [],
+  "decision_dependencies": [
+    "DEC-001"
+  ],
+  "notes": [
+    "AUDIT-DERIVED (pipeline quality audit 2026-07-13): finding #11 (medium tier). Not spec-decomposed — empty drift fingerprints.",
+    "EVIDENCE: bronze_ingest_wgi fetches 6 indicators with Year/Value (bronze_ingest_wgi.Notebook:237-244, indicators listed at 92-99); silver select drops them at bronze-to-silver:268-275 (3 columns, no dedupe -> ~27 rows per country-indicator, one per year 1996-2023); gold existence check at silver-to-gold2:1754-1760 with '>= 5' and 'ALL 5' comment at 1752-1753.",
+    "WHY IT MATTERS BEYOND TIDINESS: task-022's methodology notes (EU CRM Guidelines SR formula) established that the supply-risk gold model needs per-country WGI values as weights — option (a) is a prerequisite for that future SR-model task (DEC-001). If (a) is chosen, note it on the DEC-001 record.",
+    "The bronze notebook's own comment acknowledges the drift: bronze-to-silver:266-267 'Score column not present in current dataflow - used for coverage check only' — written when WGI came from the manual CSV; the API ingest (which replaced it) DOES provide values.",
+    "COORDINATE: bronze-to-silver is also touched by tasks 024/029; silver-to-gold2 by 023/025/027/028/030 — serialize within the notebook-fix train.",
+    "DEC-001 (2026-07-19) CLOSES THE DESCOPE BRANCH: this task's title offers 'preserve Year/Value (or descope)'. DEC-001 Option B makes the WGI governance scores a required input to gold_supply_risk (the WGI_c weight in HHI_WGI,t = SUM_c (S_c)^2 * WGI_c * t_c), so preservation is now MANDATORY — descoping is no longer an option. This task is a hard prerequisite for task-038. Also correct the stale comment at bronze-to-silver.Notebook:281 ('Score column not present in current dataflow') — false since the move to the API-based bronze_ingest_wgi."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-07-13",
+  "updated_date": "2026-07-19",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "dashboard"
+}

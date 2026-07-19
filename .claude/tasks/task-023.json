@@ -1,0 +1,74 @@
+{
+  "id": "task-023",
+  "title": "Fix lookup-table join fan-out — duplicate lookup_name rows and fact_epi_score iso3 join inflate fact tables and spend",
+  "description": "Two related fan-out bugs in silver-to-gold2 silently duplicate fact rows. (A) gold_dim_country_lookup is built as self-lookups for every dim_country row UNION alias rows, with no dedupe on lookup_name. The alias seed table contains 'Tier 1' self-mappings — ('United States of America','United States of America',1.00) and ('United Kingdom','United Kingdom',1.00) — so when the dim's standard name equals the alias (near-certain for 'United Kingdom' from EPI 2024), the lookup holds two rows with the same lookup_name. fact_procurement and fact_supply_share join on lookup_name, so every matching row is emitted twice and SUM(fact_procurement[spend_eur]) — the headline DAX measure — doubles for affected countries. (B) fact_epi_score joins the lookup on iso3 instead of lookup_name; the lookup intentionally has one row PER ALIAS sharing the same iso3, so EPI scores duplicate once per alias (2-7x for alias-rich countries: US, UK, Turkey, DRC, Koreas), violating the documented grain 'one row per country x indicator x year' (gold_tables.md:35).",
+  "status": "In Progress",
+  "priority": "P1",
+  "difficulty": 5,
+  "owner": "both",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "spec_section": "Data Architecture / Gold Layer",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "estimated_hours": 3,
+  "files_affected": [
+    "fabric/silver-to-gold2.Notebook/notebook-content.py"
+  ],
+  "acceptanceCriteria": [
+    "Remove the redundant Tier 1 self-mapping rows from country_aliases_with_confidence (lines 145-147) OR make the redundancy harmless: gold_dim_country_lookup and gold_dim_material_lookup are deduplicated on lookup_name before write (e.g. dropDuplicates(['lookup_name']) with highest-confidence row kept via window/orderBy — arbitrary dedupe is not enough, the exact-match row must win).",
+    "fact_epi_score no longer joins dim_country_lu on iso3 (line 978). Replace with a deduplicated iso3 -> country_key map (e.g. dim_country select iso3, country_key, dropDuplicates(['iso3'])) or join gold_dim_country directly.",
+    "After /run-gold on Fabric: SELECT lookup_name, COUNT(*) FROM gold_dim_country_lookup GROUP BY lookup_name HAVING COUNT(*)>1 returns 0 rows (same for material lookup).",
+    "After /run-gold: fact_epi_score has exactly one row per (country_key, indicator_key, year) — verify with a GROUP BY ... HAVING COUNT(*)>1 returning 0 rows.",
+    "[Erik/Fabric] Compare Total Spend EUR in the report before/after for UK- and US-headquartered suppliers — expect the corrected number to drop where fan-out was occurring; sanity-check against silver-side SUM(quantity * unitpriceeur).",
+    "fact_supply_share row count equals silver_globalsupplyshares row count (minus dropped invalid-stage rows) — no fan-out from the country/material lookup joins."
+  ],
+  "dependencies": [],
+  "decision_dependencies": [],
+  "notes": [
+    "AUDIT-DERIVED (pipeline quality audit 2026-07-13): findings ranked #1 and #2 (critical). Not spec-decomposed — empty drift fingerprints, like task-022.",
+    "EVIDENCE (A): tier-1 self-alias rows at silver-to-gold2 notebook-content.py:145-147; lookup built without dedupe at lines 469-490 (self-lookups UNION alias-join); fact_procurement joins hq/prod country on lookup_name at lines 1093-1094; fact_supply_share joins country on lookup_name at line 1222 and material at 1218-1219. No uniqueness check on lookup_name exists anywhere (data_quality_checks checks duplicates on bronze only).",
+    "EVIDENCE (B): fact_epi_score join at line 978: epi_long.join(dim_country_lu, on=epi_long.iso == dim_country_lu.iso3, how='left'). dim_country_lu = gold_dim_country_lookup, which holds one row per alias per country (same iso3 repeated).",
+    "MATERIAL LOOKUP: the same self-mapping hazard applies structurally to gold_dim_material_lookup (lines 715-738) though no current alias equals a standard name; dedupe it anyway so future alias additions can't reintroduce the bug.",
+    "INTERACTION with task-025: dim_country currently has duplicate iso3 rows (Turkey) resolved nondeterministically — fixing that changes which standard names exist and therefore which alias rows survive the inner join. Same file; do 025 in the same session or immediately after, and verify the acceptance queries after BOTH fixes.",
+    "DOWNSTREAM: DAX Total Spend EUR = SUM(fact_procurement[spend_eur]) (dax_measure_library.md:123) and HHI/concentration measures over fact_supply_share[share_pct] are the consumers being corrupted. The semantic model reads these tables via DirectLake (fabric/OEMInsightBI_v2.SemanticModel/definition/tables/).",
+    "GUARD: consider adding an assert-style check in the notebook right after the lookup writes (fail loudly if lookup_name not unique) — cheap insurance independent of task-026's DQ wiring.",
+    "CLAUDE HALF DONE 2026-07-14 (builds on task-025): (A) both gold_dim_country_lookup and gold_dim_material_lookup deduped on lookup_name via row_number() over partitionBy('lookup_name') orderBy(match_confidence desc, match_type=='exact' bucket, key asc) BEFORE write — deterministic, exact self-lookup wins the Tier-1 tie (self-lookups carry match_type='exact'; alias seed uses 'exact_match'/'standard_alias' so never ties on the literal 'exact'). Kept the redundant Tier-1 self-mapping rows in the seed as harmless docs. (B) fact_epi_score now joins dim_country_iso3_map = gold_dim_country.select('iso3','country_key').dropDuplicates(['iso3']) instead of the per-alias lookup on iso3 -> restores 'one row per country x indicator x year'. (GUARD) assert-style lookup_name-uniqueness checks added after both lookup writes. Did NOT touch task-025's dim_country build. py_compile passes. Expected post-fix: US 7->6 unique lookup_names, UK 6->5, Turkey unchanged at 7 (no alias == 'Turkey').",
+    "ERIK (Fabric) — remaining acceptance (run /run-gold, then): (crit 3) GROUP BY lookup_name HAVING COUNT(*)>1 = 0 on both lookups (in-notebook asserts also enforce); (crit 4) fact_epi_score GROUP BY (country_key,indicator_key,year) HAVING COUNT(*)>1 = 0; (crit 5) report Total Spend EUR before/after for UK-/US-HQ suppliers -> expect a DROP where fan-out occurred, sanity-check vs silver SUM(quantity*unitpriceeur); (crit 6) fact_supply_share rowcount == silver_globalsupplyshares (minus dropped invalid-stage rows).",
+    "VERIFIER NOTE: fact_epi_score reads silver_epi2024results without dropDuplicates(['iso']); if crit-4 query returns rows post-run, the culprit is duplicate source iso rows (orthogonal, pre-existing), not the alias fan-out this fixes. EPI 2024 is normally one-row-per-country so expected clean. Re-run task-023 + task-025 acceptance queries together after BOTH land (per task notes)."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-07-13",
+  "updated_date": "2026-07-14",
+  "completion_date": null,
+  "verification_attempts": 1,
+  "task_verification": {
+    "result": "pass",
+    "attempt_number": 1,
+    "timestamp": "2026-07-14T00:00:00Z",
+    "checks": {"files_exist": "pass", "consistency_check": "pass", "spec_alignment": "pass", "output_quality": "pass", "runtime_validation": "partial", "integration_ready": "pass", "scope_validation": "pass"},
+    "issues": [],
+    "notes": "Claude code-half verified (owner:both). Both lookups deduped on lookup_name via row_number() BEFORE write — deterministic + total winner (match_confidence desc, exact-bucket, key asc); exact self-lookup provably beats Tier-1 alias. NO fact-side distinct()/dropDuplicates added -> root-cause fix, not symptom-hide. fact_epi_score repointed to dim_country_iso3_map (deduped iso3->country_key); grain restored, no column ambiguity. Guard asserts present + correct. task-025 dim_country build untouched. py_compile passes. runtime_validation=partial: 4 GROUP BY/spend/rowcount acceptance queries are Erik's Fabric half; code makes all achievable."
+  },
+  "verification_history": [
+    {"attempt": 1, "result": "pass", "timestamp": "2026-07-14T00:00:00Z", "summary": "Root-cause dedupe (not symptom-hide); deterministic winner; epi iso3-map join fix; guards present; py_compile OK. Fabric queries = Erik."}
+  ],
+  "test_protocol": {
+    "summary": "Fabric-side confirmation of task-023 (Erik runs /run-gold in Fabric UI)",
+    "steps": [
+      {"instruction": "SELECT lookup_name, COUNT(*) FROM gold_dim_country_lookup GROUP BY lookup_name HAVING COUNT(*)>1", "expected": "0 rows (in-notebook assert also enforces)", "type": "command"},
+      {"instruction": "Same query on gold_dim_material_lookup", "expected": "0 rows", "type": "command"},
+      {"instruction": "SELECT country_key, indicator_key, year, COUNT(*) FROM fact_epi_score GROUP BY 1,2,3 HAVING COUNT(*)>1", "expected": "0 rows (one row per country x indicator x year)", "type": "command"},
+      {"instruction": "Compare Total Spend EUR in the report before/after for UK- and US-HQ suppliers", "expected": "Corrected value drops where fan-out occurred; sanity-check vs silver SUM(quantity*unitpriceeur)", "type": "visual"},
+      {"instruction": "fact_supply_share row count vs silver_globalsupplyshares (minus dropped invalid-stage rows)", "expected": "Equal — no fan-out from country/material lookup joins", "type": "command"}
+    ],
+    "automated_results": "Static verification passed (py_compile OK; dedupe totality, join fix, guards, scope all confirmed by code trace). Live Spark/Fabric execution not runnable locally.",
+    "estimated_time": "15 minutes"
+  },
+  "user_review_pending": true,
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "dashboard"
+}

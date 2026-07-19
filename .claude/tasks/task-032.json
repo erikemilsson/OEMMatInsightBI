@@ -1,0 +1,47 @@
+{
+  "id": "task-032",
+  "title": "Align src/ testable modules with notebook production logic — tests currently certify the OPPOSITE key-generation contract",
+  "description": "The repo's 'testable transforms' convention (src/ modules + pytest) has drifted from the notebooks it supposedly covers, worst in key generation: src/transformations/key_generation.py::generate_country_key hashes iso3 AND name together, and test_generate_country_key_consistency ASSERTS that same-ISO3/different-name produces DIFFERENT keys — while the notebook's production version is iso3-only-when-present, where same ISO3 MUST give the same key regardless of name (this property is load-bearing for task-025's dim_country dedupe). The notebooks don't import src/ at all — logic is duplicated inline — so the green pytest suite certifies functions the pipeline doesn't run, and in the country-key case certifies semantics that would corrupt every key if anyone 'unified' toward the tested module. Smaller drifts: src check_unmapped shows a groupBy-count summary vs the notebook's distinct-values display; stable_key API differs (*cols vs list).",
+  "status": "Pending",
+  "priority": "P2",
+  "difficulty": 3,
+  "owner": "claude",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "spec_section": "Conventions / Testable Transforms",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "estimated_hours": 3,
+  "files_affected": [
+    "src/transformations/key_generation.py",
+    "src/transformations/data_quality.py",
+    "tests/test_key_generation.py",
+    "tests/test_data_quality.py"
+  ],
+  "acceptanceCriteria": [
+    "src generate_country_key implements the notebook's production semantics: iso3-preferred (stable_key over iso3 when non-null, else over name) — same ISO3 + different names => SAME key. The current test asserting the opposite (tests/test_key_generation.py:136-148) is inverted to assert the production contract.",
+    "New tests pin the properties the pipeline depends on: (a) iso3-based key stability across differing names; (b) null-iso3 fallback to name; (c) alias-resolution helpers if extracted (see below).",
+    "Notebook/module drift is addressed structurally, choosing one: (i) notebooks %run or import the src module in Fabric (verify feasibility — Fabric notebooks can't trivially pip-install repo code; document the mechanism), or (ii) src is explicitly documented as the REFERENCE implementation with a parity test that asserts key outputs match a fixture generated from the notebook logic, so silent divergence fails CI. Option recorded in module docstring.",
+    "OPTIONAL stretch (do if cheap): extract the initcap-reachability guard from task-028 as a tested src function so material-mapping dead keys are covered by pytest.",
+    "python3 -m pytest tests/ passes; no test certifies behavior the notebooks contradict (sweep test_data_quality.py against the notebook's inline versions while in there)."
+  ],
+  "dependencies": ["task-025"],
+  "decision_dependencies": [],
+  "notes": [
+    "AUDIT-DERIVED (pipeline quality audit 2026-07-13): finding on test coverage (medium tier, high leverage — it undercuts the repo's stated convention 'Testable transforms: Python modules in src/ with pytest coverage', root CLAUDE.md).",
+    "EVIDENCE: src generate_country_key = stable_key(iso3_col, name_col) at src/transformations/key_generation.py:96; notebook version = when(iso3 notNull, stable_key([iso3])).otherwise(stable_key([name])) at silver-to-gold2:231-235; inverted test at tests/test_key_generation.py:136-148 ('Keys should be different because name differs'); notebooks contain no import of src.transformations (inline duplicates).",
+    "DEPENDS ON task-025 only softly: 025 keeps iso3-preferred semantics, so this can start once 025's approach is confirmed (or in the same session). Sequenced to avoid aligning to a contract 025 then changes.",
+    "WHY IT MATTERS: if a future refactor 'deduplicates' by adopting the tested src version, every country_key changes -> all fact-dim joins break silently (keys are content-hashes, DirectLake won't error, relationships just stop matching). The parity test in acceptance is the cheap permanent guard.",
+    "Pure local work (pytest runs locally per tests/conftest.py spark fixture) — no Fabric dependency, safe to parallelize with Fabric-side tasks as long as files don't overlap."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-07-13",
+  "updated_date": "2026-07-13",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "dashboard"
+}

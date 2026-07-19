@@ -1,0 +1,31 @@
+[
+  {
+    "phase": 1,
+    "phase_name": "Foundation / Ingestion",
+    "task_count": 9,
+    "finished": 9,
+    "verified_pass": 9,
+    "phase_complete": true,
+    "task_ids": ["task-001", "task-002", "task-003", "task-004", "task-008", "task-009", "task-013", "task-014", "task-015"]
+  },
+  {
+    "phase": 2,
+    "phase_name": "Silver / Gold Transformations & Data Quality",
+    "task_count": 13,
+    "finished": 11,
+    "verified_pass": 11,
+    "phase_complete": false,
+    "note": "task-006 is Broken Down (parent); task-006_3 is Pending — phase not complete",
+    "task_ids": ["task-005", "task-006", "task-006_1a", "task-006_1b", "task-006_1c", "task-006_2", "task-006_3", "task-007", "task-016", "task-017", "task-018", "task-019", "task-020"]
+  },
+  {
+    "phase": 3,
+    "phase_name": "Semantic Model & Reporting",
+    "task_count": 8,
+    "finished": 1,
+    "verified_pass": 2,
+    "phase_complete": false,
+    "note": "task-010 In Progress (verified pass), task-012 Broken Down, task-012_1..5 Pending — phase not complete",
+    "task_ids": ["task-010", "task-011", "task-012", "task-012_1", "task-012_2", "task-012_3", "task-012_4", "task-012_5"]
+  }
+]

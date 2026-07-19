@@ -163,9 +163,11 @@ df_newheaders.write.format("delta").mode("overwrite").saveAsTable('silver_global
 
 # ## procurement: bronze --> silver
 #
-# Supports incremental loading via Delta MERGE when p_full_load is "false".
-# MERGE key: natural key (date + materialname + suppliername).
-# Uses a 7-day look-back window for late-arriving data during incremental loads.
+# Supports incremental loading when p_full_load is "false". Uses a date-partition
+# DELETE-INSERT (not a natural-key MERGE) to preserve transaction grain: two same-day
+# purchases of the same material/supplier are legitimate distinct transactions, so no
+# merge key or dedupe is applied (see task-024, 2026-07-14). A 7-day look-back window
+# handles late-arriving data during incremental loads.
 
 # CELL ********************
 
@@ -220,31 +222,43 @@ display(silver_df)
 
 # CELL ********************
 
-# Write silver_procurement — full overwrite or Delta MERGE
+# Write silver_procurement — full overwrite, first-load create, or transaction-grain delete-insert.
+# task-024 decision (2026-07-14): keep one-row-per-transaction grain and ABANDON the natural-key
+# MERGE. Bronze grain is "one row per material purchase", so two same-day purchases of the same
+# material from the same supplier are LEGITIMATE distinct transactions. The old MERGE on
+# (date, materialname, suppliername) collapsed them: a same-batch pair threw Delta's "multiple
+# source rows matched" (crash) and a cross-run pair was silently overwritten by whenMatchedUpdateAll
+# (data loss). We deliberately do NOT dedupe — the strategy doc's dedupe step would silently drop
+# legitimate duplicate transactions, contradicting the transaction-grain decision. Delete-insert
+# over the incremental date window is lossless (every transaction preserved) and idempotent.
 if is_full_load:
     silver_df.write.format("delta").mode("overwrite").saveAsTable("silver_procurement")
     print(f"Procurement: full overwrite complete ({silver_df.count():,} rows)")
 else:
-    # Incremental: Delta MERGE on natural key
     if not spark.catalog.tableExists("oem_lh.silver_procurement"):
         # First load — create table via overwrite
         silver_df.write.format("delta").mode("overwrite").saveAsTable("silver_procurement")
         print(f"Procurement: initial table created ({silver_df.count():,} rows)")
     else:
-        merge_condition = """
-            target.date = source.date AND
-            target.materialname = source.materialname AND
-            target.suppliername = source.suppliername
-        """
-
-        target_table = DeltaTable.forName(spark, "oem_lh.silver_procurement")
-        (target_table.alias("target")
-         .merge(silver_df.alias("source"), merge_condition)
-         .whenMatchedUpdateAll()
-         .whenNotMatchedInsertAll()
-         .execute())
-
-        print(f"Procurement: Delta MERGE complete ({silver_df.count():,} rows merged)")
+        # Incremental: delete-insert over the look-back window. Delete boundary = the minimum date
+        # actually present in this run's window. silver_df was read with the same 7-day look-back,
+        # so it contains every bronze row with date >= look-back; deleting silver rows with
+        # date >= that minimum and appending silver_df replaces EXACTLY the window — no duplication
+        # in the look-back range and re-running is idempotent. (This is why the boundary is the
+        # window's min date, not p_from_date: deleting only >= p_from_date would leave the
+        # [look-back, p_from_date) rows un-deleted and then re-append them, duplicating that range.)
+        # task-029 DEPENDENCY: p_from_date defaults to "1900-01-01" until the high-water-mark lands,
+        # so today the window == full history (full rewrite each run — correct + idempotent, just
+        # not yet incremental-efficient). Becomes truly incremental once task-029 lands.
+        window_min_date = silver_df.agg(F.min("date")).first()[0]
+        if window_min_date is None:
+            print("Procurement: incremental window is empty — nothing to delete-insert")
+        else:
+            target_table = DeltaTable.forName(spark, "oem_lh.silver_procurement")
+            target_table.delete(F.col("date") >= F.lit(window_min_date))
+            silver_df.write.format("delta").mode("append").saveAsTable("silver_procurement")
+            print(f"Procurement: delete-insert complete for date >= {window_min_date} "
+                  f"({silver_df.count():,} rows re-inserted)")
 
 # METADATA ********************
 

@@ -1,0 +1,9 @@
+[
+  {
+    "id": "FB-007",
+    "status": "new",
+    "captured": "2026-06-14",
+    "age_days": 7,
+    "title": "dashboard-render.py mermaid edge sources skip mermaid_id() sanitization"
+  }
+]

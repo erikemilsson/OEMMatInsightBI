@@ -1,0 +1,49 @@
+{
+  "id": "task-028",
+  "title": "Gold notebook correctness cleanups — initcap-dead material mappings, Phosphorus/Phosphorous dup, fact_supply_share double-write, misleading coverage matrix, EPI year hardcodes",
+  "description": "Bundle of smaller silver-to-gold2 (and bronze_ingest_epi) correctness issues. (A) Materials are F.initcap()'d BEFORE the alias join, and Spark initcap lowercases every non-word-initial letter (including after '(' and '-'), so grp_map keys 'Steel (High-Tensile)', 'Plastic (Abs)', 'Rare Earths (Ndpr)' can never match — those materials silently classify as Other/Unknown — and the 'STEEL (High-Tensile)'/'steel (high-tensile)' alias rows can never fire. Telling detail: 'Electronics (controllers, Sensors)' and 'Tires (rubber Compound)' were already hand-tuned to initcap's output, so this bug was hit before and only two keys were fixed. (B) grp_map carries both 'Phosphorus' and 'Phosphorous' as separate standards with no alias linking them — both spellings would enter dim_material as distinct materials (alias_mappings.md says the alias should exist). (C) fact_supply_share is written twice per run — a clean version (drops unmapped) at line 1046, overwritten by the placeholder-mapped version at line 1363 — wasted compute, a DirectLake window where the intermediate table is readable, and the two versions treat '<1%' differently (1.0 vs 0.5; the 0.5 version wins). (D) gold_country_coverage_matrix ships a coverage_category computed from EPI presence ALONE (code admits 'simplified for brevity') — misleading to any consumer. (E) bronze_ingest_epi hardcodes target table bronze_epi2024results regardless of p_epi_year, and fact_epi_score hardcodes year=2024 — a future-year pull would overwrite 2024 data under a 2024-named table.",
+  "status": "Pending",
+  "priority": "P2",
+  "difficulty": 4,
+  "owner": "both",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "spec_section": "Data Architecture / Gold Layer",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "estimated_hours": 4,
+  "files_affected": [
+    "fabric/silver-to-gold2.Notebook/notebook-content.py",
+    "fabric/bronze_ingest_epi.Notebook/notebook-content.py"
+  ],
+  "acceptanceCriteria": [
+    "Material normalization is made consistent: either normalize grp_map keys and alias entries to initcap-canonical form (verify each key is reachable: initcap(key)==key), or switch matching to a case-insensitive join (lower() both sides) so casing can never silently kill a mapping again. After /run-gold, 'Steel (high-tensile)'-family materials carry commodity_group='Manufactured products', not 'Other/Unknown'.",
+    "A guard exists (unit test in tests/ or in-notebook assertion) that every grp_map key and every alias LHS is reachable from initcap-normalized input — dead keys fail loudly.",
+    "Phosphorus/Phosphorous unified: alias added ('Phosphorus' -> 'Phosphorous' per alias_mappings.md:43, or the reverse — pick one canonical spelling) and only one enters dim_material.",
+    "fact_supply_share is written exactly once per run (delete or refactor the first write path at silver-to-gold2:1016-1047; the enhanced version at 1190-1363 is the keeper). '<1%' handling is single-sourced (0.5 midpoint estimate) and commented.",
+    "gold_country_coverage_matrix either implements real multi-source coverage (EPI + supply + procurement HQ/prod presence as designed at lines 506-562) or is dropped/renamed to something honest (e.g. epi_presence) — no more 'High/Medium/Low Coverage' labels derived from one source.",
+    "bronze_ingest_epi derives the target table name from p_epi_year (or documents/asserts that only 2024 is supported and fails loudly on other years); fact_epi_score's year literal follows the same parameter instead of a hardcoded 2024.",
+    "[Erik/Fabric] /run-gold after changes; spot-check dim_material commodity groups and the report's supply-share visuals."
+  ],
+  "dependencies": [],
+  "decision_dependencies": [],
+  "notes": [
+    "AUDIT-DERIVED (pipeline quality audit 2026-07-13): findings #12, #19, #20 + alias_mappings phosphorus gap + EPI year hardcode. Not spec-decomposed — empty drift fingerprints.",
+    "EVIDENCE (A): initcap applied at silver-to-gold2:594-599 (proc/sup material) and 1017/1197; alias join against post-initcap values at 609-611; dead alias rows at 195-196; dead grp_map keys at 653 ('Rare Earths (Ndpr)'), 672 ('Plastic (Abs)'), 674 ('Steel (High-Tensile)'); hand-tuned survivors at 671 and 673. CAVEAT: initcap behavior verified from Spark semantics (first letter of whitespace-delimited word uppercased, rest lowercased), not executed — the reachability guard in acceptance turns this from belief into test.",
+    "EVIDENCE (B): grp_map has 'Phosphorus' (line 665) and 'Phosphorous' (line 694) as separate keys; no alias links the spellings; alias_mappings.md:41-43 documents the intended alias.",
+    "EVIDENCE (C): first write_tbl(fact_supply_share_clean,...) at line 1046 with regexp-based share parse ('<1%' -> 1.0) at 1020; second write_tbl(fact_supply_share_final,...) at 1363 with '<' -> 0.5 at 1200-1205.",
+    "EVIDENCE (D): create_country_coverage_matrix at lines 506-564 — has_epi only, coverage_score = has_epi/1.0, comment 'Simplified for brevity - would repeat pattern for each source'.",
+    "EVIDENCE (E): table_name = 'bronze_epi2024results' hardcoded at bronze_ingest_epi:152 while URL uses p_epi_year (line 80); year literal 2024 at silver-to-gold2:981. Also note bronze_ingest_epi validates plain column names (code/iso/country/EPI, line 136) while bronze-to-silver's clean_and_rename handles .new/.old suffixes (lines 91-102) — written against different CSV shapes; harmonize or comment while in there.",
+    "COORDINATE: same file as tasks 023/025/027 — serialize with them (files_affected overlap prevents parallel dispatch anyway)."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-07-13",
+  "updated_date": "2026-07-13",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "dashboard"
+}

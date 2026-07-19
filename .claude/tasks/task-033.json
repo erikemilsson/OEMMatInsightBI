@@ -1,0 +1,57 @@
+{
+  "id": "task-033",
+  "title": "Documentation drift sweep — align architecture/DQ/alias/schema docs with pipeline reality after audit fixes land",
+  "description": "The audit found the support docs describe a pipeline that partially doesn't exist. Sweep and reconcile: (1) medallion_architecture.md lists retired tables (bronze_WB_ESGCSV, bronze_WB_ESGSeries, silver_WB) and a 'Warehouse Sync' orchestration stage with no corresponding pipeline activity; its 'Idempotent Transformations' claim is false until task-027 lands. (2) data_quality_architecture.md marks Quality History, Gap Registry, and Low-Confidence Audit as PLANNED though all three are implemented (Task 018), claims audit tables have frequency/spend_impact fields they don't have, and says has_wgi 'requires all 5 indicators' when six are ingested (last updated 2026-01-19). (3) alias_mappings.md documents aliases that don't exist in code (Cote d'Ivoire, Macau, Puerto Rico, 'Phosphorus'->'Phosphorous', ISO3 self-mappings) and omits ones that do (Congo variants, Korea variants, encoding-corrupted Türkiye set). (4) bronze_tables.md documents the retired WGI CSV shape (year columns y_2000...y_2023) instead of the API-based bronze_WGI schema, and gold_tables.md's fact_procurement omits the source_row_id column and will need grain/column updates from task-024. (5) incremental_load_strategy.md's silver merge key (includes region) will need reconciling with whatever task-024 implements.",
+  "status": "Pending",
+  "priority": "P3",
+  "difficulty": 3,
+  "owner": "claude",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "spec_section": "Domain Documentation",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "estimated_hours": 3,
+  "files_affected": [
+    ".claude/support/documents/architecture/medallion_architecture.md",
+    ".claude/support/documents/data_quality_architecture.md",
+    ".claude/support/documents/transformations/alias_mappings.md",
+    ".claude/support/documents/schemas/bronze_tables.md",
+    ".claude/support/documents/schemas/gold_tables.md",
+    ".claude/support/documents/incremental_load_strategy.md",
+    ".claude/support/documents/calculations.md"
+  ],
+  "acceptanceCriteria": [
+    "Each doc listed in files_affected accurately reflects the post-fix pipeline: retired tables removed or marked retired, implemented features no longer marked PLANNED, alias tables match the notebook seed data verbatim (or state that the notebook is canonical and list only the tiers/policy), schemas match actual table columns and grains, merge keys match implemented merge conditions.",
+    "The Warehouse Sync stage in medallion_architecture.md is either deleted, marked future, or (if Erik wants it) spun out as its own task — not left as a phantom stage.",
+    "bronze_tables.md documents bronze_WGI as produced by bronze_ingest_wgi (Country Name, Country Code, Series Name, Indicator Code, Year, Value) and notes the WGI dataflow/CSV lineage is retired.",
+    "calculations.md reflects the unitprice_eur semantics confirmed in task-030.",
+    "No doc claims a check, table, field, or pipeline stage that grep/inspection cannot find in fabric/ or src/ — verify by re-running the audit's specific citations (each finding in the audit report maps to a doc line; all cited lines resolved).",
+    "Checked whether .claude/spec_v1.md itself repeats any of the drifted claims (grep for warehouse sync, watermark, silver_WB, 'all 5') — if yes, those specific edits are proposed via /iterate per DEC-016 rather than edited directly."
+  ],
+  "dependencies": [
+    "task-024",
+    "task-026",
+    "task-027",
+    "task-031"
+  ],
+  "decision_dependencies": [],
+  "notes": [
+    "AUDIT-DERIVED (pipeline quality audit 2026-07-13): finding #17 plus doc-drift items scattered through findings 8, 11, 24. Not spec-decomposed — empty drift fingerprints.",
+    "EVIDENCE anchors: medallion_architecture.md:113-118 (retired WB tables), :146-150 (silver_WB), :216 (Warehouse Sync stage), :226 (idempotency claim), :142 (WGI silver transformation that doesn't exist); data_quality_architecture.md:93-97+106-108 (PLANNED markers for implemented tables), :149-157 (phantom frequency/spend_impact fields), :237 ('all 5'); alias_mappings.md:19-30+41-51 (phantom aliases) vs silver-to-gold2:142-208 (actual seed data); bronze_tables.md:37-55 (retired WGI CSV shape); gold_tables.md:5-17 (fact_procurement grain/columns).",
+    "SEQUENCED LAST deliberately (dependencies on 024/026/027/031): docs should describe the FIXED pipeline, not the buggy one — writing them earlier means writing them twice. Smaller safe-now edits (PLANNED->IMPLEMENTED markers, retired-table removals) can be batched early if this task starts before dependencies close, but the final acceptance pass runs after they land.",
+    "These are support documents (.claude/support/documents/), NOT spec/decision/vision files — direct edits are permitted under DEC-016. The exception is spelled out in the last acceptance criterion.",
+    "Also fold in: task-027's doc mismatch note (audit-table fields) and task-031's medallion/DQ-architecture line items if those tasks deferred their doc edits here — check both tasks' completion notes before starting.",
+    "SCOPE NARROWED 2026-07-20 by /iterate (DEC-001 spec pass): two doc-drift items this task listed were load-bearing for DEC-001 and have already been corrected IN THE SPEC — (a) the WGI lineage (spec now documents the API-based bronze_ingest_wgi, long format, Year/Value silver contract, six-not-five indicators), and (b) the supply-shares conflation (spec now splits bronze_GlobalSupplyShares vs bronze_EUSupplyShares and documents `t` as the trade parameter rather than 'unknown field'). STILL IN SCOPE for this task: the same corrections in .claude/support/documents/ (medallion_architecture.md, data_quality_architecture.md, bronze_tables.md, alias_mappings.md, gold_tables.md, incremental_load_strategy.md, calculations.md), PLUS the spec-side items NOT swept in that pass and deliberately left here. VERIFIED ANCHORS (post-2026-07-20 spec edit — line numbers current as of that edit): phantom World Bank ESG lineage at spec_v1.md:360 (bronze_WB_ESGCSV + bronze_WB_ESGSeries -> silver_WB), :378, :398, :400, :412, :524, :564, :654, :1607; retired WGI_file2table.Dataflow references at :630 (Orchestration activity), :846 (Current State checkbox marking a retired lineage as done), :1007 (naming-convention example — arguably fine as an example, judge on read). Note :248 and :308 already CARRY the corrected text plus a deliberate historical parenthetical — do not 'fix' those, they are the new state. All remaining items are spec edits and so route through /iterate per DEC-016 and this task's last acceptance criterion — do not edit them directly."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-07-13",
+  "updated_date": "2026-07-20",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "dashboard"
+}

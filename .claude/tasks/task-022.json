@@ -1,0 +1,59 @@
+{
+  "id": "task-022",
+  "title": "Fix global supply-shares lineage — wire fact_GlobalSupplyShares CSV into the pipeline (replaces 22x-duplicated bronze)",
+  "description": "bronze_GlobalSupplyShares (what silver -> fact_supply_share is built on) holds 56,342 rows = exactly 22x its real source. Confirmed in oem_lh: total 56,342 / distinct 2,561, and distinct (2,561) matches the source CSV fact_GlobalSupplyShares&t.csv exactly. The current table is a one-off bad load (NOT produced by the pipeline — the pipeline only ingests the EU CSV). Fix: add a copy activity that ingests the Global CSV from the source GitHub repo into bronze_GlobalSupplyShares with OverwriteSchema, so the pipeline produces the correct 2,561-row table and keeps it fresh. Discovered via FR-004 (audit C-02 -> /iterate grounding -> Fabric verification -> source-repo trace).",
+  "status": "In Progress",
+  "priority": "P1",
+  "difficulty": 4,
+  "owner": "both",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "cross_phase": true,
+  "spec_section": "Data Architecture / Orchestration",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "estimated_hours": 2,
+  "files_affected": [
+    "fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/pipeline-content.json"
+  ],
+  "acceptanceCriteria": [
+    "A copy activity `bronzecopy_GlobalSupplyShares` is added to pipeline-content.json, cloned from `bronzecopy_EUSupplyShares` (DelimitedTextSource over HttpServerLocation, GET), with sink table `bronze_GlobalSupplyShares` and `tableActionOption: OverwriteSchema` (so a run replaces the 22x-duplicated table with clean data).",
+    "[Fabric/Erik] The activity's HTTP source resolves to `Data/fact_GlobalSupplyShares&t.csv` in the source repo (erikemilsson/EU-Critical-Raw-Materials-CRM-Reports-Datasets) — i.e. the connection/relativeUrl points at the GLOBAL file, not the EU one.",
+    "After a pipeline run, `bronze_GlobalSupplyShares` has 2,561 rows with distinct == total (no duplication): verify `df.count() == df.dropDuplicates().count() == 2561`.",
+    "EU-vs-Global decision recorded: keep `bronze_EUSupplyShares` / `bronzecopy_EUSupplyShares` as a secondary EU cut, OR retire it (silver reads Global; the EU table is currently orphaned — read by nothing).",
+    "Downstream re-verified on the corrected data: silver_* + `fact_supply_share` rebuilt from 2,561 rows; check whether the gold/report supply-shares numbers change materially (they were computed on 22x-inflated data — sums/counts were inflated; averages were not).",
+    "FR-004 resolved on completion; spec lineage reconciled via /iterate (document the corrected pipeline -> bronze_GlobalSupplyShares -> silver flow + the EU/Global relationship)."
+  ],
+  "dependencies": [],
+  "decision_dependencies": [
+    "DEC-001"
+  ],
+  "notes": [
+    "ROOT CAUSE: bronze_GlobalSupplyShares (56,342 rows, lastModified 2025-08-25) is NOT written by the orchestrated pipeline — it was a one-off/manual load that duplicated each of the 2,561 source rows 22x. The pipeline's only supply-shares activity (`bronzecopy_EUSupplyShares`) ingests the EU CSV -> bronze_EUSupplyShares (907 rows = its CSV, correct) and is orphaned (nothing reads EU). Because the project scope is GLOBAL (broader than the EU-focused source report), silver correctly wants the Global table — it just was never wired into the pipeline.",
+    "SOURCE: https://github.com/erikemilsson/EU-Critical-Raw-Materials-CRM-Reports-Datasets , file `Data/fact_GlobalSupplyShares&t.csv` (2,561 rows; cols Material,Stage,Country,Share,t where t = trade-related variable per the repo's data_cleaning.md; 2023 EU CRM report Appendix 7). Raw URL: https://raw.githubusercontent.com/erikemilsson/EU-Critical-Raw-Materials-CRM-Reports-Datasets/main/Data/fact_GlobalSupplyShares%26t.csv (note %26 encodes the & in the filename).",
+    "WHY OverwriteSchema fixes it: a fresh copy with OverwriteSchema replaces the whole table, so the 22x duplication disappears the first time the new activity runs. The bad load was a one-off and won't recur once the pipeline owns the table.",
+    "WHY P1: this is a data-correctness bug in the core medallion pipeline — the global supply-shares facts in the gold layer / Power BI report are built on 22x-inflated bronze data. Correctness outranks the portfolio-polish work (021 was P2, 020 P3).",
+    "DON'T deeply chase the origin of the 22x (it was a one-off manual load outside the repo); the fix supersedes it. If curious, a GROUP BY on (Material,Stage,Country,Share,t) HAVING COUNT(*)>1 will show the uniform 22x repetition.",
+    "--- HANDOFF ---",
+    "CLAUDE: write the `bronzecopy_GlobalSupplyShares` activity JSON in pipeline-content.json (clone the EU activity; change name + sink table; keep DelimitedText/HTTP/GET shape). NOTE the source file path / connection is Fabric-side — flag what Erik must set (the relativeUrl/connection for the Global CSV) since the EU activity's file path lives in the Fabric connection, not the pipeline JSON.",
+    "ERIK (Fabric UI): wire the copy activity's HTTP source to the Global CSV (new connection or relativeUrl = fact_GlobalSupplyShares&t.csv), deploy, run the pipeline, confirm bronze_GlobalSupplyShares = 2,561 distinct rows, then re-run bronze->silver->gold and eyeball the supply-shares numbers. Decide keep-or-retire the EU table.",
+    "AUDIT-DERIVED: not spec-decomposed (empty drift fingerprints). Tracked via FR-004.",
+    "DATA SEMANTICS (analyzed both source CSVs 2026-06-22): EU table (907) = EU import/SOURCING shares per material per source-country (rounded to whole %, >=1% only, sums ~94% per material+stage because sub-1% sources are dropped). Global table (2561) = global PRODUCTION/supply shares per material per country (precise decimals incl <0.1%, sums ~100%). Same measure NAME, different meaning. 71 materials shared; 115 of EU's 121 countries are in Global (the 6 'EU-only' are spelling variants: Brasil/South Korea/Surinam/Libanon/Grenada/Mauritius). Global adds 48 countries + 14 materials. Example: Aluminium extraction from Brazil = EU-import 12% vs global-production 10.4% (different numbers for the same material+country). => Global is NOT 'the countries outside the EU' — it's the worldwide superset that covers EU's source countries + more.",
+    "DECISION (EU keep/retire): KEEP the EU table — it is analytically central (it IS the 'shares imported to the EU from those countries' the analysis should start from), not a throwaway subset. So wire BOTH CSVs: EU already correct (907); fix Global dup.",
+    "MODELING QUESTION (newly surfaced, bigger than the dup fix): silver/fact_supply_share currently read ONLY bronze_GlobalSupplyShares (global production). The EU table (which matches the stated EU-sourcing-risk goal) is ORPHANED — read by nothing. Decide whether the gold supply-shares facts should be driven by EU import shares, global production shares, or BOTH (EU exposure x global concentration is a standard supply-risk lens). This is a gold-model decision for Erik; may warrant its own task/decision record.",
+    "METHODOLOGY CONFIRMATION (EU CRM Guidelines, EC 2017, doi:10.2873/769526, read 2026-06-22): interpretation confirmed + modeling question ANSWERED -> BOTH tables required. Official Supply Risk formula: SR = [HHI(GS)*IR/2 + HHI(EUsourcing)*(1-IR/2)] * (1-EoL_RIR) * SI_SR, where GS = global supply (the Global table) and EUsourcing = actual sourcing to the EU = EU domestic production + imports (the EU table). Both are inputs, weighted by import reliance IR (IR=100% -> 50/50 global/EU; IR=0 -> 100% EU sourcing). HHI_WGI,t = sum_c (S_c)^2 * WGI_c * t_c, so per-country share is squared, weighted by governance (WGI = the project's silver_WB / World Bank table) and the trade parameter t. The CSV 't' column IS the trade parameter t_c: 0.8 for EU countries, 1.0 non-EU baseline, >1 for export-restricted (matches observed t distribution; EU table has proportionally more 0.8s because EU sourcing includes more EU suppliers). Stage column E/P = the extraction/processing 'bottleneck' stage (SR taken at the higher-risk stage). => the gold supply-risk model should COMBINE both tables per the SR formula; it ALSO needs import reliance per material ((Import-Export)/(Domestic+Import-Export), Eurostat -- check if present in project), recycling rate EoL_RIR, and substitution index SI_SR. Currently silver reads ONLY Global -> any SR computed is missing the EU-sourcing half.",
+    "CROSS-REF: SR gold-model fidelity decision = DEC-001 (decision-001-sr-gold-model.md). task-022 (dup fix) is a PREREQUISITE for it, NOT blocked by it — fix the duplication regardless of which SR model is chosen. The future 'build SR gold model' task will carry decision_dependencies:[DEC-001].",
+    "CLAUDE HALF DONE 2026-06-22: bronzecopy_GlobalSupplyShares activity written into pipeline-content.json (clone of the EU copy activity; sink=bronze_GlobalSupplyShares, OverwriteSchema, 5-col String mapping Material/Stage/Country/Share/t; added to the 'bronze-to-silver data cleaning' dependsOn so cleaning waits for it). JSON validated. REMAINING (Erik/Fabric): (1) repoint the new activity's SOURCE connection to the Global CSV — it currently inherits the EU connection GUID 97124587 (would load EU 907 rows into bronze_GlobalSupplyShares); use a connection for https://raw.githubusercontent.com/erikemilsson/EU-Critical-Raw-Materials-CRM-Reports-Datasets/main/Data/fact_GlobalSupplyShares%26t.csv ; (2) deploy the pipeline change to Fabric; (3) run; (4) verify bronze_GlobalSupplyShares = 2561 rows, distinct==total.",
+    "2026-07-19 (/health-check): confirmed In Progress is accurate — Claude-half drafted and verified, awaiting Erik's Fabric session as #4 in the P1 apply order. Age reflects waiting on Fabric, not stalled work. NOW ALSO A DEC-001 PREREQUISITE: Option B (dual governance/trade-weighted HHI) computes on supply shares, so the 22x duplication must be gone before any HHI is meaningful. See task-038."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-06-22",
+  "updated_date": "2026-07-19",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "dashboard"
+}

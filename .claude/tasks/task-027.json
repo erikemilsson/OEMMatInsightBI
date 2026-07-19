@@ -1,0 +1,48 @@
+{
+  "id": "task-027",
+  "title": "Fix quality observability tables — gap registry mislabels every gap, resolved gaps never reopen, occurrences double-count, low-confidence snapshot goes stale",
+  "description": "The Task-018 observability tables (consumed directly by the semantic model) record systematically wrong data. (A) gold_unmapped_procurement_audit stores original_material/hq/prod values UNCONDITIONALLY for every unmapped row and sets unmapped_type only for material misses (NULL otherwise) — so the gap-registry ingestion's COALESCE(original_material, original_hq_country, original_prod_country) ALWAYS picks the material name (even when the material mapped fine and the country was the gap), and its CASE types nearly everything as 'country' because original_hq_country is always non-null. Net: gold_gap_registry fills with entries like gap_type='country', gap_natural_key='Copper'. The supply-share branch has the same COALESCE flaw. (B) The registry MERGE updates only current_status != 'Resolved' and has no reopen branch — a resolved gap that regresses is matched, skipped, and invisible forever. (C) total_occurrences += source count each run, but the audit tables are full snapshots rebuilt from ALL data every run, so the counter measures occurrences x runs, not occurrences (also breaks the medallion doc's idempotency claim). (D) gold_low_confidence_audit is only overwritten when there ARE low-confidence matches; when all are resolved the stale snapshot persists indefinitely in the DirectLake table.",
+  "status": "Pending",
+  "priority": "P2",
+  "difficulty": 5,
+  "owner": "both",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "spec_section": "Data Quality Architecture / Observability",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "estimated_hours": 4,
+  "files_affected": [
+    "fabric/silver-to-gold2.Notebook/notebook-content.py"
+  ],
+  "acceptanceCriteria": [
+    "Audit tables record WHICH dimension failed per row: gold_unmapped_procurement_audit emits one row per (source row x failed dimension) with unmapped_type in {material, hq_country, prod_country} and unmapped_value = the failing value only (restructure of silver-to-gold2:1169-1186); same one-row-per-failed-dimension shape for gold_unmapped_supply_audit (lines 1367-1392, which currently records only the FIRST failing dimension).",
+    "Gap-registry ingestion (lines 2140-2165) reads unmapped_value/unmapped_type directly from the restructured audit rows — the COALESCE/CASE inference is deleted.",
+    "Reopen path exists: a gap present in current run but status='Resolved' in the registry transitions to 'Reopened' (or back to 'Open' with a note) — statuses per data_quality_architecture.md:299 (Open/In Progress/Resolved/Excluded; add Reopened via the docs task if kept as its own status).",
+    "total_occurrences semantics made honest: either store per-run occurrence count keyed by run (append model), or set-to-current instead of increment, or increment only when a new refresh_timestamp is involved AND document that it counts run-sightings. Chosen semantics stated in a code comment and reconciled with data_quality_architecture.md:298 ('cumulative count').",
+    "gold_low_confidence_audit is truncated/overwritten to empty when the current run finds zero low-confidence matches (fix silver-to-gold2:2424-2432).",
+    "After two consecutive /run-gold executions on unchanged data: registry content is stable (no occurrence inflation), gap types/values match hand-checked unmapped rows, and [Erik] the DQ report page shows sensible gap entries."
+  ],
+  "dependencies": [],
+  "decision_dependencies": [],
+  "notes": [
+    "AUDIT-DERIVED (pipeline quality audit 2026-07-13): findings #8, #9, #16 (high/medium tier). Not spec-decomposed — empty drift fingerprints.",
+    "EVIDENCE (A): audit select at silver-to-gold2:1169-1186 — original_* columns populated from p.material_name/p.hq_country/p.prod_country regardless of which join failed; unmapped_type = when(material_key null, 'Material') with no otherwise. Registry COALESCE/CASE at lines 2140-2154 (procurement) and 2156-2165 (supply). Since original_material and original_hq_country are essentially always non-null, unmapped_value=material-name and gap_type='country' for nearly every entry.",
+    "EVIDENCE (B): whenMatchedUpdate(condition=\"target.current_status != 'Resolved'\") at lines 2220-2228; no whenNotMatchedBySource / reopen logic. Auto-resolve marks absent gaps Resolved at lines 2245-2269.",
+    "EVIDENCE (C): total_occurrences = target.total_occurrences + source.occurrence_count_int at line 2227, while gold_unmapped_*_audit are rebuilt as FULL snapshots from all silver data each run (write_tbl overwrite at 1186/1392). Ten runs of a value occurring 10x -> total_occurrences=100.",
+    "EVIDENCE (D): populate_low_confidence_audit writes only inside 'if low_conf_count > 0' at lines 2424-2432; zero-match runs leave the previous snapshot in place. Table is in the semantic model (gold_low_confidence_audit.tmdl).",
+    "DOC MISMATCH to fold into task-033: data_quality_architecture.md:149-157 claims the procurement audit has frequency + spend_impact fields (marked done) — actual table has neither; either add them here or fix the doc there.",
+    "SAMPLE DATA INTERACTION: sample-quality-data.Notebook seeds gap_registry rows with sequential MAX(gap_id)+n ids while real rows use stable_key hashes, and seeded 'Open' sample gaps will be auto-'Resolved' by the next real run's absence sweep with note 'value now has alias mapping' — if the demo story matters, exclude [SAMPLE] rows from the auto-resolve sweep while in here (one-line filter).",
+    "SCHEMA CHANGE WARNING: restructuring audit tables changes columns consumed by create_dq_dashboard() (top_unmapped_materials/countries queries at lines 1618-1634) — update those queries in the same pass."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-07-13",
+  "updated_date": "2026-07-13",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "dashboard"
+}

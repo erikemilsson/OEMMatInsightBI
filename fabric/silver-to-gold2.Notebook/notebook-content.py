@@ -254,8 +254,15 @@ dim_country_base = (
     .dropDuplicates(["iso3"])
 )
 
-# 3. ADD MISSING COUNTRIES - These are critical for supply chain analysis
-# These countries appear in procurement/supply data but not in EPI/WB
+# 3. ADD CURATED COUNTRIES with canonical standard names.
+# These rows carry the country_name_std spelling that the alias table
+# (country_aliases_with_confidence) resolves to. NOTE: contrary to a prior
+# comment ("not in EPI/WB"), some of these DO appear in EPI — e.g. EPI 2024
+# names TUR "Türkiye", which the aliases at lines 175-180 map back to "Turkey".
+# Because country_key = f(iso3), a curated row and an EPI row for the same iso3
+# collide on country_key; the precedence-ranked dedupe below makes the curated
+# (canonical) name win so those aliases never get orphaned. Entries with no EPI
+# match (e.g. Kosovo) are simply the only row for their iso3.
 missing_countries = spark.createDataFrame([
     ("North Korea", "PRK", 408, "PRK"),
     ("Yemen", "YEM", 887, "YEM"), 
@@ -447,26 +454,54 @@ region_mapping = F.create_map(
 )
 
 # 5. UNION ALL COUNTRIES WITH CONSISTENT KEY GENERATION AND REGION ASSIGNMENT
+# source_precedence drives the deterministic duplicate-iso3 resolution below:
+#   1 = curated missing_countries (canonical names the alias table targets) — WINS
+#   2 = EPI-sourced rows (source spelling, e.g. 'Türkiye' for TUR)
+#   3 = Unknown placeholders (distinct UNK_* iso3, never collide)
 all_countries = (
     dim_country_base
     .withColumn("region", F.coalesce(region_mapping[F.col("iso3")], F.lit("Other")))
-    .unionByName(missing_countries.withColumn("region", F.coalesce(region_mapping[F.col("iso3")], F.lit("Other"))), allowMissingColumns=True)
-    .unionByName(unknown_countries, allowMissingColumns=True)
+    .withColumn("source_precedence", F.lit(2))
+    .unionByName(
+        missing_countries
+        .withColumn("region", F.coalesce(region_mapping[F.col("iso3")], F.lit("Other")))
+        .withColumn("source_precedence", F.lit(1)),
+        allowMissingColumns=True)
+    .unionByName(
+        unknown_countries.withColumn("source_precedence", F.lit(3)),
+        allowMissingColumns=True)
 )
 
 # Generate consistent keys for all records
+# DETERMINISTIC DUPLICATE-ISO3 RESOLUTION (task-025):
+# country_key = f(iso3) only, so a curated row and an EPI row for the same iso3
+# (e.g. Turkey: curated 'Turkey' vs EPI 'Türkiye') hash to the SAME country_key.
+# The old dropDuplicates(['country_key']) kept an ARBITRARY row per key —
+# nondeterministic country naming that could silently orphan every alias whose
+# standard_name is the curated spelling (the alias table targets 'Turkey', not
+# 'Türkiye'), sending procurement 'Turkey' rows to Unknown - Global on some runs
+# but not others. DECISION: curated missing_countries names win over EPI source
+# names (source_precedence 1 < 2). That is the naming the alias table resolves to,
+# so it maximises alias closure; the country_name_std tie-break makes the ordering
+# total and reproducible run-to-run. Note country_key is identical across the
+# colliding rows, so fact_epi_score (joined on iso3) is unaffected — only the
+# display name / iso_numeric / wb_code change.
+_dedupe_win = W.partitionBy("country_key").orderBy(
+    F.col("source_precedence").asc(), F.col("country_name_std").asc()
+)
 dim_country = (
     all_countries
     .withColumn("country_key", generate_country_key("iso3", "country_name_std"))
-    .withColumn("is_placeholder", 
+    .withColumn("is_placeholder",
         # Flag placeholder/unknown countries for transparency
         F.when(F.col("iso3").startswith("UNK_"), True).otherwise(False))
+    .withColumn("_dedupe_rn", F.row_number().over(_dedupe_win))
+    .filter(F.col("_dedupe_rn") == 1)
     .select("country_key", "iso3", "iso_numeric", "wb_code", "country_name_std", "region", "is_placeholder")
-    .dropDuplicates(["country_key"])
 )
 
 # 5. BUILD COMPREHENSIVE LOOKUP TABLE WITH CONFIDENCE SCORES
-country_lookup = (
+_country_lookup_raw = (
     # First, add all standard country names as self-lookups with 100% confidence
     dim_country
     .select(
@@ -478,7 +513,7 @@ country_lookup = (
     # Then add aliases with their confidence scores
     .unionByName(
         country_aliases_with_confidence.alias("ca")
-        .join(dim_country.alias("dc"), 
+        .join(dim_country.alias("dc"),
               F.col("ca.standard_name") == F.col("dc.country_name_std"), "inner")
         .select(
             F.col("ca.alias").alias("lookup_name"),
@@ -489,8 +524,39 @@ country_lookup = (
     )
 )
 
+# DEDUPE ON lookup_name (task-023): a country whose standard name also appears
+# verbatim in the alias seed (Tier-1 rows 'United States of America' and
+# 'United Kingdom' at ~L144-145) yields TWO rows sharing one lookup_name — the
+# self-lookup plus the redundant Tier-1 alias. fact_procurement / fact_supply_share
+# join on lookup_name, so each collision doubles the joined fact row and inflates
+# SUM(fact_procurement[spend_eur]). Keep exactly one row per lookup_name, chosen
+# deterministically (NOT an arbitrary dropDuplicates):
+#   1) highest match_confidence   (self-lookups are always 1.0 = the maximum)
+#   2) prefer the exact self-lookup over an equal-confidence alias (match_type=='exact')
+#   3) country_key as a final, run-to-run-stable total-order tiebreak
+_country_lu_win = W.partitionBy("lookup_name").orderBy(
+    F.col("match_confidence").desc(),
+    F.when(F.col("match_type") == "exact", 0).otherwise(1).asc(),
+    F.col("country_key").asc()
+)
+country_lookup = (
+    _country_lookup_raw
+    .withColumn("_lu_rn", F.row_number().over(_country_lu_win))
+    .filter(F.col("_lu_rn") == 1)
+    .drop("_lu_rn")
+)
+
 write_tbl(dim_country, "gold_dim_country")
 write_tbl(country_lookup, "gold_dim_country_lookup")
+
+# GUARD (task-023): lookup_name MUST be unique — a duplicate fans out every fact
+# row that joins on it. Fail the notebook loudly rather than silently doubling spend.
+_dup_country = country_lookup.groupBy("lookup_name").count().filter(F.col("count") > 1)
+_dup_country_n = _dup_country.count()
+assert _dup_country_n == 0, (
+    f"gold_dim_country_lookup has {_dup_country_n} duplicate lookup_name value(s): "
+    f"{[r['lookup_name'] for r in _dup_country.limit(10).collect()]}"
+)
 
 # METADATA ********************
 
@@ -712,24 +778,24 @@ dim_material = (
 )
 
 # Enhanced lookup with confidence scores
-material_lookup = (
+_material_lookup_raw = (
     dim_material
     .select(
-        F.col("material_name_std").alias("lookup_name"), 
+        F.col("material_name_std").alias("lookup_name"),
         "material_key",
-        "material_name_std", 
+        "material_name_std",
         "commodity_group",
         F.lit(1.0).alias("match_confidence"),
         F.lit("exact").alias("match_type")
     )
     .unionByName(
         material_aliases_with_confidence.alias("ma")
-        .join(dim_material.alias("dm"), 
+        .join(dim_material.alias("dm"),
               F.col("ma.standard_material") == F.col("dm.material_name_std"), "inner")
         .select(
-            F.col("ma.alias").alias("lookup_name"), 
-            "dm.material_key", 
-            "dm.material_name_std", 
+            F.col("ma.alias").alias("lookup_name"),
+            "dm.material_key",
+            "dm.material_name_std",
             "dm.commodity_group",
             F.col("ma.confidence").alias("match_confidence"),
             F.col("ma.match_type")
@@ -737,8 +803,33 @@ material_lookup = (
     )
 )
 
+# DEDUPE ON lookup_name (task-023): structurally identical self-mapping hazard as
+# the country lookup. No current material alias equals a standard material name, so
+# this is future-proofing — a later alias whose text matches a standard name would
+# otherwise reintroduce the fan-out. Same deterministic rule: exact / highest-
+# confidence row wins (see the country-lookup dedupe above for the ordering rationale).
+_material_lu_win = W.partitionBy("lookup_name").orderBy(
+    F.col("match_confidence").desc(),
+    F.when(F.col("match_type") == "exact", 0).otherwise(1).asc(),
+    F.col("material_key").asc()
+)
+material_lookup = (
+    _material_lookup_raw
+    .withColumn("_lu_rn", F.row_number().over(_material_lu_win))
+    .filter(F.col("_lu_rn") == 1)
+    .drop("_lu_rn")
+)
+
 write_tbl(dim_material, "gold_dim_material")
 write_tbl(material_lookup, "gold_dim_material_lookup")
+
+# GUARD (task-023): lookup_name MUST be unique — see the country-lookup guard above.
+_dup_material = material_lookup.groupBy("lookup_name").count().filter(F.col("count") > 1)
+_dup_material_n = _dup_material.count()
+assert _dup_material_n == 0, (
+    f"gold_dim_material_lookup has {_dup_material_n} duplicate lookup_name value(s): "
+    f"{[r['lookup_name'] for r in _dup_material.limit(10).collect()]}"
+)
 
 # METADATA ********************
 
@@ -925,6 +1016,13 @@ write_tbl(dim_date, "gold_dim_date")
 dim_country_lu = spark.table(f"{DB}.gold_dim_country_lookup").select(
     "lookup_name", "country_key", "iso3", "country_name_std", "match_confidence", "match_type"
 )
+# fact_epi_score joins on iso3 (EPI has one score per country), so it needs a
+# ONE-row-per-iso3 map — NOT dim_country_lu, which holds one row PER ALIAS per iso3
+# and would fan out each EPI score 2-7x for alias-rich countries (US/UK/Turkey/
+# Congo/Koreas), breaking the 'one row per country x indicator x year' grain. task-023.
+dim_country_iso3_map = spark.table(f"{DB}.gold_dim_country").select(
+    "iso3", "country_key"
+).dropDuplicates(["iso3"])
 dim_material_lu = spark.table(f"{DB}.gold_dim_material_lookup").select(
     "lookup_name", "material_key", "material_name_std", "commodity_group", "match_confidence", "match_type"
 )
@@ -975,8 +1073,10 @@ epi_long = (
 # Join with dimensions
 fact_epi_score = (
     epi_long
-    .join(dim_country_lu, on=epi_long.iso == dim_country_lu.iso3, how="left")
-    .join(dim_ind_lu.filter(F.col("source_system")=="EPI").select("indicator_key","abbrev"), 
+    # task-023: join the deduped iso3 -> country_key map (one row per iso3), NOT the
+    # per-alias dim_country_lu, so EPI scores are not duplicated once per country alias.
+    .join(dim_country_iso3_map, on=epi_long.iso == dim_country_iso3_map.iso3, how="left")
+    .join(dim_ind_lu.filter(F.col("source_system")=="EPI").select("indicator_key","abbrev"),
           on="abbrev", how="left")
     .withColumn("year", F.lit(2024).cast(IntegerType()))
     .select(F.col("country_key"), F.col("indicator_key"), "year", F.col("score"))
@@ -1059,7 +1159,25 @@ print(f"  Retained {fact_supply_share_clean.count()} of {total_records} records 
 
 # CELL ********************
 
-proc = spark.table(f"{DB}.silver_procurement")
+# Read silver for the fact. In incremental mode, mirror bronze-to-silver's 7-day look-back
+# window (see bronze-to-silver notebook-content.py ~L179-186) so we only rebuild the changed
+# window; in full-load mode (or first load) read the whole silver table.
+# task-029 DEPENDENCY: p_from_date defaults to "1900-01-01" until the high-water-mark lands,
+# so today this window == the full table — correct + idempotent, just not yet incremental-
+# efficient. It becomes truly incremental once task-029 computes a real watermark.
+_is_full_load = p_full_load.strip().lower() == "true"
+_fact_exists = spark.catalog.tableExists(f"{DB}.fact_procurement")
+
+if _is_full_load or not _fact_exists:
+    proc = spark.table(f"{DB}.silver_procurement")
+else:
+    from datetime import timedelta
+    _watermark_date = datetime.strptime(p_from_date, "%Y-%m-%d")
+    _lookback_str = (_watermark_date - timedelta(days=7)).strftime("%Y-%m-%d")
+    proc = (spark.table(f"{DB}.silver_procurement")
+            .filter(F.col("date").cast("date") >= F.lit(_lookback_str)))
+    print(f"fact_procurement: INCREMENTAL — silver window from {_lookback_str} "
+          f"(7-day look-back from {p_from_date})")
 
 # Extended unit normalization map
 unit_norm = F.create_map(*[
@@ -1152,18 +1270,37 @@ fact_procurement_complete = (
     )
 )
 
-is_full_load = p_full_load.lower() == "true"
-
-if is_full_load or not spark.catalog.tableExists(f"{DB}.fact_procurement"):
+# Write fact_procurement — full overwrite (full load / first load) or transaction-grain
+# delete-insert over the incremental window.
+# task-024 decision (2026-07-14): keep one-row-per-transaction grain and ABANDON the natural-key
+# MERGE. The old merge key (date_key, material_key, supplier_hq_country_key, production_country_key)
+# is coarser than the transaction grain, so legitimate same-day transactions collapsed onto one key:
+# same-batch dups threw Delta's "multiple source rows matched" (crash) and cross-run dups were
+# silently overwritten by whenMatchedUpdateAll (data loss). Delete-insert is lossless (NO dedupe —
+# every transaction is preserved) and idempotent: re-running deletes the same date_key window and
+# re-inserts the same rows. gold_tables.md grain "one row per transaction" is UNCHANGED.
+if _is_full_load or not _fact_exists:
     write_tbl(fact_procurement_complete, "fact_procurement")
 else:
-    merge_condition = """
-        target.date_key = source.date_key AND
-        target.material_key = source.material_key AND
-        target.supplier_hq_country_key = source.supplier_hq_country_key AND
-        target.production_country_key = source.production_country_key
-    """
-    merge_tbl(fact_procurement_complete, "fact_procurement", merge_condition)
+    from delta.tables import DeltaTable
+    # Delete-insert boundary = the minimum date_key actually present in the windowed fact. Because
+    # the window read pulled every silver row with date >= look-back, every silver row with
+    # date_key >= this minimum is in the window; deleting target rows with date_key >= min and
+    # re-inserting the window is therefore lossless AND idempotent. (Rows with a NULL date are
+    # excluded by the incremental window filter above, so they never accumulate here.)
+    window_min_date_key = fact_procurement_complete.agg(F.min("date_key")).first()[0]
+    if window_min_date_key is None:
+        print("fact_procurement: incremental window is empty — nothing to delete-insert")
+    else:
+        target = DeltaTable.forName(spark, f"{DB}.fact_procurement")
+        target.delete(F.col("date_key") >= F.lit(window_min_date_key))
+        (fact_procurement_complete.write
+            .format("delta")
+            .mode("append")
+            .saveAsTable(f"{DB}.fact_procurement"))
+        spark.sql(f"OPTIMIZE {DB}.fact_procurement")
+        print(f"✓ fact_procurement: delete-insert complete for date_key >= {window_min_date_key} "
+              f"({fact_procurement_complete.count():,} rows re-inserted)")
 
 # NEW: Create audit trail for unmapped records
 unmapped_audit = (

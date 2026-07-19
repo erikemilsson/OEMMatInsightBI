@@ -1,0 +1,30 @@
+{
+  "audit": "coherence",
+  "timestamp": "2026-06-21-2141",
+  "ran_at": "2026-06-21T21:41:00Z",
+  "lenses_requested": [
+    "superseded-decisions",
+    "vocab-drift",
+    "path-drift",
+    "feedback-decay",
+    "retired-features",
+    "friction-register",
+    "acceptance-reconciliation"
+  ],
+  "since_filter": null,
+  "capture_warnings": [
+    "verification-result.json absent — acceptance-reconciliation uses proxy (phase-verification.json) only; moot here (spec has 0 inline acceptance checkboxes)",
+    "CONTEXT.md absent — vocab-drift uses per-section voting heuristics (no canonical glossary)"
+  ],
+  "dispatch_strategy": {
+    "note": "Orchestrator short-circuits lenses with provably-empty inputs (deterministic 0 findings) by authoring their reports directly; dispatches fresh-context sub-agents only for lenses with real analytical work.",
+    "dispatched_subagents": ["vocab-drift", "path-drift"],
+    "authored_directly_zero_findings": {
+      "superseded-decisions": "inputs/decisions.json is [] (0 decision records on disk)",
+      "feedback-decay": "only FB-007 exists; age 7 days (<30), status 'new' — no decay criteria met",
+      "retired-features": "inputs/retired-manifests.json is [] (0 retired manifests)",
+      "friction-register": "1 open entry (<3 threshold); FR-001 (kind path_drift) is surfaced by the path-drift lens instead, avoiding double-count",
+      "acceptance-reconciliation": "spec_v1.md has 0 inline '- [ ]' acceptance checkboxes — lens N/A by its own gate"
+    }
+  }
+}

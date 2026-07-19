@@ -1,0 +1,69 @@
+{
+  "id": "task-025",
+  "title": "Make dim_country construction deterministic — duplicate iso3 rows (Turkey et al.) resolved by arbitrary dropDuplicates, breaking alias resolution run-to-run",
+  "description": "missing_countries hardcodes Turkey/TUR (plus Syria, Libya, North Korea, etc.) with the comment 'appear in procurement/supply data but not in EPI/WB' — but EPI 2024 DOES include Turkey (as 'Turkiye'/'Türkiye'; the notebook's own alias table expects that spelling to arrive from EPI). Both rows hash to the same country_key (key = f(iso3) via generate_country_key), and dropDuplicates(['country_key']) keeps an ARBITRARY row. If the EPI-named row ('Türkiye') wins, every alias targeting standard name 'Turkey' is silently dropped by the inner join when building country_lookup, and procurement rows saying 'Turkey' fall to Unknown-Global. Which behavior you get can flip between runs — nondeterministic country naming and mapping coverage that later looks like phantom data drift.",
+  "status": "In Progress",
+  "priority": "P1",
+  "difficulty": 4,
+  "owner": "both",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "spec_section": "Data Architecture / Gold Layer",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "estimated_hours": 2,
+  "files_affected": [
+    "fabric/silver-to-gold2.Notebook/notebook-content.py"
+  ],
+  "acceptanceCriteria": [
+    "dim_country resolution is deterministic: duplicate iso3 across sources resolved by explicit precedence (e.g. curated missing_countries names win over source names, or vice versa — decided and commented in the notebook), implemented via row_number() over a precedence column, not bare dropDuplicates.",
+    "missing_countries no longer double-registers countries present in EPI: either remove entries EPI already covers (verify per-entry against silver_epi2024results iso values) or rely on the precedence rule to make the overlap harmless — but the misleading 'not in EPI/WB' comment (silver-to-gold2:257-258) is corrected either way.",
+    "Alias closure check passes after /run-gold: every standard_name in country_aliases_with_confidence exists as a country_name_std in gold_dim_country (query returning 0 missing rows). Today 'Turkey' aliases can vanish silently via the inner join at lines 481-483.",
+    "Two consecutive /run-gold executions produce identical gold_dim_country content (deterministic — verify by EXCEPT/checksum comparison).",
+    "[Erik/Fabric] Spot-check in the report: procurement rows with country 'Turkey' (and 'Türkiye' encoding variants) map to the Turkey dim row, not Unknown - Global."
+  ],
+  "dependencies": [],
+  "decision_dependencies": [],
+  "notes": [
+    "AUDIT-DERIVED (pipeline quality audit 2026-07-13): finding #5 (critical tier). Not spec-decomposed — empty drift fingerprints.",
+    "EVIDENCE: missing_countries seed at silver-to-gold2 notebook-content.py:259-268 (includes ('Turkey','TUR',...)); country_key = generate_country_key over iso3 at lines 231-235 and 460; dropDuplicates(['country_key']) at line 465; alias inner join that silently drops orphaned aliases at lines 481-483; 'Türkiye' -> 'Turkey' aliases at lines 175-180 prove EPI-side Turkey naming is expected.",
+    "WHY NONDETERMINISTIC: Spark dropDuplicates keeps an arbitrary row per key (partition/order dependent) — the winner can change between runs/cluster configs. The bug is invisible on any single run.",
+    "SCOPE CHECK: audit only verified Turkey as a confirmed overlap; sweep the other missing_countries entries (PRK, YEM, SYR, LBY, XKX, SMR, NRU) against actual EPI iso values as part of the fix — some are genuinely absent from EPI and should stay.",
+    "COORDINATE with task-023 (same file, same alias/lookup machinery): whichever name wins precedence determines which alias rows survive; run task-023's acceptance queries again after this lands.",
+    "CLAUDE HALF DONE 2026-07-14: added a source_precedence column to each dim_country union branch (curated missing_countries=1, EPI=2, unknown=3) and replaced dropDuplicates(['country_key']) with row_number() over partitionBy('country_key').orderBy(source_precedence asc, country_name_std asc), keeping rn==1. Helper cols dropped by the existing final .select -> gold_dim_country schema byte-identical. Misleading 'not in EPI/WB' comment corrected. py_compile passes. PRECEDENCE DECISION (commented inline ~L475-491): curated names WIN over EPI spellings, because the alias table resolves variants TO curated spellings ('Türkiye'->'Turkey' etc.), so curated-wins maximises alias closure; country_key identical across colliding rows so fact_epi_score (joined on iso3) is unaffected. Known winner: TUR -> 'Turkey' (not 'Türkiye') -> task-023 keeps all 6 Turkey aliases.",
+    "ERIK (Fabric) — remaining acceptance: (crit 4) run /run-gold twice, EXCEPT/checksum-compare gold_dim_country -> identical; (crit 3) run the alias-closure query (every country_aliases standard_name exists as country_name_std) -> 0 missing [curated-collision closure is guaranteed by the fix; residual gaps would be non-curated EPI spellings = task-023 territory]; (crit 5) report spot-check: procurement 'Turkey'/'Türkiye' map to the Turkey dim row, not Unknown-Global.",
+    "NON-BLOCKING (noted by implementer): epi.dropDuplicates(['iso3']) ~L242 is the same nondeterminism class but benign today (silver_epi2024results is one-row-per-country); consider an assert if EPI ingestion changes."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-07-13",
+  "updated_date": "2026-07-14",
+  "completion_date": null,
+  "verification_attempts": 1,
+  "task_verification": {
+    "result": "pass",
+    "attempt_number": 1,
+    "timestamp": "2026-07-14T00:00:00Z",
+    "checks": {"files_exist": "pass", "consistency_check": "pass", "spec_alignment": "pass", "output_quality": "pass", "runtime_validation": "partial", "integration_ready": "pass", "scope_validation": "pass"},
+    "issues": [],
+    "notes": "Claude code-half verified (owner:both). dropDuplicates(['country_key']) replaced with row_number() over partitionBy('country_key').orderBy(source_precedence asc, country_name_std asc), rn==1. Precedence real+total+commented (L456-491); curated=1 wins over EPI spellings, independently confirmed correct (alias table maps variants TO curated names, so curated-wins maximises alias closure; TUR->'Turkey' deterministically). Final .select drops helper cols -> gold_dim_country schema byte-identical (7 cols). py_compile passes. runtime_validation=partial: two-run EXCEPT determinism, alias-closure query, Turkey report spot-check are Erik's Fabric half; code makes all three achievable. Surgical enough that task-023 builds on it cleanly."
+  },
+  "verification_history": [
+    {"attempt": 1, "result": "pass", "timestamp": "2026-07-14T00:00:00Z", "summary": "Root-cause deterministic fix (not symptom-hide); precedence total & commented; schema preserved; py_compile OK. Fabric run criteria = Erik."}
+  ],
+  "test_protocol": {
+    "summary": "Fabric-side confirmation of task-025 (Erik runs in Fabric UI)",
+    "steps": [
+      {"instruction": "Run /run-gold twice, then EXCEPT/checksum-compare gold_dim_country between the two runs", "expected": "Identical content both runs (0 rows in symmetric EXCEPT) — deterministic", "type": "command"},
+      {"instruction": "Run the alias-closure query: every standard_name in country_aliases_with_confidence exists as a country_name_std in gold_dim_country", "expected": "0 missing rows for curated-collision names (Turkey/Syria/North Korea guaranteed by the fix); any residual = non-curated EPI spelling = task-023 territory", "type": "command"},
+      {"instruction": "Report spot-check: procurement rows with country 'Turkey' and 'Türkiye' encoding variants", "expected": "Map to the Turkey dim row, NOT Unknown - Global", "type": "visual"}
+    ],
+    "automated_results": "Static verification passed (py_compile OK; dedup logic, precedence totality, schema-preservation, alias-direction all confirmed by code trace). Live Spark/Fabric execution not runnable locally.",
+    "estimated_time": "10 minutes"
+  },
+  "user_review_pending": true,
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "dashboard"
+}

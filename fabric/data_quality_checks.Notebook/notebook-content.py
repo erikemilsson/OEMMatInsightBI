@@ -27,10 +27,16 @@
 # **Check Functions:**
 # - Bronze (5): Row count validation, Schema validation, Required field completeness, Duplicate detection, Date range validation
 # - Silver (5): Referential integrity, Business rule validation, Outlier detection (Z-score), Data type consistency, Completeness (post-join)
-# - Gold (2): Aggregate reconciliation, Trend validation (anomaly detection)
+# - Gold (4): Aggregate reconciliation, Trend validation, Lookup-name uniqueness, Duplicate-grain on facts
 #
 # **Task 020 additions:** date_range_validation (Bronze), data_type_consistency (Silver),
 # silver_completeness (Silver) — see in-notebook rationale on the silver completeness cell.
+#
+# **Task 026 additions:** severity model with a SINGLE aggregated raise (final cell) —
+# blocking checks fail the pipeline activity, advisory checks only log/score. New checks:
+# lookup_name uniqueness (gold lookup dims), duplicate-grain (gold facts), bronze_WGI
+# coverage, fact_epi_score + fact_procurement.date_key referential integrity. Also fixed
+# the dead spend reconciliation and the heterogeneous-metric trend check.
 #
 # **Output:** Results are scored (0-100 scale), categorized (Excellent/Good/Fair/Poor/Critical),
 # and persisted to `gold_quality_history` for trend tracking.
@@ -243,6 +249,9 @@ row_count_checks = [
     ("oem_lh.bronze_supplier_ref", 5, 10000),
     ("oem_lh.bronze_epi2024results", 150, 250),
     ("oem_lh.bronze_GlobalSupplyShares", 100, 100000),
+    # task-026 (5e): bronze_WGI (WB governance percentile, one row per country x
+    # indicator series) — advisory row-count guard, generous range.
+    ("oem_lh.bronze_WGI", 50, 500000),
 ]
 
 row_count_results = []
@@ -338,6 +347,12 @@ schema_checks = {
     },
     "oem_lh.bronze_GlobalSupplyShares": {
         "Material": "string", "Stage": "string", "Country": "string", "Share": None
+    },
+    # task-026 (5e): bronze_WGI schema. Advisory — validates the descriptor columns
+    # plus the percentile value column exist (Percentile Rank 2023 is numeric).
+    "oem_lh.bronze_WGI": {
+        "Country Name": "string", "Country Code": "string",
+        "Series Name": "string", "Percentile Rank 2023": None
     },
 }
 
@@ -437,6 +452,9 @@ completeness_checks = [
      ["iso", "country", "EPI"]),
     ("oem_lh.bronze_GlobalSupplyShares",
      ["Material", "Stage", "Country", "Share"]),
+    # task-026 (5e): bronze_WGI required descriptor fields (advisory).
+    ("oem_lh.bronze_WGI",
+     ["Country Name", "Country Code", "Series Name"]),
 ]
 
 completeness_results = []
@@ -462,7 +480,8 @@ for table, fields in completeness_checks:
 # CHECK 4: DUPLICATE DETECTION
 # =============================================================================
 
-def detect_duplicates(table_name, key_columns, duplicate_tolerance_pct=0.0):
+def detect_duplicates(table_name, key_columns, duplicate_tolerance_pct=0.0,
+                      layer="Bronze", check_name="duplicate_detection"):
     """
     Detect duplicate records based on natural key columns.
 
@@ -470,6 +489,10 @@ def detect_duplicates(table_name, key_columns, duplicate_tolerance_pct=0.0):
         table_name: Fully qualified table name
         key_columns: List of columns that define a unique record
         duplicate_tolerance_pct: Maximum acceptable duplicate percentage
+        layer: Quality layer for reporting ("Bronze"/"Silver"/"Gold")
+        check_name: Check name for logging. Defaults to "duplicate_detection";
+            gold uniqueness reuses this engine under "lookup_name_uniqueness" and
+            "grain_uniqueness" so those results carry their own blocking identity.
 
     Returns:
         dict with duplicate counts and score
@@ -481,7 +504,7 @@ def detect_duplicates(table_name, key_columns, duplicate_tolerance_pct=0.0):
 
     if total_rows == 0:
         elapsed_ms = int((time.time() - start_ms) * 1000)
-        log_check_result("duplicate_detection", "Bronze", table_name, "pass", 100.0,
+        log_check_result(check_name, layer, table_name, "pass", 100.0,
                          "Table is empty", 0, 0, elapsed_ms)
         return {"table": table_name, "status": "pass", "score": 100.0}
 
@@ -505,7 +528,7 @@ def detect_duplicates(table_name, key_columns, duplicate_tolerance_pct=0.0):
         dup_df.show(truncate=False)
 
     log_check_result(
-        "duplicate_detection", "Bronze", table_name, status, score,
+        check_name, layer, table_name, status, score,
         details, failed_rows=duplicate_count, total_rows=total_rows,
         execution_time_ms=elapsed_ms
     )
@@ -515,9 +538,18 @@ def detect_duplicates(table_name, key_columns, duplicate_tolerance_pct=0.0):
 
 print("\n--- Bronze Check 4: Duplicate Detection ---")
 
+# CRITERION 4 RESCOPE (task-026, carry-forward from task-024): task-024 replaced
+# the silver+gold procurement natural-key MERGE with transaction-grain
+# date-partition delete-insert, so there is NO silver "merge key" collision left
+# to guard. The procurement duplicate check now targets GENUINE duplicate
+# transactions worth flagging: the FULL business signature
+# (Date/MaterialName/SupplierName/Quantity/Unit/UnitPriceEUR) appearing more than
+# once is a true double-entry — the previous key omitted Unit + UnitPriceEUR and
+# was aligned to a merge key that no longer exists. This check is BLOCKING (0%
+# tolerance) per the minimum blocking set.
 duplicate_checks = [
     ("oem_lh.bronze_procurement_transactional",
-     ["Date", "MaterialName", "SupplierName", "Quantity"]),
+     ["Date", "MaterialName", "SupplierName", "Quantity", "Unit", "UnitPriceEUR"]),
     ("oem_lh.bronze_supplier_ref",
      ["SupplierName"]),
     ("oem_lh.bronze_epi2024results",
@@ -713,8 +745,13 @@ ri_checks = [
     ("oem_lh.fact_procurement", "material_key", "oem_lh.gold_dim_material", "material_key"),
     ("oem_lh.fact_procurement", "supplier_hq_country_key", "oem_lh.gold_dim_country", "country_key"),
     ("oem_lh.fact_procurement", "production_country_key", "oem_lh.gold_dim_country", "country_key"),
+    # task-026 (5d): fact_procurement.date_key -> gold_dim_date
+    ("oem_lh.fact_procurement", "date_key", "oem_lh.gold_dim_date", "date_key"),
     ("oem_lh.fact_supply_share", "material_key", "oem_lh.gold_dim_material", "material_key"),
     ("oem_lh.fact_supply_share", "country_key", "oem_lh.gold_dim_country", "country_key"),
+    # task-026 (5c): fact_epi_score.country_key/indicator_key -> dims
+    ("oem_lh.fact_epi_score", "country_key", "oem_lh.gold_dim_country", "country_key"),
+    ("oem_lh.fact_epi_score", "indicator_key", "oem_lh.gold_dim_indicator", "indicator_key"),
 ]
 
 ri_results = []
@@ -1157,7 +1194,7 @@ for table, cols in silver_completeness_checks:
 
 # MARKDOWN ********************
 
-# ## 3. Gold Layer Checks (2 checks)
+# ## 3. Gold Layer Checks (4 checks)
 # Validate aggregations, business metrics, and trend consistency.
 
 # CELL ********************
@@ -1174,8 +1211,9 @@ def reconcile_aggregates(source_table, target_table, source_column, target_colum
     Args:
         source_table: Source layer table
         target_table: Target layer table
-        source_column: Column to sum in source
-        target_column: Column to sum in target
+        source_column: Column OR SQL expression to sum in source
+            (e.g. "spend_eur" or "quantity * unitpriceeur")
+        target_column: Column OR SQL expression to sum in target
         tolerance_pct: Maximum acceptable difference percentage (default 1.0 = 1%)
 
     Returns:
@@ -1183,8 +1221,10 @@ def reconcile_aggregates(source_table, target_table, source_column, target_colum
     """
     start_ms = time.time()
 
-    source_total = spark.table(source_table).select(F.sum(source_column)).first()[0]
-    target_total = spark.table(target_table).select(F.sum(target_column)).first()[0]
+    # Use SUM(<expr>) so callers can reconcile a computed quantity (silver has no
+    # spend column — spend is derived in gold) rather than only a bare column.
+    source_total = spark.table(source_table).select(F.expr(f"SUM({source_column})")).first()[0]
+    target_total = spark.table(target_table).select(F.expr(f"SUM({target_column})")).first()[0]
 
     source_total = float(source_total) if source_total is not None else 0.0
     target_total = float(target_total) if target_total is not None else 0.0
@@ -1220,20 +1260,38 @@ def reconcile_aggregates(source_table, target_table, source_column, target_colum
 
 print("\n--- Gold Check 11: Aggregate Reconciliation ---")
 
-# Reconcile silver procurement spend with gold fact procurement spend
+# CRITERION 3 FIX (task-026): the old config reconciled silver_procurement.spend_eur
+# — a column that does NOT exist in silver (spend is computed in gold) — so every
+# run threw AnalysisException, was swallowed, and logged a permanent score-0 "fail"
+# that reconciled nothing. Fixed to compare COMPUTABLE quantities: silver-side
+# SUM(quantity * unitpriceeur) vs gold SUM(spend_eur). This now genuinely executes.
+#
+# SEVERITY = ADVISORY (intentionally NOT in the blocking set). Gold derives
+# spend_eur = quantity_base * unitprice_eur where quantity_base = quantity *
+# unit_factor (kg-normalization; silver-to-gold2). The silver-side raw
+# SUM(quantity * unitpriceeur) therefore reconciles EXACTLY only when all rows are
+# already in the base unit (kg) — true for the sample dataset, but tying a
+# pipeline-halting raise to that assumption is unsafe. The fan-out drift this check
+# guards against (task-023/024) is caught as BLOCKING by lookup_name_uniqueness and
+# grain_uniqueness. Promote this to blocking once unit uniformity is confirmed.
 reconciliation_checks = [
-    ("oem_lh.silver_procurement", "oem_lh.fact_procurement", "spend_eur", "spend_eur", 1.0),
+    ("oem_lh.silver_procurement", "oem_lh.fact_procurement",
+     "quantity * unitpriceeur", "spend_eur", 1.0),
 ]
 
 recon_results = []
 for src_tbl, tgt_tbl, src_col, tgt_col, tol in reconciliation_checks:
+    # No blanket AnalysisException swallow here: with the computable expression the
+    # check executes for real. The narrow guard below only catches genuine
+    # infra errors (missing table) so the notebook still reaches the persist +
+    # aggregated-raise cells (advisory, so an infra miss won't halt the pipeline).
     try:
         result = reconcile_aggregates(src_tbl, tgt_tbl, src_col, tgt_col, tol)
         recon_results.append(result)
     except Exception as e:
-        print(f"  [SKIP] {src_tbl} vs {tgt_tbl}: {str(e)}")
+        print(f"  [ERROR] {src_tbl} vs {tgt_tbl} not reconcilable: {str(e)}")
         log_check_result("aggregate_reconciliation", "Gold", tgt_tbl, "fail", 0.0,
-                         f"Reconciliation failed: {str(e)}")
+                         f"Reconciliation could not execute (infra error): {str(e)}")
 
 # METADATA ********************
 
@@ -1249,7 +1307,7 @@ for src_tbl, tgt_tbl, src_col, tgt_col, tol in reconciliation_checks:
 # =============================================================================
 
 def validate_historical_trend(table_name, metric_column, date_column,
-                              anomaly_threshold_pct=50.0):
+                              anomaly_threshold_pct=50.0, filter_condition=None):
     """
     Detect anomalous changes in historical trends by comparing the most recent
     period against the previous period.
@@ -1259,6 +1317,10 @@ def validate_historical_trend(table_name, metric_column, date_column,
         metric_column: Column to track (summed per period)
         date_column: Date/period column for ordering
         anomaly_threshold_pct: % change threshold that triggers an alert
+        filter_condition: Optional SQL predicate to restrict rows BEFORE aggregation.
+            Required when the table mixes heterogeneous metrics (see the task-026
+            fix in the caller): summing metric_value across percentages + counts +
+            EUR yields a meaningless % change, so scope to one metric_name.
 
     Returns:
         dict with trend analysis results
@@ -1266,6 +1328,8 @@ def validate_historical_trend(table_name, metric_column, date_column,
     start_ms = time.time()
 
     df = spark.table(table_name)
+    if filter_condition:
+        df = df.filter(F.expr(filter_condition))
 
     # Get the two most recent distinct periods
     periods = (df.select(F.col(date_column))
@@ -1327,20 +1391,98 @@ def validate_historical_trend(table_name, metric_column, date_column,
 
 print("\n--- Gold Check 12: Trend Validation ---")
 
-# Trend checks on quality history metrics
+# TREND-CHECK FIX (task-026): the old config summed metric_value across ALL rows in
+# gold_quality_history between the two most recent refresh_timestamps — but that
+# table mixes heterogeneous metrics (dq scores 0-100, dimension scores, rating
+# codes), so the % change was not meaningful. Scope to a single homogeneous
+# metric_name (dq_overall_score) so the run-over-run trend is interpretable.
 trend_checks = [
-    ("oem_lh.gold_quality_history", "metric_value", "refresh_timestamp", 50.0),
+    ("oem_lh.gold_quality_history", "metric_value", "refresh_timestamp", 50.0,
+     "metric_name = 'dq_overall_score'"),
 ]
 
 trend_results = []
-for table, metric, date_col, threshold in trend_checks:
+for table, metric, date_col, threshold, filt in trend_checks:
     try:
-        result = validate_historical_trend(table, metric, date_col, threshold)
+        result = validate_historical_trend(table, metric, date_col, threshold,
+                                           filter_condition=filt)
         trend_results.append(result)
     except Exception as e:
         print(f"  [SKIP] {table}: {str(e)}")
         log_check_result("trend_validation", "Gold", table, "pass", 100.0,
                          f"Trend check skipped: {str(e)}")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ## 3b. Gold Uniqueness Checks (task-026)
+# lookup_name uniqueness on gold lookup dims and duplicate-grain on gold facts —
+# the fan-out guards that would have caught the task-023 spend inflation.
+
+# CELL ********************
+
+# =============================================================================
+# CHECK 13: LOOKUP-NAME UNIQUENESS (gold lookup dimensions) — task-026 (5a)
+# =============================================================================
+# A duplicate lookup_name in a lookup dim fans out EVERY fact that joins on it
+# (root cause of the task-023 spend inflation). silver-to-gold2 already hard-guards
+# this at build time; this is the observability layer that records it to history
+# and gates the pipeline (BLOCKING).
+print("\n--- Gold Check 13: Lookup-Name Uniqueness ---")
+
+lookup_uniqueness_checks = [
+    ("oem_lh.gold_dim_country_lookup", ["lookup_name"]),
+    ("oem_lh.gold_dim_material_lookup", ["lookup_name"]),
+]
+
+for table, keys in lookup_uniqueness_checks:
+    try:
+        detect_duplicates(table, keys, layer="Gold", check_name="lookup_name_uniqueness")
+    except Exception as e:
+        print(f"  [SKIP] {table}: {str(e)}")
+        log_check_result("lookup_name_uniqueness", "Gold", table, "fail", 0.0,
+                         f"Table not accessible: {str(e)}")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# =============================================================================
+# CHECK 14: DUPLICATE-GRAIN ON GOLD FACTS — task-026 (5b)
+# =============================================================================
+# Catches join fan-out (task-023) by asserting each fact holds at most one row per
+# its declared grain. fact_supply_share and fact_epi_score have clean surrogate
+# grains -> BLOCKING at 0% tolerance. fact_procurement is transaction-grain with no
+# surrogate key and legitimately permits exact repeats, so its full business-tuple
+# check is ADVISORY (a sustained rise still flags a possible fan-out).
+print("\n--- Gold Check 14: Duplicate-Grain on Gold Facts ---")
+
+grain_checks = [
+    ("oem_lh.fact_supply_share", ["material_key", "stage_key", "country_key", "year"]),
+    ("oem_lh.fact_epi_score", ["country_key", "indicator_key", "year"]),
+    ("oem_lh.fact_procurement",
+     ["date_key", "material_key", "supplier_hq_country_key",
+      "production_country_key", "quantity_base", "unitprice_eur"]),
+]
+
+for table, keys in grain_checks:
+    try:
+        detect_duplicates(table, keys, layer="Gold", check_name="grain_uniqueness")
+    except Exception as e:
+        print(f"  [SKIP] {table}: {str(e)}")
+        log_check_result("grain_uniqueness", "Gold", table, "fail", 0.0,
+                         f"Table not accessible: {str(e)}")
 
 # METADATA ********************
 
@@ -1388,6 +1530,8 @@ CHECK_TO_DIMENSION = {
     "silver_completeness": "completeness",
     "aggregate_reconciliation": "consistency",
     "trend_validation": "timeliness",
+    "lookup_name_uniqueness": "uniqueness",
+    "grain_uniqueness": "uniqueness",
 }
 
 # Aggregate scores by layer
@@ -1586,6 +1730,100 @@ print("\n" + "=" * 70)
 print(f"Data Quality Checks Complete: {pipeline_run_ts.strftime('%Y-%m-%d %H:%M:%S')}")
 print(f"Overall Score: {overall_score:.1f}/100 ({overall_rating})")
 print("=" * 70)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ## 7. Blocking-Check Enforcement (task-026)
+# Severity model + single aggregated raise. This is the core fix: before task-026
+# the notebook had ZERO raises, so no check could halt anything and the DQ layer
+# guarded nothing. Runs LAST — after results are persisted to gold_quality_history
+# and after the detailed table prints — so a FAILING run still leaves the full
+# picture of every check, then fails the pipeline activity.
+
+# CELL ********************
+
+# =============================================================================
+# BLOCKING-CHECK ENFORCEMENT (single aggregated raise)
+# =============================================================================
+#
+# SEVERITY MODEL
+# --------------
+# Every check is logged + scored + persisted (advisory baseline). A subset are
+# additionally BLOCKING: if any blocking check ends "fail", we raise ONCE here so
+# the Fabric pipeline activity (and therefore the pipeline) fails.
+#
+# Design (task-026 DESIGN NOTE): collect ALL results first, then raise a SINGLE
+# aggregated exception AFTER persistence — so one failing check never hides another
+# and gold_quality_history always receives the full picture of a failing run.
+#
+# Blocking membership is keyed by (check_name, table_name). Everything not listed
+# is advisory (logged/scored/persisted only, never fatal).
+
+class DataQualityException(Exception):
+    """Raised when one or more BLOCKING data-quality checks fail (framework contract:
+    data_quality_framework.md raise pattern). A single aggregated raise fails the
+    orchestrator's data_quality_checks activity and halts the pipeline."""
+    pass
+
+
+# Minimum blocking set (task-026 criterion 2) + the new fan-out guards (criterion 5).
+BLOCKING_CHECKS = {
+    # Schema validation — structural contract for the core bronze tables.
+    ("schema_validation", "oem_lh.bronze_procurement_transactional"),
+    ("schema_validation", "oem_lh.bronze_supplier_ref"),
+    ("schema_validation", "oem_lh.bronze_epi2024results"),
+    ("schema_validation", "oem_lh.bronze_GlobalSupplyShares"),
+    # Required-field completeness on procurement (0% null tolerance).
+    ("required_field_completeness", "oem_lh.bronze_procurement_transactional"),
+    # Duplicate detection — genuine duplicate procurement transactions (criterion 4).
+    ("duplicate_detection", "oem_lh.bronze_procurement_transactional"),
+    # Referential integrity at 0% tolerance on all gold facts (all their FK checks).
+    ("referential_integrity", "oem_lh.fact_procurement"),
+    ("referential_integrity", "oem_lh.fact_supply_share"),
+    ("referential_integrity", "oem_lh.fact_epi_score"),
+    # lookup_name uniqueness on the gold lookup dims (fan-out guard, criterion 5a).
+    ("lookup_name_uniqueness", "oem_lh.gold_dim_country_lookup"),
+    ("lookup_name_uniqueness", "oem_lh.gold_dim_material_lookup"),
+    # Duplicate-grain on the surrogate-grain gold facts (fan-out guard, criterion 5b).
+    ("grain_uniqueness", "oem_lh.fact_supply_share"),
+    ("grain_uniqueness", "oem_lh.fact_epi_score"),
+    # ADVISORY (intentionally absent): grain_uniqueness on fact_procurement
+    # (transaction grain permits legit exact repeats) and aggregate_reconciliation
+    # (unit-normalization caveat — see Check 11). Both still log/persist a "fail".
+}
+
+
+def is_blocking(result):
+    return (result["check_name"], result["table_name"]) in BLOCKING_CHECKS
+
+
+blocking_evaluated = [r for r in all_check_results if is_blocking(r)]
+blocking_failures = [r for r in blocking_evaluated if r["status"] == "fail"]
+
+print("\n" + "=" * 70)
+print("BLOCKING-CHECK ENFORCEMENT")
+print("=" * 70)
+print(f"Blocking checks evaluated: {len(blocking_evaluated)}")
+print(f"Blocking failures:         {len(blocking_failures)}")
+
+if blocking_failures:
+    print("\nFAILED BLOCKING CHECKS (pipeline will halt):")
+    for r in blocking_failures:
+        print(f"  [BLOCK] {r['check_name']} on {r['table_name']}: {r['details']}")
+    summary = "; ".join(f"{r['check_name']}@{r['table_name']}" for r in blocking_failures)
+    raise DataQualityException(
+        f"{len(blocking_failures)} blocking data-quality check(s) failed: {summary}. "
+        f"Full results persisted to {DB}.gold_quality_history."
+    )
+else:
+    print("\nAll blocking checks passed. Pipeline may proceed.")
 
 # METADATA ********************
 

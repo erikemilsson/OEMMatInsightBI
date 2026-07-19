@@ -1,0 +1,45 @@
+{
+  "id": "task-030",
+  "title": "Harden fact_procurement inputs — NULL date_key rows leak into the fact, unknown units silently pass through as kg, unitpriceeur semantics unverified",
+  "description": "Three input-hardening gaps in the fact_procurement build. (A) Rows whose date fails the cast keep NULL date_key via the left join to dim_date — unlike material/country misses there is no placeholder or filter, so in DirectLake those rows vanish from every date-filtered visual while still counting in unfiltered totals; card totals and time-series won't reconcile, and no RI check covers date_key. (B) unit_norm covers only kg/g/mg/t (matching calculations.md) but the fallback for any OTHER unit is .otherwise(quantity) — a row with unit 'lb' or 'tonne' keeps its raw magnitude labeled kg, silently corrupting quantity_base and spend_eur, with no DQ check on the unit domain. (C) calculations.md asserts unitprice_eur is EUR-per-kg; bronze carries a per-row Unit column, so if the source price is actually per row-unit, spend for tonne-denominated rows is inflated x1000. The audit could not verify this against the Azure SQL source — it needs a one-time human confirmation.",
+  "status": "Pending",
+  "priority": "P2",
+  "difficulty": 3,
+  "owner": "both",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "spec_section": "Data Architecture / Gold Layer",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "estimated_hours": 3,
+  "files_affected": [
+    "fabric/silver-to-gold2.Notebook/notebook-content.py"
+  ],
+  "acceptanceCriteria": [
+    "NULL date_key rows are handled deliberately: either quarantined to the unmapped audit (consistent with the material/country placeholder philosophy — 'no data loss' medallion principle) or given an explicit unknown-date member in dim_date; silently-vanishing-from-date-visuals is eliminated. Choice commented in the notebook.",
+    "Unknown units no longer default to kg: rows with units outside unit_norm are flagged (quarantine/audit row + warning) instead of passing through unconverted (fix silver-to-gold2:1097-1101). The distinct unit domain observed in silver is printed/logged each run.",
+    "[Erik] unitpriceeur semantics confirmed against the Azure SQL source (is the price per kg or per the row's Unit?) and the answer recorded in calculations.md and bronze_tables.md. If per-row-unit, the spend formula is corrected to quantity_original x price (no base conversion on the price side) and historical spend is rebuilt.",
+    "A unit-domain DQ check and a date_key RI/null check are added or delegated to task-026's check list (cross-reference, don't duplicate — note which task carries them).",
+    "After /run-gold: COUNT of fact_procurement rows with NULL date_key is 0 (or they are all represented in the audit/quarantine), and unfiltered vs date-sliced spend totals reconcile in the report."
+  ],
+  "dependencies": [],
+  "decision_dependencies": [],
+  "notes": [
+    "AUDIT-DERIVED (pipeline quality audit 2026-07-13): findings #13, #15 (medium tier). Not spec-decomposed — empty drift fingerprints.",
+    "EVIDENCE (A): txn_date cast + left join to dim_date_lu at silver-to-gold2:1076,1087; final select keeps d.date_key nullable at 1141; placeholder handling exists for material/country (1122-1138) but not date. RI checks in data_quality_checks (712-718) omit dim_date entirely.",
+    "EVIDENCE (B): unit_norm map at lines 1065-1071 (kg/g/mg/t only, comment '... (rest remains same)'); fallback .otherwise(F.col('p.quantity')) at 1099-1101. calculations.md:14-18 documents exactly these four factors, so the map matches the doc — the FALLBACK is the bug.",
+    "EVIDENCE (C): calculations.md:7 'spend_eur = quantity_base (kg) x unitprice_eur (EUR/kg)'; bronze schema has Unit per row (bronze_tables.md:12) making per-unit pricing plausible. UNVERIFIED in audit — flagged explicitly as needing source confirmation, hence owner=both.",
+    "SIDE NOTE for consistency: populate_low_confidence_audit computes spend_impact as SUM(quantity * unitpriceeur) (line 2325) — i.e. WITHOUT unit conversion — inconsistent with fact spend (quantity_base * price). Whichever semantics (C) confirms, align this too.",
+    "COORDINATE: same file as tasks 023/025/027/028 — serialize."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-07-13",
+  "updated_date": "2026-07-13",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "dashboard"
+}

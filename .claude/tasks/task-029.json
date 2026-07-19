@@ -1,0 +1,48 @@
+{
+  "id": "task-029",
+  "title": "Implement the documented high-water-mark system (bronze_load_metadata + parameter flow) — or formally descope it via /iterate",
+  "description": "incremental_load_strategy.md sections 4-5 specify a bronze_load_metadata table, get_last_load_date()/update_load_metadata() functions, and p_from_date flowing to the bronze dataflows. NONE of it exists: grep across fabric/ and src/ finds no bronze_load_metadata anywhere; the pipeline passes a static p_from_date defaulting to '1900-01-01' (pipeline-content.json:478-481); and the bronze dataflow activities receive no parameters at all (bronze_procurement activity, lines 290-307). Net effect today: 'incremental' mode reprocesses all of bronze from 1899-12-25 through the fragile MERGE path (see task-024) with none of the documented 70-90% savings, and bronze always full-loads regardless. This is the largest single doc-vs-implementation drift in the incremental strategy. Two honest resolutions: (a) implement the watermark (metadata table + notebook auto-retrieve + optionally dataflow parameter pushdown), or (b) decide the portfolio project doesn't need real watermarking and update the strategy doc to describe the actual design (static parameter, caller-supplied watermark) via /iterate.",
+  "status": "Pending",
+  "priority": "P2",
+  "difficulty": 5,
+  "owner": "both",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "spec_section": "Incremental Load Strategy",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "estimated_hours": 5,
+  "files_affected": [
+    "fabric/bronze-to-silver.Notebook/notebook-content.py",
+    "fabric/silver-to-gold2.Notebook/notebook-content.py",
+    "fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/pipeline-content.json"
+  ],
+  "acceptanceCriteria": [
+    "Path chosen and recorded: (a) implement watermark, or (b) descope with doc update via /iterate. If (b), the remaining criteria below are replaced by the doc reconciliation and this task closes with the /iterate proposal applied.",
+    "If (a): bronze_load_metadata Delta table created per incremental_load_strategy.md:399-421 schema (source_table, last_load_date, load_timestamp, rows_loaded, load_status, execution_id).",
+    "If (a): bronze-to-silver resolves the effective watermark per the doc's precedence (full_load -> 1900-01-01; explicit p_from_date override; else auto-retrieve last SUCCESS from metadata — doc lines 576-599), and writes a metadata row after load (SUCCESS with max date loaded / FAILED on exception, doc lines 449-474).",
+    "If (a): silver-to-gold consumes the same effective watermark for its filtered read (coordinates with task-024's gold-side p_from_date filter — same watermark value, don't invent a second mechanism).",
+    "If (a): [Erik/Fabric] two consecutive incremental runs demonstrate the watermark advancing (second run reads only the look-back window) and a forced failure leaves a FAILED row without advancing the watermark.",
+    "Dataflow-side pushdown (p_from_date into bronze_procurement dataflow, doc section 5) is explicitly decided: implemented, or deferred with a note in the doc — bronze full-refresh may be acceptable at demo volume, but the doc must stop claiming otherwise."
+  ],
+  "dependencies": ["task-024"],
+  "decision_dependencies": [],
+  "notes": [
+    "AUDIT-DERIVED (pipeline quality audit 2026-07-13): finding #10 (high tier). Not spec-decomposed — empty drift fingerprints.",
+    "EVIDENCE: Grep for bronze_load_metadata/get_last_load_date across fabric/ and src/ returns nothing (only the local 'watermark_date' variable in bronze-to-silver:180). Pipeline parameter defaults at pipeline-content.json:474-481. Bronze dataflow activities carry no parameters: bronze_procurement at lines 290-307, bronze_WGI at 272-289, bronze_EPI at 308-325. Doc contract: incremental_load_strategy.md sections 4 (lines 397-474) and 5 (lines 478-599).",
+    "DEPENDS ON task-024 because the value of a watermark is moot until the MERGE path it feeds is safe, and 024 may add the gold-side p_from_date filter this task then wires to the metadata table.",
+    "FILE CONFLICT: pipeline-content.json is also touched by task-022 (In Progress) and task-026 — serialize.",
+    "DESCOPE GUIDANCE: if (b), the doc rewrite goes through /iterate per DEC-016 only if the content lives in spec files; incremental_load_strategy.md is a support document, so a direct edit is permitted — but check whether spec_v1.md references the watermark design (grep 'watermark|high-water' in .claude/spec_v1.md first; if yes, that part routes through /iterate).",
+    "PORTFOLIO ANGLE: this project exists to demonstrate production patterns (root CLAUDE.md: 'incremental Delta MERGE' is a named learning goal) — option (a) is more aligned with the project's purpose; option (b) is honest-but-lighter. Erik's call."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-07-13",
+  "updated_date": "2026-07-13",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "dashboard"
+}
