@@ -386,5 +386,5 @@ for table in tables_to_export:
 - `/.claude/support/documents/schemas/bronze_tables.md`
 - `/.claude/support/documents/schemas/silver_tables.md`
 - `/.claude/support/documents/schemas/gold_tables.md`
-- `/fabric/clean_columnsAndHeaders.Notebook/` - Silver transformations
+- `/fabric/bronze-to-silver.Notebook/` - Silver transformations
 - `/fabric/silver-to-gold2.Notebook/` - Gold transformations

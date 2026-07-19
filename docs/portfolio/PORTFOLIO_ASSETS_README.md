@@ -8,7 +8,7 @@
 ## Portfolio-Ready Assets ✅
 
 ### 1. Case Study Document
-**File:** `/fabric/report.Report/CASE_STUDY.md`
+**File:** `/docs/portfolio/CASE_STUDY.md`
 **Status:** ✅ Complete and ready to publish
 
 **Highlights:**
@@ -30,7 +30,7 @@
 ---
 
 ### 2. Report Design Documentation
-**File:** `/fabric/report.Report/PORTFOLIO_DESIGN.md`
+**File:** `/docs/portfolio/PORTFOLIO_DESIGN.md`
 **Status:** ✅ Complete and ready for implementation
 
 **Contents:**
@@ -52,7 +52,7 @@
 ---
 
 ### 3. DAX Measure Library
-**File:** `/fabric/semantic_model_oeminsightbi.SemanticModel/definition/tables/_Measures.tmdl`
+**File:** `/fabric/OEMInsightBI_v2.SemanticModel/definition/tables/_Measures.tmdl`
 **Status:** ✅ Complete (8 measures implemented)
 
 **Implemented Measures:**
@@ -282,11 +282,11 @@
 
 | Asset | File Path | Status |
 |-------|-----------|--------|
-| Case Study | `/fabric/report.Report/CASE_STUDY.md` | ✅ Complete |
-| Design Specs | `/fabric/report.Report/PORTFOLIO_DESIGN.md` | ✅ Complete |
-| DAX Measures (Implemented) | `/fabric/semantic_model/.../tables/_Measures.tmdl` | ✅ Complete |
+| Case Study | `/docs/portfolio/CASE_STUDY.md` | ✅ Complete |
+| Design Specs | `/docs/portfolio/PORTFOLIO_DESIGN.md` | ✅ Complete |
+| DAX Measures (Implemented) | `/fabric/OEMInsightBI_v2.SemanticModel/.../tables/_Measures.tmdl` | ✅ Complete |
 | DAX Measures (Full Design) | `/.claude/support/documents/dax_measure_library.md` | ✅ Complete |
-| Report JSON | `/fabric/report.Report/report.json` | ⏳ Needs update |
+| Report JSON | `/fabric/report2.Report/report.json` | ⏳ Needs update |
 | Screenshots | N/A | ⏳ Pending |
 | PDF Export | N/A | ⏳ Pending |
 | PBIX File | N/A | ⏳ Pending |

@@ -11,11 +11,11 @@ After investigating the semantic model files synced to Git, **no custom DAX meas
 ## Investigation Findings
 
 ### Files Checked
-1. `/fabric/semantic_model_oeminsightbi.SemanticModel/definition/expressions.tmdl`
+1. `/fabric/OEMInsightBI_v2.SemanticModel/definition/expressions.tmdl`
    - **Finding:** Contains only database connection expression
    - **DAX Measures:** None
 
-2. `/fabric/semantic_model_oeminsightbi.SemanticModel/definition/model.tmdl`
+2. `/fabric/OEMInsightBI_v2.SemanticModel/definition/model.tmdl`
    - **Finding:** Model structure with table references only
    - **DAX Measures:** None
 
@@ -73,7 +73,7 @@ After investigating the semantic model files synced to Git, **no custom DAX meas
 
 ### Immediate Actions
 1. ✅ **Document finding:** Complete (this file)
-2. ⏭️ **Check if .pbix file exists:** Verify if `report.Report/report.pbix` contains measures
+2. ⏭️ **Check if .pbix file exists:** Verify if `report2.Report/report.pbix` contains measures
 3. ⏭️ **Prioritize Task 02:** "Redesign Semantic Model & DAX Measures" (P1)
 4. ⏭️ **Create measure design document:** Plan essential business metrics
 
@@ -157,8 +157,8 @@ CALCULATE(
 
 ## Related Files
 
-- `/fabric/semantic_model_oeminsightbi.SemanticModel/definition/expressions.tmdl` - Current (minimal) expressions
-- `/fabric/semantic_model_oeminsightbi.SemanticModel/definition/model.tmdl` - Model structure
+- `/fabric/OEMInsightBI_v2.SemanticModel/definition/expressions.tmdl` - Current (minimal) expressions
+- `/fabric/OEMInsightBI_v2.SemanticModel/definition/model.tmdl` - Model structure
 - `/project_definition.md` - Lines 787-810 (documenting lack of measures)
 - `/.claude/tasks/02_redesign_semantic_model.md` - Next task to address this
 

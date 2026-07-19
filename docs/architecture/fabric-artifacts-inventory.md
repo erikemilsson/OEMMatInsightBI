@@ -17,7 +17,7 @@
 ### 📓 Notebooks (Transformations)
 | Artifact | Type | Purpose | Status |
 |----------|------|---------|--------|
-| `clean_columnsAndHeaders` | Notebook | Bronze → Silver cleaning transformations | ✅ Active |
+| `bronze-to-silver` | Notebook | Bronze → Silver cleaning transformations | ✅ Active |
 | `silver-to-gold2` | Notebook | Silver → Gold star schema creation | ✅ Active |
 | `data_quality_analysis` | Notebook | Data quality monitoring and reporting | ✅ Active |
 
@@ -30,8 +30,8 @@
 ### 📊 Analytics
 | Artifact | Type | Purpose | Status |
 |----------|------|---------|--------|
-| `semantic_model_oeminsightbi` | SemanticModel | Star schema with 18 DAX measures | ✅ Active |
-| `report` | Report | Power BI report (to be developed) | 🚧 In Progress |
+| `OEMInsightBI_v2` | SemanticModel | Star schema with 18 DAX measures | ✅ Active |
+| `report2` | Report | Power BI report (to be developed) | 🚧 In Progress |
 
 ---
 
@@ -46,7 +46,7 @@
 ### ❌ Empty/Unused
 | Artifact | Type | Reason for Removal | Backup Location |
 |----------|------|-------------------|-----------------|
-| `oem_wh.SemanticModel` | SemanticModel | Empty model (only 3 TMDL files), superseded by `semantic_model_oeminsightbi` | `.archive/fabric-cleanup-20251215-132143/` |
+| `oem_wh.SemanticModel` | SemanticModel | Empty model (only 3 TMDL files), superseded by `OEMInsightBI_v2` | `.archive/fabric-cleanup-20251215-132143/` |
 | `oem_lh.SemanticModel` | SemanticModel | Auto-generated from lakehouse (only 2 TMDL files) | `.archive/fabric-cleanup-20251215-132143/` |
 | `copyjob1.CopyJob` | CopyJob | Experimental/unused copy operation | `.archive/fabric-cleanup-20251215-132143/` |
 
@@ -55,13 +55,13 @@
 ## Artifact Naming Conventions
 
 ### ✅ Good Naming (Current)
-- `semantic_model_oeminsightbi` - Clear purpose and project name
+- `OEMInsightBI_v2` - Clear purpose and project name
 - `orchestrator_pipeline_bronze_to_gold` - Descriptive flow
 - `bronze_azureSQLdb2table` - Layer + source + operation
 
 ### ⚠️ Areas for Improvement
 - `silver-to-gold2` → Consider renaming to `transform_silver_to_gold`
-- `clean_columnsAndHeaders` → Consider `transform_bronze_to_silver`
+- `clean_columnsAndHeaders` → Consider `transform_bronze_to_silver` _(update: renamed to `bronze-to-silver` since this note was written)_
 
 ---
 
@@ -75,14 +75,14 @@ graph TD
     Bronze2[EPI_file2table]
     Bronze3[WGI_file2table]
 
-    Silver[clean_columnsAndHeaders]
+    Silver[bronze-to-silver]
     Gold[silver-to-gold2]
     DQ[data_quality_analysis]
 
     LH[oem_lh.Lakehouse]
     WH[oem_wh.Warehouse]
-    SM[semantic_model_oeminsightbi]
-    Report[report.Report]
+    SM[OEMInsightBI_v2]
+    Report[report2.Report]
 
     Pipeline --> Bronze1
     Pipeline --> Bronze2

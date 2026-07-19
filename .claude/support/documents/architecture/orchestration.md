@@ -82,7 +82,7 @@ START
 
 #### 5. bronze-to-silver data cleaning
 - **Type:** Notebook Activity
-- **Notebook:** clean_columnsAndHeaders.Notebook
+- **Notebook:** bronze-to-silver.Notebook
 - **Output:** silver_epi2024results, silver_globalsupplyshares, silver_WB, silver_procurement
 - **Timeout:** 12 hours
 - **Retry:** 0 attempts

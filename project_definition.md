@@ -72,7 +72,7 @@
 
 -   **Warehouse:** `oem_wh` (SQL-queryable layer for BI)
 
--   **Semantic Model:** `semantic_model_oeminsightbi` (Power BI data model)
+-   **Semantic Model:** `OEMInsightBI_v2` (Power BI data model)
 
 -   **Report:** Power BI report connected to semantic model
 
@@ -324,7 +324,7 @@ Power BI Reports
 
 ### Bronze → Silver: Data Cleaning
 
-**Notebook:** `clean_columnsAndHeaders.Notebook`
+**Notebook:** `bronze-to-silver.Notebook`
 
 **Purpose:** Standardize raw data from multiple sources
 
@@ -650,7 +650,7 @@ Power BI Reports
 5.  `bronze-to-silver data cleaning` (Notebook Activity)
     -   Depends on: All 4 bronze activities (Succeeded)
 
-    -   Notebook: `clean_columnsAndHeaders.Notebook`
+    -   Notebook: `bronze-to-silver.Notebook`
 
     -   Output: Silver tables (silver_epi2024results, silver_globalsupplyshares, silver_WB, silver_procurement)
 
@@ -720,7 +720,7 @@ Power BI Reports
 
 ## Semantic Model & Reporting
 
-### Semantic Model: `semantic_model_oeminsightbi`
+### Semantic Model: `OEMInsightBI_v2`
 
 **Model Type:** Star Schema in **DirectLake** mode
 
@@ -820,7 +820,7 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 -   Time intelligence requires relationship to fact_procurement
 
-### Power BI Report: `report.Report`
+### Power BI Report: `report2.Report`
 
 **Report Pages:** **NEEDS REDESIGN**
 
@@ -854,7 +854,7 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 **Silver Layer:**
 
--   [x] Cleaning notebook (`clean_columnsAndHeaders.Notebook`)
+-   [x] Cleaning notebook (`bronze-to-silver.Notebook`)
 
 -   [x] Column standardization (lowercase, underscore separation)
 
@@ -1028,7 +1028,7 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 -   `[purpose]_[source]to[target].Notebook`
 
-    -   Examples: `clean_columnsAndHeaders.Notebook`, `silver-to-gold2.Notebook`
+    -   Examples: `clean_columnsAndHeaders.Notebook` (since renamed to `bronze-to-silver.Notebook`), `silver-to-gold2.Notebook`
 
     -   Inconsistency: Uses both underscores and hyphens
 
@@ -1471,7 +1471,7 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 **Power BI Report:**
 
--   Report ID: report.Report (in /fabric folder)
+-   Report ID: report2.Report (in /fabric folder)
 
 -   Who uses it? **NEEDS DOCUMENTATION**
 

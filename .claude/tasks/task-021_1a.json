@@ -1,0 +1,83 @@
+{
+  "id": "task-021_1a",
+  "title": "Rename sweep — root + portfolio-facing docs (the front door)",
+  "description": "Fix all three stale Fabric artifact names (semantic_model_oeminsightbi→OEMInsightBI_v2, clean_columnsAndHeaders.Notebook→bronze-to-silver.Notebook, report.Report→report2.Report) in the highest-visibility, recruiter-facing surfaces. One pass per file fixes every stale name in it. Part of the task-021 sweep (audit C-01).",
+  "status": "Finished",
+  "priority": "P2",
+  "difficulty": 3,
+  "owner": "claude",
+  "parent_task": "task-021",
+  "phase": "3",
+  "phase_name": "Semantic Model & Reporting",
+  "cross_phase": true,
+  "spec_section": "Semantic Model & Reporting",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "estimated_hours": 1,
+  "files_affected": [
+    "README.md",
+    "project_definition.md",
+    "docs/README.md",
+    "docs/portfolio/PORTFOLIO_ASSETS_README.md"
+  ],
+  "acceptanceCriteria": [
+    "README.md directory tree (lines ~33-36) shows the three on-disk names: `bronze-to-silver.Notebook`, `OEMInsightBI_v2.SemanticModel`, `report2.Report` (currently shows all three OLD names).",
+    "project_definition.md active references updated: Semantic Model (~L75/L723) → OEMInsightBI_v2; Power BI Report (~L823/L1474) → report2.Report; cleaning-notebook refs (~L327/L653/L857) → bronze-to-silver. Judgment: the naming-convention EXAMPLE at ~L1031 ('Examples: clean_columnsAndHeaders.Notebook, silver-to-gold2.Notebook') — update to a real current notebook or keep as a convention illustration with a 'renamed' note; record the choice.",
+    "docs/README.md (~L39 semantic-model link) and docs/portfolio/PORTFOLIO_ASSETS_README.md (~L11/L33 report paths, ~L55 semantic model) updated.",
+    "BEFORE re-pathing PORTFOLIO_ASSETS_README.md's `/fabric/report.Report/CASE_STUDY.md` and `/fabric/report.Report/PORTFOLIO_DESIGN.md`: verify those files exist under `fabric/report2.Report/` — if they don't exist anywhere, flag as a separate broken-path issue rather than pointing at a missing file.",
+    "Every replaced path verified to exist on disk (no new broken links)."
+  ],
+  "dependencies": [],
+  "decision_dependencies": [],
+  "notes": [
+    "Full context: parent task-021 + audit C-01 (.claude/support/audits/coherence-2026-06-21-2141/findings.md#C-01).",
+    "DISK TRUTH: fabric/OEMInsightBI_v2.SemanticModel/, fabric/bronze-to-silver.Notebook/, fabric/report2.Report/ are canonical; old names live ONLY under fabric/archive/.",
+    "Parallel-safe with sibling subtasks 021_1b/1c/1d (disjoint files_affected).",
+    "Per-file judgment: these are mostly active descriptive refs — straightforward to update — EXCEPT the project_definition.md naming-convention example noted above. Do not touch any line that explicitly says the old name was 'archived'.",
+    "--- IMPLEMENTED 2026-06-21 (implement-agent, completed) --- Swept 3 renames across README/project_definition.md/docs/README.md/PORTFOLIO_ASSETS_README.md. grep-first found extra occurrences beyond audit hints (all fixed); all new paths verified on disk. JUDGMENT: project_definition.md L1031 naming-example KEPT with '(since renamed to bronze-to-silver)' annotation (replacing it would contradict the adjacent 'uses both underscores and hyphens' note). DISCOVERY: PORTFOLIO CASE_STUDY.md/PORTFOLIO_DESIGN.md were mispathed to /fabric/report.Report/ but actually live at docs/portfolio/ -> re-pathed to real location (NOT report2.Report). Flagged separate content-drift: _Measures.tmdl has no v2 equivalent (measures reorganized to per-table .tmdl) -> FR-002 (open)."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-06-21",
+  "updated_date": "2026-06-21",
+  "completion_date": "2026-06-21",
+  "verification_attempts": 1,
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "dashboard",
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-06-21T21:50:00Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "not_applicable",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "issues": [],
+    "notes": "PASS attempt 1. All 3 renames swept across 4 declared files; only residual old token is project_definition.md:1031 (intentionally-annotated naming example, permitted). Positive control: new names present + fabric/OEMInsightBI_v2.SemanticModel|bronze-to-silver.Notebook|report2.Report all exist on disk. PORTFOLIO case-study re-pathing to docs/portfolio/ verified correct (files exist there, never under report.Report). _Measures.tmdl drift is pre-existing FR-002, out of scope. Scope clean."
+  },
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-06-21T21:50:00Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [],
+      "notes": "PASS attempt 1. All 3 renames swept across 4 declared files; only residual old token is project_definition.md:1031 (intentionally-annotated naming example, permitted). Positive control: new names present + fabric/OEMInsightBI_v2.SemanticModel|bronze-to-silver.Notebook|report2.Report all exist on disk. PORTFOLIO case-study re-pathing to docs/portfolio/ verified correct (files exist there, never under report.Report). _Measures.tmdl drift is pre-existing FR-002, out of scope. Scope clean."
+    }
+  ],
+  "user_review_pending": false
+}

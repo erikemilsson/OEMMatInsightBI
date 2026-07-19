@@ -71,7 +71,7 @@
 - `/run-full-pipeline` - Run all stages end-to-end
 
 ### Q: Where are the transformation notebooks?
-**A:** `/fabric/*.Notebook/` - `clean_columnsAndHeaders.Notebook` (silver) and `silver-to-gold2.Notebook` (gold).
+**A:** `/fabric/*.Notebook/` - `bronze-to-silver.Notebook` (silver) and `silver-to-gold2.Notebook` (gold).
 
 ### Q: How do I test my changes?
 **A:** Run unit tests with `pytest tests/ -v`. Framework complete with 35+ test cases. See `/tests/README.md`.

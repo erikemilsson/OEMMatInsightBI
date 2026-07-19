@@ -1,0 +1,97 @@
+{
+  "id": "task-021_2",
+  "title": "Verify rename sweep is complete + resolve FR-001 + add regression guard",
+  "description": "Final gate for the task-021 sweep. After 1a-1d land, confirm GLOBALLY that all three old artifact names now resolve only under fabric/archive/ and the designated historical/tracking surfaces, with no active-context occurrences remaining. Then surface FR-001 for resolution and recommend a lightweight regression guard so the drift cannot silently return.",
+  "status": "Finished",
+  "priority": "P2",
+  "difficulty": 3,
+  "owner": "claude",
+  "parent_task": "task-021",
+  "phase": "3",
+  "phase_name": "Semantic Model & Reporting",
+  "cross_phase": true,
+  "parallel_safe": true,
+  "spec_section": "Semantic Model & Reporting",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "estimated_hours": 1,
+  "files_affected": [
+    "tests/test_doc_artifact_names.py"
+  ],
+  "acceptanceCriteria": [
+    "Global grep: `semantic_model_oeminsightbi`, `clean_columnsAndHeaders` (as the NOTEBOOK artifact), and `report.Report` appear ONLY under fabric/archive/, the spec's 'archived' notes, .claude/support/feedback/archive.md, prior .claude/support/audits/ dirs, friction.jsonl, the dashboard FR row, the preserved naming-convention discussions/examples (naming_standards.md, fabric-artifacts-inventory.md L64), and the preserved pipeline ACTIVITY name in error_handling_strategy.md. No other active occurrences.",
+    "Positive control passes: the three NEW names (OEMInsightBI_v2, bronze-to-silver.Notebook, report2.Report) are present as the live artifacts (grep finds them; the on-disk dirs exist).",
+    "No new broken paths: spot-check a sample of replaced path references resolve to real files on disk.",
+    "FR-001 reported ready-to-resolve (the orchestrator flips status->resolved in .claude/support/friction.jsonl; subtasks cannot write .claude/ state). FB-001's incomplete-sweep is noted as now completed.",
+    "Regression guard recommended (and authored if cheap): a grep assertion — runnable in CI test.yml or as a .claude/scripts check — that fails if any of the three old names appears outside the designated archive/historical surfaces. This closes the recurrence the audit caught."
+  ],
+  "dependencies": [
+    "task-021_1a",
+    "task-021_1b",
+    "task-021_1c",
+    "task-021_1d"
+  ],
+  "decision_dependencies": [],
+  "notes": [
+    "Full context: parent task-021 + audit C-01.",
+    "This is the GLOBAL assertion the per-group subtasks (1a-1d) structurally cannot make on their own — each only sees its own files. Run it only after all four are Finished.",
+    "parallel_safe:true because files_affected is empty (verification work); its dependencies on 1a-1d gate execution regardless.",
+    "If authoring the regression guard adds a file (e.g. .claude/scripts/check-artifact-names.py or a test in tests/), record it; otherwise document the guard grep in the completion notes for the orchestrator/Erik to wire into CI.",
+    "Reminder of the designated-historical allowlist for the grep (these are CORRECT and must NOT be flagged): fabric/archive/**, spec 'archived in fabric/archive/' notes, .claude/support/feedback/archive.md, .claude/support/audits/**, .claude/support/friction.jsonl, .claude/dashboard.md FR-001 row, naming_standards.md naming examples, fabric-artifacts-inventory.md L64 rename-suggestion, error_handling_strategy.md activity_name='clean_columnsAndHeaders', and any deliberately-retained task-file provenance arrays.",
+    "--- IMPLEMENTED 2026-06-21 (orchestrator gate) --- (1) Global cross-repo grep: the 3 old names appear ONLY in fabric/archive, .claude/support/audits, designated preserves (naming_standards 3, error_handling 5, incremental_load 540/543, fabric-artifacts-inventory L64, project_definition L1031), and .claude/tasks provenance arrays + the task-021 family descriptions -- NO active doc/command surface retains a stale name; no misses beyond the 22 swept files. (2) Positive control: OEMInsightBI_v2.SemanticModel / bronze-to-silver.Notebook / report2.Report all exist on disk. (3) FR-001 resolved in friction.jsonl. (4) Regression guard authored: tests/test_doc_artifact_names.py (6 recruiter-facing clean surfaces; 6/6 pass via pytest 9.0.0). FB-001's incomplete sweep is now completed. FR-002 (_Measures.tmdl) + FR-003 (stale activity identifiers) remain open as flagged follow-ups."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-06-21",
+  "updated_date": "2026-06-21",
+  "completion_date": "2026-06-21",
+  "verification_attempts": 1,
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "dashboard",
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-06-21T22:30:00Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "pass",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "Informational: dashboard.md FR-001 row still reads 'open' — orchestrator to refresh at next regen (not a sweep target)."
+      }
+    ],
+    "notes": "PASS attempt 1. Global grep: 0 stale old tokens on any active surface (positive controls valid; report.Report archive hit is a directory name, not content). All residuals are designated preserves. FR-001 resolved. Guard tests/test_doc_artifact_names.py passes (6/6 pytest + standalone), correctly scoped to exclude preserve files. On-disk artifacts confirmed. Minor info: dashboard FR-001 row needs refresh at next regen."
+  },
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-06-21T22:30:00Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "pass",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "minor",
+          "description": "Informational: dashboard.md FR-001 row still reads 'open' — orchestrator to refresh at next regen (not a sweep target)."
+        }
+      ],
+      "notes": "PASS attempt 1. Global grep: 0 stale old tokens on any active surface (positive controls valid; report.Report archive hit is a directory name, not content). All residuals are designated preserves. FR-001 resolved. Guard tests/test_doc_artifact_names.py passes (6/6 pytest + standalone), correctly scoped to exclude preserve files. On-disk artifacts confirmed. Minor info: dashboard FR-001 row needs refresh at next regen."
+    }
+  ],
+  "user_review_pending": false
+}

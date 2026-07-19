@@ -4,7 +4,7 @@ Execute the bronze-to-silver data cleaning and standardization transformations.
 
 ## What This Command Does
 
-This command runs the `clean_columnsAndHeaders.Notebook` which performs:
+This command runs the `bronze-to-silver.Notebook` which performs:
 - Column name standardization (lowercase with underscores)
 - Data type conversions and casting
 - Unpivoting and reshaping (WGI year columns)
@@ -34,7 +34,7 @@ This command runs the `clean_columnsAndHeaders.Notebook` which performs:
 ### Option 2: Run Notebook Directly (Recommended for development)
 
 1. Navigate to Fabric workspace
-2. Open notebook: `clean_columnsAndHeaders`
+2. Open notebook: `bronze-to-silver`
 3. Click "Run all" button
 4. Monitor cell execution progress
 5. Check outputs in lakehouse
@@ -46,7 +46,7 @@ This command runs the `clean_columnsAndHeaders.Notebook` which performs:
 # Currently a manual process - see /sync-from-fabric command
 
 # After syncing notebook locally:
-# 1. Open clean_columnsAndHeaders.Notebook/notebook-content.py
+# 1. Open bronze-to-silver.Notebook/notebook-content.py
 # 2. Execute cells in Python environment with PySpark
 ```
 
@@ -163,6 +163,6 @@ After silver transformation succeeds:
 
 ## Related Files
 
-- `/fabric/clean_columnsAndHeaders.Notebook/`
+- `/fabric/bronze-to-silver.Notebook/`
 - `/.claude/support/documents/architecture/medallion_architecture.md`
 - `/.claude/support/documents/schemas/silver_tables.md`

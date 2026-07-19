@@ -148,7 +148,7 @@ The project implements a **medallion architecture** (bronze → silver → gold)
 - `silver_WB` - Unpivoted and filtered WGI data
 - `silver_globalsupplyshares` - Cleaned supply shares
 
-**Notebook:** `clean_columnsAndHeaders.Notebook`
+**Notebook:** `bronze-to-silver.Notebook`
 
 **Commands:** `/run-silver`
 
@@ -236,7 +236,7 @@ The project implements a **medallion architecture** (bronze → silver → gold)
 
 ## Related Files
 
-- `/fabric/clean_columnsAndHeaders.Notebook/` - Silver transformation
+- `/fabric/bronze-to-silver.Notebook/` - Silver transformation
 - `/fabric/silver-to-gold2.Notebook/` - Gold transformation
 - `/fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/` - Orchestration
 - `/.claude/commands/run-bronze.md` - Bronze ingestion guide

@@ -1,0 +1,83 @@
+{
+  "id": "task-021_1b",
+  "title": "Rename sweep — docs/architecture + guides/setup",
+  "description": "Fix the three stale Fabric artifact names in the architecture docs and guides — including the worst offender, fabric-artifacts-inventory.md, which tags non-existent artifacts as '✅ Active'. Part of the task-021 sweep (audit C-01).",
+  "status": "Finished",
+  "priority": "P2",
+  "difficulty": 4,
+  "owner": "claude",
+  "parent_task": "task-021",
+  "phase": "3",
+  "phase_name": "Semantic Model & Reporting",
+  "cross_phase": true,
+  "spec_section": "Semantic Model & Reporting",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "estimated_hours": 1,
+  "files_affected": [
+    "docs/architecture/fabric-artifacts-inventory.md",
+    "docs/architecture/data-flow-diagram.md",
+    "docs/guides/FAQ.md",
+    "docs/setup/TROUBLESHOOTING.md"
+  ],
+  "acceptanceCriteria": [
+    "fabric-artifacts-inventory.md: the '✅ Active' table rows for `clean_columnsAndHeaders` (~L20) and `semantic_model_oeminsightbi` (~L33) name the real on-disk artifacts (bronze-to-silver.Notebook, OEMInsightBI_v2); semantic-model refs at ~L49/L58/L84 and the report diagram node at ~L85 updated. No non-existent artifact is tagged 'Active'.",
+    "PRESERVE the rename-suggestion DISCUSSION at ~L64 ('clean_columnsAndHeaders → Consider transform_bronze_to_silver') — this is meta-commentary about naming, not an active artifact reference. Optionally annotate that the bronze-to-silver rename has since happened; do not delete the discussion.",
+    "data-flow-diagram.md: the mermaid node label `S1[clean_columnsAndHeaders<br/>Notebook]` (~L109) updated to bronze-to-silver (and any report/semantic-model nodes if present).",
+    "docs/guides/FAQ.md (~L74 notebook ref) and docs/setup/TROUBLESHOOTING.md (~L108 notebook ref) updated to bronze-to-silver.",
+    "Mermaid still renders (node IDs/labels balanced) and every replaced path exists on disk."
+  ],
+  "dependencies": [],
+  "decision_dependencies": [],
+  "notes": [
+    "Full context: parent task-021 + audit C-01.",
+    "DISK TRUTH: fabric/OEMInsightBI_v2.SemanticModel/, fabric/bronze-to-silver.Notebook/, fabric/report2.Report/ are canonical; old names live ONLY under fabric/archive/.",
+    "Parallel-safe with sibling subtasks 021_1a/1c/1d (disjoint files_affected).",
+    "Key judgment call here is the L64 'Consider renaming' discussion — it MUST be preserved as naming meta-commentary, not swept.",
+    "--- IMPLEMENTED 2026-06-21 (implement-agent, completed) --- Swept 3 renames across fabric-artifacts-inventory.md/data-flow-diagram.md/FAQ.md/TROUBLESHOOTING.md. Fixed false '✅ Active' rows (L20 notebook, L33 SM, +L34 report row beyond hint, same false-active class). Mermaid nodes L78/L84/L85/L109 updated, bracket-balance verified, <br/> preserved. PRESERVED L64 'Consider renaming' discussion with a '(renamed since)' annotation. Positive control: all 3 new paths on disk; post-edit grep shows only preserved L64 retains an old token."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-06-21",
+  "updated_date": "2026-06-21",
+  "completion_date": "2026-06-21",
+  "verification_attempts": 1,
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "dashboard",
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-06-21T22:00:00Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "not_applicable",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "issues": [],
+    "notes": "PASS attempt 1. Inventory false-'Active' rows now name real artifacts (L20 bronze-to-silver, L33 OEMInsightBI_v2, L34 report2/In-Progress). L64 rename-discussion preserved+annotated and is the ONLY residual old token (positive control confirmed true-negative). Mermaid balanced (inventory 11/11, data-flow 69/69), <br/> intact, node labels updated. New paths on disk. Scope clean (other git-modified files belong to sibling 1a)."
+  },
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-06-21T22:00:00Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [],
+      "notes": "PASS attempt 1. Inventory false-'Active' rows now name real artifacts (L20 bronze-to-silver, L33 OEMInsightBI_v2, L34 report2/In-Progress). L64 rename-discussion preserved+annotated and is the ONLY residual old token (positive control confirmed true-negative). Mermaid balanced (inventory 11/11, data-flow 69/69), <br/> intact, node labels updated. New paths on disk. Scope clean (other git-modified files belong to sibling 1a)."
+    }
+  ],
+  "user_review_pending": false
+}

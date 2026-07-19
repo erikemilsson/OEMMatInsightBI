@@ -2,7 +2,7 @@
 
 ## Overview
 
-**Model Name:** `semantic_model_oeminsightbi`
+**Model Name:** `OEMInsightBI_v2`
 **Mode:** DirectLake (direct query to Delta tables in Fabric Lakehouse)
 **Schema:** Star Schema (3 fact tables + 5 dimension tables)
 **Refresh:** Automatic (no manual refresh needed with DirectLake)
@@ -194,7 +194,7 @@ High Risk Material Count = CALCULATE(DISTINCTCOUNT(fact_supply_share[material_ke
 
 ## Model Files
 
-**Location:** `/fabric/semantic_model_oeminsightbi.SemanticModel/definition/`
+**Location:** `/fabric/OEMInsightBI_v2.SemanticModel/definition/`
 
 **Files:**
 - `database.tmdl` - Model metadata
@@ -225,7 +225,7 @@ High Risk Material Count = CALCULATE(DISTINCTCOUNT(fact_supply_share[material_ke
 
 ## Related Files
 
-- `/fabric/semantic_model_oeminsightbi.SemanticModel/` - Model definition
+- `/fabric/OEMInsightBI_v2.SemanticModel/` - Model definition
 - `/.claude/tasks/02_redesign_semantic_model.md` - DAX measures implementation
 - `/.claude/tasks/04_design_rls_security.md` - RLS implementation
 - `/.claude/tasks/09_document_dax_measures.md` - Measure documentation

@@ -30,10 +30,10 @@ fabric/                 # All Fabric artifacts
 ├── orchestrator_pipeline_bronze_to_gold.DataPipeline  # Main orchestration
 ├── *_azureSQLdb2table.Dataflow          # Bronze ingestion from Azure SQL
 ├── *_file2table.Dataflow                # Bronze ingestion from files
-├── clean_columnsAndHeaders.Notebook     # Bronze → Silver transformation
+├── bronze-to-silver.Notebook            # Bronze → Silver transformation
 ├── silver-to-gold2.Notebook             # Silver → Gold transformation
-├── semantic_model_oeminsightbi.SemanticModel
-└── report.Report
+├── OEMInsightBI_v2.SemanticModel
+└── report2.Report
 src/transformations/    # Reusable PySpark functions (key generation, data quality)
 tests/                  # Unit tests with pytest (requires Python 3.12+, Java 11+)
 ```

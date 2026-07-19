@@ -43,7 +43,7 @@ git add fabric/
 
 # Or stage specific files
 git add fabric/silver-to-gold2.Notebook/notebook-content.py
-git add fabric/semantic_model_oeminsightbi.SemanticModel/definition/measures.tmdl
+git add fabric/OEMInsightBI_v2.SemanticModel/definition/tables/
 
 # Commit with descriptive message
 git commit -m "Update gold transformation logic: add new alias mappings
@@ -107,7 +107,7 @@ If Git integration not available:
 ### Update Semantic Model
 
 1. Open semantic model in Power BI Desktop (connect to Fabric)
-2. Update DAX measures from `/fabric/semantic_model_oeminsightbi.SemanticModel/definition/measures.tmdl`
+2. Update DAX measures from `/fabric/OEMInsightBI_v2.SemanticModel/definition/tables/` (measures are per-table .tmdl in v2)
 3. Save changes
 4. Publish to Fabric workspace
 

@@ -1,0 +1,88 @@
+{
+  "id": "task-021_1d",
+  "title": "Rename sweep — .claude/support/documents (judgment-heaviest)",
+  "description": "Fix the stale Fabric artifact names across the 8 domain reference documents. This is the judgment-heaviest group: it contains the pipeline ACTIVITY name 'clean_columnsAndHeaders' (must be preserved) and the naming-convention DISCUSSIONS (must be preserved) alongside genuine stale artifact references (must be fixed). Part of the task-021 sweep (audit C-01).",
+  "status": "Finished",
+  "priority": "P2",
+  "difficulty": 5,
+  "owner": "claude",
+  "parent_task": "task-021",
+  "phase": "3",
+  "phase_name": "Semantic Model & Reporting",
+  "cross_phase": true,
+  "spec_section": "Semantic Model & Reporting",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "estimated_hours": 1,
+  "files_affected": [
+    ".claude/support/documents/architecture/semantic_model.md",
+    ".claude/support/documents/architecture/medallion_architecture.md",
+    ".claude/support/documents/architecture/orchestration.md",
+    ".claude/support/documents/dax_measures.md",
+    ".claude/support/documents/fabric_workspace.md",
+    ".claude/support/documents/standards/naming_standards.md",
+    ".claude/support/documents/incremental_load_strategy.md",
+    ".claude/support/documents/error_handling_strategy.md"
+  ],
+  "acceptanceCriteria": [
+    "Semantic-model refs → OEMInsightBI_v2: semantic_model.md (~L5 'Model Name', ~L197/L228), dax_measures.md (~L14/L18/L160/L161), fabric_workspace.md (~L62/L76).",
+    "Cleaning-notebook ARTIFACT refs → bronze-to-silver.Notebook: medallion_architecture.md (~L151/L239), orchestration.md (~L85), fabric_workspace.md (~L85), incremental_load_strategy.md (~L178/L540/L543/L558/L854 — these are 'in X.Notebook' code-placement references).",
+    "Report refs → report2.Report: dax_measures.md (~L76 `report.Report/report.pbix` path), fabric_workspace.md (~L74).",
+    "PRESERVE (do NOT change): in error_handling_strategy.md, the pipeline ACTIVITY name `clean_columnsAndHeaders` used as activity_name / in activity tables (~L234/L310/L347/L424/L1071) — this is the orchestration activity, NOT the notebook artifact, and renaming it would misrepresent the pipeline. If a line clearly names the NOTEBOOK file (not the activity), update only that.",
+    "PRESERVE (do NOT change the illustrative pair): in naming_standards.md, the naming-inconsistency EXAMPLES (~L7 'clean_columnsAndHeaders vs silver-to-gold2', ~L79, ~L118 'Example: semantic_model_oeminsightbi') — these illustrate the historical naming convention/inconsistency. Optionally append a parenthetical '(since renamed to bronze-to-silver / OEMInsightBI_v2)' but keep the illustrative example intact.",
+    "Every replaced path exists on disk; activity-name and naming-example preservations are explicitly confirmed in the completion notes."
+  ],
+  "dependencies": [],
+  "decision_dependencies": [],
+  "notes": [
+    "Full context: parent task-021 + audit C-01.",
+    "DISK TRUTH: fabric/OEMInsightBI_v2.SemanticModel/, fabric/bronze-to-silver.Notebook/, fabric/report2.Report/ are canonical; old names live ONLY under fabric/archive/.",
+    "Parallel-safe with sibling subtasks 021_1a/1b/1c (disjoint files_affected).",
+    "THE CORE JUDGMENT TASK of the sweep: distinguish (i) stale NOTEBOOK-ARTIFACT references [fix] from (ii) the pipeline ACTIVITY 'clean_columnsAndHeaders' [preserve] from (iii) naming-convention EXAMPLES [preserve]. When uncertain whether an occurrence is the artifact or the activity, leave it and note it for review rather than guessing.",
+    "--- IMPLEMENTED 2026-06-21 (orchestrator; .claude/ sandbox) --- Renamed NOTEBOOK-ARTIFACT (.Notebook), semantic-model, and report references across medallion_architecture/orchestration/semantic_model/dax_measures/fabric_workspace/incremental_load. Rule: '.Notebook' suffix or model/report ref = rename; bare activity identifier or naming example = preserve. PRESERVED per spec: naming_standards.md examples (3), error_handling_strategy.md activity ids (5), incremental_load bare activity-config ids (540/543). DISCOVERY -> FR-003: pipeline-content.json shows the real cleaning activity is 'bronze-to-silver data cleaning' (notebooks by GUID), NOT clean_columnsAndHeaders -- so the preserved activity examples are stale; flagged for a doc-accuracy decision rather than guessed. All renamed semantic-model paths (expressions.tmdl/model.tmdl/definition/) exist in v2."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-06-21",
+  "updated_date": "2026-06-21",
+  "completion_date": "2026-06-21",
+  "verification_attempts": 1,
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "dashboard",
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-06-21T22:20:00Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "not_applicable",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "issues": [],
+    "notes": "PASS attempt 1. Rename-vs-preserve split precise: residual old tokens = EXACTLY the 10 expected preserves (naming_standards 3, error_handling 5, incremental_load 540/543). Two preserve-only files untouched by git. incremental_load .Notebook-suffixed refs renamed, bare activity-config ids preserved (same file). All 5 renamed v2 paths exist. report.pbix correctly not renamed. FR-003 correctly treated as surfaced deferral, not a defect. Scope clean."
+  },
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-06-21T22:20:00Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [],
+      "notes": "PASS attempt 1. Rename-vs-preserve split precise: residual old tokens = EXACTLY the 10 expected preserves (naming_standards 3, error_handling 5, incremental_load 540/543). Two preserve-only files untouched by git. incremental_load .Notebook-suffixed refs renamed, bare activity-config ids preserved (same file). All 5 renamed v2 paths exist. report.pbix correctly not renamed. FR-003 correctly treated as surfaced deferral, not a defect. Scope clean."
+    }
+  ],
+  "user_review_pending": false
+}

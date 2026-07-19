@@ -105,7 +105,7 @@ Error: Missing required field 'difficulty'
 
 ### Issue: Silver transformation notebook fails - Spark session error
 
-**Symptoms:** `clean_columnsAndHeaders.Notebook` fails to start Spark session
+**Symptoms:** `bronze-to-silver.Notebook` fails to start Spark session
 
 **Diagnosis:**
 - Check Fabric capacity usage (may be at limit)

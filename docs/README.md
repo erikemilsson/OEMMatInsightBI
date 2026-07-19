@@ -36,7 +36,7 @@ Welcome to the comprehensive documentation for the OEMMatInsightBI project. This
 - [Reference Materials](../.claude/support/reference/) - Workflow guides and templates
 
 ### Fabric Artifacts
-- [Semantic Model](../fabric/semantic_model_oeminsightbi.SemanticModel/) - Star schema with 18 DAX measures
+- [Semantic Model](../fabric/OEMInsightBI_v2.SemanticModel/) - Star schema with 18 DAX measures
 - [Pipeline](../fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/) - Main orchestration
 - [Notebooks](../fabric/) - PySpark transformation notebooks
 

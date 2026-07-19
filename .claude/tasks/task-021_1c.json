@@ -1,0 +1,84 @@
+{
+  "id": "task-021_1c",
+  "title": "Rename sweep — .claude/ domain commands",
+  "description": "Fix the stale Fabric artifact names in the project's domain slash-command definitions (sync/run/review/validate). Mostly mechanical path/name updates. Part of the task-021 sweep (audit C-01).",
+  "status": "Finished",
+  "priority": "P2",
+  "difficulty": 4,
+  "owner": "claude",
+  "parent_task": "task-021",
+  "phase": "3",
+  "phase_name": "Semantic Model & Reporting",
+  "cross_phase": true,
+  "spec_section": "Semantic Model & Reporting",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "estimated_hours": 1,
+  "files_affected": [
+    ".claude/commands/sync-from-fabric.md",
+    ".claude/commands/sync-to-fabric.md",
+    ".claude/commands/run-full-pipeline.md",
+    ".claude/commands/run-silver.md",
+    ".claude/commands/review-transformations.md",
+    ".claude/commands/validate-schema.md"
+  ],
+  "acceptanceCriteria": [
+    "Semantic-model refs updated to OEMInsightBI_v2: sync-from-fabric.md (~L66/L97), sync-to-fabric.md (~L46/L110), run-full-pipeline.md (~L108).",
+    "Cleaning-notebook refs updated to bronze-to-silver.Notebook: run-silver.md (~L7/L37/L49/L166), review-transformations.md (~L21/L25/L379), validate-schema.md (~L389).",
+    "Each updated reference points at an artifact that exists on disk; confirm none of the touched lines is a historical 'old name archived' note (these command files are operational instructions, so all occurrences are expected to be active — but verify).",
+    "These are domain (project-owned) commands, not template-owned — editing them is in scope."
+  ],
+  "dependencies": [],
+  "decision_dependencies": [],
+  "notes": [
+    "Full context: parent task-021 + audit C-01.",
+    "DISK TRUTH: fabric/OEMInsightBI_v2.SemanticModel/, fabric/bronze-to-silver.Notebook/, fabric/report2.Report/ are canonical; old names live ONLY under fabric/archive/.",
+    "Parallel-safe with sibling subtasks 021_1a/1b/1d (disjoint files_affected).",
+    "Lowest-judgment group — operational command instructions, occurrences are active. Still grep each file for report.Report too, in case any command references the report artifact.",
+    "--- IMPLEMENTED 2026-06-21 (orchestrator; .claude/ sandbox prevents subagent writes) --- Swept renames across 6 domain command files (sync-from/sync-to/run-full-pipeline/run-silver/review-transformations/validate-schema). JUDGMENT: sync commands referenced .../definition/measures.tmdl which does NOT exist in the v2 model (measures reorganized to per-table .tmdl under definition/tables/); re-pathed the leaf to definition/tables/ to satisfy AC#3 (paths exist on disk) rather than leaving a broken path. Post-edit grep: 0 residual old tokens; new paths (definition/tables/, fact_procurement.tmdl, bronze-to-silver.Notebook/notebook-content.py) verified on disk."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-06-21",
+  "updated_date": "2026-06-21",
+  "completion_date": "2026-06-21",
+  "verification_attempts": 1,
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "dashboard",
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-06-21T22:15:00Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "not_applicable",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "issues": [],
+    "notes": "PASS attempt 1. 0 residual old tokens across all 6 command files (positive control established for report.Report-vs-report2 discrimination). New names exist on disk. Leaf-fix confirmed: no definition/measures.tmdl remains; re-path to definition/tables/ correct (v2 per-table .tmdl). All 8 distinct fabric/ paths resolve. Scope clean (sibling + infra changes excluded)."
+  },
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-06-21T22:15:00Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [],
+      "notes": "PASS attempt 1. 0 residual old tokens across all 6 command files (positive control established for report.Report-vs-report2 discrimination). New names exist on disk. Leaf-fix confirmed: no definition/measures.tmdl remains; re-path to definition/tables/ correct (v2 per-table .tmdl). All 8 distinct fabric/ paths resolve. Scope clean (sibling + infra changes excluded)."
+    }
+  ],
+  "user_review_pending": false
+}

@@ -59,7 +59,7 @@ oem_lh/
 - Schema: `dbo` (default)
 - DirectLake queries these tables directly from underlying parquet files
 
-### Semantic Model: `semantic_model_oeminsightbi`
+### Semantic Model: `OEMInsightBI_v2`
 
 **Type:** DirectLake
 
@@ -71,9 +71,9 @@ oem_lh/
 - 3 fact tables: fact_procurement, fact_supply_share, fact_epi_score
 - 5 dimension tables: gold_dim_country, gold_dim_date, gold_dim_indicator, gold_dim_material, gold_dim_stage
 
-### Power BI Report: `report.Report`
+### Power BI Report: `report2.Report`
 
-**Connected Model:** `semantic_model_oeminsightbi`
+**Connected Model:** `OEMInsightBI_v2`
 
 **Theme:** CY24SU10.json (Fabric default theme)
 
@@ -82,7 +82,7 @@ oem_lh/
 ## Artifacts Inventory
 
 ### Notebooks (2)
-1. **clean_columnsAndHeaders.Notebook**
+1. **bronze-to-silver.Notebook**
    - Purpose: Bronze → Silver transformation
    - Language: PySpark
    - Attached to: oem_lh lakehouse

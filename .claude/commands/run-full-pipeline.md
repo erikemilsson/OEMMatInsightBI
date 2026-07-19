@@ -105,7 +105,7 @@ orchestrator_pipeline_bronze_to_gold
    - Verify data matches lakehouse
 
 4. **Semantic Model:**
-   - Open `semantic_model_oeminsightbi`
+   - Open `OEMInsightBI_v2`
    - DirectLake should automatically reflect new data
    - No manual refresh needed
 

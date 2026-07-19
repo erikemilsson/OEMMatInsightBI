@@ -106,7 +106,7 @@ flowchart TB
     end
 
     subgraph Silver["Silver Transformation"]
-        S1[clean_columnsAndHeaders<br/>Notebook]
+        S1[bronze-to-silver<br/>Notebook]
         S2[Data Quality Checks]
         S3[Alias Resolution]
     end

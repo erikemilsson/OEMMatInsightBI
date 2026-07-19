@@ -175,7 +175,7 @@ df_suppliers.write.format("delta").mode("overwrite").saveAsTable("bronze_supplie
 
 **Current Behavior:**
 ```python
-# In clean_columnsAndHeaders.Notebook
+# In bronze-to-silver.Notebook
 bronze_procurement = spark.table("bronze_procurement_transactional")
 silver_procurement = transform_procurement(bronze_procurement)
 # OVERWRITES entire table
@@ -555,7 +555,7 @@ in
 }
 ```
 
-**In Notebook (clean_columnsAndHeaders.Notebook):**
+**In Notebook (bronze-to-silver.Notebook):**
 ```python
 # Get parameters from pipeline
 p_full_load = dbutils.widgets.get("p_full_load").lower() == "true"
@@ -851,7 +851,7 @@ load_all_layers()
 - [ ] Implement `get_last_load_date()` and `update_load_metadata()` functions
 
 ### Phase 2: Silver Layer (1 day)
-- [ ] Update `clean_columnsAndHeaders.Notebook` with incremental logic
+- [ ] Update `bronze-to-silver.Notebook` with incremental logic
 - [ ] Implement merge operation using Delta Lake MERGE
 - [ ] Add deduplication logic
 - [ ] Test with sample incremental data

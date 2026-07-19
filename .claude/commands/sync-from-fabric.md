@@ -63,7 +63,7 @@ Expected output:
 Updating abc1234..def5678
 Fast-forward
  fabric/silver-to-gold2.Notebook/notebook-content.py | 45 ++++++++++++++-
- fabric/semantic_model_oeminsightbi.SemanticModel/definition/measures.tmdl | 23 ++++++++
+ fabric/OEMInsightBI_v2.SemanticModel/definition/tables/fact_procurement.tmdl | 23 ++++++++
  2 files changed, 68 insertions(+), 5 deletions(-)
 ```
 
@@ -94,7 +94,7 @@ If Git integration not configured, manually export artifacts:
 1. Open semantic model in Fabric
 2. Use "Save as" feature or external tools (Tabular Editor)
 3. Export as TMDL format
-4. Save to `/fabric/semantic_model_oeminsightbi.SemanticModel/definition/`
+4. Save to `/fabric/OEMInsightBI_v2.SemanticModel/definition/`
 
 ### Commit Manual Changes
 
