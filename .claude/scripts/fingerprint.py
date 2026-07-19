@@ -169,9 +169,15 @@ def main() -> int:
         description="Deterministic hashes for spec drift and dashboard freshness."
     )
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--spec", type=Path, help="Hash full spec file contents.")
+    group.add_argument(
+        "--spec", type=Path,
+        help="Hash full spec file contents. Prints the BARE 'sha256:...' string "
+             "(not JSON — unlike --sections/--index).")
     group.add_argument("--sections", type=Path, help="Hash each ## section; JSON map to stdout.")
-    group.add_argument("--index", type=Path, help="Emit the spec section index (JSON) for scoped reads.")
+    group.add_argument(
+        "--index", type=Path,
+        help="Emit the spec section index (JSON) to stdout for scoped reads. "
+             "Does NOT write the file — redirect to .claude/spec_v{N}.index.json.")
     group.add_argument(
         "--dashboard-rollup",
         type=Path,

@@ -158,6 +158,8 @@ Include enough context for someone unfamiliar to understand.]
 
 **"Your Notes & Constraints" section:** This section in the template is user-owned. Claude reads it when processing the decision but never overwrites it. Use it to record constraints, preferences, or questions that should inform the choice. Content here persists across decision doc updates and dashboard regenerations.
 
+**Numbering namespace:** project decision records number independently (`DEC-001`, `DEC-002`, …) from the *template's* decision records that the shipped rules and reference docs cite (e.g., DEC-004, DEC-016, DEC-021, DEC-024). A template citation in synced files is not a project record — when picking the next project number, count only the files in `.claude/support/decisions/`.
+
 ---
 
 ## When to Create Records

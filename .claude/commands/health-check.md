@@ -91,11 +91,10 @@ If dashboard content or structure is inconsistent, the fix is always: regenerate
 
 #### 4b. Dashboard State Sidecar
 
-- `.claude/dashboard-state.json` should exist if dashboard.md exists
+- `.claude/dashboard-state.json` should exist if dashboard.html exists
 - If missing: WARNING — "Dashboard state sidecar missing. Next dashboard regeneration will create it."
 - If present: validate JSON structure (required keys: user_notes, section_toggles, phase_gates, inline_feedback, custom_views_instructions, updated)
-- Cross-reference: section_toggles should match the dashboard's SECTION TOGGLES checklist
-- Cross-reference: phase_gates entries should match PHASE GATE markers in dashboard
+- The sidecar is the **single source** for user content (DEC-024) — the read-only HTML has no in-file markers to cross-reference. Validate the sidecar's own consistency only (e.g., `section_toggles` keys are known section names; `phase_gates` statuses are `active`/`approved`)
 
 #### 5. Status Rules
 
@@ -199,8 +198,8 @@ Per the Fix Queue Protocol: each detected issue queues one fix item; "Ask user: 
 
 | Issue | Auto-Fix |
 |-------|----------|
-| Dashboard inconsistent or structurally invalid | Regenerate dashboard.md |
-| Dashboard stale (hash mismatch, format staleness, or missing metadata) | Regenerate dashboard.md with fresh metadata |
+| Dashboard inconsistent or structurally invalid | Regenerate dashboard.html |
+| Dashboard stale (hash mismatch, format staleness, or missing metadata) | Regenerate dashboard.html with fresh metadata |
 | Parent missing subtask in array | Add subtask ID to parent's subtasks array |
 | Subtask missing parent_task field | Add parent_task field |
 | "Broken Down" with empty subtasks | Change status to "Pending" |
@@ -217,8 +216,7 @@ Per the Fix Queue Protocol: each detected issue queues one fix item; "Ask user: 
 | Missing snapshot file | Informational only — drift detection degrades gracefully |
 | Malformed decision dependency format | Ask user: correct or remove the entry |
 | Stale workspace files (> 30 days) | List files, ask user: graduate to final location, or delete |
-| Dashboard state sidecar missing | Create from current dashboard markers (or defaults if markers broken) |
-| Sidecar/dashboard toggle mismatch | Update sidecar from dashboard markers (dashboard is more recent) |
+| Dashboard state sidecar missing | Create with defaults (all core sections on, custom_views off, empty notes) |
 | Stale "Awaiting Verification" (> 1 hour) | Auto-recovered by `/work` Step 0 on next run. If running standalone: trigger verify-agent immediately for task |
 
 ### Non-Fixable Issues (Manual Required)
@@ -502,7 +500,7 @@ Use `git check-ignore` (reliable exit-code semantics), not a grep against `.giti
 
 ## Part 5: Template Sync Check
 
-Checks whether the project's `.claude/` workflow files are up to date with the template repository using git-based comparison. Skipped in the template repo (mirror of Parts 5d / 7: `system-overview.md` at project root indicates the template repo, where syncing the template against itself is self-referential and meaningless — `template_repo` points to the same URL as `origin`).
+Checks whether the project's `.claude/` workflow files are up to date with the template repository using git-based comparison. Skipped in the template repo (mirror of Parts 5d / 7: a `template-maintenance/` directory at the project root indicates the template repo, where syncing the template against itself is self-referential and meaningless — `template_repo` points to the same URL as `origin`).
 
 ### Purpose
 
@@ -510,7 +508,7 @@ The upstream template may improve commands, agents, and reference docs. This che
 
 ### Repo-type skip
 
-Before running any sync step: if `system-overview.md` exists at the project root, skip Part 5 entirely and report `ℹ️ Template sync skipped (template repo — self-sync is a no-op)`. The template repo's `version.json::template_repo` points to itself; adding a `template` remote pointing to the same URL as `origin` and diffing against it produces no useful output. The template's own work uses normal git workflow (push to origin); downstream-project sync flow does not apply.
+Before running any sync step: if a `template-maintenance/` directory exists at the project root, skip Part 5 entirely and report `ℹ️ Template sync skipped (template repo — self-sync is a no-op)`. The template repo's `version.json::template_repo` points to itself; adding a `template` remote pointing to the same URL as `origin` and diffing against it produces no useful output. The template's own work uses normal git workflow (push to origin); downstream-project sync flow does not apply.
 
 ### Requirements
 
@@ -719,11 +717,11 @@ Claude Code's runtime concatenates `permissions.allow[]` and `permissions.ask[]`
 
 ## Part 5d: Cross-Project Bridge Configuration (downstream projects only)
 
-Validates the `template_inbox_path` configuration that powers the cross-project feedback bridge. Skipped in the template repo (mirror of Part 7's detection: `system-overview.md` at project root indicates the template repo, where bridging to itself is not meaningful).
+Validates the `template_inbox_path` configuration that powers the cross-project feedback bridge. Skipped in the template repo (mirror of Part 7's detection: a `template-maintenance/` directory at the project root indicates the template repo, where bridging to itself is not meaningful).
 
 ### Process
 
-1. **Repo-type detection:** If `system-overview.md` exists at project root, skip Part 5d entirely.
+1. **Repo-type detection:** If a `template-maintenance/` directory exists at project root, skip Part 5d entirely.
 
 2. **Read configuration:** Read `.claude/version.json` → `template_inbox_path`.
 
@@ -783,15 +781,15 @@ Assesses dashboard readability, project structure clarity, and interaction quali
 
 The check catalog starts minimal and grows based on real usage feedback. Initial checks target three observed problems:
 
-#### 1. Mermaid Diagram Readability (H3 — Visualization Integrity)
+#### 1. Dashboard HTML Integrity (H3 — Visualization Integrity)
 
-Parse Mermaid code blocks in `dashboard.md`. Count nodes in each diagram.
+The dashboard is generated HTML (DEC-024); the script owns all rendering deterministically (graph scaling, heatmap, collapsing), so readability is script-guaranteed. This check instead guards the `file://` offline invariant: scan `dashboard.html`.
 
 | Condition | Result | Severity |
 |-----------|--------|----------|
-| ≤15 nodes | Pass | — |
-| 16-50 nodes without `%%critical-path-only` comment | Warn: "Mermaid diagram has {N} nodes — may be unreadable. Consider critical-path-only mode." | 2 |
-| >50 nodes | Error: "Mermaid diagram has {N} nodes — will render unreadably small." | 3 |
+| Valid HTML (starts `<!doctype html>`, ends `</html>`), `<!-- DASHBOARD META -->` in `<head>`, no `type="module"` / CDN `import`/`fetch` (only Google-Fonts `<link>` permitted as external) | Pass | — |
+| Missing META in `<head>`, or malformed document | Error: "dashboard.html missing META block or malformed — regenerate via `dashboard-render.py --html`." | 3 |
+| Any runtime CDN dep (`type="module"`, `import … from "http…"`, `fetch(`, non-fonts `cdn.`) | Error: "dashboard.html has a runtime network dep — breaks offline `file://` open. Regenerate." | 3 |
 
 #### 2. Workspace Document Graduation (H6 — Project Structure Clarity)
 
@@ -804,7 +802,7 @@ Count files in `.claude/support/workspace/` that are either: (a) linked from das
 
 #### 3. User Notes Section Utilization (H5 — User-Input Effectiveness)
 
-Check if the Notes section in `dashboard.md` contains only the default placeholder text after the project has 5+ completed tasks.
+Check if the sidecar's `user_notes` (rendered as the dashboard's Notes card) contains only the default placeholder text after the project has 5+ completed tasks.
 
 | Condition | Result | Severity |
 |-----------|--------|----------|
@@ -836,15 +834,15 @@ Detection heuristics — flag if ANY match within the Action Required section:
 
 When `4b` fires repeatedly across `/health-check` runs on the same project, the root cause is likely LLM emitter compliance rather than a documentation gap — escalate to FB-011 Family C (extract dashboard regeneration into a deterministic script, tracked in `template-maintenance/scripts-candidates.md`).
 
-#### 5. Dashboard Length (H1 — Readability)
+#### 5. Dashboard Size (H1 — Readability)
 
-Count total lines in `dashboard.md`.
+Measure the byte size of `dashboard.html`. Curated + spec-linked-out, it should stay light (~25–150 KB) regardless of project size; a large file usually means the spec or decision text got embedded by mistake (it must be linked out, not embedded).
 
 | Condition | Result | Severity |
 |-----------|--------|----------|
-| ≤300 lines | Pass | — |
-| 301-500 lines | Warn: "Dashboard is {N} lines. Check that completed phases are collapsed." | 2 |
-| >500 lines | Warn: "Dashboard is {N} lines — may be hard to scan. Review section toggles and phase collapsing." | 2 |
+| ≤200 KB | Pass | — |
+| 200–500 KB | Warn: "dashboard.html is {N} KB — check that the spec/decisions are linked out, not embedded." | 2 |
+| >500 KB | Warn: "dashboard.html is {N} KB — spec/decision text was likely embedded. Verify link-out and regenerate." | 2 |
 
 #### 6. Phase Collapsing Compliance (H2 — Information Density)
 
@@ -870,7 +868,7 @@ Add new checks to the appropriate heuristic category (H1-H6) with a severity rat
 
 Processes cross-project session exports when `/health-check` runs in the template repo. Skipped in downstream projects.
 
-**Detection:** Check if `system-overview.md` exists at the project root (template repo indicator). If not, skip this part entirely.
+**Detection:** Check if a `template-maintenance/` directory exists at the project root (template repo indicator). If not, skip this part entirely.
 
 ### Process
 
@@ -1026,7 +1024,7 @@ Part 8 is skipped entirely if:
 
 ```
 READ all .claude/tasks/task-*.json files
-READ .claude/dashboard.md
+READ .claude/dashboard.html
 READ .claude/spec_v{N}.md (current spec — for completion gate checks)
 READ .claude/CLAUDE.md
 READ ./CLAUDE.md (root, if exists)
@@ -1081,7 +1079,7 @@ Proposed fixes (7):
 
 | # | Part | File | Proposed fix | Risk |
 |---|------|------|--------------|------|
-| 1 | 1  | .claude/dashboard.md            | Regenerate (stale hash + format)          | — |
+| 1 | 1  | .claude/dashboard.html          | Regenerate (stale hash + format)          | — |
 | 2 | 3  | decision-004-*.md               | Add missing dashboard Decisions entry      | — |
 | 3 | 5  | .claude/commands/work.md        | Apply template version (+15 -8)            | ⚠ overwrites local |
 | 4 | 5  | .claude/rules/dashboard.md      | Apply template version (+4 -1; includes dashboard regen) | ⚠ overwrites local (hash-verified: no local edits) |

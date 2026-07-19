@@ -83,3 +83,9 @@ Desktop.ini
 # Transient machine/session state (template treats these as ignore-category)
 .claude/.sync-state.json
 .claude/tasks/.handoff.json
+
+# Dashboard — generated HTML render target (derived, regenerated each /work) — DEC-024
+.claude/dashboard.html
+
+# Spec merge queue (re-entry transport) — DEC-023
+.claude/support/.spec-merge-queue.jsonl

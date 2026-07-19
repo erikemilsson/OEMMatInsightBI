@@ -1,5 +1,12 @@
 {
-  "timestamp": "2026-06-13T23:39:19Z",
-  "in_progress_tasks": ["task-010"],
-  "note": "task-010 Claude documentation half (pipeline_schedule.md) completed + verified (pass, attempt 2). user_review_pending: true — awaiting Erik's Fabric configuration (criteria 1,2,4,5). No other Claude-actionable work: 006_3 is Fabric-gated, 012_1 is human, 012_2/3/4/5 have unmet deps."
+  "last_clean_exit": "2026-07-14T15:00:00Z",
+  "in_progress": [
+    "task-010",
+    "task-022",
+    "task-023",
+    "task-024",
+    "task-025",
+    "task-026"
+  ],
+  "note": "P1 audit-fix batch COMPLETE (Claude halves drafted + verified): 023, 024 (delete-insert, Erik chose Option b), 025, 026 (verify pass on attempt 2 after WGI-table retarget), plus 022 (drafted earlier). All In Progress / user_review_pending — awaiting Erik's Fabric apply+run (recommended order in dashboard: 025->023->024->022->026; keep 026 advisory until 023/024/025 confirmed clean). New friction: FR-005/006/007 (all fold into task-033 doc sweep). Open question for Erik: file a dedicated pipeline_error_handler wiring task? PAUSED here — P2 audit tasks (027/028/030/031 no-dep both; 029 dep 024; 032 dep 025; 033 dep 024/026/027/031) not yet started (outside the 'draft P1' instruction). task-010 awaiting Erik (Fabric scheduling)."
 }

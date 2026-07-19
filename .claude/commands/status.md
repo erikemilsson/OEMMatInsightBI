@@ -25,7 +25,7 @@ Quick, read-only view of project state without starting any work.
 ### Step 1: Gather State
 
 Read (but don't modify):
-- `.claude/dashboard.md` - Current status (progress summary, decisions, recent activity)
+- `.claude/dashboard.html` - Current status (progress summary, decisions, recent activity)
 - `.claude/tasks/task-*.json` - Task data for phase detection, status counts, and verification result validation
 - `.claude/spec_v{N}.md` - Spec version and fingerprint for verification validation
 - `.claude/drift-deferrals.json` - Drift deferral count (if exists)

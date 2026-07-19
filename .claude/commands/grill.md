@@ -30,6 +30,8 @@ This command has two invocation shapes. The no-args triage flow surfaces candida
 
 Interview relentlessly about every aspect until reaching a shared understanding. Walk down each branch of the design tree, resolving dependencies between decisions one-by-one. For each question, provide a recommended answer.
 
+**Work general-first** (DEC-023). Open at the conceptual level — establish the shape of the thing and confirm the frame — *then* descend into specifics. Don't lead with repo internals (file/field-level detail) before the general picture is shared; the deep dive lands better once the frame is agreed.
+
 **Ask questions one at a time.** Wait for the answer before moving on. If a question can be resolved by reading the codebase or other project state (`.claude/spec_v*.md`, decisions, vision docs), explore those instead of asking.
 
 ### No-args triage flow (`/grill`)
@@ -74,6 +76,16 @@ Interview relentlessly about every aspect until reaching a shared understanding.
 3. **The result of a real trade-off** — there were genuine alternatives and you picked one for specific reasons.
 
 If any of the three is missing, skip the suggestion. When all three hold, route to `/research` (CCE's decision records go through research-agent → option matrix → user selection — see `.claude/rules/decisions.md`). `/grill` does **not** write to `.claude/support/decisions/` directly.
+
+### Routing findings to the merge queue (DEC-023)
+
+When grilling surfaces a finding that belongs in a vision or the spec — a sharpened term, a resolved fork, a needed change — route it so it isn't stranded when the conversation ends:
+
+- **Developing a vision in-session** → fold the finding straight into that vision's Open-forks tracker / sections (in-place; a vision is editable during development per the DEC-016 carve-out). No queue entry needed.
+- **Otherwise** (the target vision/spec isn't open here, or you're grilling a spec section directly) → append a `.claude/support/.spec-merge-queue.jsonl` entry (`source: grill`, `target: vision|spec`, `kind: term|decision|delta`, with `origin_ref` / `target_ref` / `summary`) so `/iterate` surfaces it on return. See `.claude/support/reference/merge-queue.md`.
+- **Decision-class findings** (the three-criteria test above) still route to `/research`; record them `kind: decision` in the queue too if they must also be remembered against a vision/spec.
+
+`/grill` proposes and records; it never writes spec/decision text directly (DEC-016).
 
 ## `./CONTEXT.md` format
 

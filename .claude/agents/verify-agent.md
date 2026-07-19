@@ -155,7 +155,7 @@ Detect files modified during implementation that were NOT listed in `files_affec
 2. Compute: undeclared_files = files_modified - files_affected
 
 3. Filter out known infrastructure writes (not implementation scope):
-   - .claude/dashboard.md
+   - .claude/dashboard.html
    - .claude/tasks/*
    - .claude/support/workspace/*
    - .claude/drift-deferrals.json

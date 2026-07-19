@@ -17,8 +17,9 @@ This environment targets the **current Claude Opus tier** via the floating `opus
 | What | Where |
 |------|-------|
 | Project specification | `.claude/spec_v{N}.md` (source of truth) |
-| Spec section index (generated, scoped reads) | `.claude/spec_v{N}.index.json` (DEC-021; `fingerprint.py --index`) |
-| Dashboard (navigation hub) | `.claude/dashboard.md` |
+| Spec section index (generated, scoped reads) | `.claude/spec_v{N}.index.json` (DEC-021; `fingerprint.py --index` prints to stdout — redirect to this path) |
+| Dashboard (navigation hub) | `.claude/dashboard.html` (read-only generated HTML, DEC-024; gitignored) |
+| Dashboard state sidecar (user content) | `.claude/dashboard-state.json` |
 | Task data | `.claude/tasks/task-*.json` |
 | Commands | `.claude/commands/*.md` |
 | Agent definitions | `.claude/agents/*.md` |
@@ -27,6 +28,7 @@ This environment targets the **current Claude Opus tier** via the floating `opus
 | Claude Code authoring hazards | `.claude/support/reference/claude-code-authoring.md` (DEC-017) |
 | Vision documents | `.claude/vision/` |
 | Shakedown corpus (capability maps) | `.claude/support/shakedowns/` (DEC-019) |
+| Spec merge queue (re-entry transport) | `.claude/support/reference/merge-queue.md` (DEC-023) |
 | Workspace (scratch) | `.claude/support/workspace/` |
 | Reference documents (inputs) | `.claude/support/documents/` |
 | Feedback | `.claude/support/feedback/` |
@@ -44,8 +46,8 @@ This environment targets the **current Claude Opus tier** via the floating `opus
 - Never commit credentials to tracked files.
 - Never create working documents in the project root — use `.claude/support/workspace/`.
 - Settings layering: `.claude/settings.json` is template-owned (base `permissions.allow` AND `permissions.ask` — the `ask` set ships template-wide guardrails for spec/decision/vision file edits per DEC-016); put hooks, env vars, theme, and any additional permissions in `.claude/settings.local.json`. Claude Code merges both at runtime. Under `--permission-mode auto`, these rules short-circuit the runtime classifier — see `.claude/README.md` § Auto Mode for composition.
-- Direct edits to `.claude/spec_v*.md`, `.claude/support/decisions/decision-*.md`, and `.claude/vision/**/*.md` route through `/iterate` (or analogous flow per category) — see `.claude/rules/spec-workflow.md § "Direct edits to spec, decision, and vision files (DEC-016)"`. Structurally enforced via `permissions.ask` in template-owned `.claude/settings.json`; infrastructure operations (archiving, version transitions, frontmatter) remain autonomous.
-- Phase acceptance **status** authority is `.claude/verification-result.json`'s `criteria[]` (rendered as the dashboard's `### Acceptance Criteria`), **not** inline spec `- [ ]` acceptance boxes (authored input only) — DEC-022; see `.claude/rules/spec-workflow.md § "Acceptance-criteria authority (DEC-022)"`.
+- Direct edits to `.claude/spec_v*.md` and `.claude/support/decisions/decision-*.md` route through `/iterate` (or `/research` + checkbox for decisions) — see `.claude/rules/spec-workflow.md § "Direct edits to spec, decision, and vision files (DEC-016)"`. **Vision files** (`.claude/vision/**/*.md`) are **editable in-place during development, frozen after graduation to spec** (DEC-023 amends DEC-016 — same section). Structurally enforced via `permissions.ask` in template-owned `.claude/settings.json` (the vision gate remains a per-session confirm); infrastructure operations (archiving, version transitions, frontmatter) remain autonomous.
+- Phase acceptance **status** authority is `.claude/verification-result.json`'s `criteria[]` (rendered as the dashboard's Acceptance-criteria section), **not** inline spec `- [ ]` acceptance boxes (authored input only) — DEC-022; see `.claude/rules/spec-workflow.md § "Acceptance-criteria authority (DEC-022)"`.
 - Respect prior kills: when the user halts a long-running process (dev server, watcher, batch loop), do not restart it in the same session without renewed approval. See `.claude/rules/agents.md § "Behavioral Rules"` for the full rule.
 
 ## Environment Commands
@@ -57,7 +59,7 @@ This environment targets the **current Claude Opus tier** via the floating `opus
 | `/work complete` | Complete current in-progress task |
 | `/iterate` | Spec review and refinement |
 | `/grill` | Interview-style interrogation; no-args triages candidate areas first; auto-detects `./CONTEXT.md` |
-| `/shakedown` | Acceptance-by-example: probe the built system against real-use examples to map its capability boundary (DEC-019) |
+| `/shakedown` | Acceptance-by-example: capture the edge-cases & real-world knowledge only you have, probing examples against a vision, the spec, or the build (DEC-019, DEC-023) |
 | `/diagnose` | Hard-bug / performance-regression discipline: 6 phases (feedback loop → reproduce → hypothesise → instrument → fix → cleanup + post-mortem) |
 | `/zoom-out` | Go up a layer of abstraction — map the focus area's components and connections (uses `./CONTEXT.md` when present) |
 | `/review` | Implementation quality review (advisory, read-only) |

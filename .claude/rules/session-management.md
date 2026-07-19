@@ -15,6 +15,8 @@ When a `/work` session reaches a natural stopping point (blocking issue, end of 
 2. The next `/work` in a new conversation reads the handoff and resumes from there
 3. **If `/work pause` is not run**, the next session has only task files, dashboard, and auto-memory — no reasoning context
 
+`/work pause` also works as a **mid-session checkpoint** — pausing, continuing to work, and pausing again in the same session is normal use; each pause overwrites the handoff with the newest state.
+
 **When Claude says "next session will..."** — that promise only survives if `/work pause` is run or the user resumes the session with `--continue`/`--resume`.
 
 ## Which Persistence Mechanism When

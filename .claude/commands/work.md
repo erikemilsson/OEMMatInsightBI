@@ -24,7 +24,7 @@ Communication uses two tiers to keep the user informed without wasteful file I/O
 
 ### Tier 1: Dashboard Regeneration (strategic moments)
 
-Regenerate `dashboard.md` per `.claude/support/reference/dashboard-regeneration.md` only at moments when the user needs it current:
+Regenerate `dashboard.html` per `.claude/support/reference/dashboard-regeneration.md` only at moments when the user needs it current:
 
 | Trigger | Rationale |
 |---------|-----------|
@@ -265,7 +265,7 @@ Enumerate every item currently gated on the user and surface it before routing. 
    1. {item} — {concrete question or action} → {file link}
    ...
    ```
-5. **Dashboard cross-check:** every item found must have a 🚨 Action Required row with the question/action inline. Add missing rows via the targeted-edit path (set the `pending_full_regen` sentinel per FB-080) — do not defer to the next full regen.
+5. **Dashboard cross-check:** every item found must have a 🚨 Action Required ("Needs you") item with the question/action inline. If any are missing, regenerate `dashboard.html` (a full regen is cheap; the "Needs you" card is LLM-filled) so the queue is complete.
 
 ### Step 1: Gather Context
 
@@ -280,7 +280,7 @@ Enumerate every item currently gated on the user and surface it before routing. 
 
 Read and analyze:
 - `.claude/spec_v{N}.md` - The specification (source of truth)
-- `.claude/dashboard.md` - Task status and progress (read the `<!-- DASHBOARD META -->` block)
+- `.claude/dashboard.html` - Task status and progress (read the `<!-- DASHBOARD META -->` comment in the `<head>`)
 
 **Fast-path optimization:** If dashboard META block shows matching task_count and spec_fingerprint, skip Steps 1a/1b and jump to Step 1c. Always check drift-deferrals.json for stale deferrals even on fast-path.
 
@@ -294,9 +294,7 @@ Read and analyze:
 
 Verify the dashboard is current before using its data. Compute a SHA-256 hash of all task IDs, statuses, difficulties, and owners, compare against the dashboard's `<!-- DASHBOARD META -->` block. If the hash differs or no metadata exists, regenerate the dashboard from task JSON files before continuing.
 
-Also compare `template_version` in the META block against `template_version` in `.claude/version.json`. If they differ or the META field is absent, the dashboard was generated with older format rules and should be regenerated (see dashboard-regeneration.md § "Format Staleness").
-
-Also read `.claude/dashboard-state.json`'s `pending_full_regen` field. If non-null, a prior-session targeted edit set the sentinel and full regen must run even when `task_hash` matches (see dashboard-regeneration.md § "Targeted Edits"). Full regen clears the field to `null`. A missing field is treated as `null` (back-compat).
+Also compare `template_version` in the META block against `template_version` in `.claude/version.json`. If they differ or the META field is absent, the dashboard was generated with older format rules and should be regenerated (see dashboard-regeneration.md § "Format Staleness"). **Migration (DEC-024):** if a legacy Markdown `.claude/dashboard.md` is present, migrate its `<!-- USER SECTION -->` / `<!-- SECTION TOGGLES -->` / `<!-- CUSTOM VIEWS INSTRUCTIONS -->` content into the sidecar, delete it, and regenerate `dashboard.html`.
 
 **Full procedure:** `.claude/support/reference/drift-reconciliation.md` § "Dashboard Freshness Check"
 
@@ -686,7 +684,7 @@ The orchestrator owns ALL `.claude/` state transitions — agents cannot write t
    ```
 5. **After re-dispatch returns** `completed` or a fresh `partial_resume_pending`: clear the `partial_completion` field from the task JSON. (For fresh `partial_resume_pending`, the new envelope replaces the old.)
 
-Dispatch implement-agent (Task tool; set `model` per `.claude/CLAUDE.md § Model Requirement`) instructing it to read `.claude/agents/implement-agent.md` and follow Steps 1-6. Agent returns a structured report.
+Dispatch implement-agent (Task tool; set `model` per `.claude/CLAUDE.md § Model Requirement`) instructing it to read `.claude/agents/implement-agent.md` and follow Steps 1-6. Agent returns a structured report. **The dispatch prompt must state the envelope contract explicitly** — include: *"Return ONLY the structured JSON report envelope from `implement-agent.md § Step 6` — raw JSON, no prose summary, no markdown fences."* (Persona-via-prompt alone does not reliably transmit the output contract; a prose return was observed downstream.)
 
 **After agent returns:** apply "After implement-agent returns" from State Persistence Protocol. Then, if `implementation_status == "completed"`, dispatch verify-agent per "If Verifying (Per-Task)" and apply "After verify-agent returns" protocol.
 
@@ -703,7 +701,7 @@ When Step 2c produces a parallel batch of >= 2 tasks, execute them concurrently.
 **Key rules:**
 - **Pre-dispatch confirmation (batch ≥ 3):** Before spawning, present the dispatch plan to the user — task IDs, titles, files affected, verify strategy — and await explicit confirmation. Skip for batches of 2 (low surprise; partial budget). See parallel-execution.md § "Pre-Dispatch Confirmation" for the prompt format and `[D]`/`[S]`/`[1]` behavior.
 - Orchestrator sets all batch tasks to "In Progress" before dispatch (see parallel-execution.md § 2)
-- Each parallel implement-agent reads `implement-agent.md` and follows Steps 1-6; returns a structured report
+- Each parallel implement-agent reads `implement-agent.md` and follows Steps 1-6; returns a structured report (each dispatch prompt states the envelope contract explicitly — same clause as sequential dispatch above)
 - As each implement-agent report arrives, orchestrator applies "After implement-agent returns" protocol AND dispatches that task's verify-agent (see parallel-execution.md § 4)
 - As each verify-agent report arrives, orchestrator applies "After verify-agent returns" protocol
 - After all reports processed: final parent auto-completion, single dashboard regeneration, post-dispatch validation (Step 5)
@@ -726,6 +724,8 @@ Task tool call:
     Spec file: .claude/spec_v{N}.md (section: "{spec_section}")
 
     Verify the implementation independently. Do NOT assume correctness.
+    Return ONLY the structured JSON verification report (verify-agent.md
+    per-task report schema) — raw JSON, no prose summary, no markdown fences.
 ```
 
 **Timeout handling:** If verify-agent exhausts `max_turns` without returning a valid report, treat as verification failure — per State Persistence Protocol, increment `verification_attempts`, set task to "Blocked" with `[VERIFICATION TIMEOUT]` note, report to user.
@@ -822,6 +822,8 @@ Task tool call:
 
     Validate the full implementation against spec acceptance criteria.
     Create fix tasks for any issues found. Do NOT implement fixes yourself.
+    Return ONLY the structured JSON phase-level report (verify-agent.md
+    phase-level schema) — raw JSON, no prose summary, no markdown fences.
 ```
 
 **After phase-level verification completes:** verify-agent returns a structured phase-level report. Apply "After verify-agent returns (phase-level mode)" from State Persistence Protocol.
@@ -855,7 +857,7 @@ When all tasks are finished and verification conditions are met:
 Run quick validation after task dispatch to catch issues early:
 
 1. **Task file integrity** — Verify the task JSON that was just modified is valid JSON and parseable
-2. **Dashboard exists** — Confirm `.claude/dashboard.md` exists and has a `<!-- DASHBOARD META -->` block
+2. **Dashboard exists** — Confirm `.claude/dashboard.html` exists and has a `<!-- DASHBOARD META -->` comment in its `<head>`
 3. **Session sentinel** — Write `.claude/tasks/.last-clean-exit.json` with current timestamp and in-progress task list (enables fast-path recovery check on next `/work` run)
 4. **Session boundary dashboard freshness** — When the main work loop has reached a natural stopping point (phase boundary, blocking decision, verification failure needing human escalation, or no more eligible tasks), verify dashboard freshness against actual task state. Compute a hash of all task IDs/statuses/owners and compare against the `<!-- DASHBOARD META -->` block. If stale, regenerate now — the user should never see a stale dashboard as the final state of a work session.
 
@@ -916,7 +918,7 @@ When active task count exceeds 100 (checked after dashboard regen), archive fini
 
 ## Context Transition (`/work pause`)
 
-Graceful wind-down that preserves reasoning context before compaction clears the context window. Use when a session is getting long and you want to ensure continuity.
+Graceful wind-down that preserves reasoning context before compaction clears the context window. Use when a session is getting long and you want to ensure continuity. Pause is also a valid **mid-session checkpoint** — pausing, continuing to work, and pausing again in one session is normal use (each pause overwrites the handoff with the newest state); pause does not imply session end.
 
 Read `.claude/support/reference/context-transitions.md` and follow the Path A (User-Initiated) procedure. Key rules:
 
@@ -924,7 +926,7 @@ Read `.claude/support/reference/context-transitions.md` and follow the Path A (U
 - Do NOT increment `verification_attempts` if verify-agent was interrupted
 - Do NOT skip the handoff file — that's the whole point
 - `session_knowledge` captures what would otherwise be lost: user preferences, informal decisions, discovered patterns
-- **Open-question sweep (human-gated coverage):** before writing the handoff, enumerate every question asked of the user this session that went unanswered, plus any newly user-gated items (tasks put On Hold, unblocked `owner: "human"` tasks, unresolved decisions). Each MUST land as a dashboard 🚨 Action Required row with the concrete question inline — the targeted-edit path + `pending_full_regen` sentinel (FB-080) is sufficient. The handoff may point at those rows; it must never be a blocking question's only home. (Counterpart: Step 0g prints this queue at the next session start.)
+- **Open-question sweep (human-gated coverage):** before writing the handoff, enumerate every question asked of the user this session that went unanswered, plus any newly user-gated items (tasks put On Hold, unblocked `owner: "human"` tasks, unresolved decisions). Each MUST land in the dashboard's 🚨 Action Required ("Needs you") card with the concrete question inline — regenerate `dashboard.html` so the card is complete. The handoff may point at those items; it must never be a blocking question's only home. (Counterpart: Step 0g prints this queue at the next session start.)
 
 ### Interaction Assessment + Session Export (Track 2 — Cross-Project Logging)
 

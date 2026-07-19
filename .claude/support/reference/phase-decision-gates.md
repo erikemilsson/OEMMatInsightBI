@@ -12,37 +12,37 @@ Determine the current active phase by walking phases in ascending order:
 1. Group tasks by `phase` field
 2. Sort phases numerically (ascending)
 
+   Gate state lives in the sidecar `dashboard-state.json` `phase_gates` object,
+   keyed by transition (e.g. "1→2"); the dashboard is read-only HTML, so the
+   user approves via CLI (not an in-file checkbox) — DEC-024.
+
    FOR each phase P (ascending):
      IF all tasks in phase P are "Finished":
        IF tasks exist in a higher phase (next_phase exists):
-         1. Read dashboard for approved marker: <!-- PHASE GATE:{P}→{next_phase} APPROVED -->
-         2. IF APPROVED marker exists:
+         gate = phase_gates["{P}→{next_phase}"]   (absent → treat as new)
+         1. IF gate.status == "approved":
               → Already approved. Continue to next phase.
-         3. Read dashboard for phase gate marker: <!-- PHASE GATE:{P}→{next_phase} -->
-         4. IF marker exists, check ALL checkboxes within the gate:
-              - Parse all `- [x]` and `- [ ]` lines between gate markers
-              - **Normalize checkboxes before evaluation:**
-                - Treat `[x]`, `[X]`, `[✓]`, `[✔]` all as checked
-                - Treat `[ ]`, `[]` as unchecked
-                - Any other content inside brackets → treat as unchecked (safe default)
-              - IF ALL checkboxes are checked [x]:
-                → Phase transition approved.
-                → Replace gate content with: <!-- PHASE GATE:{P}→{next_phase} APPROVED -->
-                → Log: "Phase {P} → {next_phase} approved"
-                → Learning capture (lightweight, skippable):
-                    "Phase {P} complete. Any patterns or learnings to capture? [L] Share  [S] Skip"
-                    If [L]: append to .claude/support/learnings/phase-learnings.md
-                    If [S]: continue silently
-                → Execute Version Transition Procedure (see iterate.md § "Version Transition Procedure")
-                → Suggest running /iterate to flesh out Phase {next_phase} sections
-                → Continue to next phase
-              - IF any checkbox is unchecked [ ]:
-                → Log: "Phase gate {P}→{next_phase}: {N} of {M} conditions met. Waiting for remaining approvals."
-                → STOP — do not dispatch any tasks
-         5. IF marker absent:
-              → Regenerate dashboard with phase gate in Action Required (see `dashboard-regeneration.md` § "Regeneration Steps" Step 3)
-              → Log: "Phase {P} complete. Review conditions and approve transition in dashboard, then run /work."
+         2. Evaluate auto-conditions (all Phase P tasks Finished; all their
+            per-task verifications passed; plus any spec-defined gate criteria).
+         3. IF auto-conditions NOT all met:
+              → Set gate.status = "active"; surface the gate in the dashboard's
+                "Needs you" card (LLM-filled) listing met/unmet conditions.
+              → Log: "Phase gate {P}→{next_phase}: {N} of {M} conditions met."
               → STOP — do not dispatch any tasks
+         4. IF auto-conditions met but the user has not yet approved:
+              → Set gate.status = "active"; surface in "Needs you": the
+                conditions (all met) + the approval prompt.
+              → Prompt via CLI: "Phase {P} complete — approve transition to
+                Phase {next_phase}? [Y] Approve  [N] Hold". STOP until approved.
+         5. ON user approval (CLI reply Y):
+              → Set gate.status = "approved" in the sidecar (orchestrator write).
+              → Log: "Phase {P} → {next_phase} approved"
+              → Learning capture (lightweight, skippable):
+                  "Phase {P} complete. Any patterns or learnings to capture? [L] Share  [S] Skip"
+                  If [L]: append to .claude/support/learnings/phase-learnings.md
+              → Execute Version Transition Procedure (see iterate.md § "Version Transition Procedure")
+              → Suggest running /iterate to flesh out Phase {next_phase} sections
+              → Continue to next phase
        ELSE (final phase, all tasks Finished):
          → Fall through to Step 3 routing (phase-level verification → completion)
      ELSE (phase P has non-Finished tasks):

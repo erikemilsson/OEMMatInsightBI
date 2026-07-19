@@ -3,15 +3,17 @@
   "section_toggles": {
     "action_required": true,
     "progress": true,
-    "tasks": true,
+    "flow": true,
+    "timeline": true,
     "decisions": false,
+    "spec": true,
     "notes": true,
     "custom_views": false
   },
   "phase_gates": {
-    "1\u21922": {
+    "1→2": {
       "status": "approved",
-      "content": "**Phase 1 \u2192 Phase 2 Transition** \u2014 approved 2026-04-29 (Phase 2 work complete except for one human-action task)\n\nConditions:\n- [x] All Phase 1 tasks finished (9/9)\n- [x] All verifications passed (9/9)\n- [x] Approve transition to Phase 2\n"
+      "content": "**Phase 1 → Phase 2 Transition** — approved 2026-04-29 (Phase 2 work complete except for one human-action task)\n\nConditions:\n- [x] All Phase 1 tasks finished (9/9)\n- [x] All verifications passed (9/9)\n- [x] Approve transition to Phase 2\n"
     }
   },
   "inline_feedback": {},
@@ -21,6 +23,5 @@
     "items": [],
     "dismissed_ids": []
   },
-  "pending_full_regen": null,
-  "updated": "2026-06-13T18:46:08Z"
+  "updated": "2026-07-19T15:14:15Z"
 }

@@ -66,7 +66,7 @@ Read by `/work` during Execute phase. Follow every step in order. Each step prod
 ### Step 1: Select Task
 
 If no specific task provided:
-1. Read dashboard.md
+1. Read dashboard.html (orientation only; state of record is task JSON)
 2. Find tasks with status "Pending"
 3. Check dependencies (all must be "Finished")
 4. Select highest priority unblocked task

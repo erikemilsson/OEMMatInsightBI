@@ -1,14 +1,14 @@
 {
-  "template_version": "4.27.0",
-  "template_release_date": "2026-06-12",
+  "template_version": "5.2.0",
+  "template_release_date": "2026-07-19",
   "template_repo": "https://github.com/erikemilsson/claude_code_environment",
   "project_version": "1.0.0",
   "project_initialized": "2026-02-13",
   "migrated_at": "2026-03-10",
   "migrated_from": "template v1.5.0 (2026-01-26)",
-  "synced_at": "2026-06-13",
-  "synced_from": "4.10.0",
+  "synced_at": "2026-07-19",
+  "synced_from": "4.27.0",
   "template_inbox_path": "/Users/erikemilsson/Developer/claude_code_environment/interaction-logs/inbox",
   "structured_artifact_path": "",
-  "notes": "Synced 4.10.0 -> 4.27.0 via /health-check 2026-06-13. Applied 42 template-owned files (33 updated + 9 new: shakedown.md, dashboard-render.py, persist-friction.py, test_dashboard_render.py, test_persist_friction.py, reference/audit-family-core.md, reference/mcp-patterns.md, reference/work-procedures.md, support/shakedowns/README.md). Took template sync-manifest.json (dropped .claude/skills/*/SKILL.md glob — skills retired upstream; added 4 new reference/support entries). 3 local skills (dashboard-style, spec-checklist, decomposition-heuristics) deleted 2026-06-13 — superseded by synced reference docs (dashboard-regeneration.md / spec-checklist.md / decomposition.md); template retired the skills mechanism. 12 Fabric domain commands kept local-only. Refreshed .sync-state.json sidecar."
+  "notes": "Synced 4.27.0 -> 5.2.0 via /health-check 2026-07-19. Applied 32 template-owned files (31 updated + 1 new: scripts/tests/test_dashboard_render_html.py). All were hash-verified as unmodified locally before apply (0 local edits). Brings DEC-023 (vision lifecycle/merge-queue) and DEC-024 (dashboard.md -> generated read-only dashboard.html). 12 Fabric domain commands remain local-only. Also removed a stale .git/index.lock dated 2026-06-21 that had been silently blocking all git writes since the last commit (2026-06-14)."
 }

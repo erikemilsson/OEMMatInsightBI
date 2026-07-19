@@ -339,7 +339,7 @@ Checkpoint types:
 ### Phase Boundaries
 When transitioning between phases:
 - Spec → Execute: "Specification complete. Ready to implement?"
-- **Phase N → Phase N+1** (within Execute): Surfaced as a dashboard Action Required item with a checkbox in a `<!-- PHASE GATE:{N}→{N+1} -->` marker. `/work` blocks until the user checks the box and re-runs. Once approved, the marker becomes `<!-- PHASE GATE:{N}→{N+1} APPROVED -->` so it won't re-trigger on subsequent runs. After approval, a lightweight learning capture prompt is offered (skippable).
+- **Phase N → Phase N+1** (within Execute): Surfaced as an Action Required item in the dashboard's "Needs you" card. The dashboard is read-only HTML, so the user approves the transition via CLI (`/work` prompts; reply to approve), and approval state is tracked in the `dashboard-state.json` `phase_gates` object (`status: "active" → "approved"`) so it won't re-trigger. After approval, a lightweight learning capture prompt is offered (skippable).
 - **Execute → Verify**: When all tasks are complete, the dashboard shows a "Verification Pending" item in Action Required, and the critical path displays "🤖 Phase verification → Done" instead of "All tasks complete!". Phase-level verification runs automatically on the next `/work`.
 - Verify → Complete: "Verification passed. Ready to ship?"
 
@@ -584,7 +584,7 @@ Two files control template behavior:
 ```
 .claude/
 ├── CLAUDE.md                  # Instructions for Claude Code
-├── dashboard.md               # Project Dashboard (auto-generated)
+├── dashboard.html             # Project Dashboard (auto-generated HTML, gitignored)
 ├── verification-result.json   # Latest verification outcome (written by verify-agent)
 ├── spec_v{N}.md               # Project specification (source of truth)
 ├── vision/                    # Vision documents from ideation

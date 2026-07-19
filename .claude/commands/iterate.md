@@ -68,6 +68,28 @@ IF `new` or `refined` count > 0 (but no `ready` items):
 
 IF no feedback items exist or file doesn't exist: continue silently.
 
+### Step 1c: Drain the Merge Queue (DEC-023)
+
+Read `.claude/support/.spec-merge-queue.jsonl` if it exists (see `.claude/support/reference/merge-queue.md`). This is the **re-entry transport**: findings that `/grill`, `/shakedown`, or `/feedback` surfaced in *other* conversations, waiting to be folded into a vision or the spec. Draining it here is what turns an excursion's output back into the flow without the user re-stating it from memory.
+
+Count `status: open` items.
+
+IF open count > 0:
+  Group by `target_ref` and surface the re-entry prompt — e.g.:
+  ```
+  Excursion findings since last spec update:
+  — 2 ⚠ gaps + 1 drafted delta from shakedown `outfit-scoring-2026-06-22` (target: vision/outfit-scoring.md)
+  — 1 sharpened term from grill (target: spec § 12.4)
+  ```
+  Options:
+  - `[Y]` Fold all in — apply each by `target`: `spec` items become Step 4 change-declaration inputs (normal propose-approve-apply); `vision` items fold into the named vision doc in-place (allowed during development per the DEC-016 vision carve-out). On apply, set the item's `status: merged`.
+  - `[R]` Review each — walk items one at a time; fold or `dismiss` individually.
+  - `[S]` Skip — leave items `open` for a later session.
+
+  **`needs_impact_assessment: true` items are held back** — do not apply them here; route them to `/feedback` for impact assessment first (DEC-023 G2), then they return as ordinary items.
+
+IF no open items or file doesn't exist: continue silently.
+
 ### Step 2: Determine Mode
 
 **If user specified `/iterate distill`:**
@@ -384,6 +406,8 @@ Based on user response:
 - **[M] Walk item-by-item:** Resolve each unchecked item individually, then apply.
 - **[P] Postpone (or [N]):** No changes applied. The proposal can be revisited on the next `/iterate` run.
 - **Free text:** Treat as modification instructions — revise the declaration and re-present (the previous `[M] Modify` semantics).
+
+**Post-apply spec-index refresh (DEC-021):** after any apply that edited the spec, regenerate the section index so the next section-scoped read isn't stale: `python3 .claude/scripts/fingerprint.py --index .claude/spec_v{N}.md > .claude/spec_v{N}.index.json` (the script prints to stdout — the redirect writes the file). Make any frontmatter edit (`updated:`, version) BEFORE this step: frontmatter changes the file hash, and regenerating first then editing frontmatter leaves the index stale again (observed downstream, regenerated twice).
 
 After applying (or skipping):
 

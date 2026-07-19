@@ -553,7 +553,7 @@ For large projects (100+ tasks), finished tasks are automatically archived.
 
 ```
 .claude/
-├── dashboard.md          # Auto-generated summary
+├── dashboard.html        # Auto-generated summary (HTML, gitignored)
 └── tasks/
     ├── task-*.json       # Active tasks
     └── archive/

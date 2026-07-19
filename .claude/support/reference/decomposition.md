@@ -10,7 +10,7 @@ Procedure for breaking a spec into granular tasks. Run as `/work` Step 4 "If Dec
 
 2. **Read spec thoroughly** — Understand all requirements and acceptance criteria.
 
-3. **Compute spec fingerprint** — SHA-256 hash of spec content (see `drift-reconciliation.md` § "Spec Drift Detection").
+3. **Flip spec status, THEN compute spec fingerprint** — First update the spec frontmatter `status: draft` → `active` (see § "Spec Status Transition" below; infrastructure edit, autonomous). Then compute the SHA-256 hash of spec content (see `drift-reconciliation.md` § "Spec Drift Detection"). **Order matters:** the status flip changes the file, so flipping after this step stamps every task JSON and the index with a stale pre-flip fingerprint — a false-drift trap observed twice downstream, each requiring manual re-stamps.
 
 4. **Save spec snapshot** — Copy current spec to `.claude/support/previous_specifications/spec_v{N}_decomposed.md`.
 
@@ -29,6 +29,7 @@ Procedure for breaking a spec into granular tasks. Run as `/work` Step 4 "If Dec
    - `spec_subsection` + `subsection_fingerprint` *(optional, DEC-021)* — when a task's work is scoped to a single `### ` subsection of a **large** `## ` section (consult the section index `char_count` from `fingerprint.py --index`; "large" = big enough that a one-line edit elsewhere in it would needlessly re-flag this task), record the `### ` heading + its hash (`fingerprint.py --sections --depth 3`). Lets drift detection spare this task when a *different* subsection of the same `## ` section changes. Skip for tasks in small sections or tasks that span a whole section — they use `## `-level drift.
    - **Important:** Create all task JSON files before regenerating the dashboard. Every task must have a `task-*.json` file — the dashboard is generated from these files, never the other way around.
    - **Script alternative:** Capture hashes via `.claude/scripts/fingerprint.py --spec` / `--sections`; orchestrator writes the `sha256:...` strings into task JSON `spec_fingerprint` and `section_fingerprint` fields.
+   - **`.claude/`-boundary split:** when a work item spans both `.claude/` paths and regular project paths, split it into separate tasks (or annotate it) — subagents cannot write `.claude/` (DEC-004), so the `.claude/` portion is orchestrator-implemented inline with a read-only verify-agent pass. Declaring this at decomposition prevents mid-dispatch correction (observed in 3 downstream sessions).
    - **After creating task JSONs:** run the Decomposition Pre-Pass Validation (below) to catch declared-path drift and under-counted `files_affected`, and the Test-Harness Awareness check (below) to propose scenario-authoring subtasks for runtime-shaped tasks — both run before tasks ship to `/work` Step 2c.
 
 9. **Map dependencies** — What must complete before what.
@@ -58,7 +59,7 @@ Use a fuzzy-match (e.g., `Glob` for the basename) to suggest the closest existin
 
 ### Leg 2: Ripple Inference
 
-For each task, run targeted greps to surface ripple-affected files the declared `files_affected` may miss. Five detection heuristics:
+For each task, run targeted greps to surface ripple-affected files the declared `files_affected` may miss. Seven detection heuristics:
 
 | Pattern in task description | Grep target | Add to candidates |
 |----------------------------|-------------|-------------------|
@@ -67,6 +68,8 @@ For each task, run targeted greps to surface ripple-affected files the declared 
 | New test files under `__tests__` / sibling-test convention | Read `package.json` `scripts.test` — if it chains explicit paths (vs glob), suggest `package.json` | `package.json` for chain-style test runners |
 | Validator-walk extension (Zod/Pydantic `superRefine`, strict-parse) | `grep -r "{ParserSchemaName}\.parse\|\.{ParserSchemaName}\.safeParse"` | Downstream callers |
 | New enum / literal-union / `as const` member (e.g., `add 'foo' to CriterionId`, extending `type Kind = 'a' \| 'b'`, extending `const X = [...] as const`) | `grep -rln "{EnumName}" src/ tests/` to find importers; inspect each for `switch(...)` over the enum or `Record<EnumName, ...>` maps | Files that switch / map over the enum (parsers, formatters, header maps); barrel re-exports; test factories that build instances per enum case |
+| Any implementation task on code with a testable surface | Convention check: does a sibling test file exist (`X.test.ts`, `test_x.py`) or will the implementer create one? | The sibling test file — **declare it by default**; the dominant downstream `files_affected` drift (19 markers across 2 projects) is an undeclared test-file edit |
+| `extract X into a new component/module`, or acceptance implies a new file | — (prediction, not grep) | The **new** file: edits land in the extracted component, not the declared shared ones; declare the new path + the importer that mounts it (2 downstream mispredictions from declaring the shared components instead) |
 
 For each candidate, surface:
 
@@ -227,7 +230,7 @@ When absent, verify-agent infers from `package.json` (presence of `expo` + absen
 
 ## Spec Status Transition
 
-When decomposition begins, update the spec metadata `status` from `draft` to `active`:
+When decomposition begins — **at Procedure step 3, BEFORE the fingerprint compute** (flipping later invalidates the hashes just stamped into task JSONs and the index) — update the spec metadata `status` from `draft` to `active`:
 
 ```yaml
 ---

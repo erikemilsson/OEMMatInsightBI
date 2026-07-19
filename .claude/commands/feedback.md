@@ -4,7 +4,7 @@ disable-model-invocation: true
 
 # Feedback Command
 
-Quick capture and triage of project improvement ideas. Provides a structured path from fleeting thoughts to spec integration, with mandatory impact assessment before anything reaches the spec.
+Quick capture and triage of project improvement ideas — and the **dispatcher** for the capture/develop/route family (DEC-023). Provides a structured path from fleeting thoughts to spec integration, with mandatory impact assessment before anything reaches the spec. When an idea needs more than a light clarify, `/feedback` escalates it to `/grill` (sharpen meaning) or `/shakedown` (capture edge-cases / world-knowledge); it is also the **impact-assessment home** for deltas those commands route back (DEC-023 G2).
 
 ## Usage
 
@@ -234,7 +234,8 @@ Refining FB-NNN: [title]
 > [Original captured text]
 
 Options:
-  [R] Refine — distill this idea
+  [R] Refine — distill this idea (a light clarify: 1-2 questions)
+  [G] Develop — escalate to /grill or /shakedown (needs more than a clarify)
   [C] Close — investigated, decided against
   [N] Not relevant — archive with reason
   [S] Skip — leave for later
@@ -255,6 +256,20 @@ Options:
 5. Ask: "Are you done with this one? [Y] Yes | [E] Edit the refined text"
    - `[Y]`: Confirm and move to next item
    - `[E]`: User provides updated refined text, then re-confirm
+
+##### Action: Develop [G]
+
+Use this when an item needs **more than a light clarify** — the *light-clarify-to-route vs deep-develop boundary* (DEC-023 G1/G3):
+
+- **Light clarify** (stays here, the `[R] Refine` path) — a question or two distils the idea enough to assess and route. This is `/feedback`'s job.
+- **Deep develop** (escalate) — the idea is fuzzy in *meaning*, or it hinges on *edge-cases / real-world knowledge* that needs structured probing. That's a `/grill` or `/shakedown` excursion, not a triage clarify.
+
+Offer the escalation that fits:
+- **Fuzzy meaning** ("what does this even mean / which concept?") → suggest `/grill {the item}`.
+- **Edge-cases / world-knowledge** ("does the system actually handle X?") → suggest `/shakedown` (target the vision or spec).
+- **A larger feature** → suggest starting a feature vision (`.claude/vision/_feature-vision-template.md`) and developing it there.
+
+`/feedback` does not run the excursion — it points the user to it and sets the item's status to `reviewing` (it's mid-development). The excursion's findings return via the merge queue (`.claude/support/reference/merge-queue.md`) and surface on the next `/iterate`; if a returning delta needs impact assessment, it comes back through Phase 3 here (G2).
 
 ##### Action: Close [C]
 
@@ -292,6 +307,8 @@ Use `[C] Close` when the idea was investigated or discussed but deliberately dec
 3. Return to the options prompt for the same item (re-present [R]/[C]/[N]/[S]/[E])
 
 #### Phase 3: Impact Assessment
+
+**Also the impact-assessment home for returning deltas (DEC-023 G2).** Before listing refined items, read `.claude/support/.spec-merge-queue.jsonl` (if present) for entries with `needs_impact_assessment: true` AND `status: open` — these are `/shakedown` (or `/grill`) deltas for a mature project that `/iterate` held back for assessment. Include them in the assessment list alongside `refined` feedback items (label them e.g. `MQ-003 (shakedown delta)`). On **approve**, set the merge-queue item's `needs_impact_assessment: false` so `/iterate`'s drain will fold it; on **close / not-relevant**, set its `status: dismissed`. Feedback items follow their normal outcomes below. This closes the loop `/iterate` Step 1c opens when it routes a flagged delta here.
 
 1. After Phase 2 completes, list all `refined` items:
 

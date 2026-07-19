@@ -16,7 +16,7 @@
 | Decision research archive | `.claude/support/decisions/.archive/` |
 | Workspace/scratch | `.claude/support/workspace/` |
 | User-facing documents | `docs/` (project root, user may customize) |
-| Dashboard | `.claude/dashboard.md` |
+| Dashboard | `.claude/dashboard.html` (generated, gitignored) |
 | Dashboard state sidecar | `.claude/dashboard-state.json` |
 | Session sentinel | `.claude/tasks/.last-clean-exit.json` |
 | Context transition handoff | `.claude/tasks/.handoff.json` |

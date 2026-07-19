@@ -2,6 +2,8 @@
 
 Ready-to-paste instructions for a Claude Desktop project used for brainstorming and ideation. Copy the content below the separator into your Claude Desktop project's custom instructions.
 
+> **Scope:** this document describes ONLY a *pre-spec brainstorming* project — one whose sole output is a vision document saved to `.claude/vision/`. If your built system also uses a live claude.ai Project at runtime (an operational surface the product itself depends on), that is a different project — do not apply these instructions to it.
+
 ## How to Use
 
 1. Create a new project in Claude Desktop

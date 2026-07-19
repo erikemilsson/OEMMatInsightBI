@@ -246,12 +246,13 @@ During parallel execution, strict write ownership prevents file corruption. The 
 | Writer | May write to | Must NOT write to |
 |--------|-------------|-------------------|
 | Each parallel agent | Nothing — agents return structured reports only (harness prohibits subagent writes to `.claude/`, per DEC-004) | Any `.claude/` path |
-| `/work` orchestrator | All task JSONs, parent task JSONs, dashboard.md, verification-result.json, dashboard-state.json, session-log.jsonl, fix-task JSON files | Nothing — orchestrator is the sole writer in this architecture |
+| `/work` orchestrator | All task JSONs, parent task JSONs, dashboard.html, verification-result.json, dashboard-state.json, session-log.jsonl, fix-task JSON files | Nothing — orchestrator is the sole writer in this architecture |
 
 The orchestrator performs all writes: it sets `conflict_note` fields before dispatch, consumes each agent's return report to persist task-JSON state, performs parent auto-completion, and regenerates the dashboard at batch end.
 
 **Key invariants:**
 - **Single writer:** The orchestrator is the only writer for all `.claude/` state (task JSON, dashboard, verification-result.json, session-log.jsonl). Agents return structured reports; all persistence is mediated.
+- **`.claude/`-path tasks never batch:** a task whose `files_affected` includes `.claude/` paths is orchestrator-authored inline (DEC-004) and cannot join an agent-dispatch batch; split mixed tasks at decomposition (`decomposition.md § Procedure` step 8, `.claude/`-boundary split).
 - **Sequential result processing:** When multiple agents complete in the same poll cycle, the orchestrator processes them one at a time (the `For each completed agent` loop is sequential). This naturally serializes task-JSON writes, parent auto-completion, and friction-marker appends — no race conditions possible since there's only one writer.
 - **Verify-agent dispatch per implement-agent:** After each implement-agent report is processed, the orchestrator dispatches that task's verify-agent. Verify-agents can run concurrent with subsequent implement-agents, preserving pipeline throughput.
 
@@ -331,7 +332,7 @@ After all agents complete (active_agents AND active_verifiers are empty):
 1. Final parent auto-completion check
 
 2. Single dashboard regeneration:
-   Regenerate dashboard.md per the Dashboard Regeneration Procedure
+   Regenerate dashboard.html per the Dashboard Regeneration Procedure
    - Remove all conflict_note fields from task JSONs (cleanup)
 
 3. Operational checks (Step 5)
