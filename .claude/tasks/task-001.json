@@ -31,7 +31,8 @@
     "REVISED SCOPE: Changed from match rate visibility to DATA GAPS visibility",
     "Purpose is actionable: 'Contact these suppliers for sustainability data'",
     "Shows what's MISSING, not what's matched",
-    "Portfolio showcase: demonstrates data quality awareness"
+    "Portfolio showcase: demonstrates data quality awareness",
+    "/health-check 2026-07-19: pending inline subtask(s) task-001-6 -> task-034 promoted to standalone task files; inline entries marked Absorbed. Parent remains Finished (its own deliverables were verified)."
   ],
   "phase": "1",
   "spec_section": "",
@@ -41,7 +42,7 @@
     "docs/guides/DQ_PAGE_GUIDE.md"
   ],
   "created_date": "",
-  "updated_date": "2026-03-10",
+  "updated_date": "2026-07-19",
   "task_verification": {
     "result": "pass",
     "checks": {
@@ -54,7 +55,7 @@
       "consistency_check": true
     },
     "issues": [],
-    "notes": "Pre-migration task \u2014 verification predates current schema."
+    "notes": "Pre-migration task — verification predates current schema."
   },
   "verification_attempts": 0,
   "verification_history": [],
@@ -105,9 +106,10 @@
     {
       "id": "task-001-6",
       "title": "Build Data Gaps page following DQ_PAGE_GUIDE.md",
-      "status": "Pending",
+      "status": "Absorbed",
       "owner": "human",
-      "details": "Build the visuals in Power BI per the guide (optional enhancement)"
+      "details": "Build the visuals in Power BI per the guide (optional enhancement)",
+      "absorbed_into": "task-034"
     }
   ],
   "progress": "Core infrastructure complete. Tables and measures deployed to Fabric. Page building optional.",

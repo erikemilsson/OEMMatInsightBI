@@ -41,7 +41,8 @@
     "--- REMAINING (Erik in Fabric UI) ---",
     "- Replace bronze_EPI/bronze_WGI RefreshDataflow activities with TridentNotebook activities in pipeline",
     "- Test end-to-end pipeline run",
-    "- Decommission old EPI_file2table and WGI_file2table dataflows"
+    "- Decommission old EPI_file2table and WGI_file2table dataflows",
+    "/health-check 2026-07-19: pending inline subtask(s) task-005-3 -> task-035, task-005-4 -> task-036 promoted to standalone task files; inline entries marked Absorbed. Parent remains Finished (its own deliverables were verified)."
   ],
   "phase": "2",
   "spec_section": "",
@@ -51,11 +52,11 @@
     ".claude/support/documents/external_data_automation.md"
   ],
   "created_date": "",
-  "updated_date": "2026-04-05",
+  "updated_date": "2026-07-19",
   "task_verification": {
     "result": "pass",
     "verified_date": "2026-04-05",
-    "verified_by": "implement-agent (inline verification \u2014 subagent spawn unavailable)",
+    "verified_by": "implement-agent (inline verification — subagent spawn unavailable)",
     "checks": {
       "files_exist": "pass",
       "consistency_check": "pass",
@@ -65,7 +66,7 @@
       "integration_ready": "pass",
       "scope_validation": "pass"
     },
-    "notes": "All acceptance criteria met for the code-deliverable portion. Pipeline wiring (subtasks 3-4) require Erik in Fabric UI. Cannot run notebooks locally \u2014 runtime verification requires Fabric environment.\n\nLegacy check evidence:\n- EPI source URL documented: https://epi.yale.edu/downloads/epi{year}results.csv \u2014 PASS\n- WGI source URL documented: https://api.worldbank.org/v2/ (source=3) \u2014 PASS\n- EPI notebook created with correct Fabric format and lakehouse metadata \u2014 PASS\n- WGI notebook created with correct Fabric format and lakehouse metadata \u2014 PASS\n- EPI notebook writes to bronze_epi2024results matching downstream expectations \u2014 PASS\n- WGI notebook writes to bronze_WGI with columns Country Name, Country Code, Series Name matching downstream \u2014 PASS\n- Error handling: retry logic, schema validation, empty-result checks \u2014 PASS\n- external_data_automation.md updated with implementation details \u2014 PASS\n- Pipeline JSON not modified (correct \u2014 Erik handles in Fabric UI) \u2014 PASS"
+    "notes": "All acceptance criteria met for the code-deliverable portion. Pipeline wiring (subtasks 3-4) require Erik in Fabric UI. Cannot run notebooks locally — runtime verification requires Fabric environment.\n\nLegacy check evidence:\n- EPI source URL documented: https://epi.yale.edu/downloads/epi{year}results.csv — PASS\n- WGI source URL documented: https://api.worldbank.org/v2/ (source=3) — PASS\n- EPI notebook created with correct Fabric format and lakehouse metadata — PASS\n- WGI notebook created with correct Fabric format and lakehouse metadata — PASS\n- EPI notebook writes to bronze_epi2024results matching downstream expectations — PASS\n- WGI notebook writes to bronze_WGI with columns Country Name, Country Code, Series Name matching downstream — PASS\n- Error handling: retry logic, schema validation, empty-result checks — PASS\n- external_data_automation.md updated with implementation details — PASS\n- Pipeline JSON not modified (correct — Erik handles in Fabric UI) — PASS"
   },
   "verification_attempts": 1,
   "verification_history": [
@@ -103,7 +104,7 @@
     {
       "name": "EU CRM Supply Shares",
       "source": "GitHub repository CSV",
-      "currentIngestion": "\u2705 Automated (HTTP Copy Activity)",
+      "currentIngestion": "✅ Automated (HTTP Copy Activity)",
       "automationMethod": "Already implemented",
       "updateFrequency": "Annual"
     }
@@ -114,28 +115,30 @@
       "title": "Implement EPI ingestion notebook",
       "status": "Finished",
       "estimatedEffort": "0.5 days",
-      "details": "Created fabric/bronze_ingest_epi.Notebook/ \u2014 downloads EPI CSV from Yale via requests, writes to bronze_epi2024results Delta table"
+      "details": "Created fabric/bronze_ingest_epi.Notebook/ — downloads EPI CSV from Yale via requests, writes to bronze_epi2024results Delta table"
     },
     {
       "id": "task-005-2",
       "title": "Implement WGI API Notebook",
       "status": "Finished",
       "estimatedEffort": "1 day",
-      "details": "Created fabric/bronze_ingest_wgi.Notebook/ \u2014 calls World Bank API v2 (JSON) for all 6 WGI indicators, writes to bronze_WGI Delta table"
+      "details": "Created fabric/bronze_ingest_wgi.Notebook/ — calls World Bank API v2 (JSON) for all 6 WGI indicators, writes to bronze_WGI Delta table"
     },
     {
       "id": "task-005-3",
       "title": "Update pipeline orchestration",
-      "status": "Pending",
+      "status": "Absorbed",
       "estimatedEffort": "0.5 days",
-      "details": "Erik: Replace RefreshDataflow activities with TridentNotebook activities in pipeline (Fabric UI)"
+      "details": "Erik: Replace RefreshDataflow activities with TridentNotebook activities in pipeline (Fabric UI)",
+      "absorbed_into": "task-035"
     },
     {
       "id": "task-005-4",
       "title": "Test end-to-end automated ingestion",
-      "status": "Pending",
+      "status": "Absorbed",
       "estimatedEffort": "0.5 days",
-      "details": "Erik: Run full pipeline, verify EPI and WGI data flows through bronze->silver->gold without manual upload"
+      "details": "Erik: Run full pipeline, verify EPI and WGI data flows through bronze->silver->gold without manual upload",
+      "absorbed_into": "task-036"
     },
     {
       "id": "task-005-5",
@@ -145,5 +148,5 @@
       "details": "Updated external_data_automation.md with implementation details and remaining steps"
     }
   ],
-  "progress": "Implementation complete \u2014 notebooks created (subtasks 1,2,5 done), pipeline wiring and testing remain for Erik (subtasks 3,4)"
+  "progress": "Implementation complete — notebooks created (subtasks 1,2,5 done), pipeline wiring and testing remain for Erik (subtasks 3,4)"
 }

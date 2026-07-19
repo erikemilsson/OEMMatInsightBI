@@ -50,7 +50,7 @@
     ".claude/support/documents/incremental_load_strategy.md"
   ],
   "created_date": "",
-  "updated_date": "2026-04-05",
+  "updated_date": "2026-07-19",
   "task_verification": {},
   "verification_attempts": 0,
   "verification_history": [],
@@ -72,6 +72,12 @@
       "External data tables (bronze_epi2024results, bronze_WB_ESGCSV, bronze_GlobalSupplyShares)"
     ]
   },
-  "subtasks": ["006_1a", "006_1b", "006_1c", "006_2", "006_3"],
+  "subtasks": [
+    "task-006_1a",
+    "task-006_1b",
+    "task-006_1c",
+    "task-006_2",
+    "task-006_3"
+  ],
   "progress": "Broken down into 5 subtasks (3 parallel layer implementations + wiring + testing)"
 }

@@ -1,0 +1,38 @@
+{
+  "id": "task-034",
+  "title": "Build Data Gaps page in Power BI following DQ_PAGE_GUIDE.md",
+  "description": "Build the Data Gaps report page visuals in Power BI per DQ_PAGE_GUIDE.md. The underlying gold_data_gaps table, TMDL model entries, and coverage DAX measures all landed under task-001; only the report-page build remains. Originally tracked as inline subtask task-001-6 inside task-001, which was marked Finished while this item was still Pending — promoted to a standalone task by /health-check 2026-07-19 so it is visible to routing.",
+  "status": "Pending",
+  "priority": "P3",
+  "difficulty": 3,
+  "owner": "human",
+  "phase": "1",
+  "phase_name": "Core Infrastructure",
+  "spec_section": "",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "estimated_hours": 3,
+  "files_affected": [],
+  "acceptanceCriteria": [
+    "Data Gaps page exists in the Power BI report and follows the layout in DQ_PAGE_GUIDE.md.",
+    "Page renders against gold_data_gaps with the coverage-percentage measures created in task-001.",
+    "Erik confirms the visuals populate with real data (not blank/error states) after a pipeline run."
+  ],
+  "dependencies": [],
+  "decision_dependencies": [],
+  "notes": [
+    "PROMOTED by /health-check 2026-07-19 from task-001's legacy inline subtask array (id was task-001-6). task-001 remains Finished — its Claude-side deliverables (gold_data_gaps table, TMDL, DAX measures, guide) were all completed and verified; this was the human-owned tail.",
+    "Original note flagged this as an OPTIONAL ENHANCEMENT — treat as low priority, and feel free to close it as descoped rather than building it if the Data Gaps page no longer earns its place in the report.",
+    "STALENESS CHECK FIRST: this item was authored 2026-01-16. Confirm DQ_PAGE_GUIDE.md and the gold_data_gaps schema still match current reality before building — the gold layer has changed substantially since (tasks 022-031)."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-07-19",
+  "updated_date": "2026-07-19",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "dashboard"
+}

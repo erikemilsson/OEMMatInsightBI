@@ -1,0 +1,40 @@
+{
+  "id": "task-035",
+  "title": "Replace RefreshDataflow activities with TridentNotebook activities in the orchestrator pipeline (EPI/WGI automation)",
+  "description": "The EPI and WGI ingestion notebooks were built under task-005, but the orchestrator pipeline was never repointed from the legacy RefreshDataflow activities to TridentNotebook activities calling those notebooks. Until this lands, external-data ingestion is not actually automated end-to-end. Originally tracked as inline subtask task-005-3 inside task-005, which was marked Finished while this item was still Pending — promoted to a standalone task by /health-check 2026-07-19 so it is visible to routing.",
+  "status": "Pending",
+  "priority": "P2",
+  "difficulty": 3,
+  "owner": "human",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "spec_section": "",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "estimated_hours": 4,
+  "files_affected": [
+    "fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/pipeline-content.json"
+  ],
+  "acceptanceCriteria": [
+    "Orchestrator pipeline invokes the EPI and WGI ingestion notebooks via TridentNotebook activities.",
+    "No RefreshDataflow activities remain for EPI/WGI ingestion in the pipeline JSON.",
+    "Pipeline JSON is synced back to the repo (/sync-from-fabric) so local and Fabric agree."
+  ],
+  "dependencies": [],
+  "decision_dependencies": [],
+  "notes": [
+    "PROMOTED by /health-check 2026-07-19 from task-005's legacy inline subtask array (id was task-005-3). task-005 remains Finished — the EPI and WGI ingestion notebooks were built and verified; this was the human-owned Fabric-UI tail.",
+    "STALENESS CHECK FIRST — this item was authored against a pipeline that has since been reworked by tasks 022/024/026. Before doing the work, open the current pipeline-content.json and verify the RefreshDataflow activities literally still exist and that the EPI/WGI notebooks are literally still unwired. If the topology has already moved on, close this as a no-op with a note rather than forcing the original plan onto it.",
+    "COORDINATE with task-022 and task-026 — all three touch orchestrator_pipeline_bronze_to_gold.DataPipeline/pipeline-content.json. Sequence this after their Fabric application to avoid clobbering their activity changes."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-07-19",
+  "updated_date": "2026-07-19",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "dashboard"
+}

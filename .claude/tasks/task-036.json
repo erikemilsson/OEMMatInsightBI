@@ -1,0 +1,38 @@
+{
+  "id": "task-036",
+  "title": "Test end-to-end automated external-data ingestion (EPI + WGI through bronze to gold, no manual upload)",
+  "description": "Run the full pipeline and verify EPI and WGI data flows through bronze -> silver -> gold without any manual file upload, confirming the external-data automation described in external_data_automation.md actually holds end to end. Originally tracked as inline subtask task-005-4 inside task-005, which was marked Finished while this item was still Pending — promoted to a standalone task by /health-check 2026-07-19 so it is visible to routing.",
+  "status": "Pending",
+  "priority": "P2",
+  "difficulty": 3,
+  "owner": "human",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "spec_section": "",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "estimated_hours": 4,
+  "files_affected": [],
+  "acceptanceCriteria": [
+    "A full pipeline run completes with zero manual file uploads for EPI and WGI.",
+    "bronze_EPI and bronze_WGI populate from the automated ingestion notebooks, and the corresponding silver/gold tables reflect the fresh data.",
+    "Row counts and a spot-check of values are recorded in the task notes as the baseline for future runs."
+  ],
+  "dependencies": ["task-035"],
+  "decision_dependencies": [],
+  "notes": [
+    "PROMOTED by /health-check 2026-07-19 from task-005's legacy inline subtask array (id was task-005-4). task-005 remains Finished — this was the human-owned verification tail.",
+    "DEPENDS ON task-035 (pipeline repointed to TridentNotebook activities) — testing automated ingestion before the pipeline actually calls the notebooks would only re-confirm the manual path.",
+    "STALENESS CHECK: authored 2026-01; the WGI lineage in particular has changed (API-based bronze_WGI replaced the CSV/dataflow shape, and task-031 covers governance-score preservation). Verify the expected end state against current docs before treating a run as a pass."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-07-19",
+  "updated_date": "2026-07-19",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "dashboard"
+}

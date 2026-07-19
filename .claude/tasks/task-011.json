@@ -19,7 +19,7 @@
     ".claude/support/documents/error_recovery_playbook.md"
   ],
   "created_date": "",
-  "updated_date": "2026-04-05",
+  "updated_date": "2026-07-19",
   "task_verification": {
     "result": "pass",
     "timestamp": "2026-04-05T18:30:00Z",
@@ -126,7 +126,8 @@
     "NOTE: Spec lines 702-706 still describe old fail-fast state. Spec update needs propose-approve-apply flow.",
     "NOTE: Email notifications documented in playbook (requires Fabric UI config by Erik). Acceptance criteria item 'Email notifications configured and tested' and 'Test scenarios validated' require Fabric deployment.",
     "--- HANDOFF ---",
-    "ERIK: Deploy to Fabric, configure email notifications in Fabric UI, test with simulated failures"
+    "ERIK: Deploy to Fabric, configure email notifications in Fabric UI, test with simulated failures",
+    "/health-check 2026-07-19: pending inline subtask(s) task-011-4 -> task-037 promoted to standalone task files; inline entries marked Absorbed. Parent remains Finished (its own deliverables were verified)."
   ],
   "errorCategories": [
     {
@@ -234,9 +235,10 @@
     {
       "id": "task-011-4",
       "title": "Test with simulated failures",
-      "status": "Pending",
+      "status": "Absorbed",
       "estimatedEffort": "0.5 days",
-      "details": "Requires Fabric deployment (owner: Erik)"
+      "details": "Requires Fabric deployment (owner: Erik)",
+      "absorbed_into": "task-037"
     },
     {
       "id": "task-011-5",

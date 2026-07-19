@@ -16,7 +16,7 @@
     ".claude/spec_v1.md"
   ],
   "created_date": "",
-  "updated_date": "2026-04-29",
+  "updated_date": "2026-07-19",
   "task_verification": {},
   "verification_attempts": 0,
   "verification_history": [],
@@ -62,7 +62,7 @@
     "ERIK: Run baseline measurements, deploy optimizations, validate performance gains",
     "NOTE: This task is Erik-heavy due to baseline measurement and Fabric-specific testing",
     "--- BREAKDOWN 2026-04-29 ---",
-    "Broken down into 5 subtasks: 012_1 (baseline) \u2192 [012_2, 012_3, 012_4 in sequence/parallel] \u2192 012_5 (validate)"
+    "Broken down into 5 subtasks: 012_1 (baseline) → [012_2, 012_3, 012_4 in sequence/parallel] → 012_5 (validate)"
   ],
   "optimizationTechniques": [
     {
@@ -110,11 +110,11 @@
     "powerBIQuery": "<3 seconds"
   },
   "subtasks": [
-    "012_1",
-    "012_2",
-    "012_3",
-    "012_4",
-    "012_5"
+    "task-012_1",
+    "task-012_2",
+    "task-012_3",
+    "task-012_4",
+    "task-012_5"
   ],
   "progress": "Not started (0/5 subtasks complete)"
 }
