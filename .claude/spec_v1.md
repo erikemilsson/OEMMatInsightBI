@@ -2,7 +2,7 @@
 version: 1
 status: active
 created: 2025-11-14
-updated: 2026-05-24
+updated: 2026-07-20
 ---
 
 # OEMMatInsightBI - Project Definition for Claude Code
@@ -243,57 +243,53 @@ Power BI Reports
 
 #### 3. World Governance Indicators (WGI) - External Data
 
-**Source:** World Bank WGI dataset (file-based)
+**Source:** World Bank WGI, via the World Bank API
 
-**Ingestion Method:** `WGI_file2table.Dataflow`
+**Ingestion Method:** `bronze_ingest_wgi.Notebook` (PySpark, API-based). Supersedes the retired `WGI_file2table.Dataflow` CSV lineage.
 
 **Content:** Country-level governance quality metrics across 6 governance dimensions
 
-**Grain:** One row per country per indicator with year columns (wide format)
+**Grain:** Long format — one row per country per indicator per year
 
-**Year Covered:** 2020 (filtered in transformation)
+**Years Covered:** 1996-2023 as ingested. The Supply Risk model consumes the **latest year available per country**.
 
 **Key Fields:**
 
 -   `Country Name` (STRING) - Full country name
 
--   `Country Code` (STRING) - ISO country code
+-   `Country Code` (STRING) - ISO3 country code
 
--   `Indicator Name` (STRING) - Name of governance indicator
+-   `Series Name` (STRING) - Name of governance indicator
 
 -   `Indicator Code` (STRING) - Coded indicator identifier
 
--   `Topic` (STRING) - Governance dimension/category (from ESGSeries metadata join)
+-   `Year` (INT) - Observation year
 
--   `y_[YEAR]` columns (DOUBLE) - Score values by year
+-   `Value` (DOUBLE) - Governance score for that country/indicator/year
 
--   `Score` (DOUBLE) - Unpivoted score value (after transformation)
+**Silver contract:**
 
-**Transformation Notes:**
+-   `silver_wgi` **must preserve `Year` and `Value`.** They are the `WGIᶜ` input to the Supply Risk model; without them the governance weight cannot be computed downstream.
 
--   Year columns unpivoted in bronze-to-silver transformation
+-   **Six** indicators are ingested, not five. Coverage rules must test against six.
 
--   Filtered for year 2020 only
-
--   Scores filtered to 0-100 range
-
--   Joined with `bronze_WB_ESGSeries` for topic/category metadata
-
--   Bronze tables: `bronze_WB_ESGCSV`, `bronze_WB_ESGSeries`
-
--   Silver table: `silver_WB`
+-   *(The pipeline currently selects only identity columns — `country_iso3`, `country_name`, `indicator_name` — discarding `Year`/`Value`. Corrected by task-031; made mandatory by DEC-001.)*
 
 **Update Frequency:** Annual (World Bank releases Q3-Q4)
 
-**File Location:** Manual upload to Fabric Lakehouse Files
-
-**File Format:** CSV
-
-#### 4. Global Supply Shares (EU CRM Data) - External Data
+#### 4. Supply Shares (EU CRM Data) - External Data
 
 **Source:** EU Critical Raw Materials supply chain data
 
-**Ingestion Method:** Copy activity in pipeline (`bronzecopy_EUSupplyShares`)
+**Two complementary tables from the same EU CRM study — NOT duplicates.** Both are required inputs to the Supply Risk model (see § Business Logic & Calculations → Supply Risk):
+
+| | Global supply | EU sourcing |
+|---|---|---|
+| Bronze | `bronze_GlobalSupplyShares` | `bronze_EUSupplyShares` |
+| Silver | `silver_globalsupplyshares` | `silver_eusupplyshares` |
+| Measures | where a material is produced worldwide | where the EU actually sources it from |
+
+**Ingestion Method:** One copy activity per table. Each activity's source connection must point at its own CSV — conflating them produced the duplicated-load defect tracked as FR-004 / task-022.
 
 **Content:** Material supply concentration by country and production stage
 
@@ -309,7 +305,7 @@ Power BI Reports
 
 -   `Share` (STRING) - Supply share percentage (e.g., "45%", "\<1%")
 
--   `t` (STRING) - Unknown field (dropped in transformation)
+-   `t` (DOUBLE) - **Trade parameter** from the EU CRM methodology: `0.8` for EU-sourced, `1.0` baseline non-EU, `>1` where export restrictions apply. **Load-bearing input to the Supply Risk model — must be preserved through silver into `fact_supply_share`.** (Previously documented here as "Unknown field (dropped in transformation)" and dropped by the pipeline on that basis; identified via DEC-001.)
 
 **Transformation Notes:**
 
@@ -317,9 +313,7 @@ Power BI Reports
 
 -   Column headers lowercased and spaces replaced with underscores
 
--   Bronze table: `bronze_GlobalSupplyShares`
-
--   Silver table: `silver_globalsupplyshares`
+-   `t` carried through unchanged (see Key Fields)
 
 -   Year assigned: 2023 (in gold transformation)
 
@@ -527,7 +521,7 @@ Power BI Reports
         -   `region` (STRING) - Geographic region (for placeholder countries)
         -   `is_placeholder` (BOOLEAN) - Flag for unknown/unmapped countries
     -   **Source:**
-        -   Primary: EPI (silver_epi2024results) + World Bank (silver_wb)
+        -   Primary: EPI (silver_epi2024results) + World Bank (silver_WB)
         -   Augmented with: 8 manually added countries (North Korea, Yemen, Syria, Libya, Turkey, Kosovo, San Marino, Nauru)
         -   Placeholders: 6 unknown regions (Unknown - Africa/Asia/Europe/Americas/Oceania/Global)
     -   **SCD Type:** Type 1 (overwrite)
@@ -567,7 +561,7 @@ Power BI Reports
         -   `parent_indicator` (BIGINT) - Parent indicator key (currently NULL)
     -   **Source:**
         -   EPI: `silver_epi2024variables2024-12-11` table
-        -   WB: `silver_wb` table (distinct indicator_code, indicator_name, topic)
+        -   WB: `silver_WB` table (distinct indicator_code, indicator_name, topic)
 4.  **`gold_dim_material`**
     -   **Surrogate Key:** `material_key` (BIGINT) - xxhash64 of material_name_std
     -   **Attributes:**
@@ -741,6 +735,8 @@ Power BI Reports
 
 -   `fact_supply_share` - Global supply concentration by material/stage/country
 
+-   `gold_supply_risk` - Governance- & trade-weighted supply risk by material/stage (`hhi_global`, `hhi_eu_sourcing`, contrast). Yearly grain, no date relationship (consistent with `fact_supply_share`). See § Business Logic & Calculations → Supply Risk.
+
 **Dimension Tables:**
 
 -   `gold_dim_country` - Country master with ISO codes and regions
@@ -806,6 +802,12 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
     -   Avg EPI Score = AVERAGE(fact_epi_score\[score\])
 
     -   Supply Concentration Index = MAX(fact_supply_share\[share_pct\])
+
+    -   Supply Risk (Global) = governance- & trade-weighted HHI, global supply mix
+
+    -   Supply Risk (EU Sourcing) = the same index over the EU sourcing mix
+
+    -   Supply Risk Contrast = EU-sourcing vs global (EU-specific exposure)
 
     -   YoY Growth = \[Calculate current vs previous year\]
 
@@ -877,7 +879,7 @@ The report was redesigned and rebuilt from scratch after the semantic model was 
 
 -   [x] Helper views for high-confidence data filtering
 
--   [x] Data quality observability tables (gold_quality_history, gold_gap_registry, gold_quality_snapshot)
+-   [x] Data quality observability tables (gold_quality_history, gold_gap_registry, gold_low_confidence_audit)
 
 **Semantic Model:**
 
@@ -1289,7 +1291,35 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 
 ### Key Business Rules
 
-**Supplier Concentration Risk:**
+**Supply Risk (primary measure — DEC-001 Option B):**
+
+Governance- and trade-weighted Herfindahl index, computed at the bottleneck stage (E/P):
+
+```
+HHI_WGI,t = Σ_c (Sᶜ)² · WGIᶜ · tᶜ
+```
+
+Per country `c`:
+
+-   `Sᶜ` — supply share (fraction)
+
+-   `tᶜ` — trade parameter from source data (0.8 EU, 1.0 baseline non-EU, \>1 export-restricted)
+
+-   `WGIᶜ` — governance risk weight in `0..1` where **1 = worst governance**, derived as the rescaled **inverse** of the mean of all six WGI dimensions for the latest year available per country
+
+**The inversion is mandatory.** Raw WGI runs ≈ −2.5..+2.5 with *higher = better* governance. Used unmodified as a multiplier it would *reward* poorly-governed sourcing — the index would still compute and still look plausible, but every risk ranking would be backwards. The spec requires the inverted, rescaled form.
+
+Computed over two supply mixes and exposed in `gold_supply_risk`:
+
+-   `hhi_global` — global production mix
+
+-   `hhi_eu_sourcing` — EU sourcing mix
+
+-   contrast between the two — the EU-specific exposure signal
+
+**Scope boundary (DEC-001):** no import-reliance blend of the two indices into a single SR (Option C); no recycling (`EoL_RIR`) or substitution (`SI_SR`) filters (Option D). These figures are therefore **gross** supply risk and **must be labelled as such in the report** — they are not official EU CRM SR values.
+
+**Supplier Concentration Risk (secondary lens — retained):**
 
 -   Definition: Percentage of global supply from single country
 
@@ -1306,6 +1336,8 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
     -   Low: ≤20%
 
 -   Source: Implemented in v_supply_concentration_risk view
+
+-   Retained alongside the weighted model as a simple, intuitive concentration view; the report presents the two side by side.
 
 **Environmental Score Aggregation:**
 
@@ -1365,7 +1397,13 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
 
 -   Avg EPI Score = AVERAGE(fact_epi_score\[score\])
 
--   Supply Concentration = MAX(fact_supply_share\[share_pct\])
+-   Supply Concentration = MAX(fact_supply_share\[share_pct\]) *(secondary lens)*
+
+-   Supply Risk (Global) = governance- & trade-weighted HHI over the global supply mix
+
+-   Supply Risk (EU Sourcing) = the same index over the EU sourcing mix
+
+-   Supply Risk Contrast = EU-sourcing index vs global index (EU-specific exposure)
 
 -   YoY Spend Growth = \[Calculate vs previous year\]
 
@@ -1480,7 +1518,8 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
 1.  **EPI Indicator Selection:**
     -   **DECISION:** All indicators included in fact_epi_score. No custom weighting or filtering — the full EPI dataset is available for Power BI exploration. Users can filter by policy objective or issue category in the report.
 2.  **Supplier Risk Thresholds:**
-    -   **DECISION:** Concentration risk thresholds implemented (Critical >50%, High >30%, Medium >20%, Low ≤20%). ESG risk scoring (composite EPI + WGI) deferred — out of scope for current phases.
+    -   **DECISION:** Concentration risk thresholds implemented (Critical >50%, High >30%, Medium >20%, Low ≤20%), retained as a secondary lens.
+    -   **DECISION (DEC-001, 2026-07-19 — supersedes the previous deferral):** Governance-weighted supply risk is **in scope**. The earlier "ESG risk scoring (composite EPI + WGI) deferred — out of scope for current phases" no longer holds: DEC-001 Option B brings WGI into the supply-risk model as a weight on the Herfindahl index. See § Business Logic & Calculations → Supply Risk. **EPI remains outside the risk model** — it stays a separate environmental measure; only WGI is incorporated.
 3.  **Reporting Granularity:**
     -   Daily, weekly, monthly aggregates?
     -   **DECISION:** Daily grain in fact_procurement, yearly grain in fact_epi_score and fact_supply_share

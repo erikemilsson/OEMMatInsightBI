@@ -1,0 +1,52 @@
+{
+  "id": "task-038",
+  "title": "Build gold_supply_risk — governance- & trade-weighted dual HHI (global + EU sourcing) per DEC-001 Option B",
+  "description": "Implement the EU CRM methodology's core supply-risk metric HHI_WGI,t = SUM_c (S_c)^2 * WGI_c * t_c, computed twice — once over the global supply mix and once over the EU sourcing mix — and expose both plus their contrast as a new gold_supply_risk table with supporting DAX measures and semantic-model entries. Selected in DEC-001 (2026-07-19) as the best fidelity-per-effort option: it implements the methodology's distinctive, defensible core without requiring any new external data source. Deliberately does NOT blend the two HHIs by import reliance (Option C) and does NOT apply the recycling/substitution risk-reducing filters (Option D).",
+  "status": "Pending",
+  "priority": "P2",
+  "difficulty": 7,
+  "owner": "both",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "spec_section": "Business Logic & Calculations",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "estimated_hours": 16,
+  "files_affected": [
+    "fabric/bronze-to-silver.Notebook/notebook-content.py",
+    "fabric/silver-to-gold2.Notebook/notebook-content.py",
+    "fabric/OEMInsightBI_v2.SemanticModel/",
+    ".claude/support/documents/dax_measure_library.md"
+  ],
+  "acceptanceCriteria": [
+    "The trade parameter `t` survives into silver — the `.drop('t')` at bronze-to-silver.Notebook:139 is removed and `t` is carried through supply_prep into fact_supply_share.",
+    "WGI governance scores are joined per country onto the supply fact (depends on task-031 preserving Year/Value in silver_wgi). The join's country coverage is measured and unmapped countries are surfaced via the existing check_unmapped mechanism, not silently dropped.",
+    "The EU sourcing table is read into silver and modeled alongside the global supply table (task-022 supplies the corrected bronze lineage).",
+    "gold_supply_risk exists with, at minimum: material, stage, hhi_global, hhi_eu_sourcing, and their contrast. Grain is documented and enforced (no duplicate material x stage rows).",
+    "HHI is computed at the bottleneck stage (E/P) per the methodology, and the chosen WGI vintage/aggregation (which year, which of the six indicators, how combined) is documented explicitly in the notebook and in dax_measure_library.md — this is a methodology judgment, not an implementation detail.",
+    "DAX measures expose the dual HHI and the global-vs-EU contrast; dax_measure_library.md section 6.1 is updated from plain concentration to the SR measures.",
+    "The report page states plainly that these are gross supply-risk figures — the recycling (EoL_RIR) and substitution (SI_SR) filters are out of scope per DEC-001 — so the numbers are not misread as official EU CRM SR values.",
+    "A before/after comparison is recorded showing the governance- and trade-weighted HHI against the current plain HHI for a few materials, demonstrating the weighting actually changes the ranking."
+  ],
+  "dependencies": ["task-022", "task-031", "task-024"],
+  "decision_dependencies": ["DEC-001"],
+  "notes": [
+    "CREATED 2026-07-19 by /health-check on selection of DEC-001 Option B — this is the follow-on 'build SR gold model' task the decision record called for.",
+    "DIFFICULTY 7 — must be broken down via /breakdown 038 before work starts (per task-management rules). Natural seams: (a) un-drop `t` + carry through to fact_supply_share, (b) wire EU sourcing table into silver, (c) join WGI onto the supply fact, (d) compute dual HHI + build gold_supply_risk, (e) DAX measures + TMDL + report framing.",
+    "HARD PREREQUISITE task-031: B's WGI_c weight does not exist downstream until silver_wgi preserves Value. task-031 offers 'or descope' as an alternative branch — that branch is now CLOSED by this decision. Update task-031's framing when it is picked up.",
+    "FILE CONFLICT: the `t` un-drop is in bronze-to-silver.Notebook/notebook-content.py, which task-024 (In Progress, awaiting Fabric) also edits. Apply task-024 in Fabric BEFORE starting this task so the delete-insert grain fix is not clobbered. Same caution for silver-to-gold2.Notebook, which tasks 023/025 are editing.",
+    "STALE COMMENT to fix while here: bronze-to-silver.Notebook:281 claims 'Score column not present in current dataflow' — false since the move to the API-based bronze_ingest_wgi, which fetches Value. task-031 or this task should correct it.",
+    "METHODOLOGY ANCHOR: EU CRM Guidelines, EC 2017, doi:10.2873/769526. Formula and the t-value convention (0.8 EU, 1.0 baseline non-EU, >1 export-restricted) are quoted in decision-001-sr-gold-model.md.",
+    "SPEC IMPACT: DEC-001 is an inflection point. The spec's Business Logic & Calculations and DAX Measures sections need updating via /iterate to describe the SR definition, the new gold measures, and the EU-vs-global lineage. Do that before or alongside implementation so the spec is not trailing the build."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-07-19",
+  "updated_date": "2026-07-19",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "dashboard"
+}

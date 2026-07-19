@@ -1,0 +1,151 @@
+{
+  "spec_file": "spec_v1.md",
+  "spec_fingerprint": "sha256:19379d3ccfe7108fd49f040ea08525bffbe7f6cf697d73d9aebe9ec9db592e4b",
+  "section_count": 18,
+  "sections": [
+    {
+      "heading": "## Project Overview",
+      "line_start": 26,
+      "line_end": 71,
+      "char_count": 1690,
+      "fingerprint": "sha256:3880c9ce237fce82afc94e73ec6a4304dc96d266db311775bd3e51b287e9b4f2",
+      "synopsis": "**Project Name:** OEMMatInsightBI (OEM Material Insight Business Intelligence)"
+    },
+    {
+      "heading": "## Technical Architecture",
+      "line_start": 72,
+      "line_end": 117,
+      "char_count": 1281,
+      "fingerprint": "sha256:b010d2597c18c128242019669b42662b2f57a05b569a3488e0f3e0fd30007773",
+      "synopsis": "**Primary Platform:** Microsoft Fabric"
+    },
+    {
+      "heading": "## Data Architecture",
+      "line_start": 118,
+      "line_end": 327,
+      "char_count": 6718,
+      "fingerprint": "sha256:18fd7aa92db2589c3b5e1cb398e4c47d2d0b8b03283016348aabafac0bde348e",
+      "synopsis": "```"
+    },
+    {
+      "heading": "## Data Transformations",
+      "line_start": 328,
+      "line_end": 604,
+      "char_count": 12582,
+      "fingerprint": "sha256:c74c81a7912e1f3c15a3362c3307638b5bfeb2ab354724df92473b8b577479ef",
+      "synopsis": "**Notebook:** `bronze-to-silver.Notebook`"
+    },
+    {
+      "heading": "## Orchestration",
+      "line_start": 605,
+      "line_end": 717,
+      "char_count": 2979,
+      "fingerprint": "sha256:922e88ee0276858ae132cb6f3b7e9b49929036c6405368535552950c46c9c497",
+      "synopsis": "**Purpose:** End-to-end orchestration from ingestion to gold layer"
+    },
+    {
+      "heading": "## Semantic Model & Reporting",
+      "line_start": 718,
+      "line_end": 835,
+      "char_count": 4740,
+      "fingerprint": "sha256:2a554d418d13e0aa597e4d52dff55648b4c600cd542a7fa1ffa7ce69e6eb22a8",
+      "synopsis": "**Model Type:** Star Schema in **DirectLake** mode"
+    },
+    {
+      "heading": "## Current State Assessment",
+      "line_start": 836,
+      "line_end": 947,
+      "char_count": 3049,
+      "fingerprint": "sha256:fdbc089650281de2902675d0ecf9f56cfc226f2364cb83c4fd6699116e28a690",
+      "synopsis": "**Bronze Layer:**"
+    },
+    {
+      "heading": "## Development Workflow",
+      "line_start": 948,
+      "line_end": 1024,
+      "char_count": 2137,
+      "fingerprint": "sha256:168feafaea0c1db66f4335d19bbee976b5398753ded75b36e66e32c386b9bf2c",
+      "synopsis": "**Repository Structure:**"
+    },
+    {
+      "heading": "## Data Quality & Validation",
+      "line_start": 1025,
+      "line_end": 1124,
+      "char_count": 2899,
+      "fingerprint": "sha256:3aa8b93202a343b58bee9542750431e72bc66318962fb366776caa5771a79255",
+      "synopsis": "**Gold Layer Implementation:**"
+    },
+    {
+      "heading": "## Infrastructure & Deployment",
+      "line_start": 1125,
+      "line_end": 1241,
+      "char_count": 5453,
+      "fingerprint": "sha256:435e18a1c857069141ca6dc5327b31dd9106b557a5821f42d3cc9d1f59dbb4fc",
+      "synopsis": "**Workspace Name:** OEMMatInsightBI"
+    },
+    {
+      "heading": "## Performance Optimization",
+      "line_start": 1242,
+      "line_end": 1263,
+      "char_count": 620,
+      "fingerprint": "sha256:9b9a89919570e0c3c541f98fc58e63858a1f598e7d2ef36d665faa48c75435e8",
+      "synopsis": "**Pipeline Runtime:** Not benchmarked \u2014 manual pipeline runs at portfolio scale. No production load or SLA requirements."
+    },
+    {
+      "heading": "## Testing Strategy",
+      "line_start": 1264,
+      "line_end": 1289,
+      "char_count": 855,
+      "fingerprint": "sha256:b40105b9a5a2fcd9530ce7d77fa58b75863bd29f79b1607650999d7518922627",
+      "synopsis": "**Unit Tests:** 33 tests for transformation logic in `tests/` (task-008). **Integration Tests:** None yet. **Data Valida"
+    },
+    {
+      "heading": "## Business Logic & Calculations",
+      "line_start": 1290,
+      "line_end": 1415,
+      "char_count": 4122,
+      "fingerprint": "sha256:036df7eb05952e48b5c4e77e441c9553243e192ff7741a96fdbd41c358d6b051",
+      "synopsis": "**Supply Risk (primary measure \u2014 DEC-001 Option B):**"
+    },
+    {
+      "heading": "## Dependencies & External Systems",
+      "line_start": 1416,
+      "line_end": 1489,
+      "char_count": 1901,
+      "fingerprint": "sha256:e8042a819d48c69581ad7fa63b1aa92c572011ec3db590c4a2b13f51586567c4",
+      "synopsis": "**Azure SQL Database:**"
+    },
+    {
+      "heading": "## Open Questions & Decisions Needed",
+      "line_start": 1490,
+      "line_end": 1533,
+      "char_count": 4200,
+      "fingerprint": "sha256:63de5be9fe35790a1b0301fdf43434abd874bbef0870a08ac1e31e4f703e673b",
+      "synopsis": "1.  **Incremental vs Full Load:**"
+    },
+    {
+      "heading": "## Next Steps & Priorities",
+      "line_start": 1534,
+      "line_end": 1566,
+      "char_count": 1917,
+      "fingerprint": "sha256:f385418dec20aaeb316262e30bf910872c43310da06cd8655c8867f244a2eaee",
+      "synopsis": "| Phase | Focus | Status | Acceptance Criteria |"
+    },
+    {
+      "heading": "## Appendix: Sample Data Patterns",
+      "line_start": 1567,
+      "line_end": 1638,
+      "char_count": 1300,
+      "fingerprint": "sha256:368d38b17631d8d1770a114856a396aa0fcb081a3f70b21376d0ffd123aad72a",
+      "synopsis": "**From azure/procurement.sql schema:**"
+    },
+    {
+      "heading": "## Contact & Ownership",
+      "line_start": 1639,
+      "line_end": 1644,
+      "char_count": 241,
+      "fingerprint": "sha256:351adf5215761aea0c8541fc06439beb7b94d5691f9b4306f1863cbcacfc8ce6",
+      "synopsis": "**Project Owner:** Personal Portfolio Project\\"
+    }
+  ]
+}
