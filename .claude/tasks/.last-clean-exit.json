@@ -1,12 +1,11 @@
 {
-  "last_clean_exit": "2026-07-14T15:00:00Z",
+  "last_clean_exit": "2026-07-19T23:02:02Z",
   "in_progress": [
-    "task-010",
     "task-022",
     "task-023",
     "task-024",
     "task-025",
     "task-026"
   ],
-  "note": "P1 audit-fix batch COMPLETE (Claude halves drafted + verified): 023, 024 (delete-insert, Erik chose Option b), 025, 026 (verify pass on attempt 2 after WGI-table retarget), plus 022 (drafted earlier). All In Progress / user_review_pending — awaiting Erik's Fabric apply+run (recommended order in dashboard: 025->023->024->022->026; keep 026 advisory until 023/024/025 confirmed clean). New friction: FR-005/006/007 (all fold into task-033 doc sweep). Open question for Erik: file a dedicated pipeline_error_handler wiring task? PAUSED here — P2 audit tasks (027/028/030/031 no-dep both; 029 dep 024; 032 dep 025; 033 dep 024/026/027/031) not yet started (outside the 'draft P1' instruction). task-010 awaiting Erik (Fabric scheduling)."
+  "note": "/work 24 then task-022 anomaly fix. task-024: Claude half complete+verified, guided testing presented (4 Fabric steps), awaiting Erik. task-022: ANOMALY RESOLVED \u2014 verify-agent dispatched (separate agent), returned pass attempt 1; task_verification + user_review_pending + 6-step test_protocol persisted. Now consistent with siblings 023/024/025/026 (all In Progress + pass + urp). Status kept In Progress not Finished (work-procedures maps pass->Finished, but that overstates completion for owner:both tasks with majority-Fabric acceptance) \u2014 deliberate, surfaced. NEW: FR-008 (spec Orchestration says 4 bronze activities, pipeline has 5 = task-022 acceptance #6) and FR-009 (spec Data Architecture #4 lists silver_eusupplyshares as built; zero refs, is task-038 work \u2014 introduced by my DEC-001 /iterate pass). Both need /iterate. HAZARD for Erik: task-022 activity inherits EU connection 97124587 \u2014 repoint before any run or it silently loads 907 EU rows as Global and passes both dedup and row-count checks."
 }

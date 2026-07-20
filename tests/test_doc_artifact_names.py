@@ -12,14 +12,19 @@ Renames (old -> new; new is canonical on disk):
 
 Scope note: this guard only covers surfaces that have NO legitimate historical/example
 occurrence of the old names. It deliberately does NOT cover:
-  - .claude/support/documents/standards/naming_standards.md   (naming-convention examples)
-  - .claude/support/documents/error_handling_strategy.md      (pipeline activity identifiers; see FR-003)
-  - .claude/support/documents/incremental_load_strategy.md    (L540/543 activity-config; see FR-003)
+  - .claude/support/documents/standards/naming_standards.md   (retains one legitimate
+    `semantic_model_oeminsightbi` naming-convention example)
   - docs/architecture/fabric-artifacts-inventory.md           (L64 "Consider renaming" discussion)
   - project_definition.md                                     (L1031 naming-convention example)
   - fabric/archive/**, .claude/tasks/**, .claude/support/{audits,friction.jsonl,feedback/archive.md}
 Adding a broad allowlist for those would make the guard fragile; keeping it to clean
 surfaces keeps it robust.
+
+FR-003 (resolved 2026-07-20): error_handling_strategy.md and incremental_load_strategy.md
+were previously excluded because they used `clean_columnsAndHeaders` as a pipeline ACTIVITY
+identifier. Grounding against pipeline-content.json showed no such activity ever existed —
+the real one is `bronze-to-silver data cleaning`, referencing notebooks by GUID. Both files
+were renamed accordingly and are now clean, so they are covered by this guard.
 """
 import pathlib
 
@@ -43,6 +48,9 @@ CLEAN_SURFACES = (
     "docs/guides/FAQ.md",
     "docs/setup/TROUBLESHOOTING.md",
     "docs/architecture/data-flow-diagram.md",
+    # Cleaned by FR-003 (2026-07-20) — see module docstring.
+    ".claude/support/documents/error_handling_strategy.md",
+    ".claude/support/documents/incremental_load_strategy.md",
 )
 
 

@@ -537,10 +537,10 @@ in
 **In Pipeline Activity:**
 ```json
 {
-  "name": "clean_columnsAndHeaders",
-  "type": "ExecuteNotebook",
+  "name": "bronze-to-silver data cleaning",
+  "type": "TridentNotebook",
   "typeProperties": {
-    "notebook": "clean_columnsAndHeaders",
+    "notebook": "bronze-to-silver",
     "parameters": {
       "p_full_load": {
         "value": "@pipeline().parameters.p_full_load",

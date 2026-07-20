@@ -4,9 +4,9 @@
 
 ### Inconsistencies Identified
 - **Table prefixes:** Mix of bronze_/silver_/gold_dim_
-- **Notebook names:** Mix of hyphens and underscores (clean_columnsAndHeaders vs silver-to-gold2)
+- **Notebook names:** Mix of underscores and hyphens (`data_quality_checks` vs `silver-to-gold2`)
 - **Column names:** Inconsistent (Date vs date, MaterialName vs materialname)
-- **Artifact names:** Mix of camelCase and underscores (copyjob1 vs orchestrator_pipeline)
+- **Artifact names:** Mix of camelCase and underscores (`bronze_azureSQLdb2table` vs `orchestrator_pipeline_bronze_to_gold`)
 
 ## Recommended Standards
 
@@ -76,8 +76,11 @@ data_quality_checks.Notebook
 
 **Current (inconsistent):**
 ```
-clean_columnsAndHeaders.Notebook (mix of underscore and camelCase)
-silver-to-gold2.Notebook (hyphen instead of underscore)
+data_quality_checks.Notebook   (underscores)
+bronze_ingest_wgi.Notebook     (underscores)
+silver-to-gold2.Notebook       (hyphens — inconsistent with the above)
+bronze-to-silver.Notebook      (hyphens)
+sample-quality-data.Notebook   (hyphens)
 ```
 
 ### Pipeline Naming

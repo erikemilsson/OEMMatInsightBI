@@ -231,7 +231,7 @@ def should_retry(error_message: str, retry_attempt: int, max_retries: int) -> bo
 | **bronze_WGI** | RefreshDataflow | 0 | 2 | 3 min | 2 hours | Dataflow refresh may have resource contention, World Bank API stable |
 | **bronze_procurement** | RefreshDataflow | 0 | 3 | 5 min | 2 hours | Azure SQL may timeout, highest priority data source |
 | **bronze_EPI** | RefreshDataflow | 0 | 2 | 3 min | 2 hours | Dataflow refresh may have resource contention, Yale server reliable |
-| **clean_columnsAndHeaders** | Notebook | 0 | 2 | 2 min | 4 hours | Spark session may fail to start, transformation logic stable |
+| **bronze-to-silver data cleaning** | Notebook | 0 | 2 | 2 min | 4 hours | Spark session may fail to start, transformation logic stable |
 | **silver-to-gold2** | Notebook | 0 | 2 | 2 min | 4 hours | Spark session may fail to start, joins may cause resource issues |
 | **copyjob1** | CopyJob | 0 | 1 | 5 min | 1 hour | Warehouse sync may have lock contention, rare failures |
 
@@ -307,8 +307,8 @@ def calculate_retry_interval(base_interval_seconds: int, retry_attempt: int) -> 
       "dependsOn": []
     },
     {
-      "name": "clean_columnsAndHeaders",
-      "type": "ExecuteNotebook",
+      "name": "bronze-to-silver data cleaning",
+      "type": "TridentNotebook",
       "policy": {
         "timeout": "04:00:00",
         "retry": 2,
@@ -344,8 +344,8 @@ execution_log_schema = StructType([
     StructField("log_id", StringType(), False),              # UUID for this log entry
     StructField("execution_id", StringType(), False),         # Fabric pipeline run ID
     StructField("pipeline_name", StringType(), False),        # "orchestrator_pipeline_bronze_to_gold"
-    StructField("activity_name", StringType(), False),        # "bronze_procurement", "clean_columnsAndHeaders", etc.
-    StructField("activity_type", StringType(), False),        # "RefreshDataflow", "ExecuteNotebook", "Copy"
+    StructField("activity_name", StringType(), False),        # "bronze_procurement", "bronze-to-silver data cleaning", etc.
+    StructField("activity_type", StringType(), False),        # "RefreshDataflow", "TridentNotebook", "Copy"
     StructField("start_time", TimestampType(), False),        # When activity started
     StructField("end_time", TimestampType(), True),           # When activity completed (null if still running)
     StructField("duration_seconds", IntegerType(), True),     # end_time - start_time
@@ -421,8 +421,8 @@ def log_activity_start(
 log_id = log_activity_start(
     execution_id=dbutils.widgets.get("execution_id"),
     pipeline_name="orchestrator_pipeline_bronze_to_gold",
-    activity_name="clean_columnsAndHeaders",
-    activity_type="ExecuteNotebook",
+    activity_name="bronze-to-silver data cleaning",
+    activity_type="TridentNotebook",
     retry_attempt=0,
     max_retries=2
 )
@@ -1068,7 +1068,7 @@ Thank you for your patience.
   "name": "silver-to-gold2",
   "dependsOn": [
     {
-      "activity": "clean_columnsAndHeaders",
+      "activity": "bronze-to-silver data cleaning",
       "dependencyConditions": ["Succeeded"]  // Must succeed
     },
     {
