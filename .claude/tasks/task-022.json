@@ -46,14 +46,129 @@
     "METHODOLOGY CONFIRMATION (EU CRM Guidelines, EC 2017, doi:10.2873/769526, read 2026-06-22): interpretation confirmed + modeling question ANSWERED -> BOTH tables required. Official Supply Risk formula: SR = [HHI(GS)*IR/2 + HHI(EUsourcing)*(1-IR/2)] * (1-EoL_RIR) * SI_SR, where GS = global supply (the Global table) and EUsourcing = actual sourcing to the EU = EU domestic production + imports (the EU table). Both are inputs, weighted by import reliance IR (IR=100% -> 50/50 global/EU; IR=0 -> 100% EU sourcing). HHI_WGI,t = sum_c (S_c)^2 * WGI_c * t_c, so per-country share is squared, weighted by governance (WGI = the project's silver_WB / World Bank table) and the trade parameter t. The CSV 't' column IS the trade parameter t_c: 0.8 for EU countries, 1.0 non-EU baseline, >1 for export-restricted (matches observed t distribution; EU table has proportionally more 0.8s because EU sourcing includes more EU suppliers). Stage column E/P = the extraction/processing 'bottleneck' stage (SR taken at the higher-risk stage). => the gold supply-risk model should COMBINE both tables per the SR formula; it ALSO needs import reliance per material ((Import-Export)/(Domestic+Import-Export), Eurostat -- check if present in project), recycling rate EoL_RIR, and substitution index SI_SR. Currently silver reads ONLY Global -> any SR computed is missing the EU-sourcing half.",
     "CROSS-REF: SR gold-model fidelity decision = DEC-001 (decision-001-sr-gold-model.md). task-022 (dup fix) is a PREREQUISITE for it, NOT blocked by it — fix the duplication regardless of which SR model is chosen. The future 'build SR gold model' task will carry decision_dependencies:[DEC-001].",
     "CLAUDE HALF DONE 2026-06-22: bronzecopy_GlobalSupplyShares activity written into pipeline-content.json (clone of the EU copy activity; sink=bronze_GlobalSupplyShares, OverwriteSchema, 5-col String mapping Material/Stage/Country/Share/t; added to the 'bronze-to-silver data cleaning' dependsOn so cleaning waits for it). JSON validated. REMAINING (Erik/Fabric): (1) repoint the new activity's SOURCE connection to the Global CSV — it currently inherits the EU connection GUID 97124587 (would load EU 907 rows into bronze_GlobalSupplyShares); use a connection for https://raw.githubusercontent.com/erikemilsson/EU-Critical-Raw-Materials-CRM-Reports-Datasets/main/Data/fact_GlobalSupplyShares%26t.csv ; (2) deploy the pipeline change to Fabric; (3) run; (4) verify bronze_GlobalSupplyShares = 2561 rows, distinct==total.",
-    "2026-07-19 (/health-check): confirmed In Progress is accurate — Claude-half drafted and verified, awaiting Erik's Fabric session as #4 in the P1 apply order. Age reflects waiting on Fabric, not stalled work. NOW ALSO A DEC-001 PREREQUISITE: Option B (dual governance/trade-weighted HHI) computes on supply shares, so the 22x duplication must be gone before any HHI is meaningful. See task-038."
+    "2026-07-19 (/health-check): confirmed In Progress is accurate — Claude-half drafted and verified, awaiting Erik's Fabric session as #4 in the P1 apply order. Age reflects waiting on Fabric, not stalled work. NOW ALSO A DEC-001 PREREQUISITE: Option B (dual governance/trade-weighted HHI) computes on supply shares, so the 22x duplication must be gone before any HHI is meaningful. See task-038.",
+    "VERIFIED 2026-07-20 (/work, verify-agent, attempt 1 = pass). Had sat In Progress with verification_attempts:0 and no user_review_pending since 2026-06-22 — invisible to the waiting-on-you queue and to verification-debt routing (which only inspects Finished tasks), unlike siblings 023/025/026 verified 2026-07-14. Status kept 'In Progress' (NOT 'Finished') to match those siblings: work-procedures.md maps pass -> Finished, but for owner:'both' tasks whose acceptance is majority-Fabric that would overstate completion. Divergence deliberate and surfaced. Remaining: acceptance #2/#3/#5 via the new test_protocol."
   ],
   "user_feedback": "",
   "created_date": "2026-06-22",
-  "updated_date": "2026-07-19",
+  "updated_date": "2026-07-20",
   "completion_date": null,
-  "verification_attempts": 0,
+  "verification_attempts": 1,
   "out_of_spec": false,
   "absorbed_into": "",
-  "interaction_hint": "dashboard"
+  "interaction_hint": "dashboard",
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-07-20T00:42:00Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "major",
+          "description": "New activity inherits EU connection GUID 97124587: an unread deploy would silently load 907 EU sourcing rows into bronze_GlobalSupplyShares under OverwriteSchema — passing a distinct==total dedup check AND the DQ row-count band (100,100000) — rather than failing loudly. Recommend an unresolvable placeholder or a post-run row-count assertion pinned to 2561."
+        },
+        {
+          "severity": "major",
+          "description": "Acceptance #6 half-satisfied: spec § Data Architecture #4 documents the EU/Global relationship, but § Orchestration still lists 4 Stage-1 activities where the pipeline now has 5 (FR-008)."
+        },
+        {
+          "severity": "minor",
+          "description": "FR-004 remains status 'open' in friction.jsonl; acceptance #6 requires resolution on completion, pending Erik's Fabric run."
+        },
+        {
+          "severity": "minor",
+          "description": "spec § Data Architecture #4 lists silver_eusupplyshares as current-state lineage but it has zero references in fabric/ or src/ (positive control: silver_globalsupplyshares = 10 hits) — forward claim presented as built (FR-009)."
+        },
+        {
+          "severity": "minor",
+          "description": "Pre-existing § Orchestration drift not attributable to task-022: documents a Stage-4 'Copy job1' InvokeCopyJob absent from the pipeline, and 'Retry: 0 attempts' where all activities carry retry:3."
+        }
+      ],
+      "notes": "Claude-side deliverable (acceptance #1) complete and structurally exact: programmatic leaf diff vs bronzecopy_EUSupplyShares = 60 leaves each, identical key sets, exactly 3 differing values (/name, /description, sink table). Clone contract holds (DelimitedTextSource + HttpReadSettings GET + HttpServerLocation; sink LakehouseTableSink table=bronze_GlobalSupplyShares tableActionOption=OverwriteSchema; 5-col TabularTranslator Material/Stage/Country/Share/t; same policy). Wired into 'bronze-to-silver data cleaning'.dependsOn [Succeeded]. bronze-to-silver.Notebook:135 reads oem_lh.bronze_GlobalSupplyShares, so the activity feeds the real silver consumer — closes the FR-004 crossed-lineage gap on the Claude side. Acceptance #2/#3/#5 need a live Fabric workspace = Erik's half, not counted against this task. Acceptance #4 SATISFIED (DEC-001 Option B approved; spec § Data Architecture #4 documents both tables as complementary). Acceptance #6 HALF satisfied — Data Architecture landed, § Orchestration NOT reconciled (FR-008); FR-004 still open pending Erik's run."
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "attempt_number": 1,
+    "timestamp": "2026-07-20T00:42:00Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "not_applicable",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "Claude-side deliverable (acceptance #1) complete and structurally exact: programmatic leaf diff vs bronzecopy_EUSupplyShares = 60 leaves each, identical key sets, exactly 3 differing values (/name, /description, sink table). Clone contract holds (DelimitedTextSource + HttpReadSettings GET + HttpServerLocation; sink LakehouseTableSink table=bronze_GlobalSupplyShares tableActionOption=OverwriteSchema; 5-col TabularTranslator Material/Stage/Country/Share/t; same policy). Wired into 'bronze-to-silver data cleaning'.dependsOn [Succeeded]. bronze-to-silver.Notebook:135 reads oem_lh.bronze_GlobalSupplyShares, so the activity feeds the real silver consumer — closes the FR-004 crossed-lineage gap on the Claude side. Acceptance #2/#3/#5 need a live Fabric workspace = Erik's half, not counted against this task. Acceptance #4 SATISFIED (DEC-001 Option B approved; spec § Data Architecture #4 documents both tables as complementary). Acceptance #6 HALF satisfied — Data Architecture landed, § Orchestration NOT reconciled (FR-008); FR-004 still open pending Erik's run.",
+    "issues": [
+      {
+        "severity": "major",
+        "description": "New activity inherits EU connection GUID 97124587: an unread deploy would silently load 907 EU sourcing rows into bronze_GlobalSupplyShares under OverwriteSchema — passing a distinct==total dedup check AND the DQ row-count band (100,100000) — rather than failing loudly. Recommend an unresolvable placeholder or a post-run row-count assertion pinned to 2561."
+      },
+      {
+        "severity": "major",
+        "description": "Acceptance #6 half-satisfied: spec § Data Architecture #4 documents the EU/Global relationship, but § Orchestration still lists 4 Stage-1 activities where the pipeline now has 5 (FR-008)."
+      },
+      {
+        "severity": "minor",
+        "description": "FR-004 remains status 'open' in friction.jsonl; acceptance #6 requires resolution on completion, pending Erik's Fabric run."
+      },
+      {
+        "severity": "minor",
+        "description": "spec § Data Architecture #4 lists silver_eusupplyshares as current-state lineage but it has zero references in fabric/ or src/ (positive control: silver_globalsupplyshares = 10 hits) — forward claim presented as built (FR-009)."
+      },
+      {
+        "severity": "minor",
+        "description": "Pre-existing § Orchestration drift not attributable to task-022: documents a Stage-4 'Copy job1' InvokeCopyJob absent from the pipeline, and 'Retry: 0 attempts' where all activities carry retry:3."
+      }
+    ]
+  },
+  "user_review_pending": true,
+  "test_protocol": {
+    "summary": "Erik's Fabric half — repoint the Global source connection, deploy, run, and confirm the 22x duplication is gone (acceptance #2, #3, #5).",
+    "estimated_time": "20-30 minutes (Fabric session)",
+    "automated_results": "Local structural verification passed: activity is an exact 60-leaf clone of the EU activity differing only in name, description, and sink table; OverwriteSchema and the GET/HttpServerLocation shape confirmed; dependsOn wiring into the silver notebook confirmed; silver consumer confirmed to read bronze_GlobalSupplyShares. Acceptance #2/#3/#5 cannot be verified without a live Fabric workspace.",
+    "steps": [
+      {
+        "type": "interactive",
+        "instruction": "In the Fabric UI, open bronzecopy_GlobalSupplyShares and repoint its HTTP source connection to the Global CSV: https://raw.githubusercontent.com/erikemilsson/EU-Critical-Raw-Materials-CRM-Reports-Datasets/main/Data/fact_GlobalSupplyShares%26t.csv (%26 encodes the &). DO THIS BEFORE ANY RUN — the activity currently inherits the EU connection 97124587.",
+        "expected": "The activity's source connection is distinct from bronzecopy_EUSupplyShares' connection and resolves to the fact_GlobalSupplyShares&t.csv file."
+      },
+      {
+        "type": "interactive",
+        "instruction": "Deploy the pipeline change to the Fabric workspace and run the pipeline.",
+        "expected": "All 5 Stage-1 bronze activities succeed; 'bronze-to-silver data cleaning' starts only after all 5 complete."
+      },
+      {
+        "type": "command",
+        "instruction": "In a notebook against oem_lh, run: df = spark.table('bronze_GlobalSupplyShares'); print(df.count(), df.dropDuplicates().count())",
+        "expected": "2561 2561 — total equals distinct, confirming the 22x duplication (56,342) is gone. If you see 907, the connection was not repointed and EU data was loaded instead."
+      },
+      {
+        "type": "command",
+        "instruction": "Confirm bronze_EUSupplyShares is unchanged and still loading independently.",
+        "expected": "907 rows, sourced from its own connection — the two activities must not share a source."
+      },
+      {
+        "type": "visual",
+        "instruction": "Re-run bronze->silver->gold and compare the supply-shares figures in the report against the previous run.",
+        "expected": "Sums and counts drop by roughly 22x; averages/shares are materially unchanged. Investigate any average that shifts significantly."
+      },
+      {
+        "type": "interactive",
+        "instruction": "Decide keep-or-retire for the EU table and confirm it matches the recorded decision.",
+        "expected": "KEEP — already recorded in task notes and spec § Data Architecture #4 (both tables required by the DEC-001 Option B SR model). No action needed unless you now disagree."
+      }
+    ]
+  }
 }
