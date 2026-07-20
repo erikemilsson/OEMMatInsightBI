@@ -286,8 +286,10 @@ Power BI Reports
 | | Global supply | EU sourcing |
 |---|---|---|
 | Bronze | `bronze_GlobalSupplyShares` | `bronze_EUSupplyShares` |
-| Silver | `silver_globalsupplyshares` | `silver_eusupplyshares` |
+| Silver | `silver_globalsupplyshares` | `silver_eusupplyshares` — **planned (task-038), not yet built** |
 | Measures | where a material is produced worldwide | where the EU actually sources it from |
+
+**Current-state caveat:** the EU table is orphaned at the silver boundary — `bronze-to-silver.Notebook` reads only the Global table, so `bronze_EUSupplyShares` has no silver consumer today. Wiring EU sourcing into silver is DEC-001 Option B work, tracked in task-038.
 
 **Ingestion Method:** One copy activity per table. Each activity's source connection must point at its own CSV — conflating them produced the duplicated-load defect tracked as FR-004 / task-022.
 
@@ -357,25 +359,19 @@ Power BI Reports
 
 -   Write to: `silver_globalsupplyshares`
 
-**3. World Bank ESG/WGI Data (`bronze_WB_ESGCSV` + `bronze_WB_ESGSeries` → `silver_WB`):**
+**3. World Governance Indicators (`bronze_WGI` → `silver_wgi`):**
 
--   Unpivot year columns (y_2000, y_2001, etc.) to long format
+-   Source: World Bank API via `bronze_ingest_wgi.Notebook` — long format, one row per country per indicator per year
 
--   Remove `y_` prefix from year values
+-   Standardize `Country Code` → `country_iso3` (UPPER, trimmed); trim `Country Name` and `Series Name`
 
--   Filter for year 2020 only
+-   **Must preserve `Year` and `Value`** — the governance scores are the `WGIᶜ` input to the Supply Risk model (§ Business Logic & Calculations). *Currently dropped by the pipeline; corrected by task-031.*
 
--   Join with ESGSeries table to add Topic metadata
+-   Coverage rules test against **six** indicators (not five)
 
--   Cast score to DOUBLE type
+-   Write to: `silver_wgi`
 
--   Filter scores to 0-100 range
-
--   Drop year column (year 2020 is implicit)
-
--   Convert column headers to lowercase with underscores
-
--   Write to: `silver_WB`
+*(Supersedes the retired `bronze_WB_ESGCSV` + `bronze_WB_ESGSeries` → `silver_WB` CSV/dataflow lineage — no live artifact produces those tables.)*
 
 **4. Procurement Data (`bronze_procurement_transactional` + `bronze_supplier_ref` → `silver_procurement`):**
 
@@ -395,9 +391,9 @@ Power BI Reports
 
 -   `bronze_GlobalSupplyShares`
 
--   `bronze_WB_ESGCSV`
+-   `bronze_EUSupplyShares`
 
--   `bronze_WB_ESGSeries`
+-   `bronze_WGI`
 
 -   `bronze_procurement_transactional`
 
@@ -409,7 +405,7 @@ Power BI Reports
 
 -   `silver_globalsupplyshares`
 
--   `silver_WB`
+-   `silver_wgi`
 
 -   `silver_procurement`
 
@@ -521,7 +517,7 @@ Power BI Reports
         -   `region` (STRING) - Geographic region (for placeholder countries)
         -   `is_placeholder` (BOOLEAN) - Flag for unknown/unmapped countries
     -   **Source:**
-        -   Primary: EPI (silver_epi2024results) + World Bank (silver_WB)
+        -   Primary: EPI (`silver_epi2024results`) only — *the World Bank ESG source was removed; `silver-to-gold2.Notebook:244` builds the primary dimension from EPI data alone*
         -   Augmented with: 8 manually added countries (North Korea, Yemen, Syria, Libya, Turkey, Kosovo, San Marino, Nauru)
         -   Placeholders: 6 unknown regions (Unknown - Africa/Asia/Europe/Americas/Oceania/Global)
     -   **SCD Type:** Type 1 (overwrite)
@@ -549,7 +545,7 @@ Power BI Reports
     -   **Surrogate Key:** `indicator_key` (BIGINT) - xxhash64 of source_system + indicator identifiers
     -   **Purpose:** EPI and WGI indicator metadata
     -   **Attributes:**
-        -   `source_system` (STRING) - "EPI" or "WB"
+        -   `source_system` (STRING) - "EPI" *(the "WB" value is not currently produced — see Source below)*
         -   `type` (STRING) - EPI indicator type
         -   `abbrev` (STRING) - EPI indicator abbreviation
         -   `variable_name` (STRING) - Full indicator name
@@ -561,7 +557,7 @@ Power BI Reports
         -   `parent_indicator` (BIGINT) - Parent indicator key (currently NULL)
     -   **Source:**
         -   EPI: `silver_epi2024variables2024-12-11` table
-        -   WB: `silver_WB` table (distinct indicator_code, indicator_name, topic)
+        -   WB: **none currently** — `silver-to-gold2.Notebook:883` builds an *empty* WB-indicator DataFrame for schema compatibility, so no WB-sourced indicator rows exist. WGI reaches gold as country **coverage flags**, not as indicator rows.
 4.  **`gold_dim_material`**
     -   **Surrogate Key:** `material_key` (BIGINT) - xxhash64 of material_name_std
     -   **Attributes:**
@@ -610,76 +606,54 @@ Power BI Reports
 
 **Pipeline Structure:**
 
-**Stage 1: Bronze Ingestion (Parallel Execution)**
+**Stage 1: Bronze Ingestion (Parallel Execution)** — all activities timeout 12 hours
 
-1.  `bronzecopy_EUSupplyShares` (Copy Activity)
-    -   Type: Copy from HTTP source to Lakehouse
-
-    -   Source: EU CRM GitHub repository CSV
-
-    -   Sink: `bronze_EUSupplyShares` table in oem_lh
-
-    -   Timeout: 12 hours
-
-    -   Retry: 0 attempts
-
-<!-- -->
-
-2.  `bronze_WGI` (RefreshDataflow Activity)
-    -   Type: Dataflow refresh
-    -   Dataflow: `WGI_file2table.Dataflow`
-    -   Output: WGI bronze tables
-    -   Timeout: 12 hours
-    -   Retry: 0 attempts
-3.  `bronze_procurement` (RefreshDataflow Activity)
-    -   Type: Dataflow refresh
-    -   Dataflow: `bronze_azureSQLdb2table.Dataflow`
-    -   Output: `bronze_procurement_transactional`, `bronze_supplier_ref`
-    -   Timeout: 12 hours
-    -   Retry: 0 attempts
-4.  `bronze_EPI` (RefreshDataflow Activity)
-    -   Type: Dataflow refresh
-    -   Dataflow: `EPI_file2table.Dataflow`
-    -   Output: `bronze_epi2024results` and related tables
-    -   Timeout: 12 hours
-    -   Retry: 0 attempts
+| # | Activity | Type | Sink / Output | Retry |
+|---|----------|------|---------------|-------|
+| 1 | `bronzecopy_EUSupplyShares` | Copy (HTTP → Lakehouse) | `bronze_EUSupplyShares` | 3 |
+| 2 | `bronzecopy_GlobalSupplyShares` | Copy (HTTP → Lakehouse) | `bronze_GlobalSupplyShares` | 3 |
+| 3 | `bronze_WGI` | RefreshDataflow | `bronze_WGI` | 2 |
+| 4 | `bronze_procurement` | RefreshDataflow | `bronze_procurement_transactional`, `bronze_supplier_ref` | 3 |
+| 5 | `bronze_EPI` | RefreshDataflow | `bronze_epi2024results` and related tables | 2 |
 
 **Stage 2: Silver Transformation (Sequential)**
 
-5.  `bronze-to-silver data cleaning` (Notebook Activity)
-    -   Depends on: All 4 bronze activities (Succeeded)
+6.  `bronze-to-silver data cleaning` (Notebook Activity)
+    -   Depends on: **all 5** bronze activities (Succeeded)
 
     -   Notebook: `bronze-to-silver.Notebook`
 
-    -   Output: Silver tables (silver_epi2024results, silver_globalsupplyshares, silver_WB, silver_procurement)
+    -   Output: Silver tables (`silver_epi2024results`, `silver_globalsupplyshares`, `silver_wgi`, `silver_procurement`)
 
     -   Timeout: 12 hours
 
-    -   Retry: 0 attempts
+    -   Retry: 2 attempts
 
 **Stage 3: Gold Transformation (Sequential)**
 
-6.  `silver-to-gold` (Notebook Activity)
+7.  `silver-to-gold` (Notebook Activity)
     -   Depends on: bronze-to-silver data cleaning (Succeeded)
 
-    -   Notebook: `silver-to-gold2.Notebook` - Output: Gold fact and dimension tables
+    -   Notebook: `silver-to-gold2.Notebook` — Output: Gold fact and dimension tables
 
     -   Timeout: 12 hours
 
-    -   Retry: 0 attempts
+    -   Retry: 2 attempts
 
-**Stage 4: Warehouse Sync (Sequential)**
+**Stage 4: Data Quality (Sequential)**
 
-7.  `Copy job1` (InvokeCopyJob Activity)
+8.  `data_quality_checks` (Notebook Activity)
     -   Depends on: silver-to-gold (Succeeded)
 
-    -   Purpose: Sync gold tables to warehouse
+    -   Notebook: `data_quality_checks.Notebook`
 
-    -   Output: Tables in `oem_wh` warehouse
+    -   Purpose: Runs the bronze/silver/gold check suite. Blocking failures raise `DataQualityException`, failing the activity and halting the pipeline.
 
     -   Timeout: 12 hours
 
-    -   Retry: 0 attempts
+    -   Retry: 1 attempt
+
+**Planned — not yet orchestrated:** warehouse sync (gold → `oem_wh`). No pipeline activity exists for this today. The warehouse itself is real — see § Infrastructure & Deployment (SQL endpoint, views, `usp_merge_fact_procurement`); only the automated sync is outstanding.
 
 **Pipeline Parameters:**
 
@@ -697,17 +671,15 @@ Power BI Reports
 
 **Schedule:** Not configured. The pipeline is run manually.
 
-**Error Handling:** Fail-fast approach (0 retries, 30-second intervals)
+**Error Handling:** Activity-level retry (1-3 attempts depending on activity, 30-second intervals) with Upon-Failure paths to shared error logging. Canonical description: § Open Questions & Decisions Needed → Technical Decisions #5. *(Supersedes the earlier "fail-fast, 0 retries" description — stale since task-011 shipped retry logic.)*
 
 **Notifications:** NoNotification configured on dataflow refreshes
-
-**Retry Logic:** None (0 retries on all activities)
 
 **Dependencies:**
 
 -   Stage 1 activities run in parallel (no dependencies)
 
--   Stage 2 waits for all Stage 1 activities to succeed
+-   Stage 2 waits for all 5 Stage 1 activities to succeed
 
 -   Stage 3 waits for Stage 2 to succeed
 
@@ -911,7 +883,7 @@ The report was redesigned and rebuilt from scratch after the semantic model was 
 
 -   [x] Pipeline created (`orchestrator_pipeline_bronze_to_gold.DataPipeline`)
 
--   [x] 4-stage sequential execution (bronze → silver → gold → warehouse)
+-   [x] 4-stage sequential execution (bronze → silver → gold → data quality)
 
 -   [x] Parallel bronze ingestion
 
@@ -1493,11 +1465,12 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
 
 1.  **Incremental vs Full Load:**
     -   **DECISION:** Incremental load for `fact_procurement` (the only table with ongoing transactional data). External data tables (EPI, WGI, Supply Shares) remain full-load on their annual refresh cycle.
-    -   **Pattern:** Watermark-based incremental loading. Track `last_modified` timestamp in a metadata table. Stage new/changed records in bronze, then MERGE into gold.
+    -   **Pattern (BUILT — task-024, 2026-07-14):** transaction-grain **date-partition delete-insert** over a 7-day look-back window, with the window driven by the `p_from_date` pipeline parameter. Deliberately *not* a natural-key MERGE: two same-day purchases of the same material from the same supplier are legitimate distinct transactions, and a natural-key merge either crashed on multiple source matches or silently collapsed them.
     -   **Incremental key:** `Date` field from `dbo.Procurement` (transaction date)
-    -   **Why:** `mode("overwrite")` erases the Delta log and forces full DirectLake semantic model reload. Incremental MERGE preserves the VertiPaq column store and enables incremental framing.
-    -   **Post-merge maintenance:** Run `OPTIMIZE` on gold tables after MERGE. V-Order enabled by default in Warehouse.
-    -   **Implementation:** Both PySpark (notebook) and T-SQL (`usp_merge_fact_procurement` stored procedure) implementations for skill demonstration.
+    -   **Planned (task-029):** the `bronze_load_metadata` high-water-mark table and its parameter flow are documented but **not implemented**. Task-029 will implement or formally descope it.
+    -   **Separate artifact:** `usp_merge_fact_procurement` (T-SQL MERGE) remains as a skill demonstration of the Delta MERGE pattern in T-SQL — it is **not** the live load path.
+    -   **Why:** `mode("overwrite")` erases the Delta log and forces a full DirectLake semantic model reload. Delete-insert preserves the VertiPaq column store while keeping transaction grain.
+    -   **Post-load maintenance:** Run `OPTIMIZE` on gold tables after each incremental load. V-Order enabled by default in Warehouse.
 2.  **Partitioning Strategy:**
     -   **DECISION:** Not applicable at portfolio scale — default Fabric behavior sufficient. No custom partitioning needed.
 3.  **SCD Implementation:**
