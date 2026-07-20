@@ -53,6 +53,7 @@ OEMMatInsightBI/
 - **Quality observability**: Three tables track data quality trends over time
 - **Testable transforms**: Python modules in `src/` with pytest coverage
 - Erik works in Fabric UI; Claude writes code locally. Tasks with `owner: "both"` need coordination.
+- **Friction register**: frictions are *not* converted to tasks — they carry `owned_by_task` and are clustered by `/audit-coherence`. Local conventions: `.claude/support/reference/project-friction-conventions.md`
 
 ## Domain Knowledge
 
