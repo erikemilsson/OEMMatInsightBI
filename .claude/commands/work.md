@@ -100,6 +100,11 @@ Check for a context transition handoff from a previous session before anything e
    (Available for routing and implement-agent enrichment. NOT passed to verify-agent.)
 
 6. Delete .handoff.json
+   EXCEPTION — concurrent session (FB-104): if the handoff's active task(s)
+   have CHANGED STATUS since the handoff timestamp (another session is
+   progressing them), do NOT consume-and-delete. Preserve the file, use it
+   read-only for orientation, flag "Handoff appears to belong to a concurrent
+   session — preserved", and reconcile/merge at the next pause.
 
 7. Proceed to Step 0b
 ```
@@ -265,7 +270,7 @@ Enumerate every item currently gated on the user and surface it before routing. 
    1. {item} — {concrete question or action} → {file link}
    ...
    ```
-5. **Dashboard cross-check:** every item found must have a 🚨 Action Required ("Needs you") item with the question/action inline. If any are missing, regenerate `dashboard.html` (a full regen is cheap; the "Needs you" card is LLM-filled) so the queue is complete.
+5. **Dashboard cross-check:** every item found must have a 🚨 Action Required ("Needs you") item with the question/action inline. If any are missing, regenerate `dashboard.html` (a full regen is cheap, and the script re-derives every mechanical row) so the queue is complete. Unanswered questions from a paused session are the LLM-augmented part — append them to the card's `<!-- CLAUDE: augment -->` slot after the regen.
 
 ### Step 1: Gather Context
 
@@ -291,6 +296,15 @@ Read and analyze:
 4. If other tasks depend on the corrupted task, treat those dependencies as unresolvable (task effectively Blocked)
 
 ### Step 1a: Dashboard Freshness Check
+
+**Pending-decomposition check first (FB-106).** Before any freshness/fast-path logic, read `pending_decomposition[]` from `.claude/dashboard-state.json`. For each listed `## ` heading, check whether any task references it (`spec_section`). If a section has **zero** referencing tasks, surface it and offer decomposition:
+
+```
+Spec section "{heading}" was added by /iterate and has no tasks yet.
+[D] Decompose it now | [S] Skip this session | [X] Drop it from the queue (not buildable yet)
+```
+
+Remove a heading from the array once it has referencing tasks or the user picks `[X]`. This runs ahead of the fast path deliberately: a matching `spec_fingerprint` would otherwise skip drift detection entirely and route to an unrelated pending task, leaving the new section silently undecomposed. (This marker supersedes the interim pause carve-out in § "Context Transition" — with `pending_decomposition[]` present, regenerating at pause is safe again.)
 
 Verify the dashboard is current before using its data. Compute a SHA-256 hash of all task IDs, statuses, difficulties, and owners, compare against the dashboard's `<!-- DASHBOARD META -->` block. If the hash differs or no metadata exists, regenerate the dashboard from task JSON files before continuing.
 
@@ -927,6 +941,7 @@ Read `.claude/support/reference/context-transitions.md` and follow the Path A (U
 - Do NOT skip the handoff file — that's the whole point
 - `session_knowledge` captures what would otherwise be lost: user preferences, informal decisions, discovered patterns
 - **Open-question sweep (human-gated coverage):** before writing the handoff, enumerate every question asked of the user this session that went unanswered, plus any newly user-gated items (tasks put On Hold, unblocked `owner: "human"` tasks, unresolved decisions). Each MUST land in the dashboard's 🚨 Action Required ("Needs you") card with the concrete question inline — regenerate `dashboard.html` so the card is complete. The handoff may point at those items; it must never be a blocking question's only home. (Counterpart: Step 0g prints this queue at the next session start.)
+- **New spec sections (FB-106):** if `/iterate` added a new `## ` section this session that no task references, confirm its heading is in `pending_decomposition[]` in `.claude/dashboard-state.json` (`/iterate`'s post-apply step writes it). Regenerating at pause is then safe — Step 1a consumes the marker ahead of the fast path, so the decomposition offer survives the refreshed `spec_fingerprint`. If the marker is somehow absent and you cannot add it, fall back to the pre-v5.4.0 rule: skip the regen, print blocking items inline, and flag the undecomposed section in the handoff.
 
 ### Interaction Assessment + Session Export (Track 2 — Cross-Project Logging)
 

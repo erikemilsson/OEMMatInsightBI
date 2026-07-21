@@ -110,9 +110,12 @@ class TestMetaInHead(HtmlBase):
 
 
 class TestPlaceholders(HtmlBase):
-    def test_action_required_placeholder_emitted(self):
+    def test_action_required_augment_placeholder_emitted(self):
+        # FB-105: Action Required is script-rendered; the LLM placeholder is now an
+        # APPEND-ONLY augment slot (judgment items), not a fill-the-whole-card slot.
         out = self.render(self.make_env(active=[task(1, "Pending", "1")]))
-        self.assertIn("<!-- CLAUDE: fill", out)
+        self.assertIn("<!-- CLAUDE: augment", out)
+        self.assertNotIn("<!-- CLAUDE: fill — Action Required", out)
         self.assertIn("Needs you", out)
 
     def test_custom_views_placeholder_when_toggled(self):
@@ -121,7 +124,54 @@ class TestPlaceholders(HtmlBase):
                                       "custom_views_instructions": "**By owner:** group tasks"})
         out = self.render(root)
         self.assertIn("<!-- CUSTOM VIEWS INSTRUCTIONS -->", out)
-        self.assertEqual(out.count("<!-- CLAUDE: fill"), 2)  # action-required + custom-views
+        self.assertEqual(out.count("<!-- CLAUDE: fill"), 1)  # custom-views only
+
+
+class TestActionRequiredAutoRender(HtmlBase):
+    """FB-105: the human-gated coverage invariant is script-enforced — an unfilled
+    card can no longer silently drop user-gated items (observed downstream)."""
+
+    def test_human_task_with_satisfied_deps_renders_with_command(self):
+        active = [task(1, "Finished", "1", task_verification={"result": "pass"}),
+                  task(2, "Pending", "1", owner="human", dependencies=["1"],
+                       title="Set up API credentials")]
+        out = self.render(self.make_env(active=active))
+        self.assertIn("Your Tasks", out)
+        self.assertIn("Set up API credentials", out)
+        self.assertIn("/work complete 2", out)
+
+    def test_human_task_with_unsatisfied_deps_is_not_listed(self):
+        active = [task(1, "Pending", "1"),
+                  task(2, "Pending", "1", owner="human", dependencies=["1"],
+                       title="Blocked human task")]
+        out = self.render(self.make_env(active=active))
+        self.assertNotIn("Blocked human task", out)
+
+    def test_both_owned_awaiting_review_and_on_hold_render(self):
+        active = [task(1, "Pending", "1", owner="both", user_review_pending=True,
+                       title="Review the drape output"),
+                  task(2, "On Hold", "1", title="Parked work")]
+        out = self.render(self.make_env(active=active))
+        self.assertIn("Review the drape output", out)
+        self.assertIn("Parked work", out)
+        self.assertIn("only you can resume", out)
+
+    def test_unresolved_decision_renders_with_file_link(self):
+        dec = ("---\nid: DEC-001\ntitle: Pick a store\nstatus: proposed\n---\n\n"
+               "## Select an Option\n\n- [ ] Option A\n")
+        out = self.render(self.make_env(active=[task(1, "Pending", "1")], decisions=[dec]))
+        self.assertIn("DEC-001", out)
+        self.assertIn("unresolved", out)
+
+    def test_verification_debt_renders(self):
+        active = [task(1, "Finished", "1")]  # Finished without passing verification
+        out = self.render(self.make_env(active=active))
+        self.assertIn("Verification Debt", out)
+
+    def test_empty_state_when_nothing_is_user_gated(self):
+        active = [task(1, "Pending", "1", owner="claude")]
+        out = self.render(self.make_env(active=active))
+        self.assertIn("Nothing blocked on you right now", out)
 
 
 class TestNoFileBreakers(HtmlBase):

@@ -875,6 +875,9 @@ section{margin:28px 0}
 .att{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 18px 14px;box-shadow:var(--sh)} .att ul{list-style:none;margin:0;padding:0}
 .att li{padding:11px 0;border-bottom:1px solid var(--line);font-size:13px}.att li:last-child{border:0}
 .tid{font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--brandink);margin-right:8px}
+.att li.arsub{padding-bottom:4px}.att li.arsub>b{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--soft)}
+.att li.arsub>ul{margin:6px 0 0;padding:0}.att li.arsub>ul>li{padding:7px 0;border-bottom:0}
+.att li.arsub>ul>li+li{border-top:1px solid var(--line)}
 .side{display:flex;flex-direction:column;gap:18px} .mini{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px 18px;box-shadow:var(--sh)}
 .mini h3{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--soft);margin:0 0 10px}
 .notescard p{margin:4px 0}.notescard ul{margin:4px 0;padding-left:20px}.notescard li{margin:3px 0;font-size:13px}
@@ -928,6 +931,144 @@ function decFilter(){var b=document.querySelector('.fbtn.on');if(!b)return;var q
 document.addEventListener('click',function(e){if(e.target.classList.contains('fbtn')){document.querySelectorAll('.fbtn').forEach(function(b){b.classList.remove('on');});e.target.classList.add('on');decFilter();}});
 document.addEventListener('keydown',function(e){if(e.key==='/'&&e.target.tagName!=='INPUT'){var dq=document.getElementById('dq');if(dq){e.preventDefault();dq.closest('details').open=true;dq.focus();}}});
 """
+
+
+def _load_feedback_counts(claude_dir: Path):
+    """(new, refined, ready) counts from support/feedback/feedback.md. Missing → zeros."""
+    path = claude_dir / "support" / "feedback" / "feedback.md"
+    if not path.is_file():
+        return (0, 0, 0)
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        print(f"warning: unreadable feedback.md: {exc}", file=sys.stderr)
+        return (0, 0, 0)
+    counts = {"new": 0, "refined": 0, "ready": 0}
+    # one status per FB entry: the first **Status:** line after each heading
+    for block in re.split(r"(?m)^## FB-\d+", text)[1:]:
+        m = re.search(r"(?m)^\*\*Status:\*\*\s*(\w+)", block)
+        if m and m.group(1).lower() in counts:
+            counts[m.group(1).lower()] += 1
+    return (counts["new"], counts["refined"], counts["ready"])
+
+
+def _html_needs_you(active, decisions, phases_model, status_map, sidecar,
+                    verification_result, drift, claude_dir):
+    """Deterministic Action Required rows (FB-105).
+
+    The script owns every mechanically-derivable row so the human-gated coverage
+    invariant cannot be silently dropped by an unfilled placeholder (observed: a
+    regen left the card empty while 5 user-gated items were outstanding). The LLM
+    appends judgment items — unanswered questions from a paused session, nuanced
+    phrasing — into the trailing augment placeholder. Sub-section order follows
+    dashboard-regeneration.md § Section Display Rules.
+    """
+    out = []
+
+    def sub(title, rows):
+        if rows:
+            out.append(f'<li class="arsub"><b>{title}</b><ul>' + "".join(rows) + "</ul></li>")
+
+    def row(body):
+        return f"<li>{body}</li>"
+
+    finished_ids = set(_GLOBAL_FINISHED)
+    resolved = resolved_decision_ids(decisions)
+
+    # Phase Transitions — boundary reached, gate not yet approved
+    gates = (sidecar.get("phase_gates") or {})
+    keys = sorted(phases_model.keys(), key=numeric_key)
+    rows = []
+    for i, key in enumerate(keys[:-1]):
+        nxt = keys[i + 1]
+        if status_map.get(key) == "Complete" and status_map.get(nxt) != "Complete":
+            if (gates.get(f"{key}→{nxt}") or {}).get("status") != "approved":
+                rows.append(row(f'Phase {_esc(key)} complete — approve the gate to start '
+                                f'phase {_esc(nxt)} → run <code>/work</code>'))
+    sub("Phase Transitions", rows)
+
+    # Verification Pending / Debt
+    non_absorbed = [t for t in active if t.get("status") != "Absorbed"]
+    open_tasks = [t for t in non_absorbed if t.get("status") != "Finished"]
+    if non_absorbed and not open_tasks and not verification_result:
+        sub("Verification Pending", [row(
+            "All tasks Finished but no phase verification result — run <code>/work</code> "
+            "to dispatch phase-level verification")])
+    debt = [t for t in active if (t.get("status") == "Finished"
+            and (t.get("task_verification") or {}).get("result") != "pass")
+            or t.get("status") == "Awaiting Verification"]
+    sub("Verification Debt", [row(
+        f'<span class="tid">{_esc(t.get("id"))}</span>{_esc(t.get("title") or "")} — '
+        f'verification incomplete → run <code>/work</code>') for t in debt])
+
+    # Spec Drift
+    d_items = (drift or {}).get("deferrals") or (drift if isinstance(drift, list) else [])
+    if d_items:
+        sub("Spec Drift", [row(f'{len(d_items)} deferred spec-drift reconciliation(s) '
+                               f'→ run <code>/work</code> to review')])
+
+    # Audit Findings
+    digest = sidecar.get("audit_digest") or {}
+    dismissed = set(digest.get("dismissed_ids") or [])
+    pending = [i for i in (digest.get("items") or [])
+               if i.get("status") == "pending" and i.get("id") not in dismissed]
+    if pending:
+        sub("Audit Findings", [row(
+            f'<span class="tid">{_esc(i.get("id"))}</span>'
+            f'{_esc(i.get("description") or i.get("title") or "")}') for i in pending])
+    elif digest.get("latest_audit"):
+        sub("Audit Findings", [row(
+            f'<i>No pending audit findings. Last audit: {_esc(digest.get("latest_audit"))}.</i>')])
+
+    # Feedback
+    fb_new, fb_ref, fb_ready = _load_feedback_counts(claude_dir)
+    if fb_new or fb_ref or fb_ready:
+        sub("Feedback", [row(
+            f'📝 <b>{fb_new + fb_ref + fb_ready} feedback items</b> awaiting attention '
+            f'({fb_new} new, {fb_ref} refined, {fb_ready} ready) → run '
+            f'<code>/feedback review</code>')])
+
+    # Decisions — unresolved records
+    sub("Decisions", [row(
+        f'<span class="tid">{_esc(d["id"])}</span>{_esc(d.get("title") or "")} — unresolved '
+        f'({_esc(d["status"])}) → tick your option in '
+        f'<a href="support/decisions/{_esc(d["file"])}">{_esc(d["file"])}</a>')
+        for d in decisions if d["status"] in UNRESOLVED_DECISION])
+
+    # Your Tasks — human-owned unblocked, both-owned awaiting review, On Hold
+    rows = []
+    for t in sorted(open_tasks, key=lambda t: numeric_key(t.get("id"))):
+        owner, status = t.get("owner"), t.get("status")
+        deps_ok = all(str(d) in finished_ids for d in (t.get("dependencies") or [])) and \
+                  all(str(d) in resolved for d in (t.get("decision_dependencies") or []))
+        tid = f'<span class="tid">{_esc(t.get("id"))}</span>{_esc(t.get("title") or "")}'
+        cmd = f' → run <code>/work complete {_esc(t.get("id"))}</code>'
+        if status == "On Hold":
+            rows.append(row(f'{tid} — On Hold; only you can resume it → run '
+                            f'<code>/work {_esc(t.get("id"))}</code>'))
+        elif owner == "human" and deps_ok and status != "Blocked":
+            rows.append(row(f'{tid} — yours to do{cmd}'))
+        elif owner == "both" and t.get("user_review_pending"):
+            rows.append(row(f'{tid} — Claude\'s half verified; your review closes it{cmd}'))
+    sub("Your Tasks", rows)
+
+    # Reviews — out-of-spec awaiting approval
+    sub("Reviews", [row(
+        f'<span class="tid">{_esc(t.get("id"))}</span>{_esc(t.get("title") or "")} — '
+        f'out-of-spec task awaiting your approval → run <code>/work</code>')
+        for t in open_tasks if t.get("out_of_spec")
+        and not t.get("out_of_spec_approved") and not t.get("out_of_spec_rejected")])
+
+    out.append(
+        "<!-- CLAUDE: augment — append <li> rows ONLY for judgment items the script"
+        " cannot derive: unanswered questions from a paused session, and context a"
+        " mechanical row would miss. The rows above are script-owned (task JSON,"
+        " decisions, sidecar, feedback.md) — do NOT restate or duplicate them. Leave"
+        " this comment in place. Contract: dashboard-regeneration.md § Action Item"
+        " Contract. -->")
+    if len(out) == 1:  # no mechanical rows at all
+        out.insert(0, '<li style="color:var(--soft)">Nothing blocked on you right now.</li>')
+    return "".join(out)
 
 
 def render_full_html(claude_dir: Path, now: datetime):
@@ -1002,13 +1143,8 @@ def render_full_html(claude_dir: Path, now: datetime):
     timeline = _html_timeline(active, now)
 
     if toggles.get("action_required", True):
-        needs_you = (
-            "<!-- CLAUDE: fill — Action Required as HTML <li> items inside this <ul>, per"
-            " dashboard-regeneration.md § Action Item Contract (incl. human-gated coverage) +"
-            " § Section Display Rules. Sub-section order: Phase Transitions, Verification Pending,"
-            " Verification Debt, Spec Drift, Audit Findings, Feedback, Decisions, Your Tasks, Reviews."
-            " Omit empty sub-sections. Each <li> is a concrete action (+ completion command), not a"
-            " status report. -->")
+        needs_you = _html_needs_you(active, decisions, phases_model, status_map, sidecar,
+                                    verification_result, drift, claude_dir)
     else:
         needs_you = '<li style="color:var(--soft)">Action Required section is toggled off.</li>'
     twocol = (

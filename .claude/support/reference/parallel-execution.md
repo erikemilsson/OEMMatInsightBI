@@ -170,6 +170,11 @@ Shared contracts:
 
 When Step 2c produces a parallel batch of **3 or more tasks**, confirm with the user before spawning. Batches of 2 skip this step — the parallel-dispatch default of 3 means a 2-batch is a partial use of the budget and the cheapest case to interrupt if wrong.
 
+### Pre-flight checks (before presenting the prompt; apply to 2-batches too)
+
+- **Working-tree re-check (FB-104):** run `git status` immediately before dispatch — not only at Step 0e session start. A concurrent session (or the user) may have changed the tree since; if unexpected modifications appear, surface them and re-run the conflict assessment before spawning. (Observed downstream: a concurrent retirement broke the tree — dangling imports — while a batch's agents were mid-flight.)
+- **Session-budget awareness (FB-103):** parallel long-running agents multiply exposure to a platform usage/session limit — a cutoff kills ALL in-flight agents with zero-token returns and partial on-disk state (recovery: `work-procedures.md § "After implement-agent returns"`, zero-token branch). If the session has already consumed heavy budget (long conversation, prior limit warnings), prefer sequential or a smaller batch. **After one limit-hit in a session, do NOT re-attempt parallel/heavy dispatch without explicit user confirmation** — the follow-up batch is likely to be cut too (observed: an immediate second parallel batch was also lost).
+
 ### Format
 
 ```

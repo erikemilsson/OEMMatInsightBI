@@ -19,11 +19,19 @@ python3 .claude/scripts/dashboard-render.py --html --claude-dir .claude [--now <
 | Owner | Sections |
 |-------|----------|
 | **Script** (deterministic) | the entire HTML document: `<head>` + META comment block (incl. the canonical `task_hash`), masthead, Pulse (ring + donut + count chips), Phase heatmap + active-front cards, the inline-SVG **dependency graph** (auto-hidden when degenerate), Timeline, Recent activity, 📋 Decisions (collapsed, link-out + search), 📄 Specification (link-out card), Notes card (from sidecar `user_notes`), footer |
-| **LLM** (synthesis) | the **Needs you** card (🚨 Action Required — the Action Item Contract + human-gated coverage need judgment) and Custom Views *rendered* content. The script emits `<!-- CLAUDE: fill … -->` HTML-comment placeholders for these; **fill them with HTML** (`<li>` items, etc.). Filling them is a REQUIRED step, validated in Step 8 |
+| **LLM** (synthesis) | **Augmenting** the **Needs you** card (🚨 Action Required) and Custom Views *rendered* content. Since v5.4.0 (FB-105) the script renders every *mechanically-derivable* Action Required row itself — see § "Action Required rendering split" — and emits a trailing `<!-- CLAUDE: augment … -->` slot for judgment items only. Custom Views still uses a `<!-- CLAUDE: fill … -->` placeholder. **Append HTML `<li>` rows into the augment slot; never restate script-owned rows** |
 
-**Flow:** the sidecar (`dashboard-state.json`) is the **sole source** of user content — `section_toggles` (which sections render) and `user_notes` (the Notes card). There are no editable markers in the HTML (the user does not hand-edit it). So: write/merge the sidecar first (Step 2), run the script, `Write` its stdout to `.claude/dashboard.html`, then fill the `<!-- CLAUDE: fill … -->` placeholders with HTML via `Edit`. The script is read-only (per `scripts/README.md` invocation contract); the orchestrator performs all writes.
+**Flow:** the sidecar (`dashboard-state.json`) is the **sole source** of user content — `section_toggles` (which sections render) and `user_notes` (the Notes card). There are no editable markers in the HTML (the user does not hand-edit it). So: write/merge the sidecar first (Step 2), run the script, `Write` its stdout to `.claude/dashboard.html`, then — **only if there are judgment items to add** — `Edit` them into the `<!-- CLAUDE: augment … -->` slot (and fill the Custom Views `<!-- CLAUDE: fill … -->` placeholder when that section is on). The script is read-only (per `scripts/README.md` invocation contract); the orchestrator performs all writes.
 
-**The script is the executable contract** for the structural rules in this file. On divergence between prose and script for a script-owned section, the script is authoritative; fix the prose (or the script, deliberately) rather than hand-rendering. Documented simplifications live in the script's docstring. The prose remains load-bearing for: the Needs-you / Action Required content (LLM-owned), and as the specification the script's tests pin.
+### Action Required rendering split (FB-105, v5.4.0)
+
+**Script-owned (rendered deterministically — never hand-author or restate):** Phase Transitions (boundary reached, sidecar `phase_gates` not `approved`), Verification Pending, Verification Debt, Spec Drift (`drift-deferrals.json`), Audit Findings (sidecar `audit_digest`, `pending` minus `dismissed_ids`, with empty-state), Feedback (counts parsed from `feedback.md`), Decisions (records in `draft`/`proposed`), Your Tasks (`owner: human` with all deps + decision-deps satisfied; `owner: both` with `user_review_pending`; On Hold), Reviews (`out_of_spec` without approve/reject). Sub-section order and omit-when-empty follow § "Section Display Rules"; each row carries its completion command. When nothing is user-gated the script renders an explicit "Nothing blocked on you right now."
+
+**LLM-owned (the augment slot):** items the script cannot derive from state — **unanswered questions from a paused session** (the open-question sweep at `/work pause`) and context a mechanical row would miss. Append `<li>` rows; leave the comment in place for the next regen.
+
+**Why the split:** the human-gated coverage invariant used to depend on the LLM filling a bare placeholder every regen. A missed fill silently emptied the card while user-gated items were outstanding (observed downstream: 5 items reachable only via the handoff). Script-rendering the mechanical portion makes the card **fail-safe** — an un-augmented card is incomplete at worst, never empty-while-blocked. It also removes the per-regen Read+Edit dance for the common case (nothing to augment → no edit at all).
+
+**The script is the executable contract** for the structural rules in this file. On divergence between prose and script for a script-owned section, the script is authoritative; fix the prose (or the script, deliberately) rather than hand-rendering. Documented simplifications live in the script's docstring. The prose remains load-bearing for: the Action Item Contract (the quality bar every row must meet, script-rendered or augmented), the augment-slot content, and as the specification the script's tests pin.
 
 **Canonical `task_hash`:** `dashboard-render.py --task-hash` (sha256 over sorted `id:status:difficulty:owner` rows, newline-joined + trailing newline, active tasks only). Carried in the `<!-- DASHBOARD META -->` comment relocated into `<head>`. This is the single hash authority — `fingerprint.py --dashboard-rollup` computes a *different* hash (`id:status`, for `/status`) and must not be used for dashboard META.
 
@@ -111,7 +119,8 @@ User-authored content lives in `.claude/dashboard-state.json` as the **single so
 |-------|------|---------|
 | `user_notes` | String | The Notes card content (Quick Links etc.). Rendered read-only as minimal HTML (headers, bullets, links, bold) |
 | `section_toggles` | Object | Boolean per section name (lowercase, underscored) — the sole toggle source |
-| `phase_gates` | Object | Keyed by transition (e.g., `"1→2"`). Value: `{ "status": "active"\|"approved" }`. Read-only HTML does not render an in-file gate checkbox; the orchestrator surfaces phase-gate readiness in the LLM-filled "Needs you" card and the user approves via CLI (`/work`). Retained as state for that surfacing |
+| `phase_gates` | Object | Keyed by transition (e.g., `"1→2"`). Value: `{ "status": "active"\|"approved" }`. Read-only HTML does not render an in-file gate checkbox; the script surfaces phase-gate readiness in the "Needs you" card (a transition whose gate is not `approved`) and the user approves via CLI (`/work`). Retained as state for that surfacing |
+| `pending_decomposition` | Array | `## ` headings of spec sections added by `/iterate` that no task references yet (FB-106). Written by `/iterate`'s post-apply step; consumed by `/work` Step 1a **ahead of the fast path**, which would otherwise skip drift detection and leave the section silently undecomposed. Entries are removed once referencing tasks exist or the user drops them |
 | `inline_feedback` | Object | Keyed by task ID. Optional feedback text the user gave on a `human`/`both` task. No in-file feedback box exists in read-only HTML; the user gives feedback via CLI at `/work complete`. Retained for back-compat |
 | `custom_views_instructions` | String | Bold-labeled view instructions; emitted into the Custom Views section (between `<!-- CUSTOM VIEWS INSTRUCTIONS -->` comments in the HTML) for the LLM to render below |
 | `audit_digest` | Object | `latest_audit` (string, e.g. `"coherence-2026-05-15-1430"`), `items[]` (digest item objects, projection of latest digest.json), `dismissed_ids[]` (item IDs the user dismissed). Surfaced in the "Needs you" card. See `.claude/support/reference/audit-fix-workflow.md` |
@@ -188,9 +197,9 @@ The dashboard is read-only HTML; user content lives **only** in `.claude/dashboa
 
 ### 3. Generate Dashboard
 
-**Script-first (DEC-024):** run `dashboard-render.py --html --claude-dir .claude [--now <ISO>]` and `Write` its stdout to `.claude/dashboard.html` (see § "Script-First Rendering — HTML target"). The script renders the entire HTML document — all structural sections, the inline-SVG visualizations, and the `<!-- DASHBOARD META -->` block in `<head>`. Then fill the two `<!-- CLAUDE: fill … -->` placeholders (the Action Required "Needs you" card and Custom Views content) **with HTML**. The bullets below are the data/semantic specification — the script's contract for its sections and the LLM's instructions for the placeholder sections.
+**Script-first (DEC-024):** run `dashboard-render.py --html --claude-dir .claude [--now <ISO>]` and `Write` its stdout to `.claude/dashboard.html` (see § "Script-First Rendering — HTML target"). The script renders the entire HTML document — all structural sections (including every mechanical Action Required row, per § "Action Required rendering split"), the inline-SVG visualizations, and the `<!-- DASHBOARD META -->` block in `<head>`. Then append any judgment items to the `<!-- CLAUDE: augment … -->` slot and fill the Custom Views `<!-- CLAUDE: fill … -->` placeholder when that section is on **with HTML**. The bullets below are the data/semantic specification — the script's contract for its sections and the LLM's instructions for the augment/placeholder regions.
 
-- The script emits the document structure deterministically; the LLM edits **only** the two placeholder regions, replacing each `<!-- CLAUDE: fill … -->` comment with HTML (`<li>` items for "Needs you", rendered blocks for Custom Views)
+- The script emits the document structure deterministically; the LLM edits **only** the augment/placeholder regions — appending `<li>` rows before the `<!-- CLAUDE: augment … -->` comment (judgment items only; leave the comment in place) and replacing the Custom Views `<!-- CLAUDE: fill … -->` comment with rendered blocks
 - Section visibility comes from sidecar `section_toggles`; the Notes card comes from sidecar `user_notes` — both read by the script
 - **Timeline:** the script renders it when any task has `due_date` or `external_dependency.expected_date`
 - **Dependency graph:** the script renders it as inline SVG when ≥4 incomplete task nodes with edges exist; auto-hidden when degenerate; >15 nodes reduce to critical path + neighbors (see § "Dependency Graph")
@@ -260,7 +269,7 @@ The script reads user content from `.claude/dashboard-state.json` directly when 
 - **Custom Views instructions** → emitted into the Custom Views section (between `<!-- CUSTOM VIEWS INSTRUCTIONS -->` comments) when `custom_views` is on; the LLM fills the rendered content in the adjacent `<!-- CLAUDE: fill -->` region.
 - **Section toggles** → `section_toggles` decides which sections the script emits.
 
-User-gated items that used to be in-file interactions (phase-gate approval, inline feedback on a task, audit promote/dismiss) are **not** rendered as editable controls in the read-only HTML. The orchestrator surfaces them in the LLM-filled "Needs you" card as actions with the CLI command to run, and tracks their state in the sidecar (`phase_gates`, `audit_digest`) or task JSON (`user_feedback`). See § "Action Item Contract".
+User-gated items that used to be in-file interactions (phase-gate approval, inline feedback on a task, audit promote/dismiss) are **not** rendered as editable controls in the read-only HTML. They surface in the "Needs you" card as actions with the CLI command to run — script-rendered from the sidecar (`phase_gates`, `audit_digest`) and task JSON (`user_feedback`) since v5.4.0. See § "Action Required rendering split" + § "Action Item Contract".
 
 **5f. Audit digest:** Read sidecar's `audit_digest`. Then scan `.claude/support/audits/*/digest.json` for the most recent file by `ran_at`. If newer than `audit_digest.latest_audit`, replace `audit_digest.items` with the new digest's `items[]` (preserving `dismissed_ids`). Render the `🔍 Audit Findings` sub-section per Section Display Rules — see audit-fix-workflow.md for the action-protocol details. Items with `id` in `dismissed_ids` OR `status != "pending"` are filtered out (resolved / promoted / dismissed items don't render). If `audit_digest.items` is empty after filtering AND `latest_audit` is non-empty, render the empty-state line. If `latest_audit` is empty (no audits ever run), skip the section entirely.
 
@@ -270,7 +279,7 @@ The script emits the footer (generated timestamp · N tasks · drift/debt indica
 
 ### 7. Output Size Awareness
 
-Claude Code caps output at 32K tokens per response. The script writes the **entire** HTML document via `Write` in one call — but the LLM only edits the two small `<!-- CLAUDE: fill -->` placeholder regions afterward, so the cap effectively applies only to those `Edit`s, not the whole document.
+Claude Code caps output at 32K tokens per response. The script writes the **entire** HTML document via `Write` in one call — but the LLM only edits the small placeholder regions afterward (the Action Required augment slot, and Custom Views when on), so the cap effectively applies only to those `Edit`s, not the whole document.
 
 **The curated HTML stays light by design** (typically ~25–150 KB) so the single Write is comfortable:
 - The script renders structure deterministically; completed phases collapse into the phase heatmap (one cell each) rather than repeated headers
@@ -283,11 +292,11 @@ If the LLM's "Needs you" fill is itself very large (dozens of human-gated items)
 
 ### 8. Post-Regeneration Validation
 
-After writing `.claude/dashboard.html` and filling the placeholders, verify integrity:
+After writing `.claude/dashboard.html` (and any augment/placeholder edits), verify integrity:
 
 1. **Well-formed:** the file starts `<!doctype html>` and ends `</html>`
 2. **Metadata check:** `<!-- DASHBOARD META -->` is present in `<head>` with a valid `task_hash`
-3. **Placeholder check:** no `<!-- CLAUDE: fill` comment remains — an unfilled synthesis section means the regeneration is incomplete; fill it (with HTML) before finishing
+3. **Placeholder check:** no `<!-- CLAUDE: fill` comment remains (Custom Views must be filled when that section is on). The `<!-- CLAUDE: augment … -->` comment **stays** — it is a persistent append slot, not an unfilled section; a card with no judgment items is complete as rendered
 4. **Offline invariant:** no `type="module"`, no CDN `import`/`fetch` (only the Google-Fonts `<link>` is permitted) — anything else breaks `file://` open
 
 If any check fails:

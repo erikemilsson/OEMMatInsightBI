@@ -17,6 +17,14 @@ When a `/work` session reaches a natural stopping point (blocking issue, end of 
 
 `/work pause` also works as a **mid-session checkpoint** — pausing, continuing to work, and pausing again in the same session is normal use; each pause overwrites the handoff with the newest state.
 
+## Concurrent Sessions (conventions only — no structural model)
+
+The template assumes one session per repo; there is no structural concurrency model (FB-104). When two sessions knowingly run on one repo:
+
+- **Single committer:** designate one session as the committer; the other leaves its files uncommitted and reports them at pause. Two sessions poised to commit produce git-index races and provenance-entangled commits (one session's `git add` sweeping the other's tracked edits was observed downstream).
+- Handoffs that belong to a concurrent session are **preserved, not consumed** (`work.md` Step 0a exception).
+- Before parallel agent dispatch, the orchestrator **re-checks `git status`** (`parallel-execution.md § "Pre-Dispatch Confirmation"` pre-flight checks) — the tree may have changed mid-session.
+
 **When Claude says "next session will..."** — that promise only survives if `/work pause` is run or the user resumes the session with `--continue`/`--resume`.
 
 ## Which Persistence Mechanism When
