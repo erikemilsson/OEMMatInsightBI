@@ -23,16 +23,13 @@
 # MARKDOWN ********************
 
 # # bronze_ingest_epi
-#
-# Automated ingestion of Environmental Performance Index (EPI) data from Yale.
+# # Automated ingestion of Environmental Performance Index (EPI) data from Yale.
 # Replaces manual CSV upload via EPI_file2table.Dataflow.
-#
-# **Source:** https://epi.yale.edu/downloads/epi2024results.csv
+# # **Source:** https://epi.yale.edu/downloads/epi2024results.csv
 # **Target:** bronze_epi2024results (Delta table, overwrite)
 # **License:** CC BY-NC-SA 4.0 (non-commercial use only)
 # **Update frequency:** Annual (typically June)
-#
-# Attribution: Environmental Performance Index 2024,
+# # Attribution: Environmental Performance Index 2024,
 # Yale Center for Environmental Law & Policy, https://epi.yale.edu/
 
 # CELL ********************
@@ -44,13 +41,7 @@ p_epi_year = "2024"
 
 # META {
 # META   "language": "python",
-# META   "language_group": "synapse_pyspark",
-# META   "inputParameters": {
-# META     "p_epi_year": {
-# META       "type": "string",
-# META       "defaultValue": "2024"
-# META     }
-# META   }
+# META   "language_group": "synapse_pyspark"
 # META }
 
 # CELL ********************

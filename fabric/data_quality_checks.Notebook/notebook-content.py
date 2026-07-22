@@ -18,30 +18,23 @@
 # MARKDOWN ********************
 
 # # Data Quality Checks (Task 007 + Task 020)
-#
-# **Purpose:** Comprehensive data quality framework with 12 check functions across
+# # **Purpose:** Comprehensive data quality framework with 12 check functions across
 # bronze, silver, and gold layers using ISO 25012 quality dimensions.
-#
-# **Quality Dimensions:** Completeness, Accuracy, Consistency, Timeliness, Validity, Uniqueness
-#
-# **Check Functions:**
+# # **Quality Dimensions:** Completeness, Accuracy, Consistency, Timeliness, Validity, Uniqueness
+# # **Check Functions:**
 # - Bronze (5): Row count validation, Schema validation, Required field completeness, Duplicate detection, Date range validation
 # - Silver (5): Referential integrity, Business rule validation, Outlier detection (Z-score), Data type consistency, Completeness (post-join)
 # - Gold (4): Aggregate reconciliation, Trend validation, Lookup-name uniqueness, Duplicate-grain on facts
-#
-# **Task 020 additions:** date_range_validation (Bronze), data_type_consistency (Silver),
+# # **Task 020 additions:** date_range_validation (Bronze), data_type_consistency (Silver),
 # silver_completeness (Silver) — see in-notebook rationale on the silver completeness cell.
-#
-# **Task 026 additions:** severity model with a SINGLE aggregated raise (final cell) —
+# # **Task 026 additions:** severity model with a SINGLE aggregated raise (final cell) —
 # blocking checks fail the pipeline activity, advisory checks only log/score. New checks:
 # lookup_name uniqueness (gold lookup dims), duplicate-grain (gold facts), bronze_WGI
 # coverage, fact_epi_score + fact_procurement.date_key referential integrity. Also fixed
 # the dead spend reconciliation and the heterogeneous-metric trend check.
-#
-# **Output:** Results are scored (0-100 scale), categorized (Excellent/Good/Fair/Poor/Critical),
+# # **Output:** Results are scored (0-100 scale), categorized (Excellent/Good/Fair/Poor/Critical),
 # and persisted to `gold_quality_history` for trend tracking.
-#
-# **Alert Strategy:**
+# # **Alert Strategy:**
 # | Score   | Rating    | Action                   |
 # |---------|-----------|--------------------------|
 # | 95-100  | Excellent | None                     |

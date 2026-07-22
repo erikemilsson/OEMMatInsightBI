@@ -23,24 +23,20 @@
 # MARKDOWN ********************
 
 # # bronze_ingest_wgi
-#
-# Automated ingestion of World Governance Indicators (WGI) data from the World Bank API.
+# # Automated ingestion of World Governance Indicators (WGI) data from the World Bank API.
 # Replaces manual CSV upload via WGI_file2table.Dataflow.
-#
-# **Source:** World Bank API v2 (https://api.worldbank.org/v2/)
+# # **Source:** World Bank API v2 (https://api.worldbank.org/v2/)
 # **Target:** bronze_WGI (Delta table, overwrite)
 # **License:** World Bank Open Data (commercial use permitted)
 # **Update frequency:** Annual (typically September)
-#
-# Retrieves all 6 WGI dimensions (estimate scores):
+# # Retrieves all 6 WGI dimensions (estimate scores):
 # - CC.EST: Control of Corruption
 # - GE.EST: Government Effectiveness
 # - PV.EST: Political Stability and Absence of Violence
 # - RL.EST: Rule of Law
 # - RQ.EST: Regulatory Quality
 # - VA.EST: Voice and Accountability
-#
-# Attribution: Worldwide Governance Indicators, The World Bank Group
+# # Attribution: Worldwide Governance Indicators, The World Bank Group
 
 # CELL ********************
 
@@ -52,17 +48,7 @@ p_end_year = "2023"
 
 # META {
 # META   "language": "python",
-# META   "language_group": "synapse_pyspark",
-# META   "inputParameters": {
-# META     "p_start_year": {
-# META       "type": "string",
-# META       "defaultValue": "1996"
-# META     },
-# META     "p_end_year": {
-# META       "type": "string",
-# META       "defaultValue": "2023"
-# META     }
-# META   }
+# META   "language_group": "synapse_pyspark"
 # META }
 
 # CELL ********************
@@ -216,11 +202,9 @@ print(f"\n  Total records fetched: {len(all_records):,}")
 # MARKDOWN ********************
 
 # ## Write to bronze layer
-#
-# The downstream `bronze-to-silver` notebook reads `bronze_WGI` and expects columns:
+# # The downstream `bronze-to-silver` notebook reads `bronze_WGI` and expects columns:
 # `Country Name`, `Country Code`, `Series Name`.
-#
-# We write the full API data to `bronze_WGI` with those columns plus additional
+# # We write the full API data to `bronze_WGI` with those columns plus additional
 # fields (indicator_code, year, value) that enrich the dataset beyond what the
 # manual CSV upload provided.
 

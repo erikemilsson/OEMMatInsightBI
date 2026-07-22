@@ -27,14 +27,12 @@
 # MARKDOWN ********************
 
 # # nb_silver_standardize
-#
-# This notebook does the following:
+# # This notebook does the following:
 # - cleans headers,
 # - trims entries,
 # - type casts,
 # - light normalization (no business joins).
-#
-# Supports incremental loading for procurement data via p_full_load / p_from_date parameters.
+# # Supports incremental loading for procurement data via p_full_load / p_from_date parameters.
 
 
 # CELL ********************
@@ -47,17 +45,7 @@ p_from_date = "1900-01-01"
 
 # META {
 # META   "language": "python",
-# META   "language_group": "synapse_pyspark",
-# META   "inputParameters": {
-# META     "p_full_load": {
-# META       "type": "string",
-# META       "defaultValue": "false"
-# META     },
-# META     "p_from_date": {
-# META       "type": "string",
-# META       "defaultValue": "1900-01-01"
-# META     }
-# META   }
+# META   "language_group": "synapse_pyspark"
 # META }
 
 # CELL ********************
@@ -162,8 +150,7 @@ df_newheaders.write.format("delta").mode("overwrite").saveAsTable('silver_global
 # MARKDOWN ********************
 
 # ## procurement: bronze --> silver
-#
-# Supports incremental loading when p_full_load is "false". Uses a date-partition
+# # Supports incremental loading when p_full_load is "false". Uses a date-partition
 # DELETE-INSERT (not a natural-key MERGE) to preserve transaction grain: two same-day
 # purchases of the same material/supplier are legitimate distinct transactions, so no
 # merge key or dedupe is applied (see task-024, 2026-07-14). A 7-day look-back window

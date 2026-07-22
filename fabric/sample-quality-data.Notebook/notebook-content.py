@@ -18,15 +18,15 @@
 # MARKDOWN ********************
 
 # # Sample Quality Data Population (Task 017)
-#
+# 
 # **Purpose:** Insert backdated sample data into quality observability tables to demonstrate trending before organic data accumulates.
-#
+# 
 # **Tables populated:**
 # - `gold_quality_history` - 25 rows showing metrics across 5 simulated pipeline runs
 # - `gold_gap_registry` - 12 rows showing gap lifecycle (new, persisting, resolved)
-#
+# 
 # **Story:** Quality improved from 85% coverage (Jan 1) to 100% (Jan 20) through systematic gap resolution.
-#
+# 
 # **Note:** Sample data is marked with `[SAMPLE]` prefix in resolution_notes for gap_registry.
 # Run this notebook ONCE to seed historical data for demo purposes.
 
@@ -65,9 +65,9 @@ print("No existing sample data found. Proceeding with insertion...")
 # MARKDOWN ********************
 
 # ## 1. Sample Quality History Data
-#
+# 
 # Shows quality improvement over 5 simulated pipeline runs:
-#
+# 
 # | Run | Date | Coverage | Match Rate | Unmapped | Story |
 # |-----|------|----------|------------|----------|-------|
 # | 1 | Jan 1 | 85% | 92% | 15 | Initial baseline |
@@ -164,9 +164,9 @@ history_df.orderBy("refresh_timestamp", "entity", "metric_name").show(10, trunca
 # MARKDOWN ********************
 
 # ## 2. Sample Gap Registry Data
-#
+# 
 # Shows gap lifecycle with different statuses:
-#
+# 
 # | Gap | Type | First Seen | Status | Story |
 # |-----|------|------------|--------|-------|
 # | Singpaore | country | Jan 1 | Resolved Jan 15 | Typo fixed with alias |
@@ -368,13 +368,13 @@ print("Sample data is marked with [SAMPLE] prefix in resolution_notes.")
 # MARKDOWN ********************
 
 # ## Cleanup (Optional)
-#
+# 
 # Run this cell only if you need to remove sample data:
-#
+# 
 # ```sql
 # -- Remove sample gap registry entries
 # DELETE FROM oem_lh.gold_gap_registry WHERE resolution_notes LIKE '[SAMPLE]%';
-#
+# 
 # -- Remove sample quality history (by date range)
 # DELETE FROM oem_lh.gold_quality_history WHERE refresh_timestamp < '2026-01-19';
 # ```

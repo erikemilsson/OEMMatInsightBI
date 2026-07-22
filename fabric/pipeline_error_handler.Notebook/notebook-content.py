@@ -18,28 +18,23 @@
 # MARKDOWN ********************
 
 # # Pipeline Error Handler (Task 011)
-#
-# **Purpose:** Centralized execution logging, error categorization, and reporting
+# # **Purpose:** Centralized execution logging, error categorization, and reporting
 # for the OEMMatInsightBI orchestrator pipeline.
-#
-# **Delta Table:** `gold_pipeline_execution_log`
-#
-# **Functions:**
+# # **Delta Table:** `gold_pipeline_execution_log`
+# # **Functions:**
 # - `log_activity_start()` - Record when an activity begins
 # - `log_activity_success()` - Update log entry on success
 # - `log_activity_failure()` - Update log entry on failure with error categorization
 # - `categorize_error()` - Classify errors as Transient / Permanent / Unknown
 # - `get_execution_summary()` - Query recent execution history
 # - `get_failure_report()` - Generate failure analysis report
-#
-# **Error Categories:**
+# # **Error Categories:**
 # | Category   | Action                          | Retry Behavior         |
 # |------------|--------------------------------|------------------------|
 # | Transient  | Retry with backoff             | Up to max_retries      |
 # | Permanent  | Fail immediately, alert        | No retry               |
 # | Unknown    | Retry once cautiously, alert   | 1 retry max            |
-#
-# **Usage:** This notebook can be run standalone to create/inspect the log table,
+# # **Usage:** This notebook can be run standalone to create/inspect the log table,
 # or its functions can be referenced from other notebooks via `%run`.
 
 # CELL ********************
@@ -180,10 +175,8 @@ for _err in _demo_errors:
 # MARKDOWN ********************
 
 # ## Execution Log Table
-#
-# Schema for `gold_pipeline_execution_log`:
-#
-# | Column | Type | Description |
+# # Schema for `gold_pipeline_execution_log`:
+# # | Column | Type | Description |
 # |--------|------|-------------|
 # | execution_id | string | Unique ID for this log entry (UUID) |
 # | activity_name | string | Pipeline activity name |
@@ -351,8 +344,7 @@ def log_activity_failure(execution_id: str, error_message: str):
 # MARKDOWN ********************
 
 # ## Reporting & Summary Functions
-#
-# These functions query `gold_pipeline_execution_log` to provide
+# # These functions query `gold_pipeline_execution_log` to provide
 # operational insights.
 
 # CELL ********************

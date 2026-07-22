@@ -30,17 +30,7 @@ p_from_date = "1900-01-01"
 
 # META {
 # META   "language": "python",
-# META   "language_group": "synapse_pyspark",
-# META   "inputsV2": {
-# META     "p_full_load": {
-# META       "type": "string",
-# META       "defaultValue": "false"
-# META     },
-# META     "p_from_date": {
-# META       "type": "string",
-# META       "defaultValue": "1900-01-01"
-# META     }
-# META   }
+# META   "language_group": "synapse_pyspark"
 # META }
 
 # MARKDOWN ********************
