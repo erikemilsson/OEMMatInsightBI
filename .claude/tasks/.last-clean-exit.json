@@ -1,11 +1,8 @@
 {
-  "last_clean_exit": "2026-07-22T14:15:00Z",
+  "last_clean_exit": "2026-07-22T20:16:21Z",
   "in_progress": [
     "task-022",
-    "task-023",
-    "task-024",
-    "task-025",
-    "task-026"
+    "task-024"
   ],
-  "note": "2026-07-22 session. BLOCKER: commit 2c67de3 (committed FROM Fabric) stripped inputParameters from bronze-to-silver, bronze_ingest_epi, bronze_ingest_wgi while the orchestrator still passes p_full_load/p_from_date. DO NOT RUN THE PIPELINE until fixed. Full diagnosis + fix path + all session state: .claude/support/workspace/plan-fabric-parameter-regression.md \u2014 READ IT FIRST. Done this session: task-032 Finished (verified); DEC-002 ratified; Global copy activity rewired to connection 172b089e (was on EU connection 97124587 - latent wrong-data bug, defused pre-deploy); Fabric Git integration repaired (expired PAT); workspace updated from 44 commits behind; 4 notebooks deployed for the first time; report2's 6 months of unversioned work captured (32cd613). task-022/026 In Progress, deployed but UNRUN. Acceptance: bronze_GlobalSupplyShares must be 2561 2561; 907 means the EU file loaded."
+  "note": "2026-07-22 late session. Pipeline is GREEN end-to-end including the DQ activity. task-023, task-025, task-026 all Finished with runtime halves measured on the 19:53 UTC run. Created task-040 (DQ gate verdict not persisted) and task-041 (pipeline_error_handler never wired); task-037 now depends on task-041. Deployed alias/commodity-map fixes (5610c35) and verified live. Read .claude/support/workspace/handoff-2026-07-22.md first. task-022 and task-024 remain In Progress awaiting Erik's review only."
 }
