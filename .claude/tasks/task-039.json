@@ -1,0 +1,72 @@
+{
+  "id": "task-039",
+  "title": "Designate real Fabric parameter cells — pipeline notebook parameters have never been injected",
+  "description": "The orchestrator pipeline passes p_full_load / p_from_date to the bronze-to-silver and silver-to-gold notebook activities, but neither notebook has a designated parameters cell in the Fabric workspace, so the injected values are discarded. Fabric's only mechanism for this is the 'Toggle parameter cell' command in the notebook UI; it cannot be declared by hand in notebook-content.py. Toggle the parameter cell on the two notebooks in Fabric, commit from the workspace, and capture the resulting serialization in the repo so the marker is known and reproducible.",
+  "status": "Pending",
+  "priority": "P2",
+  "difficulty": 2,
+  "owner": "both",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "spec_section": "Orchestration",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "estimated_hours": 1,
+  "files_affected": [
+    "fabric/bronze-to-silver.Notebook/notebook-content.py",
+    "fabric/silver-to-gold2.Notebook/notebook-content.py"
+  ],
+  "acceptanceCriteria": [
+    "In the Fabric UI, the first code cell of bronze-to-silver (the `p_full_load = \"false\"` / `p_from_date = \"1900-01-01\"` cell) is toggled as the parameters cell via the cell's ... menu -> Toggle parameter cell.",
+    "The same toggle is applied to the equivalent first code cell of silver-to-gold2.",
+    "The change is committed from the Fabric workspace and pulled into the repo, so notebook-content.py records however Fabric serializes a parameters cell. The exact marker is currently UNKNOWN and must be read from that round trip, not guessed.",
+    "A pipeline run with p_full_load=true demonstrably takes the full-load branch (the notebook prints the FULL LOAD message, not the INCREMENTAL one) — proving injection now overrides the defaults.",
+    "The serialization marker learned from step 3 is recorded in .claude/support/documents/ (or the root CLAUDE.md gotchas) so future local authoring can produce it directly."
+  ],
+  "dependencies": [],
+  "decision_dependencies": [],
+  "notes": [
+    "CREATED 2026-07-22 while executing plan-fabric-parameter-regression.md. The handoff had diagnosed commit 2c67de3 as a Fabric round-trip regression that stripped working `inputParameters` metadata. That diagnosis was wrong — see the corrected write-up in .claude/support/workspace/plan-fabric-parameter-regression.md.",
+    "ROOT CAUSE: the `inputParameters` (3 notebooks) and `inputsV2` (silver-to-gold2) META blocks were hand-authored locally in commit c4d425b. Two different invented key names for the same concept is the tell — no tool generated them. They were never part of Fabric's notebook cell-metadata schema, so Fabric discarded them on deserialization and did not re-emit them on the next commit. Restoring them would be reverted again on every round trip.",
+    "EVIDENCE: after the round trip the entire repo uses exactly four META keys — `language`, `language_group` (cell level) and `kernel_info`, `dependencies` (notebook level). No parameter concept appears anywhere, and no notebook carries a parameters-cell marker of any kind.",
+    "MECHANISM (Microsoft Learn, 'Develop, execute, and manage notebooks' -> Designate a parameters cell): 'Pipeline activity looks for the parameters cell and treats this cell as the default for the parameters passed in at execution time. The execution engine adds a new cell beneath the parameters cell with input parameters in order to overwrite the default values.' Fabric's wording mirrors papermill, whose documented fallback when no cell is tagged is to insert the injected cell at the TOP of the notebook — where the notebook's own default-assignment cell then runs after it and overwrites it.",
+    "WHY THIS IS NOT URGENT: the pipeline's own parameter defaults (p_full_load=false, p_from_date='1900-01-01') are identical to the values hardcoded in both notebooks, so a default-parameter run behaves the same whether injection works or not. The defect only bites when a run overrides them — which is exactly what task-006_3's test protocol does.",
+    "BLOCKS task-006_3: its test protocol step 1 is 'Run pipeline with p_full_load=true in Fabric UI'. Until this task lands, that step is a silent no-op — the notebook takes the incremental branch regardless and the test would pass against superseded behavior.",
+    "RELATED task-029: once the high-water-mark computes a real p_from_date and the pipeline starts passing it, this stops being latent and becomes a live correctness bug.",
+    "DO NOT hand-write a parameters-cell marker into notebook-content.py from memory or inference. Inventing plausible-looking Fabric metadata is what caused this defect in the first place; the marker must come from an observed round trip."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-07-22",
+  "updated_date": "2026-07-22",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "task_verification": {},
+  "verification_history": [],
+  "test_protocol": {
+    "steps": [
+      {
+        "type": "interactive",
+        "instruction": "In Fabric, open bronze-to-silver, select the first code cell, ... menu -> Toggle parameter cell. Repeat for silver-to-gold2.",
+        "expected": "Both cells show the parameters-cell badge in the notebook UI"
+      },
+      {
+        "type": "interactive",
+        "instruction": "Commit both notebooks from the workspace Source control panel, then pull in the repo",
+        "expected": "notebook-content.py diffs show a new parameters-cell marker on those cells"
+      },
+      {
+        "type": "interactive",
+        "instruction": "Run the orchestrator pipeline with p_full_load=true",
+        "expected": "bronze-to-silver prints the full-load path, not 'Procurement: INCREMENTAL LOAD'"
+      }
+    ],
+    "estimated_time": "20 minutes"
+  },
+  "user_review_pending": false,
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "cli_direct",
+  "recovery_state": ""
+}

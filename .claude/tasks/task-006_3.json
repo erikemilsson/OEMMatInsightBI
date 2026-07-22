@@ -21,8 +21,9 @@
     "Performance improvement measured (target: >50% time reduction for incremental)",
     "incremental_load_strategy.md updated with actual performance numbers"
   ],
-  "dependencies": ["task-006_2"],
+  "dependencies": ["task-006_2", "task-039"],
   "notes": [
+    "HARD PREREQUISITE task-039 (added 2026-07-22): neither bronze-to-silver nor silver-to-gold2 has a designated Fabric parameters cell, so the pipeline's p_full_load / p_from_date are discarded at run time. Test protocol step 1 ('Run pipeline with p_full_load=true') is currently a silent no-op — the notebook takes the incremental branch regardless and this test would pass against superseded behavior. Do not run this test until task-039 lands.",
     "Erik runs the pipeline in Fabric UI, Claude reviews results",
     "Check duplicate detection: SELECT COUNT(*), COUNT(DISTINCT key) FROM fact_procurement",
     "Compare bronze_load_metadata timestamps before and after",
