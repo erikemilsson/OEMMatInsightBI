@@ -27,15 +27,15 @@
 # MARKDOWN ********************
 
 # # nb_silver_standardize
-# # This notebook does the following:
+# This notebook does the following:
 # - cleans headers,
 # - trims entries,
 # - type casts,
 # - light normalization (no business joins).
-# # Supports incremental loading for procurement data via p_full_load / p_from_date parameters.
+# Supports incremental loading for procurement data via p_full_load / p_from_date parameters.
 
 
-# CELL ********************
+# PARAMETERS CELL ********************
 
 # Pipeline parameters — overridden by Fabric pipeline at runtime
 p_full_load = "false"
@@ -150,7 +150,7 @@ df_newheaders.write.format("delta").mode("overwrite").saveAsTable('silver_global
 # MARKDOWN ********************
 
 # ## procurement: bronze --> silver
-# # Supports incremental loading when p_full_load is "false". Uses a date-partition
+# Supports incremental loading when p_full_load is "false". Uses a date-partition
 # DELETE-INSERT (not a natural-key MERGE) to preserve transaction grain: two same-day
 # purchases of the same material/supplier are legitimate distinct transactions, so no
 # merge key or dedupe is applied (see task-024, 2026-07-14). A 7-day look-back window

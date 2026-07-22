@@ -20,7 +20,7 @@
 # META   }
 # META }
 
-# CELL ********************
+# PARAMETERS CELL ********************
 
 # Pipeline parameters — overridden by orchestrator pipeline when invoked
 p_full_load = "false"
