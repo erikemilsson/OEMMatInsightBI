@@ -2,7 +2,7 @@
   "id": "task-026",
   "title": "Wire data quality checks into the orchestrator and make them able to fail — checks are unwired, advisory-only, and the one reconciliation check is dead",
   "description": "The DQ enforcement layer exists as artifacts but guards nothing. (1) data_quality_checks.Notebook and pipeline_error_handler.Notebook are NOT activities in orchestrator_pipeline_bronze_to_gold — the pipeline runs bronze copies/dataflows -> bronze-to-silver -> silver-to-gold and stops. (2) Even run manually, no check can halt anything: the framework doc specifies raise DataQualityException for strict checks (data_quality_framework.md:161-163, 260-261, 334-335, 411-412, 492-493) but the implemented notebook contains zero raises in 1,595 lines; the gold notebook hardcodes FAIL_ON_UNMAPPED=False. (3) The only silver-to-gold reconciliation check references silver_procurement.spend_eur — a column that does not exist in silver (spend is computed in gold) — so it throws, is swallowed by try/except, and logs a permanent score-0 'fail' into gold_quality_history every run while reconciling nothing. (4) Coverage gaps: bronze_WGI has zero checks; fact_epi_score has no RI or uniqueness check; no gold fact has a duplicate-key check (which would have caught the task-023 fan-out); the bronze duplicate check key (Date, MaterialName, SupplierName, Quantity) doesn't match the silver merge key, so exactly the rows that break the merge pass the check.",
-  "status": "In Progress",
+  "status": "Finished",
   "priority": "P1",
   "difficulty": 6,
   "owner": "both",
@@ -60,6 +60,7 @@
     "For this defect class, measure before proposing a fix — the grain that fails is cheap to query directly (see the diagnostic in task-023) and expensive to infer.",
     "ROOT CAUSE OF THE LAST DUPLICATE, measured 2026-07-22 20:37. The failing grain is (Antimony, P, China, 2023) with shares [0.3, 51.8]. Source rows: China 51.8% (t=1.1) and Hong Kong 0.3% (t=1.0). The alias at silver-to-gold2:188 — (\"Hong Kong\",\"China\",0.85,\"territory\") — DELIBERATELY folds the territory into its parent, so both rows land on one grain. Not a bug: a rollup that maps N source rows onto one country is structurally incompatible with a 0%-tolerance uniqueness check on a grain containing country_key. Only two territory aliases exist (the other is French Guiana->France, which does not currently collide); Taiwan is deliberately NOT aliased. Blocks the DQ gate; see task-023 for the decision.",
     "CRIT 6 CLEAN-RUN HALF MET 2026-07-22. The 20:58 local / 18:58 UTC pipeline run completed end-to-end with the DQ activity Succeeding — which is the actual proof, because the notebook raises DataQualityException on any blocking failure and that raise fails the activity. Combined with the earlier failing runs (see below), crit 6 now has BOTH controls: the gate demonstrably halts the pipeline when a blocking check fails, and passes when none does.",
+    "CRIT 6 FULLY MET 2026-07-22, both controls confirmed by Erik. NEGATIVE control: the gate demonstrably halts the pipeline on a blocking failure — the 18:41 local run raised DataQualityException on 2 blocking checks and FAILED the DQ activity, with retry=1 producing 2 attempts that failed identically, and the 20:16 run did the same on 1 blocking check. POSITIVE control: the 21:53 local / 19:53 UTC run completed with the DQ activity reporting Succeeded. HONEST SCOPE NOTE: the criterion's parenthetical suggested injecting duplicate merge-key rows, and no such injection was performed. The blocking failures that exercised the gate were organic (a bronze/silver schema-contract mismatch and a real duplicate grain), which is stronger evidence than an injection would have been — the checks caught defects nobody planted, named them, and halted the run, then passed once the defects were fixed. Recorded so the audit trail does not imply an injection test that did not happen.",
     "MEASUREMENT HAZARD — breach_flag IS NOT THE GATE. gold_quality_history stores refresh_timestamp, layer, entity, metric_name, metric_value, threshold, breach_flag, where breach_flag = (score < 70.0) at :1646. The gate is driven by result['status'] == 'fail' at :1817, which is INDEPENDENT of that score threshold: grain_uniqueness with 2 bad grains out of 2561 rows scores ~99.9 and therefore does NOT breach, while still being a blocking failure that halts the pipeline. Querying breach_flag to ask 'did the gate pass' returns the wrong answer. Proven empirically in this table: the 18:29 and 18:35 UTC runs record 0 breaches on the very run whose notes record 1 blocking failure (grain_uniqueness@fact_supply_share).",
     "OBSERVABILITY GAP — NOW task-040 (created 2026-07-22, depends on this task): 'status' is never persisted. gold_quality_history cannot answer 'did the DQ gate pass on run X' after the fact — the one field that determines whether the pipeline halts is absent from the durable record, leaving only the notebook's printed output, which is lost on a fresh page load. Adding a status column (or a per-run blocking_failures count) to the persisted schema would close it.",
     "SECOND WRITER on gold_quality_history: silver-to-gold2:2305 also appends to this table (10 rows per run) alongside data_quality_checks:1679 (52 rows per run), with no producer discriminator beyond layer/entity. Consequence: DISTINCT refresh_timestamp counts two timestamps per pipeline run, so silver-to-gold2:2669's printed 'N pipeline runs' is double the true count. The validate_historical_trend check is unaffected because it is scoped to metric_name='dq_overall_score', which only data_quality_checks writes.",
@@ -68,7 +69,7 @@
   "user_feedback": "",
   "created_date": "2026-07-13",
   "updated_date": "2026-07-22",
-  "completion_date": null,
+  "completion_date": "2026-07-22",
   "verification_attempts": 1,
   "task_verification": {
     "result": "pass",
@@ -79,7 +80,7 @@
       "consistency_check": "pass",
       "spec_alignment": "pass",
       "output_quality": "pass",
-      "runtime_validation": "partial",
+      "runtime_validation": "pass",
       "integration_ready": "pass",
       "scope_validation": "pass"
     },
@@ -89,7 +90,7 @@
         "description": "Working tree also shows fabric/bronze-to-silver.Notebook + fabric/silver-to-gold2.Notebook modified (sibling tasks 023/024/025, same fabric/ dir) — not part of the WGI fix; informational."
       }
     ],
-    "notes": "PASS attempt 2 (owner:both, Claude code/JSON half). Attempt-1 defect fixed: 3 WGI checks retargeted from phantom bronze_WB_ESGCSV to live oem_lh.bronze_WGI with real columns (Country Name/Country Code/Series Name/Percentile Rank 2023); phantom names gone (grep 0 matches, positive control bronze_WGI=7 confirms probe). WGI checks remain advisory (absent from BLOCKING_CHECKS). Regressions clean: aggregated raise DataQualityException runs last + unswallowed; reconciliation SUM(quantity*unitpriceeur) vs SUM(spend_eur) executes (advisory, FR-006); criterion-4 dup rescope intact; checks 5a-5d present; signatures consistent; py_compile clean. Pipeline JSON untouched + correct (8 activities incl. preserved bronzecopy_GlobalSupplyShares + data_quality_checks). runtime_validation=partial: crit 6 (Fabric deploy + broken-vs-clean run) is Erik's half."
+    "notes": "RUNTIME HALF COMPLETED 2026-07-22 (runtime_validation partial -> pass). Crit 6 confirmed with both controls: the gate halted the pipeline on real blocking failures (18:41 run, 2 checks, both retry attempts; 20:16 run, 1 check) and the DQ activity Succeeded on the clean 19:53 UTC run. No duplicate-row injection was performed — organic defects exercised the gate instead, which is noted explicitly in the task. Follow-on observability work split out as task-040 (status is never persisted, so the gate verdict is unrecoverable after a run). Original attempt-2 notes follow. PASS attempt 2 (owner:both, Claude code/JSON half). Attempt-1 defect fixed: 3 WGI checks retargeted from phantom bronze_WB_ESGCSV to live oem_lh.bronze_WGI with real columns (Country Name/Country Code/Series Name/Percentile Rank 2023); phantom names gone (grep 0 matches, positive control bronze_WGI=7 confirms probe). WGI checks remain advisory (absent from BLOCKING_CHECKS). Regressions clean: aggregated raise DataQualityException runs last + unswallowed; reconciliation SUM(quantity*unitpriceeur) vs SUM(spend_eur) executes (advisory, FR-006); criterion-4 dup rescope intact; checks 5a-5d present; signatures consistent; py_compile clean. Pipeline JSON untouched + correct (8 activities incl. preserved bronzecopy_GlobalSupplyShares + data_quality_checks). runtime_validation=partial: crit 6 (Fabric deploy + broken-vs-clean run) is Erik's half."
   },
   "verification_history": [
     {
@@ -103,6 +104,12 @@
       "result": "pass",
       "timestamp": "2026-07-14T00:00:00Z",
       "summary": "WGI checks retargeted to live bronze_WGI (grep 0 phantom matches + positive control); advisory preserved; no regressions; py_compile clean. Fabric deploy/run = Erik."
+    },
+    {
+      "attempt": 2,
+      "result": "pass",
+      "timestamp": "2026-07-22T22:15:00Z",
+      "summary": "Runtime half of attempt 2 closed. Gate proven in both directions — halts on blocking failure (twice, with retries), succeeds on the clean run. Injection substituted by organic failures, recorded as such. runtime_validation partial -> pass."
     }
   ],
   "test_protocol": {
@@ -127,7 +134,7 @@
     "automated_results": "Static validation passed (py_compile clean; JSON 8 activities; WGI retarget + advisory confirmed; phantom tables absent via grep+positive-control; regressions intact). Fabric execution = Erik's half.",
     "estimated_time": "15-25 minutes"
   },
-  "user_review_pending": true,
+  "user_review_pending": false,
   "out_of_spec": false,
   "absorbed_into": "",
   "interaction_hint": "dashboard"
