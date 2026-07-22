@@ -2,7 +2,7 @@
   "id": "task-023",
   "title": "Fix lookup-table join fan-out — duplicate lookup_name rows and fact_epi_score iso3 join inflate fact tables and spend",
   "description": "Two related fan-out bugs in silver-to-gold2 silently duplicate fact rows. (A) gold_dim_country_lookup is built as self-lookups for every dim_country row UNION alias rows, with no dedupe on lookup_name. The alias seed table contains 'Tier 1' self-mappings — ('United States of America','United States of America',1.00) and ('United Kingdom','United Kingdom',1.00) — so when the dim's standard name equals the alias (near-certain for 'United Kingdom' from EPI 2024), the lookup holds two rows with the same lookup_name. fact_procurement and fact_supply_share join on lookup_name, so every matching row is emitted twice and SUM(fact_procurement[spend_eur]) — the headline DAX measure — doubles for affected countries. (B) fact_epi_score joins the lookup on iso3 instead of lookup_name; the lookup intentionally has one row PER ALIAS sharing the same iso3, so EPI scores duplicate once per alias (2-7x for alias-rich countries: US, UK, Turkey, DRC, Koreas), violating the documented grain 'one row per country x indicator x year' (gold_tables.md:35).",
-  "status": "In Progress",
+  "status": "Finished",
   "priority": "P1",
   "difficulty": 5,
   "owner": "both",
@@ -22,8 +22,8 @@
     "fact_epi_score no longer joins dim_country_lu on iso3 (line 978). Replace with a deduplicated iso3 -> country_key map (e.g. dim_country select iso3, country_key, dropDuplicates(['iso3'])) or join gold_dim_country directly.",
     "After /run-gold on Fabric: SELECT lookup_name, COUNT(*) FROM gold_dim_country_lookup GROUP BY lookup_name HAVING COUNT(*)>1 returns 0 rows (same for material lookup).",
     "After /run-gold: fact_epi_score has exactly one row per (country_key, indicator_key, year) — verify with a GROUP BY ... HAVING COUNT(*)>1 returning 0 rows.",
-    "[Erik/Fabric] Compare Total Spend EUR in the report before/after for UK- and US-headquartered suppliers — expect the corrected number to drop where fan-out was occurring; sanity-check against silver-side SUM(quantity * unitpriceeur).",
-    "fact_supply_share row count equals silver_globalsupplyshares row count (minus dropped invalid-stage rows) — no fan-out from the country/material lookup joins."
+    "Spend is not inflated by fan-out, measured numerically: gold SUM(fact_procurement[spend_eur]) reconciles against silver SUM(quantity * unitpriceeur). RESCOPED 2026-07-22 from a report-side before/after comparison of UK- and US-headquartered suppliers — that comparison is unsatisfiable (silver_procurement contains no UK-headquartered suppliers at all, and no pre-fix snapshot was taken), and the direct silver-vs-gold reconciliation is stronger evidence of the same property.",
+    "No fan-out from the country/material lookup joins, measured on the invariant that survives the territory rollup: SUM(fact_supply_share.share_pct) equals the source share sum over valid-stage rows (fan-out inflates it; a rollup merge leaves it unchanged). Rowcount is a secondary cross-check — fact_supply_share row count equals silver_globalsupplyshares row count minus dropped invalid-stage rows minus the territory-rollup merge count printed by silver-to-gold; any rowcount difference NOT explained by the rollup is a defect."
   ],
   "dependencies": [],
   "decision_dependencies": [],
@@ -43,12 +43,16 @@
     "DECISION NEEDED (Erik). Option 1 — aggregate on rollup: SUM share_pct when rows collapse to one grain, so China/Antimony/P becomes 52.1%. Semantically right (if HK is China for this analysis, its supply is China's) and makes the grain unique. BUT the trade parameter differs — China t=1.1 (export-restricted), Hong Kong t=1.0 (baseline) — so the merged row needs a defined t, which is a methodology question for DEC-001/task-038's trade-weighted HHI, not an implementation detail. Option 2 — drop the Hong Kong alias and let HK stand alone; arguably more accurate for supply risk since HK at 0.3% of antimony PROCESSING is likely re-export/trade-hub activity rather than real capacity, but it needs its own dim row and abandons the jurisdiction-risk argument for folding it in. Option 3 — demote grain_uniqueness to advisory; not recommended, it hides genuine future fan-out.",
     "OPTION 1 IMPLEMENTED 2026-07-22 (Erik's choice). Added a territory-rollup aggregation to silver-to-gold2 immediately before write_tbl(fact_supply_share_final): groupBy the full grain and SUM share_pct, so China/Antimony/P becomes 52.1%. Non-key columns combine deliberately — data_quality_score MIN (a merged row is only as trustworthy as its weakest constituent, so the 0.85 territory alias correctly drags it down), quality_category paired to that MIN via struct-min, has_unmapped_* MAX (boolean OR), unmapped_impact_score SUM (share-scaled, so it adds like share_pct), source_row_id MIN (deterministic representative; the per-row audit trail builds separately from fact_supply_share_raw so nothing is lost). Output schema is IDENTICAL to before — 11 columns, same order — so no semantic-model drift.",
     "Added an assert on grain uniqueness immediately after the rollup. If a future alias introduces a new collision the notebook now fails with the offending grains named, rather than the pipeline failing later at grain_uniqueness with a message that does not say which rows collided.",
-    "task-038 DEPENDENCY recorded in the code comment: t is currently dropped at bronze-to-silver:127, so there is no trade parameter to reconcile. When task-038 carries t through, this aggregation MUST define how t combines — the colliding rows differ (China t=1.1 export-restricted vs Hong Kong t=1.0 baseline) and that is a DEC-001 methodology decision, not an implementation detail."
+    "CRIT 6 RESCOPED 2026-07-22 (same session as the rollup). The original wording — 'fact_supply_share row count equals silver_globalsupplyshares row count minus dropped invalid-stage rows' — became WRONG when Option 1 landed: the territory rollup deliberately merges Hong Kong into China, so the counts MUST differ by the merge count, and the criterion as written would fail on correct behaviour. Replaced the primary test with share_pct sum preservation, which is invariant under the rollup (a merge sums two shares into one row, leaving the total unchanged) but still detects fan-out (a duplicated join row inflates the total). Rowcount is retained as a secondary cross-check with the rollup count subtracted. This is a measurement-definition change only — no code change, and the underlying property being asserted ('no fan-out') is unchanged.",
+    "task-038 DEPENDENCY recorded in the code comment: t is currently dropped at bronze-to-silver:127, so there is no trade parameter to reconcile. When task-038 carries t through, this aggregation MUST define how t combines — the colliding rows differ (China t=1.1 export-restricted vs Hong Kong t=1.0 baseline) and that is a DEC-001 methodology decision, not an implementation detail.",
+    "ALL CRITERIA MEASURED PASS 2026-07-22 on the 20:58 local (18:58 UTC) pipeline run — the first fully green end-to-end run. Acceptance pack at .claude/support/workspace/acceptance-queries-023-025-026.py. Results: (crit 3) gold_dim_country_lookup and gold_dim_material_lookup both 0 duplicate lookup_name; (crit 4) fact_epi_score 0 duplicated (country_key, indicator_key, year) grains, and 0 duplicate iso rows in silver_epi2024results so the orthogonal source-duplication cause the verifier flagged is also ruled out; (crit 5, rescoped) silver SUM(quantity*unitpriceeur) 3,273,776.03 vs gold SUM(spend_eur) 3,273,776.03 — delta 0.00 EXACTLY; (crit 6, rescoped) share_pct sum source 12,412.30 vs fact 12,412.30, delta 0.0000, and rowcount silver 2561 - 0 invalid-stage = 2561 valid vs fact 2560, difference exactly 1 = the single Hong Kong->China territory merge, with distinct mapped source grains 2560 confirming the same number independently.",
+    "CRIT 5 BONUS FINDING (feeds task-030 / FR-006): the spend reconciliation is EXACT, not approximate. FR-006 predicted a nonzero delta because gold kg-normalises quantity while leaving unitprice unconverted, so the check was classified advisory in task-026. A 0.00 delta means unit normalisation is currently a no-op on this data (all units effectively uniform), which is evidence that the aggregate_reconciliation check can be promoted from advisory to BLOCKING earlier than task-026's note assumes. Confirm units are genuinely all-kg under task-030 before promoting — a 0.00 delta today does not prove a future mixed-unit load would reconcile.",
+    "NO UK SUPPLIERS EXIST (measured 2026-07-22): silver_procurement carries 13 distinct country spellings across HQ and production roles — China 36, Chile 36, Sweden/Germany/France/Netherlands/Singapore 24 each, Malaysia/DRC/Mexico/'DRC (HQ in South Africa)'/USA/Canada 12 each (counts are HQ+production unioned; fact_procurement is 132 rows). United Kingdom appears nowhere, which is why crit 5's UK half was unsatisfiable rather than failing. USA resolves correctly to 'United States of America' (12 rows, 85,597.93 EUR)."
   ],
   "user_feedback": "",
   "created_date": "2026-07-13",
   "updated_date": "2026-07-22",
-  "completion_date": null,
+  "completion_date": "2026-07-22",
   "verification_attempts": 1,
   "task_verification": {
     "result": "pass",
@@ -59,12 +63,12 @@
       "consistency_check": "pass",
       "spec_alignment": "pass",
       "output_quality": "pass",
-      "runtime_validation": "partial",
+      "runtime_validation": "pass",
       "integration_ready": "pass",
       "scope_validation": "pass"
     },
     "issues": [],
-    "notes": "Claude code-half verified (owner:both). Both lookups deduped on lookup_name via row_number() BEFORE write — deterministic + total winner (match_confidence desc, exact-bucket, key asc); exact self-lookup provably beats Tier-1 alias. NO fact-side distinct()/dropDuplicates added -> root-cause fix, not symptom-hide. fact_epi_score repointed to dim_country_iso3_map (deduped iso3->country_key); grain restored, no column ambiguity. Guard asserts present + correct. task-025 dim_country build untouched. py_compile passes. runtime_validation=partial: 4 GROUP BY/spend/rowcount acceptance queries are Erik's Fabric half; code makes all achievable."
+    "notes": "RUNTIME HALF COMPLETED 2026-07-22 (runtime_validation partial -> pass). All four Fabric-side acceptance queries measured on the 20:58 local / 18:58 UTC green run: lookup_name unique on both lookups (0 dups), fact_epi_score grain clean (0 dups, and 0 duplicate source iso so the orthogonal cause is excluded), spend reconciles EXACTLY (3,273,776.03 both sides, delta 0.00), share_pct sum preserved (12,412.30 both sides, delta 0.0000) with the rowcount difference of 1 fully explained by the Hong Kong->China territory merge. Crits 5 and 6 were rescoped before measurement — 6 because the territory rollup made the original rowcount equality wrong-by-construction, 5 because no UK-headquartered suppliers exist to compare. Original attempt-1 notes follow. Claude code-half verified (owner:both). Both lookups deduped on lookup_name via row_number() BEFORE write — deterministic + total winner (match_confidence desc, exact-bucket, key asc); exact self-lookup provably beats Tier-1 alias. NO fact-side distinct()/dropDuplicates added -> root-cause fix, not symptom-hide. fact_epi_score repointed to dim_country_iso3_map (deduped iso3->country_key); grain restored, no column ambiguity. Guard asserts present + correct. task-025 dim_country build untouched. py_compile passes. runtime_validation=partial: 4 GROUP BY/spend/rowcount acceptance queries are Erik's Fabric half; code makes all achievable."
   },
   "verification_history": [
     {
@@ -72,6 +76,12 @@
       "result": "pass",
       "timestamp": "2026-07-14T00:00:00Z",
       "summary": "Root-cause dedupe (not symptom-hide); deterministic winner; epi iso3-map join fix; guards present; py_compile OK. Fabric queries = Erik."
+    },
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-07-22T21:00:00Z",
+      "summary": "Runtime half of attempt 1 closed (not a new attempt): all Fabric acceptance queries measured green on the 18:58 UTC run. Crits 5 + 6 rescoped first — 6 was wrong-by-construction after the territory rollup, 5 unsatisfiable (no UK suppliers). runtime_validation partial -> pass."
     }
   ],
   "test_protocol": {
@@ -98,15 +108,15 @@
         "type": "visual"
       },
       {
-        "instruction": "fact_supply_share row count vs silver_globalsupplyshares (minus dropped invalid-stage rows)",
-        "expected": "Equal — no fan-out from country/material lookup joins",
+        "instruction": "SUM(share_pct) in fact_supply_share vs the source share sum over valid-stage rows; then rowcount as a cross-check",
+        "expected": "Share sums equal (delta < 0.01) — no fan-out. Rowcount difference equals exactly the territory-rollup merge count printed by silver-to-gold; anything else is a defect",
         "type": "command"
       }
     ],
     "automated_results": "Static verification passed (py_compile OK; dedupe totality, join fix, guards, scope all confirmed by code trace). Live Spark/Fabric execution not runnable locally.",
     "estimated_time": "15 minutes"
   },
-  "user_review_pending": true,
+  "user_review_pending": false,
   "out_of_spec": false,
   "absorbed_into": "",
   "interaction_hint": "dashboard"
