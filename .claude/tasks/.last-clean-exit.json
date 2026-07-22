@@ -1,9 +1,9 @@
 {
-  "last_clean_exit": "2026-07-23T01:10:00Z",
+  "last_clean_exit": "2026-07-23T01:20:00Z",
   "in_progress": [
     "task-022",
     "task-024"
   ],
   "awaiting_verification": [],
-  "note": "2026-07-23 session. task-040 and task-027 both implemented, verified and Finished (both carry user_review_pending — their proof is Fabric-side). DEC-003 (DQ gate verdict shape), DEC-004 (failure-propagation topology, RESEARCHED - overturns task-041 crit 1, Option A costs 2 activities not 8, Try-Catch trap found) and DEC-005 (gap registry lifecycle, only sub-decision 3 needs Erik) all filed proposed. FR-012..FR-018 opened; FR-017 resolved in place. KEY CORRECTION: pyspark IS locally executable - see root CLAUDE.md gotchas + auto-memory. NOTHING COMMITTED - 8 fabric/doc files modified, 3 decision records untracked."
+  "note": "2026-07-23 session, COMMITTED AND PUSHED at c50f880 (tree clean, origin/main in sync). task-040 and task-027 both Finished with passing verification; both carry user_review_pending — their proof is Fabric-side deploy-and-run. DEC-003, DEC-004 (researched — overturns task-041 crit 1) and DEC-005 filed proposed, awaiting Erik. FR-012..FR-018 opened, FR-017 resolved. KEY CORRECTION: pyspark IS locally executable (4.0.1 + JDK 17); only Delta ops and lakehouse I/O need Fabric — see root CLAUDE.md gotchas + auto-memory. NEXT: Fabric Update from git, then run 1 is a one-time gap-registry re-keying (take the stability comparison across runs 2 and 3)."
 }
