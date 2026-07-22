@@ -270,7 +270,7 @@ for table, min_c, max_c in row_count_checks:
 # CHECK 2: SCHEMA VALIDATION
 # =============================================================================
 
-def validate_schema(table_name, expected_columns):
+def validate_schema(table_name, expected_columns, layer="Bronze"):
     """
     Validate that a table has the expected columns.
 
@@ -279,6 +279,8 @@ def validate_schema(table_name, expected_columns):
         expected_columns: dict of {column_name: expected_type_string}
                           Type strings are PySpark types like "StringType", "DoubleType", etc.
                           If None, only checks column existence.
+        layer: medallion layer recorded in gold_quality_history. Defaults to "Bronze";
+               pass "Silver" for contracts asserted against a silver table (task-026).
 
     Returns:
         dict with check results
@@ -315,7 +317,7 @@ def validate_schema(table_name, expected_columns):
     elapsed_ms = int((time.time() - start_ms) * 1000)
 
     log_check_result(
-        "schema_validation", "Bronze", table_name, status, score,
+        "schema_validation", layer, table_name, status, score,
         "; ".join(details_parts), failed_rows=issues, total_rows=total_expected,
         execution_time_ms=elapsed_ms
     )
@@ -325,7 +327,14 @@ def validate_schema(table_name, expected_columns):
 
 print("\n--- Bronze Check 2: Schema Validation ---")
 
-# Expected schemas per bronze table
+# Layer label per checked table (task-026). Defaults to Bronze; only tables whose
+# contract is deliberately asserted against a silver shape are listed here, so
+# gold_quality_history records the layer the assertion actually describes.
+CHECK_LAYER = {
+    "oem_lh.silver_epi2024results": "Silver",
+}
+
+# Expected schemas per checked table
 schema_checks = {
     "oem_lh.bronze_procurement_transactional": {
         "Date": "date", "MaterialName": "string", "SupplierName": "string",
@@ -335,7 +344,14 @@ schema_checks = {
         "SupplierName": "string", "HeadquartersCountry": "string",
         "ProductionCountry": "string", "Region": "string"
     },
-    "oem_lh.bronze_epi2024results": {
+    # task-026: asserted against SILVER, not bronze. bronze_epi2024results is the raw
+    # Yale file (149 cols) whose score columns are "EPI.old"/"EPI.new" — a bare "EPI"
+    # never exists there. bronze-to-silver:79 drops the ".old" columns and strips the
+    # ".new" suffix, so "EPI" comes into existence in silver_epi2024results
+    # (code, iso, country, EPI). Asserting the raw name here would also hardcode a
+    # Yale vintage: .old/.new exist because the 2024 methodology revision introduced
+    # them, and they will move again.
+    "oem_lh.silver_epi2024results": {
         "iso": "string", "country": "string", "EPI": None
     },
     "oem_lh.bronze_GlobalSupplyShares": {
@@ -352,11 +368,11 @@ schema_checks = {
 schema_results = []
 for table, expected in schema_checks.items():
     try:
-        result = validate_schema(table, expected)
+        result = validate_schema(table, expected, layer=CHECK_LAYER.get(table, "Bronze"))
         schema_results.append(result)
     except Exception as e:
         print(f"  [SKIP] {table}: {str(e)}")
-        log_check_result("schema_validation", "Bronze", table, "fail", 0.0,
+        log_check_result("schema_validation", CHECK_LAYER.get(table, "Bronze"), table, "fail", 0.0,
                          f"Table not accessible: {str(e)}")
 
 # METADATA ********************
@@ -372,14 +388,19 @@ for table, expected in schema_checks.items():
 # CHECK 3: REQUIRED FIELD COMPLETENESS
 # =============================================================================
 
-def validate_required_fields(table_name, required_fields, null_tolerance_pct=0.0):
+def validate_required_fields(table_name, required_fields, null_tolerance_pct=0.0, layer="Bronze"):
     """
     Check for null values in fields that should be populated.
 
     Args:
         table_name: Fully qualified table name
-        required_fields: List of column names that must not be null
+        required_fields: List of column names that must not be null.
+                         NOTE: names are passed to F.col(), which treats a dot as
+                         struct-field navigation — do not pass dotted raw-source
+                         names like "EPI.new" here (task-026).
         null_tolerance_pct: Maximum acceptable null percentage (0.0 = no nulls allowed)
+        layer: medallion layer recorded in gold_quality_history. Defaults to "Bronze";
+               pass "Silver" for contracts asserted against a silver table (task-026).
 
     Returns:
         dict with per-field null counts and overall score
@@ -391,7 +412,7 @@ def validate_required_fields(table_name, required_fields, null_tolerance_pct=0.0
 
     if total_rows == 0:
         elapsed_ms = int((time.time() - start_ms) * 1000)
-        log_check_result("required_field_completeness", "Bronze", table_name, "pass", 100.0,
+        log_check_result("required_field_completeness", layer, table_name, "pass", 100.0,
                          "Table is empty - no nulls possible", 0, 0, elapsed_ms)
         return {"table": table_name, "status": "pass", "score": 100.0}
 
@@ -427,7 +448,7 @@ def validate_required_fields(table_name, required_fields, null_tolerance_pct=0.0
         details = f"All {len(required_fields)} required fields complete ({total_rows:,} rows)"
 
     log_check_result(
-        "required_field_completeness", "Bronze", table_name, status, score,
+        "required_field_completeness", layer, table_name, status, score,
         details, failed_rows=total_null_cells, total_rows=total_cells,
         execution_time_ms=elapsed_ms
     )
@@ -441,7 +462,10 @@ completeness_checks = [
      ["Date", "MaterialName", "SupplierName", "Quantity", "UnitPriceEUR"]),
     ("oem_lh.bronze_supplier_ref",
      ["SupplierName", "HeadquartersCountry"]),
-    ("oem_lh.bronze_epi2024results",
+    # task-026: silver, for the same reason as the schema contract above. Also note
+    # validate_required_fields passes these names to F.col(), where a dot means
+    # struct navigation — the raw "EPI.new" could not be used here even if wanted.
+    ("oem_lh.silver_epi2024results",
      ["iso", "country", "EPI"]),
     ("oem_lh.bronze_GlobalSupplyShares",
      ["Material", "Stage", "Country", "Share"]),
@@ -453,11 +477,11 @@ completeness_checks = [
 completeness_results = []
 for table, fields in completeness_checks:
     try:
-        result = validate_required_fields(table, fields)
+        result = validate_required_fields(table, fields, layer=CHECK_LAYER.get(table, "Bronze"))
         completeness_results.append(result)
     except Exception as e:
         print(f"  [SKIP] {table}: {str(e)}")
-        log_check_result("required_field_completeness", "Bronze", table, "fail", 0.0,
+        log_check_result("required_field_completeness", CHECK_LAYER.get(table, "Bronze"), table, "fail", 0.0,
                          f"Table not accessible: {str(e)}")
 
 # METADATA ********************
@@ -1771,7 +1795,10 @@ BLOCKING_CHECKS = {
     # Schema validation — structural contract for the core bronze tables.
     ("schema_validation", "oem_lh.bronze_procurement_transactional"),
     ("schema_validation", "oem_lh.bronze_supplier_ref"),
-    ("schema_validation", "oem_lh.bronze_epi2024results"),
+    # task-026: follows the contract to silver (see schema_checks). Must stay in
+    # sync with the table name there — a stale entry here does not error, it
+    # silently demotes the check to advisory.
+    ("schema_validation", "oem_lh.silver_epi2024results"),
     ("schema_validation", "oem_lh.bronze_GlobalSupplyShares"),
     # Required-field completeness on procurement (0% null tolerance).
     ("required_field_completeness", "oem_lh.bronze_procurement_transactional"),

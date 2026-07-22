@@ -169,6 +169,16 @@ country_aliases_with_confidence = spark.createDataFrame([
     ("Turkyie", "Turkey", 0.85, "typo"),
     ("TÃ¯Â¿Â½rkiye", "Turkey", 0.80, "corrupted_encoding"),
     
+    # Supply-shares source gaps (task-025, measured 2026-07-22 against the Global CSV).
+    # EPI 2024 names CPV "Cabo Verde" and BRA "Brazil", so those are the standard
+    # names dim_country carries and the ones these aliases must resolve to.
+    ("Cape Verde", "Cabo Verde", 0.95, "standard_alias"),
+    # 'Brasilia' is Brazil's CAPITAL CITY, not a country — a source-data error in
+    # fact_GlobalSupplyShares&t.csv. Mapped deliberately at low confidence with an
+    # honest match_type so it stays visible in the audit rather than being laundered
+    # into a clean country mapping.
+    ("Brasilia", "Brazil", 0.60, "source_error"),
+
     # Other important mappings
     ("Czechia", "Czech Republic", 0.95, "standard_alias"),
     ("UAE", "United Arab Emirates", 0.95, "standard_alias"),
