@@ -2,7 +2,7 @@
   "id": "task-025",
   "title": "Make dim_country construction deterministic — duplicate iso3 rows (Turkey et al.) resolved by arbitrary dropDuplicates, breaking alias resolution run-to-run",
   "description": "missing_countries hardcodes Turkey/TUR (plus Syria, Libya, North Korea, etc.) with the comment 'appear in procurement/supply data but not in EPI/WB' — but EPI 2024 DOES include Turkey (as 'Turkiye'/'Türkiye'; the notebook's own alias table expects that spelling to arrive from EPI). Both rows hash to the same country_key (key = f(iso3) via generate_country_key), and dropDuplicates(['country_key']) keeps an ARBITRARY row. If the EPI-named row ('Türkiye') wins, every alias targeting standard name 'Turkey' is silently dropped by the inner join when building country_lookup, and procurement rows saying 'Turkey' fall to Unknown-Global. Which behavior you get can flip between runs — nondeterministic country naming and mapping coverage that later looks like phantom data drift.",
-  "status": "In Progress",
+  "status": "Finished",
   "priority": "P1",
   "difficulty": 4,
   "owner": "both",
@@ -50,12 +50,16 @@
     "MEASURED 2026-07-22 on the 20:58 local / 18:58 UTC green run (acceptance pack at .claude/support/workspace/acceptance-queries-023-025-026.py). CRIT 3 FAILED — one orphaned country alias target: 'Russian Federation'. CRIT 4 partially measured — determinism checksum recorded (gold_dim_country rows=193, crc32_sum over concat_ws('|',country_key,iso3,country_name_std) = 422081254484); a SECOND gold run reproducing that exact pair is still outstanding. The specific collision this task fixed is confirmed resolved: iso3='RUS' returns exactly one dim row and TUR returns exactly one row named 'Turkey' (curated precedence beating the EPI 'Türkiye' spelling, as designed). CRIT 5 (rescoped) satisfied: 0 procurement rows land on Unknown - Global (0/132 on both supplier HQ and production).",
     "CRIT 3 ROOT CAUSE + FIX 2026-07-22. The alias at silver-to-gold2:186 was INVERTED: ('Russia' -> 'Russian Federation'). gold_dim_country carries country_name_std='Russia' for RUS (measured directly — EPI 2024's spelling), so no dim row has ever been named 'Russian Federation' and the inner join that builds gold_dim_country_lookup silently dropped the alias. Two consequences: the alias was dead weight, AND the World Bank's standard spelling 'Russian Federation' had no route into the dim. Reversed to ('Russian Federation' -> 'Russia'), which is strictly better — 'Russia' still resolves via its self-lookup, and the formal spelling now resolves too. Latent, not live: no current source spells it 'Russian Federation'. REQUIRES deploy + re-run to close crit 3.",
     "SEPARATE DEFECT CLASS FOUND WHILE MEASURING CRIT 3 — initcap mismatch (not task-025 scope originally, fixed in the same pass because it shares the alias seed). Source material names are initcap'd BEFORE the alias join (silver-to-gold2:660-664), and Spark's initcap lowercases everything after the first letter of each whitespace-delimited word, so 'High-Tensile' becomes 'High-tensile'. Consequences found: (a) both steel case-variation aliases targeted 'Steel (High-Tensile)', a name that exists nowhere — orphaned, now retargeted to 'Steel (high-tensile)'; (b) MORE IMPORTANTLY the commodity-group map is probed with the same initcap'd name, and an audit of all 48 keys found THREE that can never match — 'Steel (High-Tensile)', 'Plastic (Abs)', 'Rare Earths (Ndpr)' — each silently falling through to commodity_group='Other/Unknown'. Steel was confirmed empirically in the dim; the other two are structurally identical and provable from the code alone since initcap is deterministic. All three keys lowercased to their initcap form. This corrupted commodity_group rollups in the report, so it is a real data defect rather than dead seed weight. REQUIRES deploy + re-run to verify.",
+    "ALL CRITERIA CLOSED 2026-07-22 on the 21:53 local / 19:53 UTC run (deploy of commit 5610c35, acceptance pack re-run at 21:58). CRIT 3 PASSES: both closure checks return 0 orphaned alias targets — country closure fixed by the Russian Federation direction reversal, material closure by retargeting the steel aliases to the initcap form. CRIT 4 PASSES: gold_dim_country came back as rows=193, crc32_sum=422081254484 — byte-identical to the value measured on the previous (18:58 UTC) run, so two consecutive gold executions produced identical dim content. CRIT 5 (rescoped) PASSES: 0/132 procurement rows on Unknown - Global for both supplier HQ and production. The TUR collision that motivated this task remains resolved — exactly one dim row, country_name_std 'Turkey', country_key 5291645484684744615.",
+    "CRIT 4 VALIDITY NOTE: the alias seed changed between the two compared runs, which does NOT invalidate the determinism comparison. gold_dim_country is built from EPI rows + curated missing_countries + the Unknown placeholder, with source_precedence 1/2/3; the alias table feeds gold_dim_country_LOOKUP, not the dim. So the edited seed cannot perturb dim_country, and identical checksums across two runs is a clean test of the row_number precedence ordering that replaced dropDuplicates.",
+    "COMMODITY-GROUP FIX CONFIRMED LIVE: gold_dim_material now shows material_name_std 'Steel (high-tensile)' with commodity_group 'Manufactured products' (was 'Other/Unknown' before the deploy). The other two repaired keys, 'Plastic (abs)' and 'Rare Earths (ndpr)', are structurally identical fixes but only observable when those materials appear in a load; they were proven unmatchable from the code rather than measured.",
+    "THE PACK'S T025-C5 STILL PRINTS FAIL and that is expected, not a defect: the check implements the ORIGINAL criterion (assert Turkey spellings exist in procurement and resolve) and treats 'nothing to check' as a failure. The criterion itself was rescoped before this run; the rescoped version is satisfied by T025-C5b. If the pack is reused, fix that check's empty-set handling rather than reading it as a regression.",
     "AUDIT METHOD WORTH REUSING: the initcap class was found without any Fabric query by re-implementing Spark's initcap in Python and testing every seed key for key != initcap(key). Any key failing that test is unmatchable by construction. Cheap, deterministic, and it caught two defects that no single-run measurement would have surfaced (Plastic (Abs) and Rare Earths (Ndpr) only mis-group when those materials actually appear in a load)."
   ],
   "user_feedback": "",
   "created_date": "2026-07-13",
   "updated_date": "2026-07-22",
-  "completion_date": null,
+  "completion_date": "2026-07-22",
   "verification_attempts": 1,
   "task_verification": {
     "result": "pass",
@@ -66,12 +70,12 @@
       "consistency_check": "pass",
       "spec_alignment": "pass",
       "output_quality": "pass",
-      "runtime_validation": "partial",
+      "runtime_validation": "pass",
       "integration_ready": "pass",
       "scope_validation": "pass"
     },
     "issues": [],
-    "notes": "Claude code-half verified (owner:both). dropDuplicates(['country_key']) replaced with row_number() over partitionBy('country_key').orderBy(source_precedence asc, country_name_std asc), rn==1. Precedence real+total+commented (L456-491); curated=1 wins over EPI spellings, independently confirmed correct (alias table maps variants TO curated names, so curated-wins maximises alias closure; TUR->'Turkey' deterministically). Final .select drops helper cols -> gold_dim_country schema byte-identical (7 cols). py_compile passes. runtime_validation=partial: two-run EXCEPT determinism, alias-closure query, Turkey report spot-check are Erik's Fabric half; code makes all three achievable. Surgical enough that task-023 builds on it cleanly."
+    "notes": "RUNTIME HALF COMPLETED 2026-07-22 (runtime_validation partial -> pass). Crit 3 initially FAILED on measurement (orphaned alias target 'Russian Federation'); root-caused to an inverted alias, fixed in 5610c35, and re-measured clean after deploy — 0 orphaned targets on both country and material closure. Crit 4 satisfied by two consecutive gold runs returning identical gold_dim_country (rows=193, crc32_sum=422081254484 at both 18:58 and 19:53 UTC). Crit 5 rescoped (procurement carries no Turkish spellings, so the original spot-check was vacuous) and satisfied via 0/132 rows on Unknown - Global. Original attempt-1 notes follow. Claude code-half verified (owner:both). dropDuplicates(['country_key']) replaced with row_number() over partitionBy('country_key').orderBy(source_precedence asc, country_name_std asc), rn==1. Precedence real+total+commented (L456-491); curated=1 wins over EPI spellings, independently confirmed correct (alias table maps variants TO curated names, so curated-wins maximises alias closure; TUR->'Turkey' deterministically). Final .select drops helper cols -> gold_dim_country schema byte-identical (7 cols). py_compile passes. runtime_validation=partial: two-run EXCEPT determinism, alias-closure query, Turkey report spot-check are Erik's Fabric half; code makes all three achievable. Surgical enough that task-023 builds on it cleanly."
   },
   "verification_history": [
     {
@@ -79,6 +83,12 @@
       "result": "pass",
       "timestamp": "2026-07-14T00:00:00Z",
       "summary": "Root-cause deterministic fix (not symptom-hide); precedence total & commented; schema preserved; py_compile OK. Fabric run criteria = Erik."
+    },
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-07-22T22:05:00Z",
+      "summary": "Runtime half of attempt 1 closed. Crit 3 failed on first measurement, root-caused (inverted Russia alias + initcap-unmatchable steel targets), fixed, re-measured 0 orphans. Crit 4 determinism confirmed across two runs. Crit 5 rescoped. runtime_validation partial -> pass."
     }
   ],
   "test_protocol": {
@@ -103,7 +113,7 @@
     "automated_results": "Static verification passed (py_compile OK; dedup logic, precedence totality, schema-preservation, alias-direction all confirmed by code trace). Live Spark/Fabric execution not runnable locally.",
     "estimated_time": "10 minutes"
   },
-  "user_review_pending": true,
+  "user_review_pending": false,
   "out_of_spec": false,
   "absorbed_into": "",
   "interaction_hint": "dashboard"
