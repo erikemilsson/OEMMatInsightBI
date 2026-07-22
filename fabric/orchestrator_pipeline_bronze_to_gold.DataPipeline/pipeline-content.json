@@ -21,10 +21,10 @@
                   "type": "HttpServerLocation"
                 },
                 "columnDelimiter": ",",
+                "encodingName": "WINDOWS-1252",
                 "quoteChar": "\"",
                 "escapeChar": "\\",
-                "firstRowAsHeader": true,
-                "encodingName": "WINDOWS-1252"
+                "firstRowAsHeader": true
               },
               "schema": [],
               "externalReferences": {
@@ -156,10 +156,10 @@
                   "type": "HttpServerLocation"
                 },
                 "columnDelimiter": ",",
+                "encodingName": "WINDOWS-1252",
                 "quoteChar": "\"",
                 "escapeChar": "\\",
-                "firstRowAsHeader": true,
-                "encodingName": "WINDOWS-1252"
+                "firstRowAsHeader": true
               },
               "schema": [],
               "externalReferences": {
