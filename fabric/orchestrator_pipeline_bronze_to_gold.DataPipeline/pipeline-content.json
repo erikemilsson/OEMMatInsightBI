@@ -23,7 +23,8 @@
                 "columnDelimiter": ",",
                 "quoteChar": "\"",
                 "escapeChar": "\\",
-                "firstRowAsHeader": true
+                "firstRowAsHeader": true,
+                "encodingName": "WINDOWS-1252"
               },
               "schema": [],
               "externalReferences": {
@@ -157,7 +158,8 @@
                 "columnDelimiter": ",",
                 "quoteChar": "\"",
                 "escapeChar": "\\",
-                "firstRowAsHeader": true
+                "firstRowAsHeader": true,
+                "encodingName": "WINDOWS-1252"
               },
               "schema": [],
               "externalReferences": {

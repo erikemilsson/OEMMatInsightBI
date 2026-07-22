@@ -42,33 +42,72 @@
     "CLAUDE HALF DONE 2026-07-14: (1) wired data_quality_checks as a pipeline activity after silver-to-gold (dependsOn Succeeded); 8 activities total, task-022's bronzecopy_GlobalSupplyShares preserved; JSON validates. (2) Severity model = post-hoc (check_name,table_name) in BLOCKING_CHECKS classification + a SINGLE aggregated raise DataQualityException in the FINAL cell (after gold_quality_history persistence + detailed-results table, so a failing run still logs the full picture then fails the activity). Min blocking set: schema, procurement completeness, procurement dup, RI @0%. (3) Reconciliation fixed to SUM(quantity*unitpriceeur) vs SUM(spend_eur), executes for real (no swallow) — classified ADVISORY (see FR-006: gold kg-normalizes quantity but not unitprice, so exact reconciliation only holds under uniform base units; the fan-out it used to guard is caught BLOCKING by the new uniqueness checks). (4) bronze dup rescoped to genuine double-entries (Date/Material/Supplier/Quantity/Unit/UnitPriceEUR), kept blocking. (5) new checks a-e added (lookup_name uniqueness x2; grain on fact_procurement/fact_supply_share/fact_epi_score; RI epi->dims; RI procurement.date_key->dim_date; bronze_WGI rowcount+fields+schema). Also fixed validate_historical_trend to scope to metric_name='dq_overall_score'. Notebook py_compile clean; pipeline json.load clean.",
     "DECISION (criterion 7) — pipeline_error_handler wiring: SPUN INTO ITS OWN TASK (not wired here, not silently deferred). Rationale: it needs a failure-propagation topology decision (on-failure dependencies vs wrapper pipeline) + a notification sink Erik configures (owner both); wiring it into 026 would conflate concerns and expand scope. It remains an unreferenced artifact until a dedicated task is created — SURFACED TO ERIK at batch handoff.",
     "ERIK (Fabric) — remaining acceptance (crit 6): deploy both artifacts; DQ activity runs after silver-to-gold (Succeeded); a blocking failure raises DataQualityException -> activity fails -> pipeline halts; a clean gold build passes. Demo: inject duplicate procurement transactions (identical business signature) -> duplicate_detection@bronze_procurement_transactional blocks the run. EXPECTED RED until task-023/024/025 land — the new blocking checks (lookup/grain uniqueness, epi/date RI) are DESIGNED to fail against current pre-fix data (that's the proof they work); DQ landing before 023/024 is fine/desirable, but do NOT enable it as a hard gate on the live pipeline until the fixes are applied or it will halt every run.",
-    "CROSS-REF task-030: implementer flagged (non_blocking) that gold spend_eur is likely inflated for non-kg units (quantity_base kg-normalized but unitprice_eur not converted; unmapped units fall through to raw quantity). This is task-030's scope ('unknown units silently pass through as kg, unitpriceeur semantics unverified'). Once units are confirmed all-kg or unitprice is converted (task-030), promote the reconciliation check here from advisory to blocking. Tracked as FR-006."
+    "CROSS-REF task-030: implementer flagged (non_blocking) that gold spend_eur is likely inflated for non-kg units (quantity_base kg-normalized but unitprice_eur not converted; unmapped units fall through to raw quantity). This is task-030's scope ('unknown units silently pass through as kg, unitpriceeur semantics unverified'). Once units are confirmed all-kg or unitprice is converted (task-030), promote the reconciliation check here from advisory to blocking. Tracked as FR-006.",
+    "FIRST LIVE RUN 2026-07-22 (pipeline 6:41 PM): DQ activity ran for the first time and raised DataQualityException on 2 blocking checks — schema_validation@oem_lh.bronze_epi2024results and grain_uniqueness@oem_lh.fact_supply_share. Everything upstream Succeeded (5 bronze activities, bronze-to-silver 1m52s, silver-to-gold 8m7s). The gate works; both findings are about the check definitions, not upstream crashes.",
+    "FINDING 1 — schema_validation@bronze_epi2024results is a FALSE POSITIVE. The contract at data_quality_checks:338 requires columns {iso, country, EPI}. Live bronze_epi2024results is 149 cols x 180 rows with columns code, iso, country, EPI.old, EPI.new, ECO.old, ECO.new, ... — there is no bare 'EPI'. That name only comes into existence in SILVER: bronze-to-silver:79 clean_and_rename() drops every '.old' column and strips the '.new' suffix, so EPI.new -> EPI. The contract was written against the silver shape and applied to the bronze table. Fix: either assert {iso, country, EPI.new} on bronze, or move the assertion to silver_epi2024results. Same latent error may affect the required_field_completeness entry at :444 which also lists 'EPI'. Row-count check passes (180 within 150-250).",
+    "FINDING 2 — grain_uniqueness@fact_supply_share is REAL but is not catching what it was designed to catch. It asserts uniqueness on (material_key, stage_key, country_key, year) at 0% tolerance. Two structural reasons it must fail on the new data: (a) year is a CONSTANT — silver-to-gold2:1119 sets F.lit(2023), so it contributes nothing to the grain; (b) silver-to-gold2:1437-1444 deliberately collapses every unmapped material to unknown_material_key and every unmapped country to unknown_country_key ('CRITICAL: This preserves all supply share data for accurate totals'). Any two distinct unmapped rows sharing a stage therefore land on the identical grain. task-022 just swapped the source from the EU file (907 rows) to the Global file (2561 rows), so unmapped materials/countries are near-certain to have increased. The UNKNOWN-preservation strategy and a 0%-tolerance blocking uniqueness check on a grain containing those keys are mutually incompatible by construction — this needs a design decision, not a data fix. Options: exclude UNKNOWN-keyed rows from the check, add a discriminator to the grain, or demote to advisory.",
+    "DO NOT enable the DQ gate as a hard pipeline gate until both are resolved — it halts every run. Confirmed empirically: retry=1 means 2 attempts, both failed identically.",
+    "FINDING 2 CORRECTED 2026-07-22 with measured data. My earlier note predicted mass grain duplication from the UNKNOWN-key collapse. WRONG ON MAGNITUDE: the actual duplicated-grain count is 2, and unmapped materials are 0 (not many). The MECHANISM was right — 47 of 2561 fact_supply_share rows have an unmapped country and collapse onto unknown_country_key, and where two of those 47 share a material+stage they land on an identical (material_key, stage_key, country_key, year) grain, producing exactly the 2 duplicates. But the scale is trivial, not structural.",
+    "FINDING 2 REVISED RECOMMENDATION: do NOT make a design change to BLOCKING_CHECKS. The grain_uniqueness@fact_supply_share failure is a 2-row alias-coverage gap, not an incompatibility between the UNKNOWN-preservation strategy and the check. Fix the 47 unmapped countries (task-023/025 alias territory) and the duplicate grains should go to 0, at which point the check passes as designed with no tolerance change, no grain discriminator, and no demotion to advisory. Re-measure after the alias fix before considering any change to the check itself. This supersedes the three-option design decision framed in the earlier note."
   ],
   "user_feedback": "",
   "created_date": "2026-07-13",
-  "updated_date": "2026-07-14",
+  "updated_date": "2026-07-22",
   "completion_date": null,
   "verification_attempts": 1,
   "task_verification": {
     "result": "pass",
     "attempt_number": 2,
     "timestamp": "2026-07-14T00:00:00Z",
-    "checks": {"files_exist": "pass", "consistency_check": "pass", "spec_alignment": "pass", "output_quality": "pass", "runtime_validation": "partial", "integration_ready": "pass", "scope_validation": "pass"},
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "partial",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
     "issues": [
-      {"severity": "minor", "description": "Working tree also shows fabric/bronze-to-silver.Notebook + fabric/silver-to-gold2.Notebook modified (sibling tasks 023/024/025, same fabric/ dir) — not part of the WGI fix; informational."}
+      {
+        "severity": "minor",
+        "description": "Working tree also shows fabric/bronze-to-silver.Notebook + fabric/silver-to-gold2.Notebook modified (sibling tasks 023/024/025, same fabric/ dir) — not part of the WGI fix; informational."
+      }
     ],
     "notes": "PASS attempt 2 (owner:both, Claude code/JSON half). Attempt-1 defect fixed: 3 WGI checks retargeted from phantom bronze_WB_ESGCSV to live oem_lh.bronze_WGI with real columns (Country Name/Country Code/Series Name/Percentile Rank 2023); phantom names gone (grep 0 matches, positive control bronze_WGI=7 confirms probe). WGI checks remain advisory (absent from BLOCKING_CHECKS). Regressions clean: aggregated raise DataQualityException runs last + unswallowed; reconciliation SUM(quantity*unitpriceeur) vs SUM(spend_eur) executes (advisory, FR-006); criterion-4 dup rescope intact; checks 5a-5d present; signatures consistent; py_compile clean. Pipeline JSON untouched + correct (8 activities incl. preserved bronzecopy_GlobalSupplyShares + data_quality_checks). runtime_validation=partial: crit 6 (Fabric deploy + broken-vs-clean run) is Erik's half."
   },
   "verification_history": [
-    {"attempt": 1, "result": "fail", "timestamp": "2026-07-14T00:00:00Z", "summary": "Core fix correct; criterion 5(e) WGI checks target phantom bronze_WB_ESGCSV (stale docs, FR-007) not live bronze_WGI -> dead-check score-0. Local retarget needed."},
-    {"attempt": 2, "result": "pass", "timestamp": "2026-07-14T00:00:00Z", "summary": "WGI checks retargeted to live bronze_WGI (grep 0 phantom matches + positive control); advisory preserved; no regressions; py_compile clean. Fabric deploy/run = Erik."}
+    {
+      "attempt": 1,
+      "result": "fail",
+      "timestamp": "2026-07-14T00:00:00Z",
+      "summary": "Core fix correct; criterion 5(e) WGI checks target phantom bronze_WB_ESGCSV (stale docs, FR-007) not live bronze_WGI -> dead-check score-0. Local retarget needed."
+    },
+    {
+      "attempt": 2,
+      "result": "pass",
+      "timestamp": "2026-07-14T00:00:00Z",
+      "summary": "WGI checks retargeted to live bronze_WGI (grep 0 phantom matches + positive control); advisory preserved; no regressions; py_compile clean. Fabric deploy/run = Erik."
+    }
   ],
   "test_protocol": {
     "summary": "Erik/Fabric half (criterion 6): deploy both artifacts, confirm the DQ activity gates the pipeline — broken input fails at the DQ activity, clean run passes.",
     "steps": [
-      {"instruction": "Deploy pipeline + data_quality_checks notebook; run end-to-end on current pre-fix data.", "expected": "DQ activity runs after silver-to-gold (Succeeded); gold_quality_history populated. EXPECTED RED until 023/024/025 land (new blocking lookup/grain/RI checks designed to fail pre-fix). Do NOT enable as a hard gate on the live pipeline until those land.", "type": "interactive"},
-      {"instruction": "Inject duplicate procurement transactions (identical full business signature) and run.", "expected": "duplicate_detection fails -> single aggregated DataQualityException in final cell -> DQ activity FAILS -> pipeline halts; gold_quality_history still received the full run first.", "type": "interactive"},
-      {"instruction": "Run against clean data (after 023/024/025 land).", "expected": "'All blocking checks passed'; activity Succeeds; bronze_WGI's 3 advisory checks execute against the real table (no permanent score-0).", "type": "interactive"}
+      {
+        "instruction": "Deploy pipeline + data_quality_checks notebook; run end-to-end on current pre-fix data.",
+        "expected": "DQ activity runs after silver-to-gold (Succeeded); gold_quality_history populated. EXPECTED RED until 023/024/025 land (new blocking lookup/grain/RI checks designed to fail pre-fix). Do NOT enable as a hard gate on the live pipeline until those land.",
+        "type": "interactive"
+      },
+      {
+        "instruction": "Inject duplicate procurement transactions (identical full business signature) and run.",
+        "expected": "duplicate_detection fails -> single aggregated DataQualityException in final cell -> DQ activity FAILS -> pipeline halts; gold_quality_history still received the full run first.",
+        "type": "interactive"
+      },
+      {
+        "instruction": "Run against clean data (after 023/024/025 land).",
+        "expected": "'All blocking checks passed'; activity Succeeds; bronze_WGI's 3 advisory checks execute against the real table (no permanent score-0).",
+        "type": "interactive"
+      }
     ],
     "automated_results": "Static validation passed (py_compile clean; JSON 8 activities; WGI retarget + advisory confirmed; phantom tables absent via grep+positive-control; regressions intact). Fabric execution = Erik's half.",
     "estimated_time": "15-25 minutes"

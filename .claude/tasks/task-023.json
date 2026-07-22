@@ -37,32 +37,66 @@
     "GUARD: consider adding an assert-style check in the notebook right after the lookup writes (fail loudly if lookup_name not unique) — cheap insurance independent of task-026's DQ wiring.",
     "CLAUDE HALF DONE 2026-07-14 (builds on task-025): (A) both gold_dim_country_lookup and gold_dim_material_lookup deduped on lookup_name via row_number() over partitionBy('lookup_name') orderBy(match_confidence desc, match_type=='exact' bucket, key asc) BEFORE write — deterministic, exact self-lookup wins the Tier-1 tie (self-lookups carry match_type='exact'; alias seed uses 'exact_match'/'standard_alias' so never ties on the literal 'exact'). Kept the redundant Tier-1 self-mapping rows in the seed as harmless docs. (B) fact_epi_score now joins dim_country_iso3_map = gold_dim_country.select('iso3','country_key').dropDuplicates(['iso3']) instead of the per-alias lookup on iso3 -> restores 'one row per country x indicator x year'. (GUARD) assert-style lookup_name-uniqueness checks added after both lookup writes. Did NOT touch task-025's dim_country build. py_compile passes. Expected post-fix: US 7->6 unique lookup_names, UK 6->5, Turkey unchanged at 7 (no alias == 'Turkey').",
     "ERIK (Fabric) — remaining acceptance (run /run-gold, then): (crit 3) GROUP BY lookup_name HAVING COUNT(*)>1 = 0 on both lookups (in-notebook asserts also enforce); (crit 4) fact_epi_score GROUP BY (country_key,indicator_key,year) HAVING COUNT(*)>1 = 0; (crit 5) report Total Spend EUR before/after for UK-/US-HQ suppliers -> expect a DROP where fan-out occurred, sanity-check vs silver SUM(quantity*unitpriceeur); (crit 6) fact_supply_share rowcount == silver_globalsupplyshares (minus dropped invalid-stage rows).",
-    "VERIFIER NOTE: fact_epi_score reads silver_epi2024results without dropDuplicates(['iso']); if crit-4 query returns rows post-run, the culprit is duplicate source iso rows (orthogonal, pre-existing), not the alias fan-out this fixes. EPI 2024 is normally one-row-per-country so expected clean. Re-run task-023 + task-025 acceptance queries together after BOTH land (per task notes)."
+    "VERIFIER NOTE: fact_epi_score reads silver_epi2024results without dropDuplicates(['iso']); if crit-4 query returns rows post-run, the culprit is duplicate source iso rows (orthogonal, pre-existing), not the alias fan-out this fixes. EPI 2024 is normally one-row-per-country so expected clean. Re-run task-023 + task-025 acceptance queries together after BOTH land (per task notes).",
+    "2026-07-22 live run: grain_uniqueness@fact_supply_share FAILED (blocking). Before treating this as unfinished fan-out work, read task-026's FINDING 2 — the likely cause is the UNKNOWN-key collapse at silver-to-gold2:1437-1444 plus the constant year literal at :1119, not alias fan-out. Crit 6 (fact_supply_share rowcount == silver_globalsupplyshares minus dropped invalid-stage rows) is now measurable: silver-to-gold Succeeded at 6:44 PM and the Global source is live (2561 rows, was the EU file's 907)."
   ],
   "user_feedback": "",
   "created_date": "2026-07-13",
-  "updated_date": "2026-07-14",
+  "updated_date": "2026-07-22",
   "completion_date": null,
   "verification_attempts": 1,
   "task_verification": {
     "result": "pass",
     "attempt_number": 1,
     "timestamp": "2026-07-14T00:00:00Z",
-    "checks": {"files_exist": "pass", "consistency_check": "pass", "spec_alignment": "pass", "output_quality": "pass", "runtime_validation": "partial", "integration_ready": "pass", "scope_validation": "pass"},
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "partial",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
     "issues": [],
     "notes": "Claude code-half verified (owner:both). Both lookups deduped on lookup_name via row_number() BEFORE write — deterministic + total winner (match_confidence desc, exact-bucket, key asc); exact self-lookup provably beats Tier-1 alias. NO fact-side distinct()/dropDuplicates added -> root-cause fix, not symptom-hide. fact_epi_score repointed to dim_country_iso3_map (deduped iso3->country_key); grain restored, no column ambiguity. Guard asserts present + correct. task-025 dim_country build untouched. py_compile passes. runtime_validation=partial: 4 GROUP BY/spend/rowcount acceptance queries are Erik's Fabric half; code makes all achievable."
   },
   "verification_history": [
-    {"attempt": 1, "result": "pass", "timestamp": "2026-07-14T00:00:00Z", "summary": "Root-cause dedupe (not symptom-hide); deterministic winner; epi iso3-map join fix; guards present; py_compile OK. Fabric queries = Erik."}
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-07-14T00:00:00Z",
+      "summary": "Root-cause dedupe (not symptom-hide); deterministic winner; epi iso3-map join fix; guards present; py_compile OK. Fabric queries = Erik."
+    }
   ],
   "test_protocol": {
     "summary": "Fabric-side confirmation of task-023 (Erik runs /run-gold in Fabric UI)",
     "steps": [
-      {"instruction": "SELECT lookup_name, COUNT(*) FROM gold_dim_country_lookup GROUP BY lookup_name HAVING COUNT(*)>1", "expected": "0 rows (in-notebook assert also enforces)", "type": "command"},
-      {"instruction": "Same query on gold_dim_material_lookup", "expected": "0 rows", "type": "command"},
-      {"instruction": "SELECT country_key, indicator_key, year, COUNT(*) FROM fact_epi_score GROUP BY 1,2,3 HAVING COUNT(*)>1", "expected": "0 rows (one row per country x indicator x year)", "type": "command"},
-      {"instruction": "Compare Total Spend EUR in the report before/after for UK- and US-HQ suppliers", "expected": "Corrected value drops where fan-out occurred; sanity-check vs silver SUM(quantity*unitpriceeur)", "type": "visual"},
-      {"instruction": "fact_supply_share row count vs silver_globalsupplyshares (minus dropped invalid-stage rows)", "expected": "Equal — no fan-out from country/material lookup joins", "type": "command"}
+      {
+        "instruction": "SELECT lookup_name, COUNT(*) FROM gold_dim_country_lookup GROUP BY lookup_name HAVING COUNT(*)>1",
+        "expected": "0 rows (in-notebook assert also enforces)",
+        "type": "command"
+      },
+      {
+        "instruction": "Same query on gold_dim_material_lookup",
+        "expected": "0 rows",
+        "type": "command"
+      },
+      {
+        "instruction": "SELECT country_key, indicator_key, year, COUNT(*) FROM fact_epi_score GROUP BY 1,2,3 HAVING COUNT(*)>1",
+        "expected": "0 rows (one row per country x indicator x year)",
+        "type": "command"
+      },
+      {
+        "instruction": "Compare Total Spend EUR in the report before/after for UK- and US-HQ suppliers",
+        "expected": "Corrected value drops where fan-out occurred; sanity-check vs silver SUM(quantity*unitpriceeur)",
+        "type": "visual"
+      },
+      {
+        "instruction": "fact_supply_share row count vs silver_globalsupplyshares (minus dropped invalid-stage rows)",
+        "expected": "Equal — no fan-out from country/material lookup joins",
+        "type": "command"
+      }
     ],
     "automated_results": "Static verification passed (py_compile OK; dedupe totality, join fix, guards, scope all confirmed by code trace). Live Spark/Fabric execution not runnable locally.",
     "estimated_time": "15 minutes"

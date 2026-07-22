@@ -34,30 +34,66 @@
     "COORDINATE with task-023 (same file, same alias/lookup machinery): whichever name wins precedence determines which alias rows survive; run task-023's acceptance queries again after this lands.",
     "CLAUDE HALF DONE 2026-07-14: added a source_precedence column to each dim_country union branch (curated missing_countries=1, EPI=2, unknown=3) and replaced dropDuplicates(['country_key']) with row_number() over partitionBy('country_key').orderBy(source_precedence asc, country_name_std asc), keeping rn==1. Helper cols dropped by the existing final .select -> gold_dim_country schema byte-identical. Misleading 'not in EPI/WB' comment corrected. py_compile passes. PRECEDENCE DECISION (commented inline ~L475-491): curated names WIN over EPI spellings, because the alias table resolves variants TO curated spellings ('Türkiye'->'Turkey' etc.), so curated-wins maximises alias closure; country_key identical across colliding rows so fact_epi_score (joined on iso3) is unaffected. Known winner: TUR -> 'Turkey' (not 'Türkiye') -> task-023 keeps all 6 Turkey aliases.",
     "ERIK (Fabric) — remaining acceptance: (crit 4) run /run-gold twice, EXCEPT/checksum-compare gold_dim_country -> identical; (crit 3) run the alias-closure query (every country_aliases standard_name exists as country_name_std) -> 0 missing [curated-collision closure is guaranteed by the fix; residual gaps would be non-curated EPI spellings = task-023 territory]; (crit 5) report spot-check: procurement 'Turkey'/'Türkiye' map to the Turkey dim row, not Unknown-Global.",
-    "NON-BLOCKING (noted by implementer): epi.dropDuplicates(['iso3']) ~L242 is the same nondeterminism class but benign today (silver_epi2024results is one-row-per-country); consider an assert if EPI ingestion changes."
+    "NON-BLOCKING (noted by implementer): epi.dropDuplicates(['iso3']) ~L242 is the same nondeterminism class but benign today (silver_epi2024results is one-row-per-country); consider an assert if EPI ingestion changes.",
+    "MEASURED 2026-07-22: the 47 unmapped-country rows in fact_supply_share resolve to exactly three source spellings — 'Türkiye' (45 rows), 'Cape Verde' (1), 'Brasilia' (1). Three different root causes, not one alias gap:",
+    "(a) TÜRKIYE, 45 rows — NOT a missing alias. silver-to-gold2:165-170 already carries SIX variants: 'Türkiye' (0.90 encoding_variant), 'TÃ¼rkiye', 'TÃƒÂ¼rkiye', 'TÃƒÂ¯Â¿Â½rkiye', 'TÃ¯Â¿Â½rkiye' (all 0.80 corrupted_encoding) and 'Turkyie' (0.85 typo). gold_dim_country_lookup holds one row PER ALIAS (see the comment at :1010), so the alias is present in the join target. The join s.country = l.lookup_name therefore fails on a SEVENTH byte-sequence not yet covered — most likely a literal U+FFFD replacement char ('T\\uFFFDrkiye') introduced when the Copy activity fetched the CSV over HTTP without an explicit encoding. DO NOT add a guessed variant: get the actual codepoints first (query below). This is the largest single mapping gap and Türkiye is a material supplier of several CRMs (borate, feldspar, chromium), so it matters for task-038's HHI, not just for the DQ check.",
+    "(b) CAPE VERDE, 1 row — genuinely absent. grep for 'Verde' across silver-to-gold2 returns ZERO hits, so neither 'Cape Verde' nor 'Cabo Verde' exists in the alias seed or the dim. Needs a new alias pointing at whatever gold_dim_country uses as the standard name.",
+    "(c) BRASILIA, 1 row — a SOURCE DATA ERROR, not an alias gap. Brasília is the capital city of Brazil, not a country; the Global CSV has a city in a country column. Recommend aliasing it deliberately with a low confidence and an honest match_type, e.g. ('Brasilia','Brazil',0.60,'source_error'), so the existing confidence/match_type machinery keeps it traceable rather than silently laundering bad source data into a clean country mapping.",
+    "IMPACT: fixing all three should take fact_supply_share's duplicated_grains from 2 to 0, which makes grain_uniqueness@fact_supply_share pass and unblocks the DQ gate — see task-026 FINDING 2 (corrected). Crit 5 of THIS task (procurement 'Turkey'/'Türkiye' -> Turkey dim row, not Unknown-Global) is the same defect measured from the procurement side.",
+    "DIAGNOSTIC to run before adding any Türkiye variant:\n  spark.sql(\"\"\"SELECT country, length(country) AS len FROM oem_lh.silver_globalsupplyshares WHERE country LIKE 'T%rkiye' GROUP BY country, length(country)\"\"\").show(10, False)\n  # then, on the returned value:\n  row = spark.sql(\"SELECT DISTINCT country FROM oem_lh.silver_globalsupplyshares WHERE country LIKE 'T%rkiye'\").collect()\n  for r in row: print(repr(r['country']), [hex(ord(c)) for c in r['country']])",
+    "ROOT CAUSE FOUND + FIXED IN REPO 2026-07-22 (supersedes the 'add a Türkiye alias' option in the note above — that would have been a symptom fix). The stored value is 'T\\uFFFDrkiye': codepoints 0x54, 0xFFFD, 0x72, 0x6B, 0x69, 0x79, 0x65 (measured, not inferred). U+FFFD is the Unicode REPLACEMENT CHARACTER — the original byte is DESTROYED, so no alias can recover the real spelling; it can only pattern-match the damage.",
+    "SOURCE EVIDENCE: fetched both CSVs directly from raw.githubusercontent.com and scanned every byte. fact_GlobalSupplyShares&t.csv contains exactly ONE distinct non-ASCII byte, 0xFC, appearing 45 times; fact_EUSupplyShares&t.csv likewise, 15 times. In both files the ONLY affected field value is 'Türkiye'. Neither file decodes as UTF-8 (fails at the first 0xFC); both decode cleanly as windows-1252. 0xFC is 'ü' in Windows-1252/Latin-1; in UTF-8 'ü' would be the two bytes C3 BC, so a lone 0xFC is invalid UTF-8 and the decoder substitutes U+FFFD. The 45 mangled rows match the 45 unmapped Türkiye rows exactly.",
+    "WHY IT HAPPENED: neither Copy activity's DelimitedText dataset declared an encoding, so Fabric applied its UTF-8 default to Latin-1 source files. FIX APPLIED to fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/pipeline-content.json — added \"encodingName\": \"WINDOWS-1252\" to the datasetSettings.typeProperties of BOTH bronzecopy_EUSupplyShares and bronzecopy_GlobalSupplyShares (property name and the value 'WINDOWS-1252' verified against Microsoft's DelimitedText format reference, not guessed). JSON revalidated after the edit.",
+    "CONSEQUENCE: once deployed, 'Türkiye' lands intact in bronze and the EXISTING alias at silver-to-gold2:165 ('Türkiye' -> 'Turkey', 0.90, encoding_variant) matches it. NO new alias is needed. This also explains the five pre-existing 'corrupted_encoding' aliases at :166-170 — each is a patch for a different stage of this same unfixed decode, and none of them could ever have matched U+FFFD directly. Consider retiring them once the encoding fix is confirmed, but only after measuring that no other ingestion path still produces them.",
+    "REQUIRES: deploy the pipeline to Fabric + re-run. This will CHANGE the verification numbers, favourably — 45 rows move from Unknown-Global to Turkey, unmapped countries drop from 47 to 2 (Cape Verde, Brasilia), and duplicated_grains should fall from 2 toward 0. Re-measure task-026 FINDING 2 after the re-run."
   ],
   "user_feedback": "",
   "created_date": "2026-07-13",
-  "updated_date": "2026-07-14",
+  "updated_date": "2026-07-22",
   "completion_date": null,
   "verification_attempts": 1,
   "task_verification": {
     "result": "pass",
     "attempt_number": 1,
     "timestamp": "2026-07-14T00:00:00Z",
-    "checks": {"files_exist": "pass", "consistency_check": "pass", "spec_alignment": "pass", "output_quality": "pass", "runtime_validation": "partial", "integration_ready": "pass", "scope_validation": "pass"},
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "partial",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
     "issues": [],
     "notes": "Claude code-half verified (owner:both). dropDuplicates(['country_key']) replaced with row_number() over partitionBy('country_key').orderBy(source_precedence asc, country_name_std asc), rn==1. Precedence real+total+commented (L456-491); curated=1 wins over EPI spellings, independently confirmed correct (alias table maps variants TO curated names, so curated-wins maximises alias closure; TUR->'Turkey' deterministically). Final .select drops helper cols -> gold_dim_country schema byte-identical (7 cols). py_compile passes. runtime_validation=partial: two-run EXCEPT determinism, alias-closure query, Turkey report spot-check are Erik's Fabric half; code makes all three achievable. Surgical enough that task-023 builds on it cleanly."
   },
   "verification_history": [
-    {"attempt": 1, "result": "pass", "timestamp": "2026-07-14T00:00:00Z", "summary": "Root-cause deterministic fix (not symptom-hide); precedence total & commented; schema preserved; py_compile OK. Fabric run criteria = Erik."}
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-07-14T00:00:00Z",
+      "summary": "Root-cause deterministic fix (not symptom-hide); precedence total & commented; schema preserved; py_compile OK. Fabric run criteria = Erik."
+    }
   ],
   "test_protocol": {
     "summary": "Fabric-side confirmation of task-025 (Erik runs in Fabric UI)",
     "steps": [
-      {"instruction": "Run /run-gold twice, then EXCEPT/checksum-compare gold_dim_country between the two runs", "expected": "Identical content both runs (0 rows in symmetric EXCEPT) — deterministic", "type": "command"},
-      {"instruction": "Run the alias-closure query: every standard_name in country_aliases_with_confidence exists as a country_name_std in gold_dim_country", "expected": "0 missing rows for curated-collision names (Turkey/Syria/North Korea guaranteed by the fix); any residual = non-curated EPI spelling = task-023 territory", "type": "command"},
-      {"instruction": "Report spot-check: procurement rows with country 'Turkey' and 'Türkiye' encoding variants", "expected": "Map to the Turkey dim row, NOT Unknown - Global", "type": "visual"}
+      {
+        "instruction": "Run /run-gold twice, then EXCEPT/checksum-compare gold_dim_country between the two runs",
+        "expected": "Identical content both runs (0 rows in symmetric EXCEPT) — deterministic",
+        "type": "command"
+      },
+      {
+        "instruction": "Run the alias-closure query: every standard_name in country_aliases_with_confidence exists as a country_name_std in gold_dim_country",
+        "expected": "0 missing rows for curated-collision names (Turkey/Syria/North Korea guaranteed by the fix); any residual = non-curated EPI spelling = task-023 territory",
+        "type": "command"
+      },
+      {
+        "instruction": "Report spot-check: procurement rows with country 'Turkey' and 'Türkiye' encoding variants",
+        "expected": "Map to the Turkey dim row, NOT Unknown - Global",
+        "type": "visual"
+      }
     ],
     "automated_results": "Static verification passed (py_compile OK; dedup logic, precedence totality, schema-preservation, alias-direction all confirmed by code trace). Live Spark/Fabric execution not runnable locally.",
     "estimated_time": "10 minutes"

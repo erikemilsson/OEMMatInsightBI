@@ -30,8 +30,14 @@
     "The report page states plainly that these are gross supply-risk figures — the recycling (EoL_RIR) and substitution (SI_SR) filters are out of scope per DEC-001 — so the numbers are not misread as official EU CRM SR values.",
     "A before/after comparison is recorded showing the governance- and trade-weighted HHI against the current plain HHI for a few materials, demonstrating the weighting actually changes the ranking."
   ],
-  "dependencies": ["task-022", "task-031", "task-024"],
-  "decision_dependencies": ["DEC-001"],
+  "dependencies": [
+    "task-022",
+    "task-031",
+    "task-024"
+  ],
+  "decision_dependencies": [
+    "DEC-001"
+  ],
   "notes": [
     "CREATED 2026-07-19 by /health-check on selection of DEC-001 Option B — this is the follow-on 'build SR gold model' task the decision record called for.",
     "DIFFICULTY 7 — must be broken down via /breakdown 038 before work starts (per task-management rules). Natural seams: (a) un-drop `t` + carry through to fact_supply_share, (b) wire EU sourcing table into silver, (c) join WGI onto the supply fact, (d) compute dual HHI + build gold_supply_risk, (e) DAX measures + TMDL + report framing.",
@@ -39,11 +45,12 @@
     "FILE CONFLICT: the `t` un-drop is in bronze-to-silver.Notebook/notebook-content.py, which task-024 (In Progress, awaiting Fabric) also edits. Apply task-024 in Fabric BEFORE starting this task so the delete-insert grain fix is not clobbered. Same caution for silver-to-gold2.Notebook, which tasks 023/025 are editing.",
     "STALE COMMENT to fix while here: bronze-to-silver.Notebook:281 claims 'Score column not present in current dataflow' — false since the move to the API-based bronze_ingest_wgi, which fetches Value. task-031 or this task should correct it.",
     "METHODOLOGY ANCHOR: EU CRM Guidelines, EC 2017, doi:10.2873/769526. Formula and the t-value convention (0.8 EU, 1.0 baseline non-EU, >1 export-restricted) are quoted in decision-001-sr-gold-model.md.",
-    "SPEC IMPACT: DEC-001 is an inflection point. The spec's Business Logic & Calculations and DAX Measures sections need updating via /iterate to describe the SR definition, the new gold measures, and the EU-vs-global lineage. Do that before or alongside implementation so the spec is not trailing the build."
+    "SPEC IMPACT: DEC-001 is an inflection point. The spec's Business Logic & Calculations and DAX Measures sections need updating via /iterate to describe the SR definition, the new gold measures, and the EU-vs-global lineage. Do that before or alongside implementation so the spec is not trailing the build.",
+    "EU TABLE CONFIRMED AVAILABLE 2026-07-22: task-022 crit 4 was decided as KEEP specifically because this task's criterion 3 needs bronze_EUSupplyShares. The table is orphaned today (nothing reads it) but bronzecopy_EUSupplyShares runs every pipeline and keeps it fresh via HttpServer connection 97124587. Do not let a future cleanup sweep retire it without checking here first."
   ],
   "user_feedback": "",
   "created_date": "2026-07-19",
-  "updated_date": "2026-07-19",
+  "updated_date": "2026-07-22",
   "completion_date": null,
   "verification_attempts": 0,
   "out_of_spec": false,
