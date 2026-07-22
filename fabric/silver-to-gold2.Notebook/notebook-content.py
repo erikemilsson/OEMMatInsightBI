@@ -183,7 +183,12 @@ country_aliases_with_confidence = spark.createDataFrame([
     ("Czechia", "Czech Republic", 0.95, "standard_alias"),
     ("UAE", "United Arab Emirates", 0.95, "standard_alias"),
     ("Syrian Arab Republic", "Syria", 0.95, "standard_alias"),
-    ("Russia", "Russian Federation", 0.95, "standard_alias"),
+    # Direction corrected 2026-07-22 (task-025 crit 3): EPI 2024 names RUS "Russia",
+    # so "Russia" is the standard name carried by gold_dim_country and resolves via
+    # self-lookup. The alias previously pointed Russia -> "Russian Federation", a name
+    # no dim row carries, so the inner join dropped it (orphaned alias) AND the World
+    # Bank's standard spelling "Russian Federation" had no route to the dim.
+    ("Russian Federation", "Russia", 0.95, "standard_alias"),
     ("Vietnam", "Viet Nam", 0.95, "standard_alias"),
     ("Hong Kong", "China", 0.85, "territory"),  # Lower confidence for territories
     ("French Guiana", "France", 0.85, "territory"),
@@ -192,8 +197,16 @@ country_aliases_with_confidence = spark.createDataFrame([
 # Material aliases remain similar but add confidence
 material_aliases_with_confidence = spark.createDataFrame([
     # Case variations - high confidence
-    ("STEEL (High-Tensile)", "Steel (High-Tensile)", 0.95, "case_variation"),
-    ("steel (high-tensile)", "Steel (High-Tensile)", 0.95, "case_variation"),
+    # Targets lowercased 2026-07-22 to match what the dim actually carries. Source
+    # material names are initcap'd BEFORE this join (see materials_raw below), and
+    # Spark's initcap lowercases everything after the first letter of each
+    # whitespace-delimited word — so "High-Tensile" becomes "High-tensile" and the dim
+    # row is "Steel (high-tensile)". The old target "Steel (High-Tensile)" existed
+    # nowhere, orphaning both aliases. NOTE: initcap already collapses these two case
+    # variants on its own, so these rows are documentation rather than live mappings;
+    # do not add further case-variation aliases — they cannot match post-initcap.
+    ("STEEL (High-Tensile)", "Steel (high-tensile)", 0.95, "case_variation"),
+    ("steel (high-tensile)", "Steel (high-tensile)", 0.95, "case_variation"),
     
     # Spelling variations - high confidence  
     ("Aluminum", "Aluminium", 0.95, "spelling_variant"),
@@ -716,7 +729,11 @@ grp_map = F.create_map(
     F.lit("Cerium"), F.lit("Rare earth elements"),
     F.lit("Lanthanum"), F.lit("Rare earth elements"),
     F.lit("Yttrium"), F.lit("Rare earth elements"),
-    F.lit("Rare Earths (Ndpr)"), F.lit("Rare earth elements"),
+    # Key lowercased 2026-07-22: this map is probed with material_name_std, which is
+    # initcap'd upstream, so any key whose own initcap differs from itself can never
+    # match and silently falls through to "Other/Unknown". Audited all 48 keys; three
+    # were unmatchable (this one, "Plastic (Abs)", "Steel (High-Tensile)").
+    F.lit("Rare Earths (ndpr)"), F.lit("Rare earth elements"),
     F.lit("Tungsten"), F.lit("Specialty metals"),
     F.lit("Molybdenum"), F.lit("Specialty metals"),
     F.lit("Titanium"), F.lit("Specialty metals"),
@@ -735,9 +752,9 @@ grp_map = F.create_map(
     F.lit("Coking Coal"), F.lit("Energy materials"),
     F.lit("Natural Rubber"), F.lit("Organic materials"),
     F.lit("Electronics (controllers, Sensors)"), F.lit("Manufactured products"),
-    F.lit("Plastic (Abs)"), F.lit("Manufactured products"),
+    F.lit("Plastic (abs)"), F.lit("Manufactured products"),
     F.lit("Tires (rubber Compound)"), F.lit("Manufactured products"),
-    F.lit("Steel (High-Tensile)"), F.lit("Manufactured products"),
+    F.lit("Steel (high-tensile)"), F.lit("Manufactured products"),
     F.lit("Helium"), F.lit("Specialty gases"),
     F.lit("Neon"), F.lit("Specialty gases"),
     F.lit("Natural Graphite"), F.lit("Battery metals"),
