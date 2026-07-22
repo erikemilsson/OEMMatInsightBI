@@ -21,16 +21,19 @@
     "The configured notification fires and reaches the intended recipient.",
     "Results recorded in task notes, including any gap between documented and observed retry behavior."
   ],
-  "dependencies": [],
+  "dependencies": [
+    "task-041"
+  ],
   "decision_dependencies": [],
   "notes": [
     "PROMOTED by /health-check 2026-07-19 from task-011's legacy inline subtask array (id was task-011-4). task-011 remains Finished — retry config, execution log table, notifications, and monitoring docs were all built and verified; this was the human-owned Fabric-deployment test tail.",
     "RELATED to the open task-026 error-handler follow-up flagged on the dashboard (pipeline_error_handler wiring was deliberately deferred to a new dedicated task pending a failure-propagation topology + notification-sink decision). If that task gets filed, sequence this test after it so the test exercises the final topology rather than the interim one.",
-    "STALENESS CHECK: authored 2026-01; task-026 changes how data-quality checks fail the pipeline, which may change what a realistic induced failure looks like."
+    "STALENESS CHECK: authored 2026-01; task-026 changes how data-quality checks fail the pipeline, which may change what a realistic induced failure looks like.",
+    "BLOCKED BY task-041 (recorded 2026-07-22): criteria 2 and 3 cannot pass as things stand. Criterion 2 asserts the failure is written to the execution/error log table, but gold_pipeline_execution_log is written by nothing — pipeline_error_handler is a complete implementation that no pipeline activity and no notebook invokes (verified with a positive control). Criterion 3 asserts a notification fires, but all three RefreshDataflow activities carry \"NoNotification\" and the pipeline JSON has no email/Teams/webhook configuration at all. Criterion 1 (retry policy fires the expected number of times) IS testable today and is already partly evidenced: data_quality_checks with retry=1 produced exactly 2 attempts on the 2026-07-22 failing runs. Do not route this task as ready until task-041 lands."
   ],
   "user_feedback": "",
   "created_date": "2026-07-19",
-  "updated_date": "2026-07-19",
+  "updated_date": "2026-07-22",
   "completion_date": null,
   "verification_attempts": 0,
   "out_of_spec": false,

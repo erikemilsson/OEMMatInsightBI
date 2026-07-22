@@ -1,0 +1,75 @@
+{
+  "id": "task-041",
+  "title": "Wire pipeline_error_handler into the orchestrator — the execution log exists but no pipeline run has ever written to it",
+  "description": "pipeline_error_handler.Notebook is a complete 521-line implementation (error categorization against transient/permanent pattern lists, gold_pipeline_execution_log schema + ensure_log_table_exists, log_activity_start/success/failure, get_execution_summary, failure reporting, get_retry_effectiveness) that nothing calls. It is not an activity in orchestrator_pipeline_bronze_to_gold, no notebook %run's it, and gold_pipeline_execution_log is referenced by no other artifact in fabric/ — so the table is never populated by an orchestrated run and every reporting function queries an empty table. All 8 pipeline activities depend on their predecessors with dependencyConditions ['Succeeded'] only; there is no Failed branch anywhere in the pipeline, so no failure path exists to log from. Retry policies ARE configured and do work (retry 3/3/2/3/2/2/2/1; empirically confirmed when data_quality_checks with retry=1 produced two attempts that failed identically), so what is missing is observability of failures, not resilience against them. Closing this is a precondition for task-037, whose criteria assert that a failure is written to the execution log and that a notification fires.",
+  "status": "Pending",
+  "priority": "P2",
+  "difficulty": 5,
+  "owner": "both",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "spec_section": "Orchestration",
+  "spec_fingerprint": "",
+  "spec_version": "1",
+  "section_fingerprint": "",
+  "section_snapshot_ref": "",
+  "estimated_hours": 4,
+  "files_affected": [
+    "fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/pipeline-content.json",
+    "fabric/pipeline_error_handler.Notebook/notebook-content.py"
+  ],
+  "acceptanceCriteria": [
+    "The failure-propagation topology is DECIDED and recorded in the task notes before implementation, because the three options have materially different coverage and cost. (A) Pipeline-level on-failure activities using dependencyConditions ['Failed'] — catches every activity type including Copy and RefreshDataflow, whose failures never reach Python at all, but Fabric ANDs multiple dependsOn entries on one activity, so guarding N activities is not simply one handler with N dependencies; work out the actual shape before committing. (B) %run of the handler from inside each transformation notebook — the usage the notebook's own docstring anticipates; gives rich in-Python context but covers only the 3 TridentNotebook activities and misses hard crashes where no handler code runs. (C) Wrapper/parent pipeline invoking the current one with centralized failure handling. If the choice needs evidence rather than judgement, route it through /research rather than deciding inline.",
+    "A failure in at least one Copy or RefreshDataflow activity (i.e. a non-notebook activity) results in a row in gold_pipeline_execution_log. This is the coverage case option B cannot satisfy and is the reason the topology decision matters — do not let the criterion collapse to notebook-only logging without an explicit, recorded scope reduction.",
+    "A successful orchestrated run also populates the log (log_activity_start / log_activity_success), so get_retry_effectiveness and get_execution_summary have both outcomes to compare rather than only failures.",
+    "error_category is populated from categorize_error() on logged failures, and at least one real failure is confirmed to land in a sensible category — the transient/permanent pattern lists have never been exercised against a live Fabric error string.",
+    "The notification sink is configured or explicitly deferred with a reason. All three RefreshDataflow activities currently carry \"NoNotification\" and the pipeline JSON contains no email/Teams/webhook configuration of any kind, so task-037's notification criterion has nothing to exercise today. Deferring is acceptable; leaving it undecided is not.",
+    "[Erik/Fabric] Deployed and demonstrated end-to-end: induce a failure, confirm the log row appears with a usable error message, timestamp, retry_attempt and pipeline_run_id, then confirm a clean run logs its successes.",
+    "task-037's status is reconciled once this lands — it is currently Pending with criteria that cannot pass, and should either be unblocked or have its dependency on this task recorded."
+  ],
+  "dependencies": [],
+  "decision_dependencies": [],
+  "notes": [
+    "CREATED 2026-07-22, closing a loose end from task-026 criterion 7. That criterion required the pipeline_error_handler decision be RECORDED (it was: 'spun into its own task, not wired here, not silently deferred'), but the promised task was never created. task-026 is Finished on its own terms; this is the follow-through.",
+    "VERIFIED UNREFERENCED (with a positive control, per rules/agents.md § Negative Findings): grep for 'pipeline_error_handler' across fabric/ returns only its own .platform file; grep for 'gold_pipeline_execution_log' returns only the handler notebook plus two documents (error_recovery_playbook.md, error_handling_strategy.md). Control probe for 'silver_procurement' over the same tree returned 3 files, so the search works and the absence is real rather than a failed probe.",
+    "PIPELINE STATE AT CREATION: 8 activities — bronzecopy_EUSupplyShares, bronzecopy_GlobalSupplyShares (Copy); bronze_WGI, bronze_procurement, bronze_EPI (RefreshDataflow); bronze-to-silver data cleaning, silver-to-gold, data_quality_checks (TridentNotebook). Every dependsOn uses dependencyConditions ['Succeeded']. Retry policies: 3, 3, 2, 3, 2, 2, 2, 1.",
+    "WHAT IS NOT BROKEN: retry logic works and is proven — data_quality_checks with retry=1 produced exactly 2 attempts on the 2026-07-22 18:41 and 20:16 runs, both failing identically. task-011 delivered real resilience. The gap is purely that failures leave no durable trace, so there is no way to answer 'how often does this pipeline fail, on what, and do retries rescue it'.",
+    "BLOCKS task-037 ('Test pipeline error handling and retry logic with simulated failures'): its criterion 2 asserts the failure is written to the execution/error log table, and criterion 3 asserts a notification fires. Neither can pass today — nothing writes the table and notifications are off. task-037 is Pending and looks routable, which is misleading; record the dependency when this task is picked up.",
+    "RELATED to task-040 (DQ gate verdict not persisted). Both are the same class of defect — the pipeline's observability artifacts exist but are not connected to the runs they describe — but they are separate surfaces: 040 covers gold_quality_history and the DQ gate's outcome, this covers gold_pipeline_execution_log and activity-level failures. Do not merge them; a single run can pass every DQ check and still fail at a Copy activity.",
+    "DESIGN CONTEXT from task-026's deferral rationale: this needs a failure-propagation topology decision AND a notification sink Erik configures, which is why it was kept out of 026 rather than bundled — wiring it there would have conflated the DQ gate with general pipeline error handling.",
+    "SCOPE BOUNDARY: this task does not change retry counts, does not alter the DQ gate, and does not add new error categories. It connects an existing, complete implementation to the pipeline that should be feeding it."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-07-22",
+  "updated_date": "2026-07-22",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "task_verification": {},
+  "verification_history": [],
+  "test_protocol": {
+    "summary": "Prove the execution log receives both outcomes from a real orchestrated run.",
+    "steps": [
+      {
+        "type": "interactive",
+        "instruction": "Induce a failure in a non-notebook activity (e.g. point a Copy activity at a bad URL, or unbind a dataflow connection) and run the pipeline",
+        "expected": "gold_pipeline_execution_log gains a FAILED row with error_message, timestamp, retry_attempt and pipeline_run_id; error_category is populated by categorize_error()"
+      },
+      {
+        "type": "command",
+        "instruction": "Run the pipeline clean, then call get_execution_summary() and get_retry_effectiveness()",
+        "expected": "Both return populated results rather than empty frames — success rows are logged too, not only failures"
+      },
+      {
+        "type": "interactive",
+        "instruction": "Confirm the notification decision: either a notification is delivered, or the deferral is recorded in the task notes with a reason",
+        "expected": "No silent gap — task-037's notification criterion has either something to test or a documented reason it does not"
+      }
+    ],
+    "estimated_time": "45 minutes"
+  },
+  "user_review_pending": false,
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "dashboard",
+  "recovery_state": ""
+}
