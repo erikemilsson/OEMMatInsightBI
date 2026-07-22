@@ -1497,6 +1497,74 @@ dropped_stage_records = fact_supply_share_complete.filter(
 if dropped_stage_records > 0:
     print(f"\n⚠️  WARNING: Dropped {dropped_stage_records} records with invalid stage codes")
 
+# TERRITORY-ROLLUP AGGREGATION (task-023, decided 2026-07-22).
+# A territory alias deliberately maps several source countries onto one dim country —
+# ("Hong Kong","China",0.85,"territory") at ~:188 is the live case: the source lists
+# Antimony/P for both China (51.8%) and Hong Kong (0.3%), so both rows land on the
+# grain (Antimony, P, China, 2023). That is intended behaviour, but it is structurally
+# incompatible with grain_uniqueness@fact_supply_share, which asserts one row per
+# (material_key, stage_key, country_key, year) at 0% tolerance.
+#
+# Resolution: SUM the shares. If a territory is treated as part of its parent for this
+# analysis, its supply IS the parent's supply — so China/Antimony/P becomes 52.1%.
+# Without this the shares were already double-counted in any SUM; the rows were simply
+# not collapsed, which fanned out every downstream join on the grain.
+#
+# Rows with no collision pass through a groupBy unchanged, so this is a no-op for the
+# ~2560 single-row grains.
+#
+# Non-key column semantics, chosen deliberately:
+#   data_quality_score  MIN  — a merged row is only as trustworthy as its weakest
+#                              constituent; the 0.85 territory alias correctly drags it down
+#   quality_category    the category belonging to that MIN score (struct-min keeps them paired)
+#   has_unmapped_*      MAX  — boolean OR (True > False in Spark ordering)
+#   unmapped_impact_score SUM — it is a share-scaled impact, so it adds like share_pct
+#   source_row_id       MIN  — deterministic representative; the per-row audit trail is
+#                              built separately from fact_supply_share_raw, so nothing is lost
+#
+# task-038 DEPENDENCY: the trade parameter t is currently dropped at
+# bronze-to-silver:127, so there is no t to reconcile here. When task-038 carries t
+# through, this aggregation MUST define how t combines — the colliding rows differ
+# (China t=1.1 export-restricted vs Hong Kong t=1.0 baseline), and that is a
+# methodology decision for DEC-001's trade-weighted HHI, not an implementation detail.
+_pre_rollup_rows = fact_supply_share_final.count()
+
+fact_supply_share_final = (
+    fact_supply_share_final
+    .groupBy("material_key", "stage_key", "country_key", "year")
+    .agg(
+        F.sum("share_pct").alias("share_pct"),
+        F.min(F.struct("data_quality_score", "quality_category")).alias("_worst"),
+        F.max("has_unmapped_material").alias("has_unmapped_material"),
+        F.max("has_unmapped_country").alias("has_unmapped_country"),
+        F.sum("unmapped_impact_score").alias("unmapped_impact_score"),
+        F.min("source_row_id").alias("source_row_id"),
+    )
+    .select(
+        "material_key", "stage_key", "country_key", "year", "share_pct",
+        F.col("_worst.data_quality_score").alias("data_quality_score"),
+        F.col("_worst.quality_category").alias("quality_category"),
+        "has_unmapped_material", "has_unmapped_country",
+        "unmapped_impact_score", "source_row_id",
+    )
+)
+
+_post_rollup_rows = fact_supply_share_final.count()
+if _pre_rollup_rows != _post_rollup_rows:
+    print(f"  Territory rollup: merged {_pre_rollup_rows - _post_rollup_rows} row(s) "
+          f"into their parent country ({_pre_rollup_rows} -> {_post_rollup_rows})")
+
+# GUARD: the grain must now be unique, or grain_uniqueness will fail the pipeline
+# downstream with a far less informative message than this assert.
+_dup_grain = (fact_supply_share_final
+              .groupBy("material_key", "stage_key", "country_key", "year")
+              .count().filter(F.col("count") > 1))
+_dup_grain_n = _dup_grain.count()
+assert _dup_grain_n == 0, (
+    f"fact_supply_share still has {_dup_grain_n} duplicate grain(s) after the territory "
+    f"rollup: {[r.asDict() for r in _dup_grain.limit(5).collect()]}"
+)
+
 write_tbl(fact_supply_share_final, "fact_supply_share")
 
 # NEW: Create detailed audit trail for unmapped supply shares

@@ -36,11 +36,12 @@
     "EVIDENCE (C): first write_tbl(fact_supply_share_clean,...) at line 1046 with regexp-based share parse ('<1%' -> 1.0) at 1020; second write_tbl(fact_supply_share_final,...) at 1363 with '<' -> 0.5 at 1200-1205.",
     "EVIDENCE (D): create_country_coverage_matrix at lines 506-564 — has_epi only, coverage_score = has_epi/1.0, comment 'Simplified for brevity - would repeat pattern for each source'.",
     "EVIDENCE (E): table_name = 'bronze_epi2024results' hardcoded at bronze_ingest_epi:152 while URL uses p_epi_year (line 80); year literal 2024 at silver-to-gold2:981. Also note bronze_ingest_epi validates plain column names (code/iso/country/EPI, line 136) while bronze-to-silver's clean_and_rename handles .new/.old suffixes (lines 91-102) — written against different CSV shapes; harmonize or comment while in there.",
-    "COORDINATE: same file as tasks 023/025/027 — serialize with them (files_affected overlap prevents parallel dispatch anyway)."
+    "COORDINATE: same file as tasks 023/025/027 — serialize with them (files_affected overlap prevents parallel dispatch anyway).",
+    "DEAD WRITE found 2026-07-22 while implementing the territory rollup: fact_supply_share is written TWICE in silver-to-gold2 — write_tbl(fact_supply_share_clean, 'fact_supply_share') at ~:1146 and write_tbl(fact_supply_share_final, 'fact_supply_share') at ~:1500. The second overwrites the first, so the entire first construction (the fact_supply_share / fact_supply_share_clean path around :1124-1147, including its check_unmapped calls and its 'Retained N of M records' print) is dead work whose output never survives. It also emits misleading console output during every run. Candidate cleanup for this task; verify the check_unmapped side effects are genuinely duplicated by the :1351+ path before deleting."
   ],
   "user_feedback": "",
   "created_date": "2026-07-13",
-  "updated_date": "2026-07-13",
+  "updated_date": "2026-07-22",
   "completion_date": null,
   "verification_attempts": 0,
   "out_of_spec": false,

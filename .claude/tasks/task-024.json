@@ -40,34 +40,73 @@
     "DECISION 2026-07-14 (Erik, via /work): GOLD = OPTION (b) — keep transaction grain, abandon MERGE for a date-partition delete-insert (delete date_key >= p_from_date window, re-insert cleaned window). Preserves 'one row per transaction' (gold_tables.md:6 UNCHANGED — no doc/semantic-model rewrite needed), keeps per-supplier/per-transaction detail. SILVER = same delete-insert-by-date-window approach for consistency (delete silver_procurement where date >= p_from_date, append cleaned window) — NOT the doc's natural-key-MERGE+dedupe, because dedupe would silently collapse legitimate same-(date,material,supplier) transactions, contradicting the transaction-grain decision. This is a reasoned deviation from acceptance criterion 1's 'dedupe' option; criterion 1's intent (no crash, no silent loss) is still met, losslessly. WATERMARK CAVEAT: task-029 not yet implemented, so p_from_date defaults to 1900-01-01 -> delete-insert currently rewrites full history each run (correct + idempotent, just not incremental-efficient); becomes truly incremental once 029 lands the real high-water-mark. REGION: with delete-insert region is no longer needed as a merge key; keep it only if it has downstream value — document the call. task-026 note: with delete-insert there is no silver 'merge key' collision to guard, so the bronze duplicate DQ check should target genuine data-quality dups, not merge safety (align there).",
     "CLAUDE HALF DONE 2026-07-14: SILVER (bronze-to-silver) incremental branch replaced MERGE with delete-insert — delete silver_procurement where date >= window-MIN, append cleaned 7-day-look-back window (no dedupe; lossless; region drop left intact — repo grep found no downstream reader of silver region). GOLD (silver-to-gold2 fact_procurement) windowed silver read by 7-day look-back, MERGE replaced by delete-insert on date_key >= window-MIN-date_key at transaction grain (no aggregation). KEY REFINEMENT: delete boundary = window's actual MIN date (not literal p_from_date) so the look-back overlap stays idempotent once task-029 lands. merge_tbl() helper now orphaned (harmless). Both files py_compile clean. FR-005 tracks the incremental_load_strategy.md doc reconciliation (delete-insert vs MERGE) -> covered by task-033.",
     "ERIK (Fabric) — remaining acceptance (dev-copy lakehouse): (crit 4) inject two same-day rows for one (material,supplier) into a dev bronze copy, run incremental -> no Delta 'multiple source rows matched' error AND both quantities present in silver+gold totals; (crit 5) full incremental run (p_full_load=false) end-to-end, then RE-RUN the same window -> identical row counts (idempotent), and total spend matches a fresh full-load run of the same data.",
-    "NON-BLOCKING (verifier/implementer notes): (1) if a prior FULL load wrote NULL-date rows, switching to incremental leaves them un-refreshed (delete predicate never matches NULL) — they don't duplicate (incremental read filters NULL dates out) but go stale; non-issue for pure-incremental + NULL-free data (task-030 hardens NULL date_key at the source anyway). (2) gold_unmapped_procurement_audit shares fact_procurement_raw and still full-overwrites; it will shrink to the window once task-029 supplies a real watermark — harmless today (1900-01-01 default makes window==full table)."
+    "NON-BLOCKING (verifier/implementer notes): (1) if a prior FULL load wrote NULL-date rows, switching to incremental leaves them un-refreshed (delete predicate never matches NULL) — they don't duplicate (incremental read filters NULL dates out) but go stale; non-issue for pure-incremental + NULL-free data (task-030 hardens NULL date_key at the source anyway). (2) gold_unmapped_procurement_audit shares fact_procurement_raw and still full-overwrites; it will shrink to the window once task-029 supplies a real watermark — harmless today (1900-01-01 default makes window==full table).",
+    "DESIGN HAZARD observed live 2026-07-22 (raised in session, recorded here so it is not lost): the delete-insert is NOT ATOMIC. bronze-to-silver:245-246 runs target_table.delete(...) and then silver_df.write.mode('append'), with no transaction spanning the pair. When the append failed on a schema mismatch, the delete had ALREADY COMMITTED — silver_procurement was left with 0 rows, and each of the 3 pipeline retries repeated the wipe. Any error between the two statements (schema drift, a bad cast, OOM, executor loss) empties the table and leaves it empty.",
+    "Recoverable today only because p_from_date defaults to 1900-01-01, making the window the full table so the next successful run rebuilds everything from bronze. That safety net DISAPPEARS when task-029 lands a real high-water-mark: the window narrows, and a mid-operation failure would then delete a date range without re-inserting it — silent partial data loss rather than an obviously-empty table. Sequence this before or alongside task-029.",
+    "SAME PATTERN at silver-to-gold2:1285-1290 for fact_procurement (delete on date_key >= window, then append). It has not failed yet but is identical in shape. A partial pipeline success could leave a hollow fact table feeding the report.",
+    "Candidate remedies (not yet evaluated): write to a staging table and swap; use Delta MERGE with a synthetic row-identity column so the operation is single-statement and atomic; or replicate the window into a temp table first so a failed append can be rolled forward. Choosing one is a design decision, not a bug fix."
   ],
   "user_feedback": "",
   "created_date": "2026-07-13",
-  "updated_date": "2026-07-14",
+  "updated_date": "2026-07-22",
   "completion_date": null,
   "verification_attempts": 1,
   "task_verification": {
     "result": "pass",
     "attempt_number": 1,
     "timestamp": "2026-07-14T00:00:00Z",
-    "checks": {"files_exist": "pass", "consistency_check": "pass", "spec_alignment": "pass", "output_quality": "pass", "runtime_validation": "partial", "integration_ready": "pass", "scope_validation": "pass"},
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "partial",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
     "issues": [
-      {"severity": "minor", "description": "Edge case for Erik's awareness (not a blocker): NULL-date rows from a prior FULL load are not refreshed by the incremental delete predicate (date_key>=min never matches NULL); they don't duplicate but go stale. Non-issue for pure-incremental + NULL-free data (task-030 hardens this)."},
-      {"severity": "minor", "description": "silver-to-gold2 working-tree diff also contains task-023/025 changes (expected — same file, same session); verified intact and non-overlapping with the task-024 fact write path."}
+      {
+        "severity": "minor",
+        "description": "Edge case for Erik's awareness (not a blocker): NULL-date rows from a prior FULL load are not refreshed by the incremental delete predicate (date_key>=min never matches NULL); they don't duplicate but go stale. Non-issue for pure-incremental + NULL-free data (task-030 hardens this)."
+      },
+      {
+        "severity": "minor",
+        "description": "silver-to-gold2 working-tree diff also contains task-023/025 changes (expected — same file, same session); verified intact and non-overlapping with the task-024 fact write path."
+      }
     ],
     "notes": "Claude code-half verified (owner:both). Silver + gold procurement writes replace natural-key MERGE with transaction-grain delete-insert per Erik's Option (b). Idempotency crux verified sound: delete boundary = window MIN date/date_key; every appended row has date>=MIN so delete clears exactly the refilled range; NULL-date duplication structurally prevented (window filter excludes NULL; dim_date built from full silver range; date_key=yyyyMMdd monotonic with date). Watermark default (1900-01-01) resolves to safe full rewrite, not no-op. No aggregation (grain preserved). No dedupe/distinct symptom-hide. Append schema == create schema by construction. Strategy-doc MERGE deviation sanctioned (FR-005). py_compile passes both files. runtime_validation=partial: crit #4 (duplicate-key Fabric test) + #5 (full incremental idempotency run) are Erik's Fabric half; code makes them pass."
   },
   "verification_history": [
-    {"attempt": 1, "result": "pass", "timestamp": "2026-07-14T00:00:00Z", "summary": "Transaction-grain delete-insert both layers; idempotency boundary (window-MIN) sound; NULL-date + watermark-default safe; no symptom-hide; py_compile OK. Fabric duplicate-key + idempotency runs = Erik."}
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-07-14T00:00:00Z",
+      "summary": "Transaction-grain delete-insert both layers; idempotency boundary (window-MIN) sound; NULL-date + watermark-default safe; no symptom-hide; py_compile OK. Fabric duplicate-key + idempotency runs = Erik."
+    }
   ],
   "test_protocol": {
     "summary": "Erik's Fabric half — duplicate-key safety + full incremental idempotency (acceptance #4, #5). Run in a dev copy of the lakehouse.",
     "steps": [
-      {"instruction": "Inject two rows with the SAME Date/MaterialName/SupplierName (differing e.g. in Quantity) into a dev copy of bronze procurement, run bronze-to-silver + silver-to-gold2 incremental (p_full_load=false).", "expected": "No Delta 'multiple source rows matched' error; both injected rows present in silver_procurement and both quantities/spend represented in fact_procurement totals (nothing collapsed).", "type": "interactive"},
-      {"instruction": "Run the full pipeline once in incremental mode (p_full_load=false) end-to-end.", "expected": "Completes Bronze->Gold with no errors; fact_procurement populated.", "type": "interactive"},
-      {"instruction": "Re-run the SAME incremental window a second time (same p_from_date, no bronze changes); compare row counts before/after.", "expected": "silver_procurement + fact_procurement row counts IDENTICAL after 2nd run (idempotent — no dup, no loss); total SUM(spend_eur) unchanged.", "type": "interactive"},
-      {"instruction": "Compare total spend from the incremental run vs a fresh full-load run (p_full_load=true) of the same data.", "expected": "Totals match (idempotency/equivalence check, criterion #5).", "type": "interactive"}
+      {
+        "instruction": "Inject two rows with the SAME Date/MaterialName/SupplierName (differing e.g. in Quantity) into a dev copy of bronze procurement, run bronze-to-silver + silver-to-gold2 incremental (p_full_load=false).",
+        "expected": "No Delta 'multiple source rows matched' error; both injected rows present in silver_procurement and both quantities/spend represented in fact_procurement totals (nothing collapsed).",
+        "type": "interactive"
+      },
+      {
+        "instruction": "Run the full pipeline once in incremental mode (p_full_load=false) end-to-end.",
+        "expected": "Completes Bronze->Gold with no errors; fact_procurement populated.",
+        "type": "interactive"
+      },
+      {
+        "instruction": "Re-run the SAME incremental window a second time (same p_from_date, no bronze changes); compare row counts before/after.",
+        "expected": "silver_procurement + fact_procurement row counts IDENTICAL after 2nd run (idempotent — no dup, no loss); total SUM(spend_eur) unchanged.",
+        "type": "interactive"
+      },
+      {
+        "instruction": "Compare total spend from the incremental run vs a fresh full-load run (p_full_load=true) of the same data.",
+        "expected": "Totals match (idempotency/equivalence check, criterion #5).",
+        "type": "interactive"
+      }
     ],
     "automated_results": "py_compile passed both notebooks. Idempotency, NULL-date safety, watermark-default full-rewrite, schema-match verified by static analysis. Spark/Delta/Fabric execution = Erik's half.",
     "estimated_time": "20-30 minutes in Fabric"
