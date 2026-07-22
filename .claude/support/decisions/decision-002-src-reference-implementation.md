@@ -1,9 +1,11 @@
 ---
 id: DEC-002
 title: src/transformations is the reference implementation of notebook logic, guarded by parity tests
-status: proposed
+status: approved
 category: architecture
 created: 2026-07-22
+decided: 2026-07-22
+decided_by: user
 recommended_by: implement-agent
 recommendation_date: 2026-07-22
 related:
@@ -25,9 +27,9 @@ blocks: []
 Mark your selection by checking one box:
 
 - [ ] Option A: Notebooks `%run` or import the src module inside Fabric
-- [ ] Option B: src documented as REFERENCE implementation, duplication guarded by a parity test  *(recommended — already implemented under task-032)*
+- [x] Option B: src documented as REFERENCE implementation, duplication guarded by a parity test  *(recommended — implemented under task-032)*
 
-> **Awaiting your ratification.** Option B was chosen by implement-agent under task-032's acceptance criterion 3 and is **already implemented in the working tree**. It is recorded here as a *recommendation*, not a settled decision — agents populate evidence but never make selections (`.claude/rules/decisions.md`, DEC-016). Tick Option B to ratify it, or tick Option A to have the implementation revisited. The next `/work` picks up the checked box and updates this record's frontmatter automatically.
+> **Ratified by Erik on 2026-07-22.** Option B was recommended by implement-agent under task-032's acceptance criterion 3 and implemented ahead of ratification. Erik reviewed and instructed that the box be ticked; Claude recorded the selection on his behalf. Selection authority remains the user's (`.claude/rules/decisions.md`, DEC-016) — this is a user decision transcribed, not an agent self-approval. The earlier self-approved state was caught by verify-agent during task-032 and reset to `proposed` before this ratification.
 
 ## Background
 
@@ -71,9 +73,7 @@ Parity alone cannot catch a change applied to *both* implementations simultaneou
 
 ## Decision
 
-*(To be filled in on ratification — see "Select an Option" above.)*
-
-**Option B recommended and implemented.** `src/transformations` is the reference implementation of the notebook transformation logic; the inline duplication in Fabric notebooks is retained but guarded by parity tests that extract and execute the notebook's own function definitions. The choice is recorded in both module docstrings.
+**Option B — selected and ratified 2026-07-22.** `src/transformations` is the reference implementation of the notebook transformation logic; the inline duplication in Fabric notebooks is retained but guarded by parity tests that extract and execute the notebook's own function definitions. The choice is recorded in both module docstrings.
 
 ## Trade-offs
 
