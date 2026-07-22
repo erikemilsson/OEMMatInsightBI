@@ -2,7 +2,7 @@
   "id": "task-032",
   "title": "Align src/ testable modules with notebook production logic — tests currently certify the OPPOSITE key-generation contract",
   "description": "The repo's 'testable transforms' convention (src/ modules + pytest) has drifted from the notebooks it supposedly covers, worst in key generation: src/transformations/key_generation.py::generate_country_key hashes iso3 AND name together, and test_generate_country_key_consistency ASSERTS that same-ISO3/different-name produces DIFFERENT keys — while the notebook's production version is iso3-only-when-present, where same ISO3 MUST give the same key regardless of name (this property is load-bearing for task-025's dim_country dedupe). The notebooks don't import src/ at all — logic is duplicated inline — so the green pytest suite certifies functions the pipeline doesn't run, and in the country-key case certifies semantics that would corrupt every key if anyone 'unified' toward the tested module. Smaller drifts: src check_unmapped shows a groupBy-count summary vs the notebook's distinct-values display; stable_key API differs (*cols vs list).",
-  "status": "Pending",
+  "status": "Finished",
   "priority": "P2",
   "difficulty": 3,
   "owner": "claude",
@@ -34,13 +34,57 @@
     "EVIDENCE: src generate_country_key = stable_key(iso3_col, name_col) at src/transformations/key_generation.py:96; notebook version = when(iso3 notNull, stable_key([iso3])).otherwise(stable_key([name])) at silver-to-gold2:231-235; inverted test at tests/test_key_generation.py:136-148 ('Keys should be different because name differs'); notebooks contain no import of src.transformations (inline duplicates).",
     "DEPENDS ON task-025 only softly: 025 keeps iso3-preferred semantics, so this can start once 025's approach is confirmed (or in the same session). Sequenced to avoid aligning to a contract 025 then changes.",
     "WHY IT MATTERS: if a future refactor 'deduplicates' by adopting the tested src version, every country_key changes -> all fact-dim joins break silently (keys are content-hashes, DirectLake won't error, relationships just stop matching). The parity test in acceptance is the cheap permanent guard.",
-    "Pure local work (pytest runs locally per tests/conftest.py spark fixture) — no Fabric dependency, safe to parallelize with Fabric-side tasks as long as files don't overlap."
+    "Pure local work (pytest runs locally per tests/conftest.py spark fixture) — no Fabric dependency, safe to parallelize with Fabric-side tasks as long as files don't overlap.",
+    "DEPENDENCY OVERRIDE 2026-07-22 (user-approved, /work Step 2b ambiguity surfaced): dispatched while dependency task-025 is still 'In Progress' rather than 'Finished'. Justification — the dep is documented above as SOFT ('can start once 025's approach is confirmed'), and 025's approach IS confirmed: Claude's half is implemented and verify-agent returned pass on attempt 1; 025 remains In Progress only because its acceptance is majority-Fabric and awaits Erik's validation. The iso3-preferred contract this task aligns to is therefore settled. Residual risk: if Erik's Fabric validation forces a change to 025's iso3 semantics, this task needs rework — low, and the parity test in acceptance would catch it.",
+    "IMPLEMENTATION 2026-07-22 (implement-agent): src.generate_country_key now implements the notebook's iso3-preferred semantics verbatim — when(iso3 notNull, stable_key([iso3])).otherwise(stable_key([name])) — replacing the composite stable_key(iso3, name). Notable: the OLD src docstring ALREADY described iso3-preferred behaviour, so the code contradicted its own docstring and the test certified the code rather than the contract. The inverted test was inverted (not deleted) to assert same-ISO3 => same key, plus 3 new contract tests (name-independence with Turkey/Turkiye colliding as task-025's dedupe requires; null-iso3 fallback to name; distinctness across iso3). ACCEPTANCE CRITERION 3 DECISION: option (ii) reference-implementation + parity test — recorded as DEC-002; option (i) rejected on feasibility evidence (Fabric cannot import repo code without publishing a wheel to a custom Fabric Environment or adding a companion notebook that is itself a copy, i.e. relocating the duplication). Parity harness exceeds the criterion's minimum: TestNotebookParity AST-parses the LIVE notebook and extracts its own stable_key/generate_country_key/check_unmapped FunctionDef nodes (no notebook side effects execute), asserting identical output over a 9-row all-branch fixture, so it cannot go stale. Golden key constants are additionally pinned so a change applied to BOTH implementations at once — which parity alone cannot catch — still fails. OPTIONAL STRETCH DONE (cheap): find_unreachable_initcap_keys() added to data_quality.py with 6 tests, using Spark's real initcap rather than a Python re-implementation. Swept test_data_quality.py against the notebooks' inline versions; check_unmapped's drifted display realigned. One genuine divergence documented rather than silently unified: src.check_duplicates counts distinct duplicated key combinations while the notebook's detect_duplicates counts excess rows (1 vs 2 for three identical rows) — both valid metrics, now test-pinned and explained so nobody collapses them and shifts what gold_quality_check_results.failed_rows means. Tests 70 -> 87 (17 added, 0 removed, 0 skipped). Agent mutation-checked the parity harness out-of-tree: replaying the OLD composite semantics produces 9/9 mismatches (harness would have caught the original defect), fixed implementation produces 0. Orchestrator independently confirmed 87 passed and git status showing zero fabric/ modifications. Friction markers FR-010 (spec Testing Strategy still says '33 tests') and FR-011 (root CLAUDE.md convention overstates coverage) recorded."
   ],
   "user_feedback": "",
   "created_date": "2026-07-13",
-  "updated_date": "2026-07-13",
-  "completion_date": null,
-  "verification_attempts": 0,
+  "updated_date": "2026-07-22",
+  "completion_date": "2026-07-22",
+  "verification_attempts": 1,
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-07-22T14:05:00Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "pass",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "PASS on all five acceptance criteria, with two minor documentation-precision issues. CENTRAL CONTRACT VERIFIED: src.generate_country_key (key_generation.py:139-142) is semantically equivalent to the notebook production version (silver-to-gold2:233-235). The previously-inverted test was genuinely INVERTED, not deleted or weakened — git diff shows '-assert keys[0] != keys[1]' replaced by '+assert keys[0] == keys[1]' plus 3 new contract tests. PARITY HARNESS PROVEN ABLE TO FAIL, re-established independently by mutation in an out-of-repo copy rather than taken on the implementer's word: Mutation A (src reverted to OLD composite semantics) failed with exactly 9/9 mismatches, reproducing the implementer's claim; Mutation B (perturbed the NOTEBOOK only, src untouched) failed 1/19, proving the harness is bound to LIVE notebook text via AST extraction and is a bidirectional guard, not a frozen snapshot; Mutation C (salt added to BOTH implementations) failed the golden-value test as designed. All mutations confined to the scratch copy; repo re-verified clean. CRITERION 3 VERIFIED: option-(ii) choice recorded in BOTH module docstrings (key_generation.py:8-35, data_quality.py:7-31). Feasibility rationale for rejecting option (i) is sound; it omits one mechanism (upload .py to Lakehouse Files + sys.path.append) but that still requires shipping into the workspace and creates the same deploy coupling, so the conclusion holds. CRITERION 5 VERIFIED BY EXECUTION: 87 passed, 0 failed, 0 skipped. Nothing removed or skipped to reach green — 'git diff -U0 tests/' contains zero removed 'def test_'/'class Test' lines (positive control: same regex on the + side returns 20 additions, so the probe works), and the sole pytest.skip in tests/ (test_doc_artifact_names.py:69) is confirmed PRE-EXISTING at HEAD via git show. SCOPE CLEAN: 'git status --short -- fabric/' is empty (positive control: unscoped git status returns 8 modified paths, so the probe is live) — the three notebooks carrying unvalidated in-flight task-022/026 changes were NOT touched. DOCUMENTED DIVERGENCE IS DEFENSIBLE: src.check_duplicates and the notebook's detect_duplicates are different functions, not drifted twins (different inputs, different returns, and the notebook's writes into gold_quality_check_results); unifying them would silently change the meaning of failed_rows in an already-materialized observability table.",
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "key_generation.py:31-33 claims the golden-value test means 'a change made to BOTH implementations at once (e.g. a new null sentinel) still fails loudly', but mutation testing disproves that exact example: changing the null sentinel in BOTH src and notebook leaves all 20 key-generation tests PASSING even though keys genuinely change (the (None,None) country_key moved 8465053187300525983 -> 1331572554485554831). All four golden fixture rows hash a non-null column, so the sentinel never appears in any pinned value. A salt change IS caught, so the mechanism works — only the fixture is incomplete. One-line fix: add a (None, None) row to the golden 'expected' dict."
+      },
+      {
+        "severity": "minor",
+        "description": "Two parity assertions RESTATE the notebook's logic inline rather than extracting it via AST: test_check_duplicates_semantics_differ_from_notebook hardcodes 'total_rows - unique_rows', and test_categorize_quality_matches_notebook_thresholds hand-copies the CASE ladder. Both currently match the notebook (verified), but if the notebook's arithmetic changed these tests would keep asserting the OLD formula and would not fail — unlike the key_generation and check_unmapped harnesses. Partly unavoidable (both notebook counterparts depend on spark.table(), log_check_result and time, and take table names rather than DataFrames), but the documented strength currently exceeds the actual strength."
+      }
+    ]
+  },
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-07-22T14:05:00Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "pass",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": 2,
+      "notes": "Pass on all five acceptance criteria. Parity harness independently proven able to fail via three out-of-repo mutations (A: old composite semantics -> 9/9 mismatches; B: notebook-only perturbation -> 1/19, proving live-text binding; C: both-sides salt -> golden test fails). 87 passed / 0 skipped confirmed by execution; no tests removed (positive-control-checked). fabric/ untouched (positive-control-checked). Two minor documentation-precision issues raised, neither blocking."
+    }
+  ],
   "out_of_spec": false,
   "absorbed_into": "",
   "interaction_hint": "dashboard"

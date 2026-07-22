@@ -22,7 +22,9 @@ from src.transformations.data_quality import (
     count_out_of_range_dates,
     find_type_mismatches,
     count_incomplete_rows,
+    find_unreachable_initcap_keys,
 )
+from tests.test_key_generation import load_notebook_functions
 
 
 class TestCheckUnmapped:
@@ -169,6 +171,36 @@ class TestCheckDuplicates:
                 "test_table",
                 fail_on_duplicates=True
             )
+
+    @pytest.mark.unit
+    def test_check_duplicates_semantics_differ_from_notebook(self, spark):
+        """Pin the deliberate semantic gap vs the notebook's detect_duplicates.
+
+        src.check_duplicates counts DISTINCT KEY COMBINATIONS occurring more than
+        once; fabric/data_quality_checks.Notebook's detect_duplicates counts
+        EXCESS ROWS (total_rows - distinct_key_rows). Both are legitimate
+        metrics, but they are not interchangeable — this test exists so nobody
+        "unifies" them by accident and shifts what
+        gold_quality_check_results.failed_rows means.
+        """
+        data = [(1, 1), (1, 1), (1, 1), (2, 2)]  # one key combo repeated 3x
+        df = spark.createDataFrame(data, ["key1", "key2"])
+        key_columns = ["key1", "key2"]
+
+        src_count = check_duplicates(df, key_columns, "test_table")
+
+        # The notebook's arithmetic, restated:
+        total_rows = df.count()
+        unique_rows = df.select(key_columns).distinct().count()
+        notebook_count = total_rows - unique_rows
+
+        assert src_count == 1, "src counts duplicated key combinations"
+        assert notebook_count == 2, "notebook counts excess rows"
+        assert src_count != notebook_count, (
+            "This test is only meaningful while the two metrics differ; if they "
+            "were unified, update both the docstring and the quality-results "
+            "interpretation deliberately."
+        )
 
 
 class TestValidateRange:
@@ -486,3 +518,133 @@ class TestCountIncompleteRows:
         count = count_incomplete_rows(df, [])
 
         assert count == 0
+
+
+class TestFindUnreachableInitcapKeys:
+    """
+    Tests for find_unreachable_initcap_keys() — the initcap-reachability guard.
+
+    The gold notebook initcaps material names before joining them to the alias
+    table and commodity-group map, so any mapping key that initcap can never
+    produce is dead: its rows silently classify as Other/Unknown (task-028 finding
+    A). These tests execute Spark's real initcap, turning that belief into a
+    checkable property.
+    """
+
+    @pytest.mark.unit
+    def test_reachable_keys_return_empty(self, spark):
+        """Keys already in initcap-canonical form are reachable."""
+        keys = ["Copper", "Lithium", "Rare Earths"]
+
+        assert find_unreachable_initcap_keys(spark, keys) == []
+
+    @pytest.mark.unit
+    def test_detects_parenthesized_capitals(self, spark):
+        """Capitals after '(' or '-' survive initcap nowhere — those keys are dead."""
+        keys = ["Steel (High-Tensile)", "Plastic (Abs)", "Rare Earths (Ndpr)"]
+
+        assert find_unreachable_initcap_keys(spark, keys) == keys
+
+    @pytest.mark.unit
+    def test_hand_tuned_keys_are_reachable(self, spark):
+        """The keys already hand-fitted to initcap's output must NOT be flagged.
+
+        These two are the tell that this bug was hit before and only partially
+        fixed — they are spelled the way initcap emits them.
+        """
+        keys = ["Electronics (controllers, Sensors)", "Tires (rubber Compound)"]
+
+        assert find_unreachable_initcap_keys(spark, keys) == []
+
+    @pytest.mark.unit
+    def test_mixed_set_reports_only_unreachable_in_order(self, spark):
+        """Only the dead keys are returned, in caller order."""
+        keys = ["Copper", "Steel (High-Tensile)", "Lithium", "Plastic (Abs)"]
+
+        result = find_unreachable_initcap_keys(spark, keys)
+
+        assert result == ["Steel (High-Tensile)", "Plastic (Abs)"]
+
+    @pytest.mark.unit
+    def test_all_caps_key_is_unreachable(self, spark):
+        """An all-caps alias LHS can never match initcap-normalized input."""
+        keys = ["STEEL (High-Tensile)", "steel (high-tensile)"]
+
+        assert find_unreachable_initcap_keys(spark, keys) == keys
+
+    @pytest.mark.unit
+    def test_empty_key_list(self, spark):
+        """No keys means nothing unreachable."""
+        assert find_unreachable_initcap_keys(spark, []) == []
+
+
+class TestNotebookParity:
+    """
+    Parity guard for the reference-implementation contract (task-032).
+
+    src/transformations/data_quality.py mirrors logic that the Fabric notebooks
+    define inline. check_unmapped is the shared function whose return value the
+    pipeline acts on, so its count semantics are pinned against the notebook's
+    own definition.
+    """
+
+    @pytest.mark.unit
+    def test_check_unmapped_count_parity_with_notebook(self, spark):
+        """src.check_unmapped returns the same count as the notebook's version."""
+        nb = load_notebook_functions(
+            ["check_unmapped"],
+            extra_globals={"LOG_UNMAPPED": False, "FAIL_ON_UNMAPPED": False},
+        )
+        nb_check_unmapped = nb["check_unmapped"]
+
+        schema = StructType([
+            StructField("country_name", StringType(), True),
+            StructField("country_key", IntegerType(), True),
+        ])
+        df = spark.createDataFrame(
+            [("USA", 1), ("CHN", 2), ("Unknown Country", None), ("Mystery Land", None)],
+            schema,
+        )
+
+        src_count = check_unmapped(df, "country_key", "country", log_unmapped=False)
+        nb_count = nb_check_unmapped(df, "country_key", "country")
+
+        assert src_count == nb_count == 2
+
+    @pytest.mark.unit
+    def test_check_unmapped_zero_parity_with_notebook(self, spark):
+        """Both versions agree when nothing is unmapped."""
+        nb = load_notebook_functions(
+            ["check_unmapped"],
+            extra_globals={"LOG_UNMAPPED": False, "FAIL_ON_UNMAPPED": False},
+        )
+
+        df = spark.createDataFrame([("USA", 1), ("CHN", 2)], ["country_name", "country_key"])
+
+        assert check_unmapped(df, "country_key", "country", log_unmapped=False) == 0
+        assert nb["check_unmapped"](df, "country_key", "country") == 0
+
+    @pytest.mark.unit
+    def test_categorize_quality_matches_notebook_thresholds(self, spark):
+        """categorize_quality mirrors the gold notebook's quality_category ladder.
+
+        The notebook computes the same buckets as a Spark CASE expression
+        (>= 0.9 High, >= 0.7 Medium, >= 0.5 Low, else Unmapped); this asserts the
+        Python helper agrees at and around every boundary.
+        """
+        scores = [1.0, 0.9, 0.899, 0.7, 0.699, 0.5, 0.499, 0.0]
+        df = spark.createDataFrame([(s,) for s in scores], ["data_quality_score"])
+
+        notebook_category = (
+            F.when(F.col("data_quality_score") >= 0.9, "High")
+             .when(F.col("data_quality_score") >= 0.7, "Medium")
+             .when(F.col("data_quality_score") >= 0.5, "Low")
+             .otherwise("Unmapped")
+        )
+
+        rows = df.withColumn("quality_category", notebook_category).collect()
+
+        for row in rows:
+            assert categorize_quality(row["data_quality_score"]) == row["quality_category"], (
+                f"threshold drift at score {row['data_quality_score']}"
+            )

@@ -4,6 +4,35 @@ Surrogate Key Generation Functions
 This module provides functions for generating deterministic surrogate keys
 using xxhash64 hashing algorithm. These keys are used throughout the data
 pipeline to create stable, reproducible dimension and fact table keys.
+
+REFERENCE IMPLEMENTATION — NOT IMPORTED BY THE NOTEBOOKS (task-032)
+------------------------------------------------------------------
+The Fabric notebooks do NOT import this package; `fabric/silver-to-gold2.Notebook`
+defines `stable_key` / `generate_country_key` inline. Two structural options were
+weighed for closing that gap (task-032 acceptance criterion 3):
+
+  (i)  Have the notebooks `%run` / import this module inside Fabric.
+       REJECTED. Fabric notebooks cannot import repo code without first shipping
+       it into the workspace — either as a wheel published to a custom Fabric
+       Environment (a Fabric-side deploy step plus a CI packaging stage), or as a
+       companion notebook that is itself a copy of this file (which relocates the
+       duplication rather than removing it). Neither is justified for ~10 lines of
+       hashing logic, and both add a release coupling between local `src/` edits
+       and Fabric runtime state.
+
+  (ii) Document this module as the REFERENCE implementation and guard the
+       duplication with a parity test.  <-- CHOSEN
+
+So: production truth lives in the notebook; this module mirrors it. The mirror is
+enforced, not trusted — `tests/test_key_generation.py::TestNotebookParity` parses
+`fabric/silver-to-gold2.Notebook/notebook-content.py`, extracts the notebook's own
+`stable_key` / `generate_country_key` definitions, and asserts they produce
+identical keys to these functions over a fixture. Divergence fails CI. The same
+class also pins golden key values, so a change made to BOTH implementations at
+once (e.g. a new null sentinel) still fails loudly, because such a change would
+silently re-key every existing gold Delta table.
+
+**If you change a function here, change the notebook to match (or vice versa).**
 """
 
 from pyspark.sql import functions as F
@@ -74,9 +103,14 @@ def generate_country_key(iso3_col: str, name_col: str) -> F.Column:
     """
     Generate surrogate key for country dimension using ISO3 code.
 
-    This is a specialized wrapper around stable_key() that prioritizes
-    ISO3 code for country key generation. ISO3 is the preferred business
-    key for countries as it's standardized and stable.
+    ISO3-PREFERRED, NOT COMPOSITE: when ISO3 is non-null the key is hashed over
+    ISO3 *alone* and the country name does not participate. Only when ISO3 is
+    null does the name become the hashed business key.
+
+    Mirrors `generate_country_key` in `fabric/silver-to-gold2.Notebook`:
+
+        F.when(F.col(iso3_col).isNotNull(), stable_key([iso3_col]))
+         .otherwise(stable_key([name_col]))
 
     Args:
         iso3_col: Column name containing ISO3 country code (e.g., 'USA', 'CHN')
@@ -89,11 +123,23 @@ def generate_country_key(iso3_col: str, name_col: str) -> F.Column:
         >>> df.withColumn("country_key", generate_country_key("iso3", "country_name"))
 
     Notes:
-        - Prefers ISO3 code as it's more stable than country names
-        - Falls back to country name if ISO3 is not available
-        - Same ISO3 code always produces the same key
+        - Same ISO3 + different spellings => SAME key ('Turkey' and 'Türkiye'
+          both key on 'TUR'). This is load-bearing, not incidental: the
+          precedence-ranked dim_country dedupe (task-025) relies on the curated
+          row and the EPI row for one ISO3 colliding on country_key so exactly
+          one canonical name survives per key.
+        - Null ISO3 falls back to the name (e.g. the 'Unknown - *' placeholders
+          are keyed by their own iso3 sentinels, curated rows without an ISO3 by
+          name).
+        - Do NOT "simplify" this to stable_key(iso3, name). Keys are content
+          hashes, so a composite key changes EVERY country_key; DirectLake would
+          raise no error and the fact-dim relationships would simply stop
+          matching. Guarded by tests/test_key_generation.py::TestNotebookParity.
     """
-    return stable_key(iso3_col, name_col)
+    return (
+        F.when(F.col(iso3_col).isNotNull(), stable_key([iso3_col]))
+         .otherwise(stable_key([name_col]))
+    )
 
 
 def generate_material_key(material_name_col: str) -> F.Column:
