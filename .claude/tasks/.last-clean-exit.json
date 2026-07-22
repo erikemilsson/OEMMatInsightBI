@@ -1,8 +1,9 @@
 {
-  "last_clean_exit": "2026-07-22T20:16:21Z",
+  "last_clean_exit": "2026-07-23T01:10:00Z",
   "in_progress": [
     "task-022",
     "task-024"
   ],
-  "note": "2026-07-22 late session. Pipeline is GREEN end-to-end including the DQ activity. task-023, task-025, task-026 all Finished with runtime halves measured on the 19:53 UTC run. Created task-040 (DQ gate verdict not persisted) and task-041 (pipeline_error_handler never wired); task-037 now depends on task-041. Deployed alias/commodity-map fixes (5610c35) and verified live. Read .claude/support/workspace/handoff-2026-07-22.md first. task-022 and task-024 remain In Progress awaiting Erik's review only."
+  "awaiting_verification": [],
+  "note": "2026-07-23 session. task-040 and task-027 both implemented, verified and Finished (both carry user_review_pending — their proof is Fabric-side). DEC-003 (DQ gate verdict shape), DEC-004 (failure-propagation topology, RESEARCHED - overturns task-041 crit 1, Option A costs 2 activities not 8, Try-Catch trap found) and DEC-005 (gap registry lifecycle, only sub-decision 3 needs Erik) all filed proposed. FR-012..FR-018 opened; FR-017 resolved in place. KEY CORRECTION: pyspark IS locally executable - see root CLAUDE.md gotchas + auto-memory. NOTHING COMMITTED - 8 fabric/doc files modified, 3 decision records untracked."
 }

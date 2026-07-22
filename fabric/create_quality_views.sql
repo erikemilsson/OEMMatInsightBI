@@ -128,6 +128,11 @@ GROUP BY source_table, score_band;
 -- =====================================================================
 -- Shows most frequent unmapped values for prioritization
 
+-- task-027: both audit tables now emit one row per (source row x failed dimension), with
+-- unmapped_type (material | hq_country | prod_country | country | stage) and
+-- unmapped_value (the value that actually failed to join). The old
+-- COALESCE(original_material, ...) guessed which value was the gap and picked the material
+-- name for every country gap; those original_* columns no longer exist.
 CREATE OR REPLACE VIEW dbo.v_top_unmapped_values AS
 SELECT
     unmapped_dimension,
@@ -138,18 +143,20 @@ FROM (
     -- Procurement unmapped values
     SELECT
         unmapped_type as unmapped_dimension,
-        COALESCE(original_material, original_hq_country, original_prod_country) as original_value,
+        unmapped_value as original_value,
         1 as business_impact  -- Could be enhanced with spend amounts
     FROM dbo.gold_unmapped_procurement_audit
+    WHERE unmapped_value IS NOT NULL
 
     UNION ALL
 
     -- Supply share unmapped values
     SELECT
-        unmapped_dimension,
-        COALESCE(original_material, original_country) as original_value,
+        unmapped_type as unmapped_dimension,
+        unmapped_value as original_value,
         COALESCE(share_pct, 0) as business_impact
     FROM dbo.gold_unmapped_supply_audit
+    WHERE unmapped_value IS NOT NULL
 ) combined
 GROUP BY unmapped_dimension, original_value;
 

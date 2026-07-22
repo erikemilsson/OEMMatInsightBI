@@ -1631,6 +1631,50 @@ else:
 
 print("\n--- Persisting DQ results to gold_quality_history ---")
 
+# -----------------------------------------------------------------------------
+# task-040: gold_quality_history carries two extra columns
+# -----------------------------------------------------------------------------
+#   status   - the per-check verdict ("pass" / "fail" / "warning") produced by
+#              log_check_result. THIS is the field the blocking gate in section 7
+#              reads. Before task-040 it was computed, printed, and then dropped on
+#              the floor, so a past run's gate outcome could not be reconstructed
+#              from the table at all. "n/a" on rows that are not a single check
+#              result (dimension/overall aggregates, and the gate verdict rows).
+#   producer - which notebook appended the row. silver-to-gold2 also appends to this
+#              table on every pipeline run, with its own refresh_timestamp.
+#
+# breach_flag is unchanged and is NOT the gate: score < 70.0. The two diverge in
+# practice — grain_uniqueness failing on 2 duplicate grains out of 2561 rows scores
+# ~99.9, never breaches, and still halts the pipeline.
+#
+# silver-to-gold2 owns the CREATE TABLE; this helper mirrors the one there so this
+# notebook can also be run standalone. Explicit ALTER TABLE (not mergeSchema) because
+# the table is append-only and already holds history: pre-task-040 rows keep NULL in
+# both columns and are NOT backfilled.
+QUALITY_HISTORY_PRODUCER = "data_quality_checks"
+QUALITY_HISTORY_ADDED_COLUMNS = [("status", "STRING"), ("producer", "STRING")]
+QUALITY_HISTORY_COLUMNS = [
+    "refresh_timestamp", "layer", "entity", "metric_name",
+    "metric_value", "threshold", "breach_flag", "status", "producer",
+]
+
+
+def ensure_quality_history_columns():
+    """Idempotently add the task-040 columns to gold_quality_history."""
+    if not spark.catalog.tableExists(f"{DB}.gold_quality_history"):
+        return  # the first write creates the table with the full 9-column schema
+    existing = set(spark.table(f"{DB}.gold_quality_history").columns)
+    for col_name, col_type in QUALITY_HISTORY_ADDED_COLUMNS:
+        if col_name not in existing:
+            spark.sql(
+                f"ALTER TABLE {DB}.gold_quality_history ADD COLUMNS ({col_name} {col_type})"
+            )
+            print(f"  gold_quality_history: added column {col_name} {col_type} "
+                  f"(pre-existing rows keep NULL)")
+
+
+ensure_quality_history_columns()
+
 # Build metrics for persistence
 # Each check result becomes a row in gold_quality_history
 dq_metrics_to_insert = []
@@ -1641,7 +1685,7 @@ for result in all_check_results:
     check_name = result["check_name"]
     score = result["score"]
 
-    # Threshold: below 70 is a breach
+    # Threshold: below 70 is a breach. This is a SCORE band, not the gate.
     threshold = 70.0
     breach_flag = score < threshold
 
@@ -1649,31 +1693,35 @@ for result in all_check_results:
     metric_name = f"dq_{check_name}"
 
     dq_metrics_to_insert.append(
-        (pipeline_run_ts, layer, table_name, metric_name, float(score), threshold, breach_flag)
+        (pipeline_run_ts, layer, table_name, metric_name, float(score), threshold, breach_flag,
+         result["status"], QUALITY_HISTORY_PRODUCER)
     )
 
-# Add overall scores as metrics
+# Add overall scores as metrics ("n/a" status: aggregates, not individual checks)
 for dim_name, dim_avg in dimension_avgs.items():
     dq_metrics_to_insert.append(
-        (pipeline_run_ts, "Pipeline", "overall", f"dq_dimension_{dim_name}", float(dim_avg), 70.0, dim_avg < 70.0)
+        (pipeline_run_ts, "Pipeline", "overall", f"dq_dimension_{dim_name}", float(dim_avg), 70.0, dim_avg < 70.0,
+         "n/a", QUALITY_HISTORY_PRODUCER)
     )
 
 # Add the overall pipeline score
 dq_metrics_to_insert.append(
-    (pipeline_run_ts, "Pipeline", "overall", "dq_overall_score", float(overall_score), 70.0, overall_score < 70.0)
+    (pipeline_run_ts, "Pipeline", "overall", "dq_overall_score", float(overall_score), 70.0, overall_score < 70.0,
+     "n/a", QUALITY_HISTORY_PRODUCER)
 )
 
 # Add the overall rating as a metric (1=Critical, 2=Poor, 3=Fair, 4=Good, 5=Excellent)
 rating_value = {"Critical": 1.0, "Poor": 2.0, "Fair": 3.0, "Good": 4.0, "Excellent": 5.0}
 dq_metrics_to_insert.append(
     (pipeline_run_ts, "Pipeline", "overall", "dq_overall_rating",
-     rating_value.get(overall_rating, 0.0), 4.0, rating_value.get(overall_rating, 0.0) < 4.0)
+     rating_value.get(overall_rating, 0.0), 4.0, rating_value.get(overall_rating, 0.0) < 4.0,
+     "n/a", QUALITY_HISTORY_PRODUCER)
 )
 
 if dq_metrics_to_insert:
     history_df = spark.createDataFrame(
         dq_metrics_to_insert,
-        ["refresh_timestamp", "layer", "entity", "metric_name", "metric_value", "threshold", "breach_flag"]
+        QUALITY_HISTORY_COLUMNS
     )
 
     history_df.write.format("delta").mode("append").saveAsTable(f"{DB}.gold_quality_history")
@@ -1763,6 +1811,9 @@ print("=" * 70)
 # guarded nothing. Runs LAST — after results are persisted to gold_quality_history
 # and after the detailed table prints — so a FAILING run still leaves the full
 # picture of every check, then fails the pipeline activity.
+# task-040 adds one thing here: the gate verdict itself is appended to
+# gold_quality_history (entity='gate') BEFORE the raise, so "did the gate pass on
+# run X" is answerable from the table without reading this file.
 
 # CELL ********************
 
@@ -1832,6 +1883,61 @@ print("BLOCKING-CHECK ENFORCEMENT")
 print("=" * 70)
 print(f"Blocking checks evaluated: {len(blocking_evaluated)}")
 print(f"Blocking failures:         {len(blocking_failures)}")
+
+# -----------------------------------------------------------------------------
+# task-040: PERSIST THE GATE VERDICT — before the raise, for the same reason
+# task-026 persists the per-check results before raising.
+# -----------------------------------------------------------------------------
+# Without these rows, "did the gate pass on run X?" could only be answered by
+# intersecting persisted per-check rows against the BLOCKING_CHECKS set in THIS
+# FILE — i.e. by reading notebook source — and the block printed above is not a
+# durable record either (the pipeline editor's Output panel only shows runs from
+# the current editor session; a fresh page load shows nothing).
+#
+# Answering the question from the table alone, one query:
+#   SELECT status, metric_name, metric_value
+#   FROM   oem_lh.gold_quality_history
+#   WHERE  entity = 'gate'
+#     AND  refresh_timestamp = (SELECT MAX(refresh_timestamp)
+#                               FROM oem_lh.gold_quality_history WHERE entity = 'gate')
+# status is 'pass' or 'fail'; dq_gate_raised is 1.0 when the aggregated raise fired.
+# NOTE: refresh_timestamp is UTC while the Fabric UI shows local time (UTC+2 CEST) —
+# a current run reads two hours "early".
+gate_status = "fail" if blocking_failures else "pass"
+
+gate_history_schema = StructType([
+    StructField("refresh_timestamp", TimestampType(), True),
+    StructField("layer", StringType(), True),
+    StructField("entity", StringType(), True),
+    StructField("metric_name", StringType(), True),
+    StructField("metric_value", DoubleType(), True),
+    StructField("threshold", DoubleType(), True),
+    StructField("breach_flag", BooleanType(), True),
+    StructField("status", StringType(), True),
+    StructField("producer", StringType(), True),
+])
+
+gate_rows = [
+    # How many blocking checks were actually evaluated this run (guards against a
+    # stale BLOCKING_CHECKS entry silently demoting a check to advisory).
+    (pipeline_run_ts, "Pipeline", "gate", "dq_gate_blocking_evaluated",
+     float(len(blocking_evaluated)), None, False, "n/a", QUALITY_HISTORY_PRODUCER),
+    # How many of them failed. threshold 0.0 => any failure is a breach.
+    (pipeline_run_ts, "Pipeline", "gate", "dq_gate_blocking_failures",
+     float(len(blocking_failures)), 0.0, len(blocking_failures) > 0,
+     gate_status, QUALITY_HISTORY_PRODUCER),
+    # Whether the aggregated raise fired (1.0 = pipeline halted here).
+    (pipeline_run_ts, "Pipeline", "gate", "dq_gate_raised",
+     1.0 if blocking_failures else 0.0, 0.0, bool(blocking_failures),
+     gate_status, QUALITY_HISTORY_PRODUCER),
+]
+
+ensure_quality_history_columns()
+(spark.createDataFrame(gate_rows, schema=gate_history_schema)
+      .write.format("delta").mode("append").saveAsTable(f"{DB}.gold_quality_history"))
+
+print(f"\nGate verdict persisted to {DB}.gold_quality_history "
+      f"(entity='gate', status='{gate_status}', refresh_timestamp={pipeline_run_ts} UTC)")
 
 if blocking_failures:
     print("\nFAILED BLOCKING CHECKS (pipeline will halt):")

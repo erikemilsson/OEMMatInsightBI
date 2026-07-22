@@ -260,13 +260,17 @@ gold_data_gaps_summary
 **Schema:**
 ```sql
 gold_quality_history
-├── refresh_timestamp     -- when pipeline ran
-├── layer                 -- Bronze/Silver/Gold
-├── entity                -- table name
-├── metric_name           -- e.g., 'coverage_rate', 'match_rate'
+├── refresh_timestamp     -- when pipeline ran (UTC)
+├── layer                 -- Bronze/Silver/Gold/Pipeline
+├── entity                -- table name ('gate' for the DQ gate verdict rows)
+├── metric_name           -- e.g., 'coverage_rate', 'match_rate', 'dq_gate_raised'
 ├── metric_value          -- numeric value
 ├── threshold             -- optional acceptable level
-└── breach_flag           -- exceeded threshold?
+├── breach_flag           -- metric crossed its threshold? NOT the pipeline gate
+├── status                -- per-check verdict 'pass'/'fail'/'warning'; 'n/a' on
+│                            non-check rows; NULL only pre-task-040. THIS is the
+│                            field the blocking gate reads.
+└── producer              -- 'data_quality_checks' | 'silver-to-gold2'
 ```
 
 **Business Value:**
@@ -295,7 +299,10 @@ gold_gap_registry
 ├── gap_type              -- material, country
 ├── first_seen            -- when gap first appeared
 ├── last_seen             -- most recent occurrence
-├── total_occurrences     -- cumulative count
+├── total_occurrences     -- CURRENT-RUN occurrence count, not cumulative (task-027 / DEC-005).
+│                            The audit tables it reads are full snapshots rebuilt every run, so
+│                            incrementing measured occurrences x runs. Gap AGE is carried
+│                            losslessly by first_seen / last_seen instead.
 ├── current_status        -- Open/In Progress/Resolved/Excluded
 ├── estimated_impact      -- EUR or % affected
 ├── resolution_date       -- when fixed
@@ -303,7 +310,8 @@ gold_gap_registry
 ```
 
 **Merge Logic (per refresh):**
-1. **Existing gaps:** Update `last_seen`, increment `total_occurrences`
+1. **Existing gaps:** Update `last_seen`, **set** `total_occurrences` to the current run's count (task-027 / DEC-005 — see the schema note above; it is not incremented)
+1. **Reopened gaps:** a gap whose `current_status` is `Resolved` but which appears again in the current run returns to `Open`, `resolution_date` is cleared, and a dated reopen note preserving the prior resolution is written. There is no separate `Reopened` status — every consumer filters `current_status = 'Open'`, so a new status value would strand the gap (DEC-005 sub-decision 2)
 2. **New gaps:** Insert with `first_seen = now`, `status = Open`
 3. **Resolved gaps:** Mark `status = Resolved` if value now matches an alias
 
@@ -337,9 +345,13 @@ CREATE TABLE gold_quality_history (
     metric_name STRING,
     metric_value DOUBLE,
     threshold DOUBLE,
-    breach_flag BOOLEAN
+    breach_flag BOOLEAN,
+    status STRING,      -- task-040: per-check verdict; the field the gate reads
+    producer STRING     -- task-040: which notebook appended the row
 )
 ```
+
+`status` and `producer` were added to the live table with `ALTER TABLE ... ADD COLUMNS` (the table is append-only and already held history). Rows predating that change carry NULL in both and are not backfilled.
 
 ### gold_gap_registry
 ```sql

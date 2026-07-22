@@ -299,10 +299,16 @@ CALCULATE(
     gold_unmapped_supply_audit[impact_level] = "High Impact"
 )
 
+-- task-027: the audit table is one row per (source row x failed dimension); the failing
+-- value lives in [unmapped_value] and [unmapped_type] says which dimension failed.
+-- [original_material] no longer exists.
 Top Unmapped Material =
 TOPN(
     1,
-    VALUES(gold_unmapped_supply_audit[original_material]),
+    CALCULATETABLE(
+        VALUES(gold_unmapped_supply_audit[unmapped_value]),
+        gold_unmapped_supply_audit[unmapped_type] = "material"
+    ),
     CALCULATE(COUNTROWS(gold_unmapped_supply_audit)),
     DESC
 )

@@ -195,10 +195,15 @@ total_unmapped_proc = unmapped_proc.count()
 print(f"Total Unmapped Procurement Records: {total_unmapped_proc:,}")
 
 if total_unmapped_proc > 0:
+    # task-027: gold_unmapped_procurement_audit is now one row per (source row x failed
+    # dimension) — unmapped_type is 'material' | 'hq_country' | 'prod_country' (lowercase)
+    # and unmapped_value holds only the value that actually failed to join. The old
+    # groupBy("original_hq_country") counted the HQ country of every unmapped row even
+    # when the HQ country had mapped fine and the material was the real gap.
     print("\nTop Unmapped Materials:")
     (unmapped_proc
-     .filter(F.col("unmapped_type") == "Material")
-     .groupBy("original_material")
+     .filter(F.col("unmapped_type") == "material")
+     .groupBy("unmapped_value")
      .count()
      .orderBy(F.desc("count"))
      .limit(15)
@@ -206,8 +211,8 @@ if total_unmapped_proc > 0:
 
     print("\nTop Unmapped HQ Countries:")
     (unmapped_proc
-     .filter(F.col("original_hq_country").isNotNull())
-     .groupBy("original_hq_country")
+     .filter(F.col("unmapped_type") == "hq_country")
+     .groupBy("unmapped_value")
      .count()
      .orderBy(F.desc("count"))
      .limit(15)
@@ -215,8 +220,8 @@ if total_unmapped_proc > 0:
 
     print("\nTop Unmapped Production Countries:")
     (unmapped_proc
-     .filter(F.col("original_prod_country").isNotNull())
-     .groupBy("original_prod_country")
+     .filter(F.col("unmapped_type") == "prod_country")
+     .groupBy("unmapped_value")
      .count()
      .orderBy(F.desc("count"))
      .limit(15)
@@ -243,11 +248,16 @@ total_unmapped_supply = unmapped_supply.count()
 print(f"Total Unmapped Supply Share Records: {total_unmapped_supply:,}")
 
 if total_unmapped_supply > 0:
+    # task-027: gold_unmapped_supply_audit is now one row per (source row x failed
+    # dimension); unmapped_dimension was renamed to unmapped_type ('material' | 'country' |
+    # 'stage', lowercase) and unmapped_value holds only the failing value. A row whose
+    # material AND country both failed now appears once per gap instead of being counted
+    # as a material gap only.
     print("\n⚠️  CRITICAL: Unmapped Materials by Impact")
     print("(Higher share % = more critical to resolve)\n")
     (unmapped_supply
-     .filter(F.col("unmapped_dimension") == "Material")
-     .groupBy("original_material", "impact_level")
+     .filter(F.col("unmapped_type") == "material")
+     .groupBy("unmapped_value", "impact_level")
      .agg(
          F.count("*").alias("record_count"),
          F.sum("share_pct").alias("total_share_pct"),
@@ -260,8 +270,8 @@ if total_unmapped_supply > 0:
     print("\n⚠️  CRITICAL: Unmapped Countries by Impact")
     print("(Countries with high supply share that need mapping)\n")
     (unmapped_supply
-     .filter(F.col("unmapped_dimension") == "Country")
-     .groupBy("original_country", "original_stage", "impact_level")
+     .filter(F.col("unmapped_type") == "country")
+     .groupBy("unmapped_value", "impact_level")
      .agg(
          F.count("*").alias("record_count"),
          F.sum("share_pct").alias("total_share_pct"),
@@ -274,9 +284,9 @@ if total_unmapped_supply > 0:
     # Impact summary
     print("\nImpact Level Distribution:")
     (unmapped_supply
-     .groupBy("impact_level", "unmapped_dimension")
+     .groupBy("impact_level", "unmapped_type")
      .count()
-     .orderBy("unmapped_dimension", F.desc("count"))
+     .orderBy("unmapped_type", F.desc("count"))
      .show(truncate=False))
 else:
     print("✅ No unmapped supply share records found!")

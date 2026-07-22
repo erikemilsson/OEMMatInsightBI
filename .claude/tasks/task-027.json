@@ -2,7 +2,7 @@
   "id": "task-027",
   "title": "Fix quality observability tables — gap registry mislabels every gap, resolved gaps never reopen, occurrences double-count, low-confidence snapshot goes stale",
   "description": "The Task-018 observability tables (consumed directly by the semantic model) record systematically wrong data. (A) gold_unmapped_procurement_audit stores original_material/hq/prod values UNCONDITIONALLY for every unmapped row and sets unmapped_type only for material misses (NULL otherwise) — so the gap-registry ingestion's COALESCE(original_material, original_hq_country, original_prod_country) ALWAYS picks the material name (even when the material mapped fine and the country was the gap), and its CASE types nearly everything as 'country' because original_hq_country is always non-null. Net: gold_gap_registry fills with entries like gap_type='country', gap_natural_key='Copper'. The supply-share branch has the same COALESCE flaw. (B) The registry MERGE updates only current_status != 'Resolved' and has no reopen branch — a resolved gap that regresses is matched, skipped, and invisible forever. (C) total_occurrences += source count each run, but the audit tables are full snapshots rebuilt from ALL data every run, so the counter measures occurrences x runs, not occurrences (also breaks the medallion doc's idempotency claim). (D) gold_low_confidence_audit is only overwritten when there ARE low-confidence matches; when all are resolved the stale snapshot persists indefinitely in the DirectLake table.",
-  "status": "Pending",
+  "status": "Finished",
   "priority": "P2",
   "difficulty": 5,
   "owner": "both",
@@ -15,7 +15,10 @@
   "section_snapshot_ref": "",
   "estimated_hours": 4,
   "files_affected": [
-    "fabric/silver-to-gold2.Notebook/notebook-content.py"
+    "fabric/silver-to-gold2.Notebook/notebook-content.py",
+    "fabric/create_quality_views.sql",
+    "fabric/data_quality_analysis.Notebook/notebook-content.py",
+    "fabric/dax/quality_measures.dax"
   ],
   "acceptanceCriteria": [
     "Audit tables record WHICH dimension failed per row: gold_unmapped_procurement_audit emits one row per (source row x failed dimension) with unmapped_type in {material, hq_country, prod_country} and unmapped_value = the failing value only (restructure of silver-to-gold2:1169-1186); same one-row-per-failed-dimension shape for gold_unmapped_supply_audit (lines 1367-1392, which currently records only the FIRST failing dimension).",
@@ -35,14 +38,162 @@
     "EVIDENCE (D): populate_low_confidence_audit writes only inside 'if low_conf_count > 0' at lines 2424-2432; zero-match runs leave the previous snapshot in place. Table is in the semantic model (gold_low_confidence_audit.tmdl).",
     "DOC MISMATCH to fold into task-033: data_quality_architecture.md:149-157 claims the procurement audit has frequency + spend_impact fields (marked done) — actual table has neither; either add them here or fix the doc there.",
     "SAMPLE DATA INTERACTION: sample-quality-data.Notebook seeds gap_registry rows with sequential MAX(gap_id)+n ids while real rows use stable_key hashes, and seeded 'Open' sample gaps will be auto-'Resolved' by the next real run's absence sweep with note 'value now has alias mapping' — if the demo story matters, exclude [SAMPLE] rows from the auto-resolve sweep while in here (one-line filter).",
-    "SCHEMA CHANGE WARNING: restructuring audit tables changes columns consumed by create_dq_dashboard() (top_unmapped_materials/countries queries at lines 1618-1634) — update those queries in the same pass."
+    "SCHEMA CHANGE WARNING: restructuring audit tables changes columns consumed by create_dq_dashboard() (top_unmapped_materials/countries queries at lines 1618-1634) — update those queries in the same pass.",
+    "IMPLEMENTED 2026-07-23 (implement-agent). Defect A fixed at the DATA SHAPE, not the inference: both audit tables now emit ONE ROW PER (source row x failed dimension) via a shared unmapped_gap(condition, unmapped_type, gap_dimension, value_col) helper whose per-dimension struct is NULL when that dimension joined fine, so array+explode+filter yields 0..N rows carrying only the value that actually failed. Procurement emits row_id | unmapped_type {material,hq_country,prod_country} | gap_dimension {material,country} | unmapped_value | spend_eur | detected_timestamp; supply emits the same contract plus share_pct + impact_level (its old chained when/when/when recorded only the FIRST failing dimension, so second gaps were invisible).",
+    "Crit 2: the COALESCE+CASE inference is DELETED outright; the registry now groups unmapped_value + gap_dimension straight off the audit rows. Crit 3: a first whenMatchedUpdate branch conditioned on target.current_status='Resolved' returns the gap to 'Open', clears resolution_date and writes a dated reopen note preserving the prior resolution (truncated 180 chars); the pre-existing '!= Resolved' branch is now second (Delta applies the first matching clause) so a deliberate 'Excluded' is not flipped back. Crit 4: SET-TO-CURRENT with ~25-line reasoning comment. Crit 5: the low-confidence write is unconditional (an empty DataFrame still carries the schema, so the overwrite truncates to 0 rows without dropping columns).",
+    "NO ALTER TABLE NEEDED: the audit tables are full write_tbl overwrites with overwriteSchema=true — task-040's ensure_quality_history_columns precedent applies only to the append-only gold_quality_history. Confirmed, not assumed.",
+    "LATENT CRASH FOUND AND FIXED (beyond the brief): in create_dq_dashboard, pyspark Row subclasses tuple, so `row.count` returns the bound tuple.count METHOD and `float(row.count)` raises TypeError. Verified locally against installed pyspark. It has never fired only because gold_unmapped_procurement_audit is evidently empty today — which also explains why the polluted registry rows the task describes (gap_type='country', gap_natural_key='Copper') come from the SUPPLY branch's COALESCE, not procurement. Aliases renamed to occurrence_count/gap_count in the two affected places.",
+    "SCOPE GREW FROM 1 FILE TO 4: three repo consumers outside the declared files_affected read the dropped columns and would have broken — fabric/create_quality_views.sql VIEW 4, fabric/data_quality_analysis.Notebook's two unmapped cells (which also carried defect A: it grouped by original_hq_country of EVERY unmapped row), and a commented-out DAX measure. All three updated; files_affected corrected. Filed as a template_gap: schema-change tasks need a consumer sweep at decomposition time the way enum changes do.",
+    "NOTE 7 TAKEN: the auto-resolve sweep excludes COALESCE(resolution_notes,'') LIKE '[SAMPLE]%', and its resolution note now states the observed fact ('no longer appears in the unmapped snapshot') instead of the unverified claim 'value now has alias mapping'. NOTE 8 TAKEN AND EXTENDED: create_dq_dashboard's top_unmapped queries rewritten — materials filter unmapped_type='material'; countries filter gap_dimension='country' so hq and prod misses aggregate together, since one alias fixes both.",
+    "DELIBERATE SCOPE ADDITION, authorised by note 6 ('either add them here or fix the doc there'): spend_eur added to the procurement audit, making SUM(spend_eur) per unmapped_value the spend_impact that data_quality_architecture.md already claims exists and that view-unmapped.md already queries. `frequency` deliberately NOT added — this table is per-occurrence and frequency is COUNT(*).",
+    "THREE DECISIONS filed together as DEC-005 (registry lifecycle contract), not three records — they are one contract on one table and they interact. Sub-decisions 1 (set-to-current) and 2 (reopen-as-Open) were DELEGATED by criteria 4 and 3 respectively, so their ratification is a formality; sub-decision 3 (coarse gap_type) was NOT delegated and is the one genuine call for Erik.",
+    "FRICTION: FR-016 (view-unmapped.md names unmapped_field, a column that does not exist), FR-017 (arch doc says total_occurrences is cumulative), FR-018 (arch doc § [2] field claims vs reality). All three are task-033 material.",
+    "CRIT 6 UNPROVEN: no Spark session locally, so neither the two-consecutive-/run-gold idempotency check nor the [Erik] DQ report page check was executed. Evidence to collect on the next /run-gold: total_occurrences identical across two back-to-back runs; the new '(N reopened, M auto-resolved)' line in the MERGE print; a hand-check that gap_natural_key values are the values that actually failed to join.",
+    "VERIFIED 2026-07-23 attempt 1 — pass. Criteria 1 and 2 were MEASURED, not argued: verify-agent stood up a local[1] SparkSession and replayed the restructure against a 5-row fixture, 9/9 assertions. The row.count TypeError was independently reproduced.",
+    "PREMISE CORRECTED: this project is NOT locally unverifiable. pyspark 4.0.1 + OpenJDK 17 are installed; the pure-DataFrame layer executes in under a minute. The real local ceiling is Delta-specific operations (MERGE, time travel — delta-spark absent) and lakehouse I/O. Recorded in root CLAUDE.md and auto-memory.",
+    "OPEN, not blocking: VIEW 8 (dbo.v_quality_issues) in create_quality_views.sql was missed by the consumer sweep — post-restructure it counts gap instances rather than source records, inflating record_count up to 3x and double-counting share_pct, which can flip its HIGH/MEDIUM/LOW priority label. Nothing errors, which is why a would-break sweep missed it. Note the file also uses CREATE OR REPLACE VIEW and COUNT(*) FILTER (WHERE ...), neither valid Fabric Warehouse T-SQL, so it has almost certainly never run."
   ],
   "user_feedback": "",
   "created_date": "2026-07-13",
-  "updated_date": "2026-07-13",
-  "completion_date": null,
-  "verification_attempts": 0,
+  "updated_date": "2026-07-23",
+  "completion_date": "2026-07-23",
+  "verification_attempts": 1,
   "out_of_spec": false,
   "absorbed_into": "",
-  "interaction_hint": "dashboard"
+  "interaction_hint": "dashboard",
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-07-23T01:05:00Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "partial",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "notes": "Hunk attribution done FIRST: silver-to-gold2 hunks @@2164/@@2172/@@2312 and the producer-filtered run count inside @@2682 are task-040's; data_quality_checks and both .claude/support/documents diffs are entirely task-040's and were excluded. CRITERIA 1 AND 2 VERIFIED BY ACTUAL EXECUTION, not source-reading: pyspark 4.0.1 + OpenJDK 17 are installed locally, so a local[1] SparkSession replayed the unmapped_gap helper and the array/explode/filter pipeline verbatim against a 5-row fixture. 9/9 assertions passed: fully-mapped row emits 0 audit rows; HQ-country-only failure emits exactly 1 row carrying 'Türkiye' NOT the material name; material AND prod-country failure emits TWO rows (the exact defect the old chained when/when/when hid); all-three failure emits three; a failed dimension with a NULL source value survives as NULL unmapped_value. Registry ingestion over those rows produced {('Türkiye','country'):2, ('Coltan','material'):2, ('Kongo','country'):2} — the gap_type='country'/gap_natural_key='Copper' pollution shape is now STRUCTURALLY UNREACHABLE. Crit 2: repo-wide grep for original_material/original_hq_country/original_prod_country/original_country/original_stage returns zero live code references — every survivor is a comment or task prose. Crit 3 verified from actual clause order at silver-to-gold2:2645-2685: reopen branch is FIRST, '!= Resolved' second; Delta applies the first matching clause, so a Resolved gap reopens and an 'Excluded' row falls to the second branch whose set map never includes current_status — Excluded cannot be flipped back. Exactly 2 whenMatched clauses (within Delta's Python builder limit). reopened_count materialised before the MERGE, auto_resolved_count before the resolve MERGE — both correct. Crit 4: set-to-current in both matched branches, idempotent by construction, with the task-029 windowing caveat in the comment. Crit 5: write is unconditional and outside the count check; all_low_conf is built from SQL + unionByName + an explicit 8-column .select(), so at zero rows it still carries a fully-typed schema. The caller guard was correctly changed from truthiness to 'is not None'. LATENT CRASH CLAIM INDEPENDENTLY REPRODUCED: Row(count=5); float(r.count) raises TypeError because Row subclasses tuple and __getattr__ is never reached for a name resolving on the type. Fix complete at EVERY affected site — repo sweep for 'as count' found two survivors that feed .show() only; 'as index' (the other shadowing tuple method) has zero hits. Consumer sweep re-run independently: all three declared consumers correct and complete, including the 'Material'->'material' case change with zero stale capitalized filters remaining. Semantic model NOT at risk — both audit tables sit in expressions.tmdl's PBI_RemovedChildren with no .tmdl table definition, so no DirectLake binding depends on the dropped columns. One consumer WAS missed (VIEW 8, see issues). Both notebooks ast.parse clean. runtime_validation='partial' deliberately: the pure-DataFrame layer was executed and passed; Delta MERGE (delta-spark absent) and lakehouse I/O were not.",
+      "issues": [
+        {
+          "severity": "minor",
+          "description": "Consumer sweep MISSED VIEW 8 in fabric/create_quality_views.sql (dbo.v_quality_issues, lines 288-306): it still does COUNT(*) and SUM(share_pct) over both audit tables, which after the restructure count gap INSTANCES rather than source records — a transaction failing on material and production country now contributes 3x to record_count, and a supply row failing two dimensions double-counts share_pct into business_impact. The view's priority CASE compares that inflated count against COUNT(*) FROM fact_procurement, so the HIGH/MEDIUM/LOW label can flip. Nothing errors, which is why a sweep for would-break consumers did not catch it; the equivalent grain change WAS handled correctly for the 'Unmapped Records' metric in silver-to-gold2."
+        },
+        {
+          "severity": "minor",
+          "description": "Criterion 4's second clause ('reconciled with data_quality_architecture.md:298') was deferred to task-033 rather than performed. The doc still reads 'total_occurrences -- cumulative count' (~298) and, one paragraph later, 'Existing gaps: Update last_seen, increment total_occurrences' (~310) — the latter now actively contradicted by the code and NOT named in FR-017's source_anchor, so it had no owner. RESOLVED BY ORCHESTRATOR post-verification: both lines corrected in place (support docs are directly editable under DEC-016)."
+        },
+        {
+          "severity": "minor",
+          "description": "VIEW 4 (v_top_unmapped_values) buckets on the fine-grained unmapped_type, so procurement gaps split into 'hq_country'/'prod_country' while supply gaps roll up to 'country' in the same UNION — the view's dimension vocabulary is internally inconsistent. gap_dimension (which the notebook's own top_unmapped_countries query correctly uses, for exactly the stated reason that one alias fixes both) would have made it consistent."
+        },
+        {
+          "severity": "minor",
+          "description": "MIGRATION SIDE EFFECT to expect on the first post-deploy run, not a defect: gap_id = stable_key(gap_natural_key, entity, gap_type) and BOTH inputs change for nearly every existing row, so pre-existing registry rows will not match the new source, will be swept as absent, and stamped 'Auto-resolved: value no longer appears in the unmapped snapshot'. CONSEQUENCE FOR CRITERION 6: the two-run stability comparison must be taken across runs 2 and 3, NOT runs 1 and 2, since run 1 performs the one-time re-keying."
+        },
+        {
+          "severity": "minor",
+          "description": ".claude/commands/check-quality.md queries the same non-existent unmapped_field column FR-016 records for view-unmapped.md, plus unmapped_material/unmapped_country/unmapped_impact_score against gold_unmapped_supply_audit (columns in neither the old nor the new schema). Pre-existing drift, not a regression — this task in fact moved the procurement query closer to correct — but FR-016's source_anchor names only view-unmapped.md, so check-quality.md's copy is currently unowned."
+        },
+        {
+          "severity": "minor",
+          "description": "Acceptance criterion 6 unmet, as expected and by design: needs two consecutive /run-gold executions in Fabric plus an [Erik] review of the DQ report page."
+        }
+      ]
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-07-23T01:05:00Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "partial",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "Hunk attribution done FIRST: silver-to-gold2 hunks @@2164/@@2172/@@2312 and the producer-filtered run count inside @@2682 are task-040's; data_quality_checks and both .claude/support/documents diffs are entirely task-040's and were excluded. CRITERIA 1 AND 2 VERIFIED BY ACTUAL EXECUTION, not source-reading: pyspark 4.0.1 + OpenJDK 17 are installed locally, so a local[1] SparkSession replayed the unmapped_gap helper and the array/explode/filter pipeline verbatim against a 5-row fixture. 9/9 assertions passed: fully-mapped row emits 0 audit rows; HQ-country-only failure emits exactly 1 row carrying 'Türkiye' NOT the material name; material AND prod-country failure emits TWO rows (the exact defect the old chained when/when/when hid); all-three failure emits three; a failed dimension with a NULL source value survives as NULL unmapped_value. Registry ingestion over those rows produced {('Türkiye','country'):2, ('Coltan','material'):2, ('Kongo','country'):2} — the gap_type='country'/gap_natural_key='Copper' pollution shape is now STRUCTURALLY UNREACHABLE. Crit 2: repo-wide grep for original_material/original_hq_country/original_prod_country/original_country/original_stage returns zero live code references — every survivor is a comment or task prose. Crit 3 verified from actual clause order at silver-to-gold2:2645-2685: reopen branch is FIRST, '!= Resolved' second; Delta applies the first matching clause, so a Resolved gap reopens and an 'Excluded' row falls to the second branch whose set map never includes current_status — Excluded cannot be flipped back. Exactly 2 whenMatched clauses (within Delta's Python builder limit). reopened_count materialised before the MERGE, auto_resolved_count before the resolve MERGE — both correct. Crit 4: set-to-current in both matched branches, idempotent by construction, with the task-029 windowing caveat in the comment. Crit 5: write is unconditional and outside the count check; all_low_conf is built from SQL + unionByName + an explicit 8-column .select(), so at zero rows it still carries a fully-typed schema. The caller guard was correctly changed from truthiness to 'is not None'. LATENT CRASH CLAIM INDEPENDENTLY REPRODUCED: Row(count=5); float(r.count) raises TypeError because Row subclasses tuple and __getattr__ is never reached for a name resolving on the type. Fix complete at EVERY affected site — repo sweep for 'as count' found two survivors that feed .show() only; 'as index' (the other shadowing tuple method) has zero hits. Consumer sweep re-run independently: all three declared consumers correct and complete, including the 'Material'->'material' case change with zero stale capitalized filters remaining. Semantic model NOT at risk — both audit tables sit in expressions.tmdl's PBI_RemovedChildren with no .tmdl table definition, so no DirectLake binding depends on the dropped columns. One consumer WAS missed (VIEW 8, see issues). Both notebooks ast.parse clean. runtime_validation='partial' deliberately: the pure-DataFrame layer was executed and passed; Delta MERGE (delta-spark absent) and lakehouse I/O were not.",
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "Consumer sweep MISSED VIEW 8 in fabric/create_quality_views.sql (dbo.v_quality_issues, lines 288-306): it still does COUNT(*) and SUM(share_pct) over both audit tables, which after the restructure count gap INSTANCES rather than source records — a transaction failing on material and production country now contributes 3x to record_count, and a supply row failing two dimensions double-counts share_pct into business_impact. The view's priority CASE compares that inflated count against COUNT(*) FROM fact_procurement, so the HIGH/MEDIUM/LOW label can flip. Nothing errors, which is why a sweep for would-break consumers did not catch it; the equivalent grain change WAS handled correctly for the 'Unmapped Records' metric in silver-to-gold2."
+      },
+      {
+        "severity": "minor",
+        "description": "Criterion 4's second clause ('reconciled with data_quality_architecture.md:298') was deferred to task-033 rather than performed. The doc still reads 'total_occurrences -- cumulative count' (~298) and, one paragraph later, 'Existing gaps: Update last_seen, increment total_occurrences' (~310) — the latter now actively contradicted by the code and NOT named in FR-017's source_anchor, so it had no owner. RESOLVED BY ORCHESTRATOR post-verification: both lines corrected in place (support docs are directly editable under DEC-016)."
+      },
+      {
+        "severity": "minor",
+        "description": "VIEW 4 (v_top_unmapped_values) buckets on the fine-grained unmapped_type, so procurement gaps split into 'hq_country'/'prod_country' while supply gaps roll up to 'country' in the same UNION — the view's dimension vocabulary is internally inconsistent. gap_dimension (which the notebook's own top_unmapped_countries query correctly uses, for exactly the stated reason that one alias fixes both) would have made it consistent."
+      },
+      {
+        "severity": "minor",
+        "description": "MIGRATION SIDE EFFECT to expect on the first post-deploy run, not a defect: gap_id = stable_key(gap_natural_key, entity, gap_type) and BOTH inputs change for nearly every existing row, so pre-existing registry rows will not match the new source, will be swept as absent, and stamped 'Auto-resolved: value no longer appears in the unmapped snapshot'. CONSEQUENCE FOR CRITERION 6: the two-run stability comparison must be taken across runs 2 and 3, NOT runs 1 and 2, since run 1 performs the one-time re-keying."
+      },
+      {
+        "severity": "minor",
+        "description": ".claude/commands/check-quality.md queries the same non-existent unmapped_field column FR-016 records for view-unmapped.md, plus unmapped_material/unmapped_country/unmapped_impact_score against gold_unmapped_supply_audit (columns in neither the old nor the new schema). Pre-existing drift, not a regression — this task in fact moved the procurement query closer to correct — but FR-016's source_anchor names only view-unmapped.md, so check-quality.md's copy is currently unowned."
+      },
+      {
+        "severity": "minor",
+        "description": "Acceptance criterion 6 unmet, as expected and by design: needs two consecutive /run-gold executions in Fabric plus an [Erik] review of the DQ report page."
+      }
+    ]
+  },
+  "user_review_pending": true,
+  "test_protocol": {
+    "summary": "Confirm in Fabric what cannot be executed locally: gap-registry idempotency across consecutive runs, the reopen/auto-resolve MERGE branches, and that gap values are the values that actually failed to join.",
+    "automated_results": "Locally executed with pyspark 4.0.1 + OpenJDK 17 on a local[1] session: 9/9 assertions passed on the criterion-1 restructure (0 rows when all dimensions join; 1/2/3 rows for 1/2/3 failed dimensions; correct value per dimension; NULL source value preserved) and on the criterion-2 registry ingestion (no material name ever labelled a country gap; NULL-valued gaps excluded). The pyspark Row.count TypeError was independently reproduced. Both notebooks ast.parse cleanly. NOT executable locally: Delta MERGE (delta-spark absent) and lakehouse I/O — the steps below cover exactly that residue.",
+    "estimated_time": "20-25 minutes across two or three pipeline runs",
+    "steps": [
+      {
+        "type": "command",
+        "command": "/run-gold",
+        "instruction": "Deploy the updated silver-to-gold2 to Fabric and run /run-gold once. This run performs the one-time re-keying — treat it as the BASELINE, not as run 1 of the stability pair.",
+        "expected": "Pipeline completes. The gap registry MERGE print now ends with '(N reopened, M auto-resolved)'. Auto-resolved will likely be large — every pre-existing mislabelled gap is being retired."
+      },
+      {
+        "type": "command",
+        "instruction": "Snapshot the registry: SELECT gap_id, gap_natural_key, gap_type, entity, total_occurrences, current_status FROM oem_lh.gold_gap_registry ORDER BY gap_id",
+        "expected": "Save this result. Every gap_type='material' row carries a material name and every gap_type='country' row a country name — the 'Copper labelled as country' shape must be absent."
+      },
+      {
+        "type": "command",
+        "command": "/run-gold",
+        "instruction": "Run /run-gold a second time on unchanged data, then re-run the same SELECT and diff against the snapshot.",
+        "expected": "total_occurrences IDENTICAL row-for-row (criterion 4's set-to-current semantics and the medallion idempotency claim). last_seen advances; first_seen, gap_id, gap_type, gap_natural_key, current_status unchanged. MERGE print reports 0 reopened, 0 auto-resolved."
+      },
+      {
+        "type": "command",
+        "instruction": "Hand-check gap values against audit rows: SELECT unmapped_type, gap_dimension, unmapped_value, COUNT(*) FROM oem_lh.gold_unmapped_procurement_audit GROUP BY 1,2,3 ORDER BY 4 DESC LIMIT 20 — then confirm each unmapped_value genuinely has no alias in the corresponding lookup table.",
+        "expected": "Each row names one failing dimension and one value belonging to that dimension. A transaction with two gaps appears twice, once per dimension. No row carries a value from a dimension that joined fine."
+      },
+      {
+        "type": "command",
+        "command": "/run-gold",
+        "instruction": "Exercise the reopen branch: pick a gap_id still present in the current unmapped snapshot, UPDATE oem_lh.gold_gap_registry SET current_status='Resolved', resolution_notes='manual test' WHERE gap_id='<that id>', then run /run-gold.",
+        "expected": "Print reports (1 reopened, ...); the row returns to current_status='Open', resolution_date NULL, resolution_notes beginning 'Reopened <timestamp>: value is unmapped again. Previous resolution: manual test'. This branch cannot be tested outside Fabric — delta-spark is not installed locally."
+      },
+      {
+        "type": "command",
+        "command": "/run-gold",
+        "instruction": "Confirm an 'Excluded' gap is not flipped back: set one currently-unmapped gap to current_status='Excluded', run /run-gold, re-read it.",
+        "expected": "Still 'Excluded'; only last_seen and total_occurrences moved. This is the clause-ordering property in criterion 3."
+      },
+      {
+        "type": "visual",
+        "instruction": "[Erik] Open the DQ report page in Power BI and read the gap entries.",
+        "expected": "Country gaps name countries, material gaps name materials, occurrence counts are plausible per-run figures rather than run-multiplied totals."
+      },
+      {
+        "type": "command",
+        "instruction": "Optional, closes criterion 5 end-to-end: after a run with no low-confidence matches, SELECT COUNT(*) and DESCRIBE oem_lh.gold_low_confidence_audit.",
+        "expected": "0 rows, with all 8 columns still present — truncated, not dropped."
+      }
+    ]
+  }
 }

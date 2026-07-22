@@ -1054,6 +1054,36 @@ def log_quality_check(check_name: str, result: dict):
 | 50-69 | Poor | Escalate | Email + Slack alert |
 | 0-49 | Critical | Block pipeline | Email + Slack + PagerDuty |
 
+### Score severity vs. the blocking gate (they are different mechanisms)
+
+The severity table above is a **score** band. It is not what halts the pipeline. Two independent mechanisms exist and they are routinely confused:
+
+| | `breach_flag` (score threshold) | The gate (`status` over `BLOCKING_CHECKS`) |
+|---|---|---|
+| **What it is** | `metric_value < threshold` — for DQ check rows, `score < 70.0` (`data_quality_checks`, section 5) | `result["status"] == "fail"` for any check in the `BLOCKING_CHECKS` set (`data_quality_checks`, section 7) |
+| **Where it lands** | `gold_quality_history.breach_flag` | `gold_quality_history.status`, plus the `entity = 'gate'` verdict rows |
+| **Effect on the pipeline** | None. Advisory / trending only. | Raises `DataQualityException` once, after persistence — fails the `data_quality_checks` activity and halts the pipeline. |
+
+**They diverge, and the divergence is not rare.** `grain_uniqueness` on `fact_supply_share` failing on 2 duplicate grains out of 2,561 rows scores ~99.9. That is far above the 70.0 breach threshold, so `breach_flag` is `false` — and the check is in `BLOCKING_CHECKS` with `status = "fail"`, so the pipeline halts anyway. A run can therefore record **0 breaches and still be a blocked run**. Asserting "the DQ gate passed" from `breach_flag` reads the wrong field and produces a PASS that is evidence of nothing. Observed live on 2026-07-22: two runs recorded 0 breaches while one of them carried a blocking failure.
+
+**To answer "did the gate pass on run X" from the table alone** (task-040 — one query, no notebook source):
+
+```sql
+SELECT metric_name, metric_value, status
+FROM   oem_lh.gold_quality_history
+WHERE  entity = 'gate'
+  AND  refresh_timestamp = (SELECT MAX(refresh_timestamp)
+                            FROM   oem_lh.gold_quality_history
+                            WHERE  entity = 'gate');
+```
+
+`status` is `'pass'` or `'fail'`. `dq_gate_raised = 1.0` means the aggregated raise fired and the pipeline halted there; `dq_gate_blocking_failures` is the count; `dq_gate_blocking_evaluated` guards against a stale `BLOCKING_CHECKS` entry silently demoting a check to advisory. `refresh_timestamp` is written in **UTC** while the Fabric UI shows local time (UTC+2 CEST) — a correct, current measurement reads two hours "early".
+
+**Column conventions on `gold_quality_history`** (both added by task-040):
+
+- `status` — `'pass' | 'fail' | 'warning'` on per-check rows; `'n/a'` on rows that are not a single check result (dimension/overall aggregates, silver-to-gold2's coverage metrics, the gate's evaluated-count row); **NULL only on rows written before task-040**, which are deliberately not backfilled because their gate outcome was never recorded.
+- `producer` — `'data_quality_checks'` or `'silver-to-gold2'`. Both notebooks append to this table on every pipeline run, each with its own `refresh_timestamp`, so `COUNT(DISTINCT refresh_timestamp)` over the whole table double-counts runs. Filter by `producer` first.
+
 ---
 
 **Document Status:** Design complete and ready for implementation

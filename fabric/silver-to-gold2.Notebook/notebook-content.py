@@ -94,6 +94,43 @@ def check_unmapped(df, join_col, name, fail=False):
             raise ValueError(f"Pipeline failed: {count} unmapped {name} records")
     return count
 
+def unmapped_gap(condition, unmapped_type, gap_dimension, value_col):
+    """
+    Build ONE audit-row candidate for ONE failed dimension (task-027).
+
+    Why this exists: the unmapped-audit tables used to store every original value on
+    every unmapped row (material AND hq_country AND prod_country, unconditionally), so
+    nothing downstream could tell WHICH join actually failed. The gap registry guessed
+    with COALESCE(original_material, original_hq_country, original_prod_country) and got
+    it wrong for every country gap — the registry filled with rows like
+    gap_type='country' / gap_natural_key='Copper'. Each failed dimension now emits its
+    own audit row carrying only its own value, so no consumer has to infer anything.
+
+    Returns a struct when `condition` is true (that dimension failed to join) and NULL
+    otherwise, so a source row explodes into 0..N audit rows — one per failed dimension.
+
+      unmapped_type   the fine-grained slot that failed:
+                      material | hq_country | prod_country   (procurement)
+                      material | country | stage             (supply share)
+      gap_dimension   the dimension the value belongs to: material | country | stage.
+                      hq_country and prod_country both roll up to 'country' because the
+                      remediation is identical (one country alias fixes both) and
+                      data_quality_architecture.md keys gold_gap_registry.gap_type on the
+                      coarse dimension.
+      value_col       the source value that failed to join — and ONLY that value.
+
+    All branches build an identically-named struct so F.array() over several candidates
+    type-checks.
+    """
+    return F.when(
+        condition,
+        F.struct(
+            F.lit(unmapped_type).alias("unmapped_type"),
+            F.lit(gap_dimension).alias("gap_dimension"),
+            value_col.cast("string").alias("unmapped_value"),
+        ),
+    )
+
 # Pipeline execution timestamp
 pipeline_run_ts = datetime.now()
 print(f"Pipeline started at: {pipeline_run_ts}")
@@ -1319,21 +1356,52 @@ else:
         print(f"✓ fact_procurement: delete-insert complete for date_key >= {window_min_date_key} "
               f"({fact_procurement_complete.count():,} rows re-inserted)")
 
-# NEW: Create audit trail for unmapped records
+# Audit trail for unmapped records — ONE ROW PER (source row x failed dimension).
+#
+# task-027: this table used to be one row per unmapped source row carrying
+# original_material + original_hq_country + original_prod_country regardless of which
+# join failed, plus an unmapped_type that was only ever 'Material' or NULL. That shape
+# made "which dimension is the gap?" unanswerable, and every downstream consumer that
+# tried to answer it (gap registry, DQ dashboard, quality views) got it wrong.
+#
+# New shape:
+#   row_id | unmapped_type | gap_dimension | unmapped_value | spend_eur | detected_timestamp
+# A row whose material AND production country both failed now produces two rows, each
+# naming exactly one failing value. A fully-mapped source row produces none, so the old
+# outer .filter() is no longer needed — the explode below drops non-failing dimensions.
+#
+# spend_eur carries the transaction's spend onto each gap row so a gap can be ranked by
+# money at risk: SUM(spend_eur) per unmapped_value is the "spend_impact" that
+# data_quality_architecture.md § [2] already claims this table has, and the shape
+# /view-unmapped queries. "frequency" stays an aggregate (COUNT(*)) rather than a stored
+# column — this table is per-occurrence, not pre-aggregated.
+#
+# unmapped_value is left NULL when the SOURCE value itself is NULL (a genuinely empty
+# country on the transaction). Those rows stay in the audit as evidence, but the gap
+# registry skips them: a NULL has no natural key to alias.
 unmapped_audit = (
     fact_procurement_raw
-    .filter(
-        (F.col("m.material_key").isNull()) |
-        (F.col("c_hq.country_key").isNull()) |
-        (F.col("c_prod.country_key").isNull())
-    )
     .select(
-        F.col("p.row_id"),
-        F.col("p.material_name").alias("original_material"),
-        F.col("p.hq_country").alias("original_hq_country"),
-        F.col("p.prod_country").alias("original_prod_country"),
-        F.when(F.col("m.material_key").isNull(), "Material").alias("unmapped_type"),
-        F.current_timestamp().alias("detected_timestamp")
+        F.col("p.row_id").alias("row_id"),
+        F.col("spend_eur"),
+        F.array(
+            unmapped_gap(F.col("m.material_key").isNull(),
+                         "material", "material", F.col("p.material_name")),
+            unmapped_gap(F.col("c_hq.country_key").isNull(),
+                         "hq_country", "country", F.col("p.hq_country")),
+            unmapped_gap(F.col("c_prod.country_key").isNull(),
+                         "prod_country", "country", F.col("p.prod_country")),
+        ).alias("gap_candidates"),
+    )
+    .select("row_id", "spend_eur", F.explode("gap_candidates").alias("gap"))
+    .filter(F.col("gap").isNotNull())
+    .select(
+        "row_id",
+        F.col("gap.unmapped_type").alias("unmapped_type"),
+        F.col("gap.gap_dimension").alias("gap_dimension"),
+        F.col("gap.unmapped_value").alias("unmapped_value"),
+        "spend_eur",
+        F.current_timestamp().alias("detected_timestamp"),
     )
 )
 
@@ -1584,30 +1652,45 @@ assert _dup_grain_n == 0, (
 
 write_tbl(fact_supply_share_final, "fact_supply_share")
 
-# NEW: Create detailed audit trail for unmapped supply shares
-# This is critical for understanding global supply chain data gaps
+# Detailed audit trail for unmapped supply shares — ONE ROW PER (source row x failed
+# dimension), matching gold_unmapped_procurement_audit.
+#
+# task-027: the old chained when/when/when recorded only the FIRST failing dimension, so
+# a row whose material AND country both failed was logged as a material gap and the
+# country gap was invisible. It also stored original_material/original_country/
+# original_stage unconditionally, which is what let the gap registry's COALESCE pick a
+# material name and label it a country gap.
+#
+# unmapped_dimension is renamed to unmapped_type so both audit tables expose the same
+# contract (unmapped_type + gap_dimension + unmapped_value); share_pct and impact_level
+# are kept because gap prioritisation for supply is share-weighted.
 unmapped_supply_audit = (
     fact_supply_share_raw
-    .filter(
-        (F.col("m.material_key").isNull()) |
-        (F.col("c.country_key").isNull()) |
-        (F.col("st.stage_key").isNull())
-    )
     .select(
-        F.col("s.row_id"),
-        F.col("s.material").alias("original_material"),
-        F.col("s.country").alias("original_country"),
-        F.col("s.stage").alias("original_stage"),
-        F.col("s.share_pct"),
-        F.when(F.col("m.material_key").isNull(), "Material")
-         .when(F.col("c.country_key").isNull(), "Country")
-         .when(F.col("st.stage_key").isNull(), "Stage")
-         .alias("unmapped_dimension"),
+        F.col("s.row_id").alias("row_id"),
+        F.col("s.share_pct").alias("share_pct"),
+        F.array(
+            unmapped_gap(F.col("m.material_key").isNull(),
+                         "material", "material", F.col("s.material")),
+            unmapped_gap(F.col("c.country_key").isNull(),
+                         "country", "country", F.col("s.country")),
+            unmapped_gap(F.col("st.stage_key").isNull(),
+                         "stage", "stage", F.col("s.stage")),
+        ).alias("gap_candidates"),
+    )
+    .select("row_id", "share_pct", F.explode("gap_candidates").alias("gap"))
+    .filter(F.col("gap").isNotNull())
+    .select(
+        "row_id",
+        F.col("gap.unmapped_type").alias("unmapped_type"),
+        F.col("gap.gap_dimension").alias("gap_dimension"),
+        F.col("gap.unmapped_value").alias("unmapped_value"),
+        "share_pct",
+        # Impact assessment (unchanged thresholds)
+        F.when(F.col("share_pct") > 10, "High Impact")
+         .when(F.col("share_pct") > 5, "Medium Impact")
+         .otherwise("Low Impact").alias("impact_level"),
         F.current_timestamp().alias("detected_timestamp"),
-        # Add impact assessment
-        F.when(F.col("s.share_pct") > 10, "High Impact")
-         .when(F.col("s.share_pct") > 5, "Medium Impact")
-         .otherwise("Low Impact").alias("impact_level")
     )
 )
 
@@ -1836,22 +1919,30 @@ def create_dq_dashboard():
     unmapped_proc_count = spark.table(f"{DB}.gold_unmapped_procurement_audit").count()
     unmapped_supply_count = spark.table(f"{DB}.gold_unmapped_supply_audit").count()
 
-    # Get top unmapped values
+    # Get top unmapped values.
+    # task-027: the audit table now carries one row per failed dimension, so "top unmapped
+    # materials" is a filter on unmapped_type instead of a scan of a material column that
+    # was populated even when the material matched fine and the country was the real gap.
+    # The country query filters on gap_dimension so hq_country and prod_country misses are
+    # counted together — the same alias fixes both.
+    # The count alias is deliberately NOT `count`: pyspark Row inherits tuple.count, so
+    # `row.count` returns the bound tuple method (float(row.count) raises TypeError) —
+    # the old alias only escaped that because this audit table happened to be empty.
     top_unmapped_materials = spark.sql(f"""
-        SELECT original_material, COUNT(*) as count
+        SELECT unmapped_value, COUNT(*) as occurrence_count
         FROM {DB}.gold_unmapped_procurement_audit
-        WHERE original_material IS NOT NULL
-        GROUP BY original_material
-        ORDER BY count DESC
+        WHERE unmapped_type = 'material' AND unmapped_value IS NOT NULL
+        GROUP BY unmapped_value
+        ORDER BY occurrence_count DESC
         LIMIT 10
     """).collect()
 
     top_unmapped_countries = spark.sql(f"""
-        SELECT original_hq_country, COUNT(*) as count
+        SELECT unmapped_value, COUNT(*) as occurrence_count
         FROM {DB}.gold_unmapped_procurement_audit
-        WHERE original_hq_country IS NOT NULL
-        GROUP BY original_hq_country
-        ORDER BY count DESC
+        WHERE gap_dimension = 'country' AND unmapped_value IS NOT NULL
+        GROUP BY unmapped_value
+        ORDER BY occurrence_count DESC
         LIMIT 10
     """).collect()
 
@@ -1862,7 +1953,11 @@ def create_dq_dashboard():
         ("Overall", "Match Rate", float(proc_metrics.avg_quality_score * 100 if proc_metrics.avg_quality_score else 0), "Percentage of records with high-confidence matches", datetime.now()),
         ("Overall", "Total Records", float(proc_metrics.total_records + supply_metrics.total_records), "Combined procurement and supply share records", datetime.now()),
         ("Overall", "High Confidence %", float((proc_metrics.high_count / proc_metrics.total_records * 100) if proc_metrics.total_records else 0), "Records with quality score >= 0.9", datetime.now()),
-        ("Overall", "Unmapped Records", float(unmapped_proc_count + unmapped_supply_count), "Total records with unmapped dimensions", datetime.now()),
+        # task-027: the audit tables are now one row per (source row x failed dimension), so
+        # this counts unmapped dimension instances — a transaction that failed on both
+        # material and production country contributes 2. metric_name is left unchanged
+        # because Power BI visuals filter on it; only the description is corrected.
+        ("Overall", "Unmapped Records", float(unmapped_proc_count + unmapped_supply_count), "Total unmapped dimension instances (one per source row x failed dimension)", datetime.now()),
 
         # Procurement Metrics
         ("Procurement", "Total Records", float(proc_metrics.total_records), "Number of procurement transactions", datetime.now()),
@@ -1886,9 +1981,9 @@ def create_dq_dashboard():
     for i, row in enumerate(top_unmapped_materials):
         dashboard_rows.append((
             "Unmapped Materials",
-            f"#{i+1}: {row.original_material}",
-            float(row.count),
-            f"Unmapped material name appearing {row.count} times",
+            f"#{i+1}: {row.unmapped_value}",
+            float(row.occurrence_count),
+            f"Unmapped material name appearing {row.occurrence_count} times",
             datetime.now()
         ))
 
@@ -1896,9 +1991,9 @@ def create_dq_dashboard():
     for i, row in enumerate(top_unmapped_countries):
         dashboard_rows.append((
             "Unmapped Countries",
-            f"#{i+1}: {row.original_hq_country}",
-            float(row.count),
-            f"Unmapped country name appearing {row.count} times",
+            f"#{i+1}: {row.unmapped_value}",
+            float(row.occurrence_count),
+            f"Unmapped country name appearing {row.occurrence_count} times",
             datetime.now()
         ))
 
@@ -2164,6 +2259,21 @@ from delta.tables import DeltaTable
 # 1. CREATE TABLE: gold_quality_history (append-only)
 # -----------------------------------------------------------------------------
 # Schema matches data_quality_architecture.md
+#
+# task-040 widened the original 7-column schema by two:
+#   status   - the per-check verdict ("pass" / "fail" / "warning") produced by
+#              data_quality_checks.log_check_result. This is the field the DQ gate
+#              actually reads. "n/a" on rows that are not a single check result
+#              (this notebook's coverage/match metrics, aggregate scores).
+#   producer - which notebook appended the row. BOTH this notebook and
+#              data_quality_checks append to this table on every pipeline run;
+#              without a marker their rows are indistinguishable and any
+#              DISTINCT refresh_timestamp count over the whole table double-counts.
+#
+# breach_flag is unchanged and is NOT the gate: it is a threshold flag on the
+# metric (for DQ check rows, score < 70). A blocking check can fail the gate while
+# scoring 99.9 and never breaching. See data_quality_framework.md
+# "Score severity vs. the blocking gate".
 spark.sql(f"""
     CREATE TABLE IF NOT EXISTS {DB}.gold_quality_history (
         refresh_timestamp TIMESTAMP,
@@ -2172,12 +2282,49 @@ spark.sql(f"""
         metric_name STRING,
         metric_value DOUBLE,
         threshold DOUBLE,
-        breach_flag BOOLEAN
+        breach_flag BOOLEAN,
+        status STRING,
+        producer STRING
     )
     USING DELTA
     COMMENT 'Append-only quality metrics per pipeline run for trending analysis'
 """)
 print("✓ Created table: gold_quality_history")
+
+# -----------------------------------------------------------------------------
+# 1b. SCHEMA EVOLUTION for a gold_quality_history that predates task-040
+# -----------------------------------------------------------------------------
+# The table is append-only and already holds history, so it is widened in place
+# with an explicit ALTER TABLE rather than recreated or silently mergeSchema'd.
+# Rows written before task-040 keep NULL in both new columns and are deliberately
+# NOT backfilled: their gate outcome was never recorded and cannot be
+# reconstructed. NULL therefore means "pre-task-040 row"; "n/a" means "post-change
+# row that is not a per-check result".
+#
+# ADD COLUMNS appends the new columns at the end, so the writers below can keep
+# emitting columns in table order — name- and position-based resolution agree.
+#
+# An equivalent helper lives in data_quality_checks (that notebook writes to this
+# table too and can be run standalone). Keep the two in sync.
+QUALITY_HISTORY_PRODUCER = "silver-to-gold2"
+QUALITY_HISTORY_ADDED_COLUMNS = [("status", "STRING"), ("producer", "STRING")]
+
+
+def ensure_quality_history_columns():
+    """Idempotently add the task-040 columns to gold_quality_history."""
+    if not spark.catalog.tableExists(f"{DB}.gold_quality_history"):
+        return  # the first write creates the table with the full 9-column schema
+    existing = set(spark.table(f"{DB}.gold_quality_history").columns)
+    for col_name, col_type in QUALITY_HISTORY_ADDED_COLUMNS:
+        if col_name not in existing:
+            spark.sql(
+                f"ALTER TABLE {DB}.gold_quality_history ADD COLUMNS ({col_name} {col_type})"
+            )
+            print(f"  ↑ gold_quality_history: added column {col_name} {col_type} "
+                  f"(pre-existing rows keep NULL)")
+
+
+ensure_quality_history_columns()
 
 # -----------------------------------------------------------------------------
 # 2. CREATE TABLE: gold_gap_registry (SCD with MERGE)
@@ -2312,16 +2459,25 @@ def populate_quality_history():
 
     # Create DataFrame and append
     if metrics_to_insert:
+        # task-040: this notebook does not run the DQ check library and has no notion
+        # of blocking checks, so it has no per-check verdict to record -> status is
+        # "n/a" for every row it writes. `producer` is what makes these rows
+        # distinguishable from the ones data_quality_checks appends to the same table
+        # in the same pipeline run.
+        ensure_quality_history_columns()
         history_df = spark.createDataFrame(
-            [(pipeline_run_ts, layer, entity, metric, value, threshold, breach)
+            [(pipeline_run_ts, layer, entity, metric, value, threshold, breach,
+              "n/a", QUALITY_HISTORY_PRODUCER)
              for layer, entity, metric, value, threshold, breach in metrics_to_insert],
-            ["refresh_timestamp", "layer", "entity", "metric_name", "metric_value", "threshold", "breach_flag"]
+            ["refresh_timestamp", "layer", "entity", "metric_name", "metric_value", "threshold", "breach_flag",
+             "status", "producer"]
         )
 
         # Append to history table
         history_df.write.format("delta").mode("append").saveAsTable(f"{DB}.gold_quality_history")
 
-        print(f"✓ Appended {len(metrics_to_insert)} metrics to gold_quality_history")
+        print(f"✓ Appended {len(metrics_to_insert)} metrics to gold_quality_history "
+              f"(producer='{QUALITY_HISTORY_PRODUCER}')")
         return history_df
 
     return None
@@ -2351,47 +2507,56 @@ if quality_history_df:
 def populate_gap_registry():
     """
     MERGE pattern for gap lifecycle tracking:
-    1. Existing gaps: Update last_seen, increment total_occurrences
+    1. Existing open gaps: refresh last_seen and total_occurrences
     2. New gaps: Insert with first_seen = now, status = Open
-    3. Resolved gaps: Mark status = Resolved if value now has an alias match
+    3. Reopened gaps: a gap the registry had marked Resolved that is unmapped again
+       goes back to Open, carrying a note about the reopen (task-027)
+    4. Absent gaps: marked Resolved — they are no longer in the unmapped snapshot
 
-    Note: Resolution detection requires comparing against alias tables.
+    Reads the failed dimension straight off the audit rows: since task-027 both audit
+    tables emit one row per (source row x failed dimension) with unmapped_value (the
+    value that actually failed to join) and gap_dimension (material | country | stage),
+    there is nothing left to infer. The old
+    COALESCE(original_material, original_hq_country, original_prod_country) + CASE
+    inference is DELETED — it could not tell which join failed and labelled nearly
+    every gap gap_type='country' with a material name as the natural key.
     """
 
-    # Collect current unmapped values from audit tables
+    # Collect current unmapped values from the audit tables.
+    # gap_dimension (not unmapped_type) becomes gap_type: hq_country and prod_country
+    # misses of the same country are ONE gap because one country alias fixes both, and
+    # data_quality_architecture.md § Gap Registry keys gap_type on the coarse dimension.
+    # Rows whose unmapped_value is NULL are real gaps but have no natural key to alias,
+    # so they stay in the audit tables and out of the registry.
     current_gaps_procurement = spark.sql(f"""
         SELECT
-            COALESCE(original_material, original_hq_country, original_prod_country) as unmapped_value,
-            CASE
-                WHEN original_material IS NOT NULL AND original_hq_country IS NULL AND original_prod_country IS NULL THEN 'material'
-                WHEN original_hq_country IS NOT NULL THEN 'country'
-                WHEN original_prod_country IS NOT NULL THEN 'country'
-                ELSE 'unknown'
-            END as unmapped_type,
+            unmapped_value,
+            gap_dimension,
             'procurement' as entity,
             COUNT(*) as occurrence_count
         FROM {DB}.gold_unmapped_procurement_audit
-        WHERE COALESCE(original_material, original_hq_country, original_prod_country) IS NOT NULL
+        WHERE unmapped_value IS NOT NULL
         GROUP BY 1, 2
     """)
 
     current_gaps_supply = spark.sql(f"""
         SELECT
-            COALESCE(original_material, original_country) as unmapped_value,
-            unmapped_dimension as unmapped_type,
+            unmapped_value,
+            gap_dimension,
             'supply_share' as entity,
             COUNT(*) as occurrence_count
         FROM {DB}.gold_unmapped_supply_audit
-        WHERE COALESCE(original_material, original_country) IS NOT NULL
+        WHERE unmapped_value IS NOT NULL
         GROUP BY 1, 2
     """)
 
-    # Union all current gaps
+    # Union all current gaps (identical schemas — no allowMissingColumns, so a future
+    # schema drift between the two audit tables fails loudly instead of silently nulling)
     current_gaps = (
         current_gaps_procurement
-        .unionByName(current_gaps_supply, allowMissingColumns=True)
+        .unionByName(current_gaps_supply)
         .withColumn("gap_natural_key", F.col("unmapped_value"))
-        .withColumn("gap_type", F.lower(F.col("unmapped_type")))
+        .withColumn("gap_type", F.col("gap_dimension"))
     )
 
     current_gap_count = current_gaps.count()
@@ -2438,15 +2603,79 @@ def populate_gap_registry():
         # Get Delta table reference
         gap_registry_delta = DeltaTable.forName(spark, f"{DB}.gold_gap_registry")
 
-        # MERGE: Update existing, insert new
+        source_gaps.createOrReplaceTempView('_current_gaps')
+
+        # Count the gaps this run is about to REOPEN, before the MERGE changes them.
+        reopened_count = spark.sql(f"""
+            SELECT COUNT(*)
+            FROM {DB}.gold_gap_registry r
+            JOIN _current_gaps c ON r.gap_id = c.gap_id
+            WHERE r.current_status = 'Resolved'
+        """).first()[0]
+
+        # --------------------------------------------------------------------------
+        # task-027 — total_occurrences semantics: SET-TO-CURRENT, not increment.
+        #
+        # total_occurrences is "how many source rows exhibit this gap in the most recent
+        # run's unmapped snapshot". It is NOT a lifetime cumulative counter.
+        #
+        # Why: gold_unmapped_procurement_audit / gold_unmapped_supply_audit are FULL
+        # SNAPSHOTS — write_tbl overwrites them from all silver data on every run. The old
+        #   total_occurrences = target.total_occurrences + source.occurrence_count
+        # therefore added the SAME rows again on every run: ten runs over a value occurring
+        # ten times reported 100. That measured occurrences x runs, and it also broke the
+        # medallion doc's idempotency claim (re-running the pipeline on unchanged data
+        # changed gold data).
+        #
+        # Set-to-current is the only honest reading of a snapshot source, and it is
+        # idempotent: two consecutive runs on unchanged data leave the number identical.
+        # Gap AGE is already tracked losslessly by first_seen/last_seen, which is what the
+        # doc's business questions ("open for 3 months") actually need.
+        #
+        # data_quality_architecture.md § Gap Registry still calls total_occurrences a
+        # "cumulative count" — that description needs correcting (flagged for task-033).
+        #
+        # CAVEAT (task-029): once a real incremental watermark lands, the procurement audit
+        # becomes a snapshot of the WINDOW rather than of all data, and these counts become
+        # per-window. Today p_from_date defaults to 1900-01-01, so window == full table.
+        # --------------------------------------------------------------------------
+        # MERGE: reopen resolved gaps, refresh open ones, insert new ones.
+        # Clause order matters — Delta applies the first MATCHED clause whose condition
+        # holds, so the reopen branch must come before the plain refresh branch.
         gap_registry_delta.alias("target").merge(
             source_gaps.alias("source"),
             "target.gap_id = source.gap_id"
         ).whenMatchedUpdate(
+            # REOPEN (task-027): this gap was marked Resolved but the value is unmapped
+            # again. Without this branch the row was matched, skipped by the
+            # "!= 'Resolved'" condition, and the regression stayed invisible forever.
+            # It goes back to 'Open' rather than to a new 'Reopened' status so it stays
+            # inside the documented status set (Open / In Progress / Resolved / Excluded)
+            # and keeps flowing through every existing current_status = 'Open' consumer,
+            # including the absence sweep below. The reopen is recorded in
+            # resolution_notes, and resolution_date is cleared because it no longer holds.
+            condition="target.current_status = 'Resolved'",
+            set={
+                "last_seen": F.lit(pipeline_run_ts),
+                "total_occurrences": F.col("source.occurrence_count_int"),
+                "current_status": F.lit("Open"),
+                "resolution_date": F.lit(None).cast("timestamp"),
+                "resolution_notes": F.concat(
+                    F.lit(f"Reopened {pipeline_run_ts:%Y-%m-%d %H:%M:%S}: value is unmapped "
+                          f"again. Previous resolution: "),
+                    F.substring(
+                        F.coalesce(F.col("target.resolution_notes"), F.lit("(none recorded)")),
+                        1, 180
+                    ),
+                ),
+            }
+        ).whenMatchedUpdate(
+            # Still Open / In Progress / Excluded — refresh the sighting. current_status is
+            # deliberately left alone so a deliberate 'Excluded' is not flipped back.
             condition="target.current_status != 'Resolved'",
             set={
                 "last_seen": F.lit(pipeline_run_ts),
-                "total_occurrences": F.col("target.total_occurrences") + F.col("source.occurrence_count_int")
+                "total_occurrences": F.col("source.occurrence_count_int")
             }
         ).whenNotMatchedInsert(
             values={
@@ -2464,22 +2693,35 @@ def populate_gap_registry():
             }
         ).execute()
 
-        # Check for resolved gaps (gaps in registry but NOT in current unmapped)
-        # These are gaps that now have alias mappings
-        source_gaps.createOrReplaceTempView('_current_gaps')
-
-        # Get list of gap_ids that are resolved (exist in registry but not in current gaps)
+        # Check for resolved gaps (gaps in registry but NOT in current unmapped).
         # Using LEFT JOIN instead of subquery (Delta Lake doesn't support subqueries in UPDATE)
+        #
+        # task-027: sample rows seeded by sample-quality-data.Notebook are excluded. They are
+        # marked with a '[SAMPLE]' prefix in resolution_notes (that notebook's own convention,
+        # and how it cleans itself up) and describe a demo lifecycle that no real run can
+        # confirm — without this filter the first real run silently auto-resolved every
+        # seeded 'Open' gap and destroyed the demo story. Note: Spark SQL LIKE has no
+        # character-class syntax, so '[SAMPLE]%' matches the literal prefix.
         resolved_gaps = spark.sql(f"""
             SELECT r.gap_id
             FROM {DB}.gold_gap_registry r
             LEFT JOIN _current_gaps c ON r.gap_id = c.gap_id
-            WHERE r.current_status = 'Open' AND c.gap_id IS NULL
+            WHERE r.current_status = 'Open'
+              AND c.gap_id IS NULL
+              AND COALESCE(r.resolution_notes, '') NOT LIKE '[SAMPLE]%'
         """)
 
         resolved_gaps.createOrReplaceTempView('_resolved_gaps')
 
-        # Update resolved gaps using MERGE
+        # Materialise the count BEFORE the MERGE — resolved_gaps is a lazy query over
+        # gold_gap_registry filtered on current_status = 'Open', so re-counting it after
+        # the MERGE would always return 0.
+        auto_resolved_count = resolved_gaps.count()
+
+        # Update resolved gaps using MERGE.
+        # task-027: the note states what was actually observed (the value is no longer in
+        # the unmapped snapshot). The old text claimed "value now has alias mapping", which
+        # this sweep never verified — absence can equally mean the source row disappeared.
         spark.sql(f"""
             MERGE INTO {DB}.gold_gap_registry AS target
             USING _resolved_gaps AS resolved
@@ -2487,10 +2729,11 @@ def populate_gap_registry():
             WHEN MATCHED THEN UPDATE SET
                 current_status = 'Resolved',
                 resolution_date = current_timestamp(),
-                resolution_notes = 'Auto-resolved: value now has alias mapping'
+                resolution_notes = 'Auto-resolved: value no longer appears in the unmapped snapshot'
         """)
 
-        print(f"✓ Gap registry MERGE complete: {current_gap_count} active gaps")
+        print(f"✓ Gap registry MERGE complete: {current_gap_count} active gaps "
+              f"({reopened_count} reopened, {auto_resolved_count} auto-resolved)")
         return source_gaps
 
 # Execute gap registry population
@@ -2643,22 +2886,32 @@ def populate_low_confidence_audit():
 
     low_conf_count = all_low_conf.count()
 
+    # Overwrite table with current state (point-in-time snapshot).
+    # Use overwriteSchema to handle any column type changes.
+    #
+    # task-027: the write is UNCONDITIONAL. It used to sit inside `if low_conf_count > 0`,
+    # so a run that found nothing left the previous run's rows in place — and because this
+    # table is in the DirectLake semantic model, a fully-remediated pipeline kept reporting
+    # fuzzy matches that no longer existed, with no way to tell the snapshot was stale.
+    # An empty DataFrame still carries the full schema, so overwriting with it truncates
+    # the table to zero rows without dropping or retyping any column.
+    all_low_conf.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(f"{DB}.gold_low_confidence_audit")
+
     if low_conf_count > 0:
-        # Overwrite table with current state (point-in-time snapshot)
-        # Use overwriteSchema to handle any column type changes
-        all_low_conf.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(f"{DB}.gold_low_confidence_audit")
         print(f"✓ Captured {low_conf_count} low confidence matches to gold_low_confidence_audit")
-        return all_low_conf
     else:
-        print("✓ No low confidence matches found")
-        return None
+        print("✓ No low confidence matches found — gold_low_confidence_audit truncated to 0 rows")
+
+    return all_low_conf
 
 # Execute low confidence audit
 low_conf_result = populate_low_confidence_audit()
 
 # Show top low confidence matches by spend impact
+# (populate_low_confidence_audit now always returns a DataFrame — possibly empty — because
+# the snapshot write is unconditional; `is not None` keeps the intent explicit.)
 print("\nTop Low Confidence Matches (by frequency):")
-if low_conf_result:
+if low_conf_result is not None:
     low_conf_result.orderBy(F.desc("frequency")).show(15, truncate=False)
 
 # METADATA ********************
@@ -2682,21 +2935,50 @@ print("="*70)
 print(f"\nPipeline Run Timestamp: {pipeline_run_ts}")
 
 # Quality History stats
+# task-040: every pipeline run writes TWO distinct refresh_timestamps to this table —
+# one from this notebook, one from data_quality_checks (each stamps its own
+# datetime.now()). COUNT(DISTINCT refresh_timestamp) over the whole table therefore
+# reported roughly twice the real number of runs. Count this notebook's own
+# timestamps instead: it appends exactly once per pipeline run.
 history_count = spark.table(f"{DB}.gold_quality_history").count()
-history_runs = spark.sql(f"SELECT COUNT(DISTINCT refresh_timestamp) FROM {DB}.gold_quality_history").first()[0]
+history_runs = spark.sql(f"""
+    SELECT COUNT(DISTINCT refresh_timestamp)
+    FROM {DB}.gold_quality_history
+    WHERE producer = '{QUALITY_HISTORY_PRODUCER}'
+""").first()[0]
+legacy_timestamps = spark.sql(f"""
+    SELECT COUNT(DISTINCT refresh_timestamp)
+    FROM {DB}.gold_quality_history
+    WHERE producer IS NULL
+""").first()[0]
 print(f"\n📊 gold_quality_history: {history_count} total metrics across {history_runs} pipeline runs")
+if legacy_timestamps:
+    print(f"   (+{legacy_timestamps} unattributed pre-task-040 timestamps, excluded from the run count "
+          f"because they mix both writers and cannot be attributed)")
+print("   Rows by producer:")
+spark.sql(f"""
+    SELECT COALESCE(producer, '(pre-task-040, unmarked)') AS producer,
+           COUNT(DISTINCT refresh_timestamp)              AS distinct_timestamps,
+           COUNT(*)                                       AS metric_rows
+    FROM {DB}.gold_quality_history
+    GROUP BY COALESCE(producer, '(pre-task-040, unmarked)')
+    ORDER BY producer
+""").show(truncate=False)
 
 # Gap Registry stats
+# NOTE: the alias is gap_count, not count — pyspark Row inherits tuple.count, so
+# `row.count` returns the bound tuple method and this line printed
+# "<built-in method count ...> gaps" instead of a number.
 registry_stats = spark.sql(f"""
     SELECT
         current_status,
-        COUNT(*) as count
+        COUNT(*) as gap_count
     FROM {DB}.gold_gap_registry
     GROUP BY current_status
 """).collect()
 print(f"\n🔍 gold_gap_registry:")
 for row in registry_stats:
-    print(f"   - {row.current_status}: {row.count} gaps")
+    print(f"   - {row.current_status}: {row.gap_count} gaps")
 
 # Low Confidence Audit stats
 low_conf_count = spark.table(f"{DB}.gold_low_confidence_audit").count()

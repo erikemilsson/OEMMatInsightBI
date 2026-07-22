@@ -2,7 +2,7 @@
   "id": "task-040",
   "title": "Make the DQ gate outcome durably observable — gold_quality_history cannot answer 'did the gate pass on run X'",
   "description": "task-026 wired the data-quality gate and it works, but its outcome is not recoverable after the fact. gold_quality_history persists refresh_timestamp, layer, entity, metric_name, metric_value, threshold, breach_flag — and NOT the per-check `status` field that actually drives the gate. The halt is decided by result['status'] == 'fail' over the BLOCKING_CHECKS set (data_quality_checks:1817); breach_flag is an unrelated score threshold, score < 70.0 (:1646). The two diverge in practice: grain_uniqueness failing on 2 bad grains out of 2561 rows scores ~99.9 and does NOT breach, while still halting the pipeline. Once a run's notebook output scrolls away (or the editor session is reloaded, which empties the Output panel), the only durable record cannot distinguish a clean run from a blocked one. Two secondary defects in the same table: silver-to-gold2:2305 also appends to gold_quality_history (10 rows/run) alongside data_quality_checks:1679 (52 rows/run) with no producer discriminator, and silver-to-gold2:2669 consequently reports twice the true pipeline-run count by counting DISTINCT refresh_timestamp.",
-  "status": "Pending",
+  "status": "Finished",
   "priority": "P2",
   "difficulty": 4,
   "owner": "both",
@@ -16,7 +16,9 @@
   "estimated_hours": 3,
   "files_affected": [
     "fabric/data_quality_checks.Notebook/notebook-content.py",
-    "fabric/silver-to-gold2.Notebook/notebook-content.py"
+    "fabric/silver-to-gold2.Notebook/notebook-content.py",
+    ".claude/support/documents/data_quality_framework.md",
+    ".claude/support/documents/data_quality_architecture.md"
   ],
   "acceptanceCriteria": [
     "gold_quality_history persists the per-check `status` produced by log_check_result, so a past run's gate outcome is reconstructable from the table alone. The table is append-only and already holds history, so the schema change must be explicit (ALTER TABLE ... ADD COLUMNS, or a deliberate mergeSchema on write) and existing rows must stay readable — pre-change rows carrying NULL status is acceptable and expected.",
@@ -37,15 +39,96 @@
     "TIMEZONE GOTCHA for anyone querying this table: refresh_timestamp is written in UTC while the Fabric UI and every prior task note use local time (UTC+2 CEST). A correct, current measurement reads two hours 'early' and looks stale. Decoded run history is recorded in task-026's notes.",
     "SCOPE BOUNDARY: this task does NOT change which checks are blocking, the severity model, or the aggregated-raise design — all of that is task-026's and works. This is purely about making the outcome durable and the table's two writers legible.",
     "FILE COORDINATION: touches data_quality_checks (task-026's file) and silver-to-gold2 (shared with task-038 and the alias/commodity seed work). Do not run in parallel with tasks editing those files; dependency on task-026 is recorded to force ordering.",
-    "IMPLEMENTATION HINT (not a decision — the implementer should confirm): the two writers already differ in row count and metric-name shape (data_quality_checks writes metric_name='dq_{check_name}' plus dq_dimension_*/dq_overall_*), so a discriminator may be derivable without a schema change; but an explicit column is clearer and is what criterion 3 asks for. Note that silver-to-gold2's writer has no notion of blocking checks at all, so status will legitimately be NULL or 'n/a' for its rows — which itself discriminates the producers."
+    "IMPLEMENTATION HINT (not a decision — the implementer should confirm): the two writers already differ in row count and metric-name shape (data_quality_checks writes metric_name='dq_{check_name}' plus dq_dimension_*/dq_overall_*), so a discriminator may be derivable without a schema change; but an explicit column is clearer and is what criterion 3 asks for. Note that silver-to-gold2's writer has no notion of blocking checks at all, so status will legitimately be NULL or 'n/a' for its rows — which itself discriminates the producers.",
+    "IMPLEMENTED 2026-07-22 (implement-agent). gold_quality_history widened 7 -> 9 columns (status, producer). silver-to-gold2 owns the DDL and now declares the 9-column shape; a new idempotent ensure_quality_history_columns() runs explicit ALTER TABLE ... ADD COLUMNS against any pre-existing table — no mergeSchema, no recreate, no backfill. ADD COLUMNS appends at the end so both writers emit columns in exact table order. data_quality_checks now persists result['status'] per check (previously computed, printed, dropped) and stamps producer='data_quality_checks'; aggregate rows carry 'n/a'. The section-7 enforcement cell writes three entity='gate' rows (dq_gate_blocking_evaluated, dq_gate_blocking_failures, dq_gate_raised) BEFORE the raise — task-026's persist-then-raise design preserved, not altered. silver-to-gold2's writer stamps producer='silver-to-gold2', status='n/a'. The double-counted run count is now filtered to its own producer, prints unattributed pre-change timestamps separately, and adds a per-producer breakdown.",
+    "CRITERION 5 SATISFIED BY ORCHESTRATOR (subagents cannot write .claude/): the breach_flag-vs-status passage was placed in data_quality_framework.md § 6 Alert Strategy, deliberately directly beneath the severity table that states the trap (score 0-49 => 'Block pipeline', which is NOT how the gate works). data_quality_architecture.md's 7-column schema tree and CREATE TABLE block were synced to 9 columns.",
+    "SHAPE DECISION filed as DEC-003 (entity='gate' rows vs a new gold_dq_gate_log table vs hoisting BLOCKING_CHECKS). Filed status=proposed for Erik's ratification, NOT self-approved — following rules/decisions.md over work-procedures.md § State Persistence Protocol, which conflict (FR-010/FR-011). Same correction verify-agent applied to DEC-002.",
+    "FRICTION: FR-012 (design_contradiction, framework doc severity table) and FR-013 (spec_implementation_gap, spec never mentions the gate) opened in the register.",
+    "CRITERION 6 UNMET BY DESIGN — [Erik/Fabric] deploy + one clean run + one deliberately-failed run (duplicate procurement transactions). Carries user_review_pending once verified.",
+    "VERIFIED 2026-07-23 attempt 1 — pass. runtime_validation not_applicable (Fabric-only PySpark; ast.parse + source reading is the local ceiling). Five minor residuals, none contract failures.",
+    "THIRD WRITER FOUND by verify-agent, not in the task's two-writer premise: sample-quality-data.Notebook appends a 7-column DataFrame to gold_quality_history, so its rows land NULL status/producer and read as unattributed pre-task-040 timestamps. Low risk (run-once task-017 seeder, guarded by an existing-sample early exit, not a pipeline activity) — but if it is ever re-run post-deploy, expect it in the producer IS NULL bucket.",
+    "files_affected corrected 2026-07-23 to include the two .claude/support/documents/ paths the orchestrator wrote for criterion 5 — declared scope was stale for future parallel-dispatch conflict detection."
   ],
   "user_feedback": "",
   "created_date": "2026-07-22",
-  "updated_date": "2026-07-22",
-  "completion_date": null,
-  "verification_attempts": 0,
-  "task_verification": {},
-  "verification_history": [],
+  "updated_date": "2026-07-23",
+  "completion_date": "2026-07-22",
+  "verification_attempts": 1,
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-07-23T12:00:00Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "not_applicable",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "Verified statically against git diff vs c510a3e; both notebooks are Fabric-only PySpark so nothing was executed — ast.parse (both clean) plus source reading is the local ceiling. Crit 1: explicit idempotent ALTER TABLE ... ADD COLUMNS in ensure_quality_history_columns() (silver-to-gold2:2218, mirrored data_quality_checks:1662); early-returns when table absent, guards each column against spark.table(...).columns; no mergeSchema/overwriteSchema/recreate/backfill near gold_quality_history. Crit 2 column-order: ADD COLUMNS appends at end; all three writers emit the same 9-column order matching CREATE TABLE and post-ALTER order — no silent column shear. Crit 2 durability: three entity='gate' rows appended at data_quality_checks:1936 BEFORE the raise at :1942-1950 — task-026's persist-then-raise preserved. Null-safety independently confirmed: all_check_results appended only inside log_check_result (:165, sole site), all 34 call sites pass a string literal or local `status`, all 12 `status =` assignments are ternaries over string literals; the one NULL (threshold on dq_gate_blocking_evaluated) is written under explicit StructType, not inference. Crit 4: run count filters producer='silver-to-gold2'; pre-change rows surfaced via a producer IS NULL count plus per-producer breakdown, reported not dropped. Crit 3 satisfied by producer + status='n/a'. Crit 5 verified in place, counter-example arithmetically correct (2 dup grains / 2561 => 99.92 vs 70.0 threshold, still status='fail'). Scope boundary held — BLOCKING_CHECKS, is_blocking, blocking counters and the single aggregated raise untouched. Cleared a latent interaction: the trend check reading gold_quality_history is scoped to metric_name='dq_overall_score' (:1418), so gate rows cannot perturb it. Crit 6 [Erik/Fabric] unmet by design — does not fail verification.",
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "Semantic model still carries the same double-count: OEMInsightBI_v2.SemanticModel/.../gold_quality_history.tmdl defines `Pipeline Runs Count = DISTINCTCOUNT(gold_quality_history[refresh_timestamp])` over the whole table, so Power BI keeps reporting ~2x the real run count. Out of contract (TMDL not in files_affected) but the same defect on the more user-visible surface."
+      },
+      {
+        "severity": "minor",
+        "description": "THIRD writer to gold_quality_history not accounted for by the two-writer premise: fabric/sample-quality-data.Notebook still appends a 7-column DataFrame, so its rows would land with NULL status/producer and be counted as unattributed pre-task-040 timestamps. Low risk — run-once task-017 seeder, guarded by an existing-sample check that exits early, absent from the orchestrator pipeline."
+      },
+      {
+        "severity": "minor",
+        "description": "data_quality_architecture.md now internally inconsistent: gold_quality_history section still reads Status | PLANNED (line 256, legend at 108/118) above the freshly-updated 9-column schema. Already routed — task-033 carries a note added 2026-07-23."
+      },
+      {
+        "severity": "minor",
+        "description": "files_affected under-declared: criterion 5's deliverable landed in .claude/support/documents/data_quality_framework.md and data_quality_architecture.md (orchestrator-written) but neither path was listed."
+      },
+      {
+        "severity": "minor",
+        "description": "Both data_quality_checks:1903's comment and data_quality_framework.md say 'status is pass or fail' under the entity='gate' query, but that query returns three rows and dq_gate_blocking_evaluated carries 'n/a'. The doc self-corrects two paragraphs later; the one-liner is imprecise rather than wrong."
+      }
+    ]
+  },
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-07-23T12:00:00Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "notes": "Verified statically against git diff vs c510a3e; both notebooks are Fabric-only PySpark so nothing was executed — ast.parse (both clean) plus source reading is the local ceiling. Crit 1: explicit idempotent ALTER TABLE ... ADD COLUMNS in ensure_quality_history_columns() (silver-to-gold2:2218, mirrored data_quality_checks:1662); early-returns when table absent, guards each column against spark.table(...).columns; no mergeSchema/overwriteSchema/recreate/backfill near gold_quality_history. Crit 2 column-order: ADD COLUMNS appends at end; all three writers emit the same 9-column order matching CREATE TABLE and post-ALTER order — no silent column shear. Crit 2 durability: three entity='gate' rows appended at data_quality_checks:1936 BEFORE the raise at :1942-1950 — task-026's persist-then-raise preserved. Null-safety independently confirmed: all_check_results appended only inside log_check_result (:165, sole site), all 34 call sites pass a string literal or local `status`, all 12 `status =` assignments are ternaries over string literals; the one NULL (threshold on dq_gate_blocking_evaluated) is written under explicit StructType, not inference. Crit 4: run count filters producer='silver-to-gold2'; pre-change rows surfaced via a producer IS NULL count plus per-producer breakdown, reported not dropped. Crit 3 satisfied by producer + status='n/a'. Crit 5 verified in place, counter-example arithmetically correct (2 dup grains / 2561 => 99.92 vs 70.0 threshold, still status='fail'). Scope boundary held — BLOCKING_CHECKS, is_blocking, blocking counters and the single aggregated raise untouched. Cleared a latent interaction: the trend check reading gold_quality_history is scoped to metric_name='dq_overall_score' (:1418), so gate rows cannot perturb it. Crit 6 [Erik/Fabric] unmet by design — does not fail verification.",
+      "issues": [
+        {
+          "severity": "minor",
+          "description": "Semantic model still carries the same double-count: OEMInsightBI_v2.SemanticModel/.../gold_quality_history.tmdl defines `Pipeline Runs Count = DISTINCTCOUNT(gold_quality_history[refresh_timestamp])` over the whole table, so Power BI keeps reporting ~2x the real run count. Out of contract (TMDL not in files_affected) but the same defect on the more user-visible surface."
+        },
+        {
+          "severity": "minor",
+          "description": "THIRD writer to gold_quality_history not accounted for by the two-writer premise: fabric/sample-quality-data.Notebook still appends a 7-column DataFrame, so its rows would land with NULL status/producer and be counted as unattributed pre-task-040 timestamps. Low risk — run-once task-017 seeder, guarded by an existing-sample check that exits early, absent from the orchestrator pipeline."
+        },
+        {
+          "severity": "minor",
+          "description": "data_quality_architecture.md now internally inconsistent: gold_quality_history section still reads Status | PLANNED (line 256, legend at 108/118) above the freshly-updated 9-column schema. Already routed — task-033 carries a note added 2026-07-23."
+        },
+        {
+          "severity": "minor",
+          "description": "files_affected under-declared: criterion 5's deliverable landed in .claude/support/documents/data_quality_framework.md and data_quality_architecture.md (orchestrator-written) but neither path was listed."
+        },
+        {
+          "severity": "minor",
+          "description": "Both data_quality_checks:1903's comment and data_quality_framework.md say 'status is pass or fail' under the entity='gate' query, but that query returns three rows and dq_gate_blocking_evaluated carries 'n/a'. The doc self-corrects two paragraphs later; the one-liner is imprecise rather than wrong."
+        }
+      ]
+    }
+  ],
   "test_protocol": {
     "summary": "Confirm the gate verdict survives the run that produced it.",
     "steps": [
@@ -57,17 +140,22 @@
       {
         "type": "interactive",
         "instruction": "Inject a blocking failure (duplicate procurement transactions with an identical business signature) and re-run",
-        "expected": "Pipeline halts at the DQ activity AND the persisted verdict for that run records the blocking failure — the full picture is persisted before the raise, per task-026's design"
+        "expected": "Pipeline halts at the DQ activity AND the persisted verdict for that run records the blocking failure"
       },
       {
         "type": "command",
         "instruction": "Query DISTINCT producers for a single run, and check silver-to-gold2's printed run count",
         "expected": "Two producers distinguishable for one run; printed run count matches the real number of pipeline runs, not double"
+      },
+      {
+        "type": "command",
+        "instruction": "On the first post-deploy run, read silver-to-gold2's output for the ALTER TABLE line and confirm a pre-change row still reads",
+        "expected": "'added column status STRING' / 'producer STRING' printed once (and NOT on the second run — the helper is idempotent); SELECT on any pre-change refresh_timestamp returns its original 7 values with NULL status and NULL producer"
       }
     ],
-    "estimated_time": "30 minutes"
+    "estimated_time": "35 minutes"
   },
-  "user_review_pending": false,
+  "user_review_pending": true,
   "out_of_spec": false,
   "absorbed_into": "",
   "interaction_hint": "dashboard",
