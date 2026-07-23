@@ -2,7 +2,7 @@
   "id": "task-031",
   "title": "Silver WGI drops the governance scores it ingests — preserve Year/Value (or descope), fix the 5-of-6 coverage rule",
   "description": "bronze_ingest_wgi fetches six WGI indicators WITH Year and Value from the World Bank API, but bronze-to-silver selects only (country_iso3, country_name, indicator_name) — dropping Year/Value and keeping ~27 duplicate rows per country-indicator (one per year, values discarded). Gold uses silver_wgi only for existence flags in gold_data_gaps, so nothing errors, but the governance scores are silently unusable downstream despite being ingested. Related: the coverage rule HAVING COUNT(DISTINCT indicator_name) >= 5 is commented 'ALL 5 WGI indicators' but SIX are ingested — a country missing one indicator still counts as full coverage (data_quality_architecture.md:237 repeats the 'all 5' claim, likely a relic of the old 5-indicator CSV). Also: medallion_architecture.md:142 describes a silver WGI transformation ('unpivot year columns, filter to 2020, join with metadata') that matches the retired CSV pipeline, not the API-based reality.",
-  "status": "Pending",
+  "status": "Finished",
   "priority": "P2",
   "difficulty": 4,
   "owner": "both",
@@ -35,14 +35,117 @@
     "WHY IT MATTERS BEYOND TIDINESS: task-022's methodology notes (EU CRM Guidelines SR formula) established that the supply-risk gold model needs per-country WGI values as weights — option (a) is a prerequisite for that future SR-model task (DEC-001). If (a) is chosen, note it on the DEC-001 record.",
     "The bronze notebook's own comment acknowledges the drift: bronze-to-silver:266-267 'Score column not present in current dataflow - used for coverage check only' — written when WGI came from the manual CSV; the API ingest (which replaced it) DOES provide values.",
     "COORDINATE: bronze-to-silver is also touched by tasks 024/029; silver-to-gold2 by 023/025/027/028/030 — serialize within the notebook-fix train.",
-    "DEC-001 (2026-07-19) CLOSES THE DESCOPE BRANCH: this task's title offers 'preserve Year/Value (or descope)'. DEC-001 Option B makes the WGI governance scores a required input to gold_supply_risk (the WGI_c weight in HHI_WGI,t = SUM_c (S_c)^2 * WGI_c * t_c), so preservation is now MANDATORY — descoping is no longer an option. This task is a hard prerequisite for task-038. Also correct the stale comment at bronze-to-silver.Notebook:281 ('Score column not present in current dataflow') — false since the move to the API-based bronze_ingest_wgi."
+    "DEC-001 (2026-07-19) CLOSES THE DESCOPE BRANCH: this task's title offers 'preserve Year/Value (or descope)'. DEC-001 Option B makes the WGI governance scores a required input to gold_supply_risk (the WGI_c weight in HHI_WGI,t = SUM_c (S_c)^2 * WGI_c * t_c), so preservation is now MANDATORY — descoping is no longer an option. This task is a hard prerequisite for task-038. Also correct the stale comment at bronze-to-silver.Notebook:281 ('Score column not present in current dataflow') — false since the move to the API-based bronze_ingest_wgi.",
+    "IMPLEMENTED 2026-07-23 (option (a), the only branch DEC-001 leaves open). bronze-to-silver: silver_wgi now selects indicator_code/year/value alongside the three identity columns, drops null-valued observations (the API returns a row per requested year regardless), and deduplicates to grain (country_iso3, indicator_name, year) — keyed on indicator_code, the source's real identifier. Adds a per-indicator summary print and a warning when fewer than six indicators reach silver. silver-to-gold2: coverage threshold moved from a literal >= 5 to WGI_REQUIRED_INDICATORS = 6, plus a value IS NOT NULL filter mirroring the EPI check; the stale 'ALL 5' comment is gone.",
+    "BLOCKING RUNTIME COUPLING DISCOVERED — task-035 is now a hard prerequisite for AC5. The orchestrator still populates bronze_WGI via 'RefreshDataflow bronze_WGI' (WGI_file2table.Dataflow, Excel: Country Name / Country Code / Series Name / 'Percentile Rank 2023' — no Indicator Code, Year or Value). bronze_ingest_wgi.Notebook is not wired into the pipeline at all. Per Erik's decision 2026-07-23, bronze-to-silver RAISES an actionable RuntimeError on that shape rather than falling back, because the dataflow serves 2023 PERCENTILE RANKS (0-100) where the API serves ESTIMATES (-2.5..+2.5) — accepting it would put a differently-scaled quantity in `value` under the same name and silently redefine DEC-001's WGIᶜ. The pipeline will therefore FAIL at Stage 2 until task-035 lands. Claude cannot land task-035: the .platform logicalIds for both ingest notebooks are hand-authored placeholders (a1b2c3d4-..., b2c3d4e5-...), not real Fabric IDs, so the TridentNotebook activities cannot be authored locally.",
+    "AC1 is satisfied by DEC-001 itself, which already closed the descope branch and records preservation as mandatory (decision-001 § Downstream tasks, item 2). No decision-record edit was made — DEC-016 routes those through /research + checkbox.",
+    "AC4 DELEGATED to task-033 per its own 'cross-reference, don't double-do' clause; recorded as FR-023 and appended to task-033's notes. No doc edits made here.",
+    "VERIFIED LOCALLY 2026-07-23: 31/31 assertions executing the notebook source extracted verbatim by line range against a local SparkSession (grain uniqueness, value preservation, null-observation drop, ISO3 trim/upper, dedupe of an append-style re-ingest, the fail-fast message contents, the <6-indicator warning, and the coverage rule including a regression proof that a 5-of-6 country was wrongly covered under the old >= 5). 94/94 pytest unchanged. Notebook cell-kind sequence identical to HEAD in both files; all META payloads valid JSON.",
+    "POST-VERIFICATION HARDENING 2026-07-23: verify-agent passed the task and flagged two minor gaps that were cheap to close, so they were fixed AFTER the verification ran — (1) a name<->code 1:1 assertion that makes AC2's declared grain structurally guaranteed instead of merely documented, and (2) a case-insensitive required-column check. Both are additive guards; neither changes the verified data path. Re-tested at 35/35 assertions with spark.sql.ansi.enabled=false to match the Fabric runtime, 94/94 pytest, notebook delimiters still byte-identical to HEAD and all META payloads valid. The pass verdict above was measured against the pre-hardening code."
   ],
   "user_feedback": "",
   "created_date": "2026-07-13",
-  "updated_date": "2026-07-19",
-  "completion_date": null,
-  "verification_attempts": 0,
+  "updated_date": "2026-07-23",
+  "completion_date": "2026-07-23",
+  "verification_attempts": 1,
   "out_of_spec": false,
   "absorbed_into": "",
-  "interaction_hint": "dashboard"
+  "interaction_hint": "dashboard",
+  "user_review_pending": true,
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-07-23T18:20:00Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "partial",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "summary": "PASS attempt 1. Verify-agent executed an independent 28-assertion PySpark suite over notebook source extracted by content marker (ANSI disabled to match Fabric's Spark 3.4/3.5), plus literal source comparison against HEAD. AC3 — the highest-risk claim — was PROVEN by executing the actual extracted coverage SQL against a table built by the actual transform: COUNT(DISTINCT indicator_name) = 6 for both a 168-row country and a 6-row country, so the new one-row-per-year grain demonstrably does not inflate the count; regression proof that DEU at 5-of-6 WAS covered under >= 5 and is NOT under >= 6. AC1 confirmed already recorded in two durable places (spec_v1 § Data Transformations #3 and DEC-001's prerequisite chain) — no decision-record edit made, correct under DEC-016. AC2 grain, value preservation and dedupe verified. AC4 delegation confirmed real and not double-done: both target doc lines still carry the live drift, task-033 gained a specific note, FR-023 filed. Fail-fast verified unbypassable (unconditional, at cell top level, before first use, no try wrapper) with an accurate message — every factual claim in it checked against pipeline-content.json and mashup.pq. NULL-drop judged defensible on two measured grounds: bronze_ingest_wgi already skips null values at fetch (line 163-167) so nothing existing is removed, and spec_v1 § Data Quality Rules explicitly prescribes null filtering on scores. Consumer sweep is a true negative with a positive control (silver_epi2024results returned 20 files; silver_wgi appears in exactly 3 places — README diagram, producer, sole consumer). Scope clean: 2 hunks in silver-to-gold2, both inside create_data_gaps_table; task-030's dim_date/unit/registry work untouched. Cell-delimiter sequence byte-identical to HEAD in both notebooks, all 12+22 META payloads valid JSON, both files compile. 94/94 pytest unchanged. AC5 is Erik's and is additionally blocked on task-035.",
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "POST-VERIFICATION HARDENING (issue A1, now closed): dedupe is keyed on (country_iso3, indicator_code, year) while AC2 declares the grain as (country_iso3, indicator_name, year). Verify-agent measured non-equivalence when two codes share a name. Keying on code is the right choice (dropping by name would lose a real observation), so the fix was to ASSERT the 1:1 mapping and raise if it ever breaks, rather than change the key."
+      },
+      {
+        "severity": "minor",
+        "description": "POST-VERIFICATION HARDENING (issue A3, now closed): the required-column check compared case-sensitively while Spark resolves columns case-insensitively, so a bronze writer emitting 'year' would have raised spuriously. Now compared lowercased."
+      },
+      {
+        "severity": "minor",
+        "description": "dropDuplicates picks an arbitrary survivor, so conflicting values for the same (country, code, year) resolve non-deterministically. Not reachable today — bronze_ingest_wgi writes mode('overwrite'), so one snapshot cannot hold two values for one key — and no load-timestamp column exists to express a latest-wins rule. Documented as a caveat in-code; would need a real fix if bronze ever became append-mode."
+      },
+      {
+        "severity": "major",
+        "description": "THE PIPELINE IS NOW RED AT STAGE 2 until task-035 lands. bronze-to-silver raises by design against the retired dataflow's bronze_WGI shape. task-035 is Pending, owner human, and no Claude-owned task can clear it. Belongs in the dashboard 'Needs you' queue, not only in this task's notes."
+      }
+    ],
+    "attempt": 1
+  },
+  "verification_history": [
+    {
+      "result": "pass",
+      "timestamp": "2026-07-23T18:20:00Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "partial",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "summary": "PASS attempt 1. Verify-agent executed an independent 28-assertion PySpark suite over notebook source extracted by content marker (ANSI disabled to match Fabric's Spark 3.4/3.5), plus literal source comparison against HEAD. AC3 — the highest-risk claim — was PROVEN by executing the actual extracted coverage SQL against a table built by the actual transform: COUNT(DISTINCT indicator_name) = 6 for both a 168-row country and a 6-row country, so the new one-row-per-year grain demonstrably does not inflate the count; regression proof that DEU at 5-of-6 WAS covered under >= 5 and is NOT under >= 6. AC1 confirmed already recorded in two durable places (spec_v1 § Data Transformations #3 and DEC-001's prerequisite chain) — no decision-record edit made, correct under DEC-016. AC2 grain, value preservation and dedupe verified. AC4 delegation confirmed real and not double-done: both target doc lines still carry the live drift, task-033 gained a specific note, FR-023 filed. Fail-fast verified unbypassable (unconditional, at cell top level, before first use, no try wrapper) with an accurate message — every factual claim in it checked against pipeline-content.json and mashup.pq. NULL-drop judged defensible on two measured grounds: bronze_ingest_wgi already skips null values at fetch (line 163-167) so nothing existing is removed, and spec_v1 § Data Quality Rules explicitly prescribes null filtering on scores. Consumer sweep is a true negative with a positive control (silver_epi2024results returned 20 files; silver_wgi appears in exactly 3 places — README diagram, producer, sole consumer). Scope clean: 2 hunks in silver-to-gold2, both inside create_data_gaps_table; task-030's dim_date/unit/registry work untouched. Cell-delimiter sequence byte-identical to HEAD in both notebooks, all 12+22 META payloads valid JSON, both files compile. 94/94 pytest unchanged. AC5 is Erik's and is additionally blocked on task-035.",
+      "issues": [
+        {
+          "severity": "minor",
+          "description": "POST-VERIFICATION HARDENING (issue A1, now closed): dedupe is keyed on (country_iso3, indicator_code, year) while AC2 declares the grain as (country_iso3, indicator_name, year). Verify-agent measured non-equivalence when two codes share a name. Keying on code is the right choice (dropping by name would lose a real observation), so the fix was to ASSERT the 1:1 mapping and raise if it ever breaks, rather than change the key."
+        },
+        {
+          "severity": "minor",
+          "description": "POST-VERIFICATION HARDENING (issue A3, now closed): the required-column check compared case-sensitively while Spark resolves columns case-insensitively, so a bronze writer emitting 'year' would have raised spuriously. Now compared lowercased."
+        },
+        {
+          "severity": "minor",
+          "description": "dropDuplicates picks an arbitrary survivor, so conflicting values for the same (country, code, year) resolve non-deterministically. Not reachable today — bronze_ingest_wgi writes mode('overwrite'), so one snapshot cannot hold two values for one key — and no load-timestamp column exists to express a latest-wins rule. Documented as a caveat in-code; would need a real fix if bronze ever became append-mode."
+        },
+        {
+          "severity": "major",
+          "description": "THE PIPELINE IS NOW RED AT STAGE 2 until task-035 lands. bronze-to-silver raises by design against the retired dataflow's bronze_WGI shape. task-035 is Pending, owner human, and no Claude-owned task can clear it. Belongs in the dashboard 'Needs you' queue, not only in this task's notes."
+        }
+      ],
+      "attempt": 1,
+      "mode": "per_task"
+    }
+  ],
+  "test_protocol": {
+    "summary": "AC5 only. Cannot run until task-035 lands — /run-silver raises by design against the retired dataflow's bronze_WGI shape.",
+    "estimated_time": "10 minutes after task-035",
+    "steps": [
+      {
+        "type": "interactive",
+        "instruction": "Land task-035 first: replace the 'bronze_WGI' RefreshDataflow activity in the orchestrator with a TridentNotebook activity calling bronze_ingest_wgi. Until then bronze-to-silver stops the pipeline on purpose.",
+        "expected": "Stage 1 writes bronze_WGI in long format with Indicator Code / Year / Value."
+      },
+      {
+        "type": "command",
+        "command": "/run-silver",
+        "instruction": "Run /run-silver and read the '--- silver_wgi: governance indicators preserved ---' table.",
+        "expected": "Six rows (CC/GE/PV/RL/RQ/VA.EST), first_year 1996, last_year 2023, and NO warning line."
+      },
+      {
+        "type": "command",
+        "instruction": "SELECT COUNT(*), COUNT(DISTINCT indicator_name) FROM oem_lh.silver_wgi WHERE country_iso3='SWE';",
+        "expected": "Count in the low hundreds (6 indicators x ~25 published years); distinct indicator_name = 6."
+      },
+      {
+        "type": "visual",
+        "instruction": "Run /run-gold, then check gold_data_gaps for a country with all six indicators (e.g. SWE) and one known partial.",
+        "expected": "has_wgi_score true for the full country, false for the partial. 'WGI Country Coverage %' DROPS versus the previous run if any country was previously covered at 5-of-6 — that drop is the bug being fixed, not a regression."
+      }
+    ]
+  }
 }

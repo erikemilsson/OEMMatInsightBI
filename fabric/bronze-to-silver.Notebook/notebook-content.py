@@ -263,17 +263,139 @@ else:
 # Load WGI data and standardize columns
 df_wgi = spark.sql("SELECT * FROM oem_lh.bronze_WGI")
 
-# Standardize columns: snake_case names, UPPER ISO3
-# Note: bronze_WGI has 3 columns: Country Name, Country Code, Series Name
-# (Score column not present in current dataflow - used for coverage check only)
-df_wgi_clean = df_wgi.select(
+# -----------------------------------------------------------------------------
+# task-031 — silver_wgi MUST preserve Year and Value
+# -----------------------------------------------------------------------------
+# spec_v1 § Data Transformations #3 makes preservation mandatory: the governance
+# scores are the WGIᶜ weight in DEC-001's supply-risk formula
+# (HHI_WGI,t = Σ_c (Sᶜ)² · WGIᶜ · tᶜ), so task-038 cannot be built until the values
+# survive into silver. The previous projection kept three identity columns only,
+# which both discarded every score AND left ~28 identical rows per country-indicator
+# (one per ingested year, values dropped) — duplication that looked like a grain bug
+# but was really the time series with its payload removed.
+#
+# REQUIRED BRONZE SHAPE: the long-format table written by bronze_ingest_wgi.Notebook
+# from the World Bank API — one row per country per indicator per year, carrying
+# `Indicator Code`, `Year` and `Value`.
+#
+# WHY THIS FAILS LOUDLY INSTEAD OF FALLING BACK: the retired WGI_file2table.Dataflow
+# produces a different and quietly INCOMPATIBLE table — four columns (`Country Name`,
+# `Country Code`, `Series Name`, `Percentile Rank 2023`) holding 2023 PERCENTILE RANKS
+# (0–100), with ": Percentile Rank" stripped from the series name, versus the API's
+# ESTIMATES (−2.5…+2.5). Accepting it would land a differently-scaled quantity in
+# `value` under the same column name, and WGIᶜ would silently mean something else —
+# the same class of invisible unit error task-030 removed from the spend calculation.
+# A hard stop with an actionable message is the cheaper failure.
+REQUIRED_WGI_COLUMNS = ["Indicator Code", "Year", "Value"]
+# Case-insensitive because Spark's own column resolution is: a bronze writer that
+# emitted "year" instead of "Year" would resolve fine in the select below, so raising
+# on it here would be a spurious failure rather than a caught defect.
+_wgi_columns_present = {c.lower() for c in df_wgi.columns}
+missing_wgi_columns = [c for c in REQUIRED_WGI_COLUMNS
+                       if c.lower() not in _wgi_columns_present]
+if missing_wgi_columns:
+    raise RuntimeError(
+        f"bronze_WGI is missing {missing_wgi_columns}.\n"
+        f"  Columns present: {df_wgi.columns}\n"
+        "  CAUSE: bronze_WGI is still being written by the retired WGI_file2table.Dataflow "
+        "(Excel, 2023 percentile ranks, ~5 indicators) rather than by "
+        "bronze_ingest_wgi.Notebook (World Bank API, long format, 6 indicators, estimates).\n"
+        "  WHY NOT FALL BACK: silver_wgi must preserve Year/Value "
+        "(spec_v1 § Data Transformations #3, DEC-001) — the identity-only projection this "
+        "notebook used to emit is exactly the defect task-031 removed, and the dataflow's "
+        "percentile ranks are not interchangeable with the API's estimates.\n"
+        "  FIX: complete task-035 — replace the 'bronze_WGI' RefreshDataflow activity in "
+        "orchestrator_pipeline_bronze_to_gold with a TridentNotebook activity calling "
+        "bronze_ingest_wgi. Running bronze_ingest_wgi by hand unblocks a single run, but "
+        "the next pipeline run overwrites bronze_WGI from the dataflow again."
+    )
+
+# Standardize columns: snake_case names, UPPER ISO3, typed year/value.
+df_wgi_typed = df_wgi.select(
     F.upper(F.trim(F.col("`Country Code`"))).alias("country_iso3"),
     F.trim(F.col("`Country Name`")).alias("country_name"),
-    F.trim(F.col("`Series Name`")).alias("indicator_name")
+    F.trim(F.col("`Series Name`")).alias("indicator_name"),
+    F.trim(F.col("`Indicator Code`")).alias("indicator_code"),
+    F.col("`Year`").cast(IntegerType()).alias("year"),
+    F.col("`Value`").cast(DoubleType()).alias("value")
 ).filter(
     (F.col("country_iso3").isNotNull()) &
-    (F.col("indicator_name").isNotNull())
+    (F.col("indicator_name").isNotNull()) &
+    (F.col("year").isNotNull()) &
+    # A NULL Value is how the World Bank API says "no observation for this
+    # country/indicator/year" — it returns a row for every year in the requested
+    # range regardless. Those rows are not governance scores, so they do not belong
+    # in a cleaned layer: keeping them would leave empty rows for the years WGI was
+    # never published (it was biennial 1996–2000) and force every downstream
+    # "latest score" query to re-filter. Coverage is measured on real observations.
+    (F.col("value").isNotNull())
 )
+
+# Grain: one row per (country_iso3, indicator_name, year) — the contract task-031
+# declares. Deduplication is keyed on `indicator_code` because that is the source's
+# real identifier, and de-duplicating on the NAME could silently discard a genuine
+# observation if two codes ever shared a name (data loss beats a grain violation only
+# in the wrong direction — the medallion rule here is no silent data loss).
+# Making the dedupe structural rather than assumed also means a re-ingest that appends
+# instead of overwriting cannot fan out the gold join.
+#
+# CAVEAT: dropDuplicates picks an arbitrary survivor. That is safe only because
+# bronze_ingest_wgi writes with mode("overwrite"), so the same (country, code, year)
+# cannot carry two DIFFERENT values in one snapshot. There is no load-timestamp column
+# to order by, so a latest-wins rule is not expressible here — if bronze ever becomes
+# append-mode, this needs a real dedupe key, not just a tiebreak.
+df_wgi_clean = df_wgi_typed.dropDuplicates(["country_iso3", "indicator_code", "year"])
+
+# The declared grain uses indicator_name while the dedupe uses indicator_code. Those
+# are equivalent only while the name↔code mapping is 1:1 — true of WGI's six
+# dimensions, but asserted rather than assumed, because a collision would leave
+# silver_wgi silently non-unique at its stated grain AND make the gold coverage rule
+# (which counts DISTINCT indicator_name) undercount that country's indicators.
+_name_code_pairs = df_wgi_clean.select("indicator_name", "indicator_code").distinct()
+_pair_total, _name_total = (
+    _name_code_pairs.count(),
+    _name_code_pairs.select("indicator_name").distinct().count(),
+)
+if _pair_total != _name_total:
+    raise RuntimeError(
+        f"WGI indicator_name -> indicator_code is not 1:1 ({_pair_total} distinct pairs "
+        f"for {_name_total} distinct names). silver_wgi's declared grain "
+        "(country_iso3, indicator_name, year) is therefore not unique, and "
+        "silver-to-gold2's COUNT(DISTINCT indicator_name) coverage rule would undercount. "
+        "Either the World Bank renamed an indicator mid-series or two codes collided — "
+        "reconcile before loading."
+    )
+
+# Per-run visibility into what actually reached silver — the analogue of the
+# unit-domain report in silver-to-gold2. Without it, a partial API fetch (an indicator
+# that 404s, a truncated year range) is invisible until the gold coverage flag
+# quietly drops every country.
+print("--- silver_wgi: governance indicators preserved ---")
+(
+    df_wgi_clean
+    .groupBy("indicator_code", "indicator_name")
+    .agg(
+        F.countDistinct("country_iso3").alias("countries"),
+        F.min("year").alias("first_year"),
+        F.max("year").alias("last_year"),
+        # NOT aliased `count`: pyspark Row subclasses tuple, so row.count would
+        # return the bound tuple method rather than the value.
+        F.count(F.lit(1)).alias("observations")
+    )
+    .orderBy("indicator_code")
+).show(truncate=False)
+
+# The gold coverage rule in silver-to-gold2 requires all SIX indicators per country.
+# If fewer than six ever reach silver, that rule cannot be satisfied by ANY country
+# and the Data Gaps page would report zero WGI coverage — worth a warning here, at
+# the layer that can explain why, rather than a mystery zero two notebooks later.
+EXPECTED_WGI_INDICATORS = 6
+observed_wgi_indicators = df_wgi_clean.select("indicator_code").distinct().count()
+if observed_wgi_indicators != EXPECTED_WGI_INDICATORS:
+    print(f"⚠️  WARNING: silver_wgi carries {observed_wgi_indicators} distinct indicators, "
+          f"expected {EXPECTED_WGI_INDICATORS}. gold_data_gaps requires all "
+          f"{EXPECTED_WGI_INDICATORS} for a country to count as governance-covered, so "
+          f"WGI coverage will read 0. Check the bronze_ingest_wgi fetch log.")
 
 display(df_wgi_clean)
 

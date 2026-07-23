@@ -2276,6 +2276,15 @@ dq_dashboard.groupBy("category").count().orderBy("category").show()
 
 # CELL ********************
 
+# task-031: how many distinct WGI indicators a country needs before it counts as
+# governance-covered. Six is the full set fetched by bronze_ingest_wgi
+# (WGI_INDICATORS: CC.EST, GE.EST, PV.EST, RL.EST, RQ.EST, VA.EST) and the number
+# spec_v1 § Data Transformations #3 requires coverage rules to test against.
+# bronze-to-silver warns at load time if fewer than six ever reach silver_wgi, which
+# is the failure mode that would drive this flag to zero for every country.
+WGI_REQUIRED_INDICATORS = 6
+
+
 def create_data_gaps_table():
     """
     Create a comprehensive data gaps table showing:
@@ -2310,14 +2319,38 @@ def create_data_gaps_table():
 
     # 3. Get countries that have WGI scores (World Governance Indicators)
     # Join silver_wgi to dim_country via Country Code (ISO3)
-    # Require ALL 5 WGI indicators for "complete" governance coverage
+    # Require ALL SIX WGI indicators for "complete" governance coverage
     # This creates authentic gaps - countries with partial WGI data don't qualify
+    #
+    # task-031: the threshold was ">= 5" under a comment reading "ALL 5 WGI
+    # indicators" — a relic of the retired 5-indicator Excel extract.
+    # bronze_ingest_wgi fetches SIX (WGI_INDICATORS: CC/GE/PV/RL/RQ/VA) and spec_v1
+    # § Data Transformations #3 states coverage rules test against six, so at ">= 5"
+    # a country missing an entire governance dimension still counted as fully
+    # covered — the flag was structurally unable to report the gap it exists to find.
+    #
+    # UNAFFECTED BY THE GRAIN CHANGE: task-031 also widened silver_wgi from one row
+    # per country-indicator to one row per country-indicator-YEAR. COUNT(DISTINCT
+    # indicator_name) collapses that year expansion, so the flag still depends only
+    # on how many distinct indicators a country has, not how many years each spans.
+    #
+    # `value IS NOT NULL` mirrors the EPI check above. bronze-to-silver already drops
+    # null-valued observations, so this filters nothing today — it is there so the
+    # rule stays honest if that upstream filter is ever relaxed, since a country
+    # whose six indicators are all empty is not governance-covered in any useful
+    # sense.
+    #
+    # NOTE for task-038: this is a COVERAGE flag, deliberately vintage-agnostic — six
+    # indicators in any year qualify. The supply-risk model needs a specific vintage
+    # for WGIᶜ; picking one there does not have to change the rule here, but the two
+    # should be reconciled deliberately rather than by accident.
     countries_with_wgi = spark.sql(f"""
         SELECT dc.country_key
         FROM {DB}.silver_wgi sw
         JOIN {DB}.gold_dim_country dc ON sw.country_iso3 = UPPER(dc.iso3)
+        WHERE sw.value IS NOT NULL
         GROUP BY dc.country_key
-        HAVING COUNT(DISTINCT sw.indicator_name) >= 5
+        HAVING COUNT(DISTINCT sw.indicator_name) >= {WGI_REQUIRED_INDICATORS}
     """)
 
     # 4. Join to find gaps (both EPI and WGI)
