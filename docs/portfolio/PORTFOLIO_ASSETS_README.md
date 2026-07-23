@@ -51,53 +51,59 @@
 
 ---
 
-### 3. DAX Measure Library
+### 3. DAX Measure Library — Two Models, One Evolution
 
-> ⚠️ **These measures live in the ARCHIVED v1 model, not the canonical one.** This
-> section previously cited
-> `/fabric/OEMInsightBI_v2.SemanticModel/definition/tables/_Measures.tmdl` — a path that
-> does not exist, combining the v2 directory with the v1 filename. The v2 model has no
-> `_Measures.tmdl`; it distributes measures across per-table `.tmdl` files. Verify which
-> model you are demoing from before using this section in an interview.
+The semantic model went through a deliberate redesign, and the two versions tell
+complementary stories. **Both are worth showing — know which one you're demoing.**
 
-**Showcase measures (the 8 below):**
-the archived v1 model — the single `.SemanticModel` under `/fabric/archive/`,
-`definition/tables/_Measures.tmdl` — 46 measures
+| | **v2 — canonical** | **v1 — archived** |
+|---|---|---|
+| Path | `fabric/OEMInsightBI_v2.SemanticModel/definition/tables/*.tmdl` | `fabric/archive/…/definition/tables/_Measures.tmdl` |
+| Measures | 40, across per-table files | 46, in one file |
+| Emphasis | **Data-quality observability** | **Analytical BI depth** |
+| Examples | `EPI Country Coverage %`, `Gap Resolution Rate`, `Threshold Breaches` | HHI Index, Spend-Weighted EPI, YoY Growth |
 
-**Canonical model:**
-`/fabric/OEMInsightBI_v2.SemanticModel/definition/tables/*.tmdl`
-— 40 measures across 6 table files (`fact_procurement`, `fact_epi_score`,
-`gold_data_gaps`, `gold_gap_registry`, `gold_low_confidence_audit`,
-`gold_quality_history`)
+The redesign **foregrounded data-quality observability** — coverage tracking, gap
+resolution, gate-verdict surfacing — because that became the project's centre of
+gravity (a blocking DQ gate, a gap registry, quality-history trending). The v1
+analytical measures were preserved in the archive rather than carried forward; the two
+models share only **Total Spend EUR** and **Avg EPI Score**.
 
-**Status:** ⚠️ The two sets barely overlap. Of the 8 measures below, only **Total Spend
-EUR** and **Avg EPI Score** exist in v2. The v2 model's measures are predominantly
-*coverage and data-quality observability* (`EPI Country Coverage %`, `Gap Resolution
-Rate`, `Threshold Breaches`, …) — a different and equally legitimate story, but not the
-one this section tells. The analytical measures below (HHI, spend-weighting, time
-intelligence) were not carried forward.
+**The interview narrative:** *"I redesigned the model as the project's focus shifted from
+descriptive analytics to data-quality engineering. v2 exposes the observability layer —
+coverage %, gap resolution, gate verdicts — as first-class measures; the earlier
+analytical set (HHI concentration, spend-weighted sustainability, time intelligence)
+lives in the archived v1 model and I can walk through either."* Showing the trade is the
+signal — it demonstrates judgment about what a data-engineering project should surface,
+not just breadth of DAX syntax.
 
-**Showcase Measures (v1 archive):**
-1. **Total Spend EUR** - Basic aggregation *(also in v2)*
-2. **YoY Spend Growth %** - Time intelligence (SAMEPERIODLASTYEAR)
-3. **Avg EPI Score** - Filtered aggregation *(also in v2)*
-4. **Spend-Weighted EPI Score** - Advanced SUMX with nested CALCULATE
-5. **% Spend - High EPI (>60)** - Categorization with DIVIDE
-6. **Max Supply Concentration %** - MAXX with VALUE conversion
-7. **HHI Index** - Statistical calculation (Herfindahl-Hirschman)
-8. **High Risk Material Count** - Conditional distinct count
+**Analytical showcase measures (v1 archive) — the advanced-DAX evidence:**
+1. **Total Spend EUR** — Basic aggregation *(also in v2)*
+2. **YoY Spend Growth %** — Time intelligence (`SAMEPERIODLASTYEAR`)
+3. **Avg EPI Score** — Filtered aggregation *(also in v2)*
+4. **Spend-Weighted EPI Score** — `SUMX` over `SUMMARIZE` with nested `CALCULATE`
+5. **% Spend - High EPI (>60)** — Categorization with `DIVIDE`
+6. **Max Supply Concentration %** — `MAXX`
+7. **HHI Index** — Herfindahl-Hirschman concentration (`SUMX` of squared shares)
+8. **High Risk Material Count** — Conditional distinct count
 
-**Technical Highlights:**
-- ✅ Display folders for organization (Procurement, Sustainability, Risk)
-- ✅ Safe division with DIVIDE (handles zero denominators)
+**Observability measures (v2 canonical) — the data-engineering evidence:**
+coverage % by source, gap resolution rate, open/resolved gap counts, threshold breaches,
+low-confidence match tracking, pipeline-run counts — i.e. *is the data trustworthy, and
+where are the holes*, expressed in DAX.
+
+**Technical highlights (both models):**
+- ✅ Display folders for organization
+- ✅ Safe division with `DIVIDE` (handles zero denominators)
 - ✅ Variables for readability and performance
-- ✅ SUMX iteration pattern for weighted calculations
+- ✅ `SUMX` iteration for weighted calculations
 - ✅ DirectLake-compatible (no calculated columns)
 
 **Portfolio Use:**
-- Code sample for GitHub
-- Discussion topic in interviews ("Tell me about a complex DAX measure you've written")
-- Evidence of advanced Power BI skills (beyond basic SUM/AVERAGE)
+- Code sample for GitHub — link the specific `.tmdl` file, not a generic path
+- Interview discussion: the v1→v2 evolution *is* the story ("tell me about a design
+  decision you'd defend")
+- Evidence of both analytical DAX depth **and** data-quality engineering judgment
 
 ---
 
@@ -117,11 +123,9 @@ set. This design doc describes the analytical measures, i.e. the v1 set.
 
 **Portfolio Use:**
 - Shows ability to design comprehensive measure libraries
-- Demonstrates forward-thinking (designed 40+, implemented 8 for MVP)
-- Can discuss trade-offs: "Here's why I prioritized these 8 measures first"
-- ⚠️ Before using this in an interview, decide the story for the v1→v2 split: the
-  redesign traded the analytical measures for coverage/quality observability. That is a
-  defensible engineering choice, but it needs to be *told* rather than discovered.
+- Demonstrates forward-thinking (designed 40+, prioritized a focused set for build)
+- Pairs with § 3's v1→v2 narrative: this doc is the *design* superset; the two shipped
+  models are the *implemented* subsets, each with a deliberate emphasis
 
 ---
 
