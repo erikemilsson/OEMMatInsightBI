@@ -52,13 +52,35 @@
 ---
 
 ### 3. DAX Measure Library
-**File:** `/fabric/OEMInsightBI_v2.SemanticModel/definition/tables/_Measures.tmdl`
-**Status:** ✅ Complete (8 measures implemented)
 
-**Implemented Measures:**
-1. **Total Spend EUR** - Basic aggregation
+> ⚠️ **These measures live in the ARCHIVED v1 model, not the canonical one.** This
+> section previously cited
+> `/fabric/OEMInsightBI_v2.SemanticModel/definition/tables/_Measures.tmdl` — a path that
+> does not exist, combining the v2 directory with the v1 filename. The v2 model has no
+> `_Measures.tmdl`; it distributes measures across per-table `.tmdl` files. Verify which
+> model you are demoing from before using this section in an interview.
+
+**Showcase measures (the 8 below):**
+the archived v1 model — the single `.SemanticModel` under `/fabric/archive/`,
+`definition/tables/_Measures.tmdl` — 46 measures
+
+**Canonical model:**
+`/fabric/OEMInsightBI_v2.SemanticModel/definition/tables/*.tmdl`
+— 40 measures across 6 table files (`fact_procurement`, `fact_epi_score`,
+`gold_data_gaps`, `gold_gap_registry`, `gold_low_confidence_audit`,
+`gold_quality_history`)
+
+**Status:** ⚠️ The two sets barely overlap. Of the 8 measures below, only **Total Spend
+EUR** and **Avg EPI Score** exist in v2. The v2 model's measures are predominantly
+*coverage and data-quality observability* (`EPI Country Coverage %`, `Gap Resolution
+Rate`, `Threshold Breaches`, …) — a different and equally legitimate story, but not the
+one this section tells. The analytical measures below (HHI, spend-weighting, time
+intelligence) were not carried forward.
+
+**Showcase Measures (v1 archive):**
+1. **Total Spend EUR** - Basic aggregation *(also in v2)*
 2. **YoY Spend Growth %** - Time intelligence (SAMEPERIODLASTYEAR)
-3. **Avg EPI Score** - Filtered aggregation
+3. **Avg EPI Score** - Filtered aggregation *(also in v2)*
 4. **Spend-Weighted EPI Score** - Advanced SUMX with nested CALCULATE
 5. **% Spend - High EPI (>60)** - Categorization with DIVIDE
 6. **Max Supply Concentration %** - MAXX with VALUE conversion
@@ -81,7 +103,10 @@
 
 ### 4. Full DAX Measure Design Document
 **File:** `/.claude/support/documents/dax_measure_library.md`
-**Status:** ✅ Complete (40+ measures designed, 8 implemented)
+**Status:** ✅ Design complete (40+ measures designed). **Implementation is split across
+two models** — see § 3: the 8 showcase measures are implemented in the *archived v1*
+model, while the canonical v2 model implements a different 40-measure coverage/quality
+set. This design doc describes the analytical measures, i.e. the v1 set.
 
 **Contents:**
 - Star schema overview
@@ -94,6 +119,9 @@
 - Shows ability to design comprehensive measure libraries
 - Demonstrates forward-thinking (designed 40+, implemented 8 for MVP)
 - Can discuss trade-offs: "Here's why I prioritized these 8 measures first"
+- ⚠️ Before using this in an interview, decide the story for the v1→v2 split: the
+  redesign traded the analytical measures for coverage/quality observability. That is a
+  defensible engineering choice, but it needs to be *told* rather than discovered.
 
 ---
 
@@ -225,7 +253,7 @@
 **Steps:**
 1. Create public repo: `erikemilsson/OEMMatInsightBI`
 2. Upload key files:
-   - `_Measures.tmdl` (DAX code)
+   - DAX code — v2: `OEMInsightBI_v2.SemanticModel/definition/tables/*.tmdl`; v1 showcase set: the archived model under `fabric/archive/` → `definition/tables/_Measures.tmdl`
    - `CASE_STUDY.md` (project overview)
    - `PORTFOLIO_DESIGN.md` (design specs)
    - `dax_measure_library.md` (full design)
@@ -284,7 +312,8 @@
 |-------|-----------|--------|
 | Case Study | `/docs/portfolio/CASE_STUDY.md` | ✅ Complete |
 | Design Specs | `/docs/portfolio/PORTFOLIO_DESIGN.md` | ✅ Complete |
-| DAX Measures (Implemented) | `/fabric/OEMInsightBI_v2.SemanticModel/.../tables/_Measures.tmdl` | ✅ Complete |
+| DAX Measures (v2, canonical) | `/fabric/OEMInsightBI_v2.SemanticModel/definition/tables/*.tmdl` | ✅ 40 measures — coverage/quality focus |
+| DAX Measures (v1 showcase set) | the archived model under `/fabric/archive/` → `definition/tables/_Measures.tmdl` | ⚠️ 46 measures, ARCHIVED model |
 | DAX Measures (Full Design) | `/.claude/support/documents/dax_measure_library.md` | ✅ Complete |
 | Report JSON | `/fabric/report2.Report/report.json` | ⏳ Needs update |
 | Screenshots | N/A | ⏳ Pending |

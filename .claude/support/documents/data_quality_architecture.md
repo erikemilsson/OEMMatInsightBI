@@ -140,24 +140,36 @@ gold_join_metrics
 
 | Attribute | Value |
 |-----------|-------|
-| **Status** | PARTIAL |
+| **Status** | IMPLEMENTED (occurrence audit + gap registry, split by design) |
 | **Layer** | Silver/Gold |
 | **Purpose** | Track unmapped values for remediation |
 
 **What Exists:**
 ```
-gold_unmapped_procurement_audit
-├── unmapped_value        ✅
+gold_unmapped_procurement_audit          -- one row per unmapped VALUE OCCURRENCE
+├── row_id                ✅ (source transaction, for tracing back)
 ├── unmapped_type         ✅ (material, hq_country, prod_country)
-├── frequency             ✅
-├── spend_impact          ✅
-├── first_seen            ❌ MISSING
-├── last_seen             ❌ MISSING
-├── resolution_status     ❌ MISSING
-└── assigned_to           ❌ MISSING
+├── gap_dimension         ✅ (material, country — the coarse slot)
+├── unmapped_value        ✅
+├── spend_eur             ✅
+└── detected_timestamp    ✅
 ```
 
-**Enhancement Needed:** Add lifecycle fields to track when gaps appeared, how long they've existed, and whether they're being addressed.
+**Two corrections to what this section used to claim** (task-027 / task-031 sweep):
+
+- **`frequency` is not a stored column** and never was. The table is at
+  occurrence grain — one row per unmapped value per source row — so frequency is
+  an *aggregate* you compute (`COUNT(*) GROUP BY unmapped_value, unmapped_type`),
+  which is exactly what `/view-unmapped` does. Listing it as a column invited
+  `SELECT frequency`, which fails.
+- **The spend column is `spend_eur`, not `spend_impact`.**
+
+**The four lifecycle fields are not missing — they moved, by design.** `first_seen`,
+`last_seen`, `resolution_status` and `assigned_to` live on **`gold_gap_registry`**,
+which tracks a *gap* (a distinct unmapped value) across runs. Keeping lifecycle state
+on this table would be wrong: it is overwritten every run and carries duplicate rows
+per value, so there is nothing stable to attach a resolution status to. Join
+`gold_gap_registry` on the value to get the lifecycle view.
 
 ---
 
@@ -230,13 +242,16 @@ gold_low_confidence_audit
 ```
 gold_data_gaps
 ├── country_key
-├── country_name
+├── country_name_std     ✅
 ├── iso3
 ├── region
-├── has_epi              ✅
-├── has_wgi              ✅ (requires all 5 indicators)
-├── coverage_status      ✅ (Full/EPI Only/WGI Only/None)
-└── total_spend          ✅
+├── country_role         ✅ (Supplier HQ / Production)
+├── has_epi_score        ✅
+├── has_wgi_score        ✅ (requires all SIX indicators — task-031)
+├── data_status          ✅ (Full Coverage/EPI Only/WGI Only/No Coverage)
+├── spend_eur            ✅
+├── transaction_count    ✅
+└── calculated_at        ✅
 
 gold_data_gaps_summary
 ├── coverage_status

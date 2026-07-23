@@ -139,13 +139,24 @@ The project implements a **medallion architecture** (bronze → silver → gold)
 **Transformations:**
 1. **EPI:** Drop .old columns, remove .new suffixes, cast types
 2. **Supply Shares:** Lowercase headers, replace spaces with underscores
-3. **WGI:** Unpivot year columns, filter to 2020, join with metadata
+3. **WGI:** Standardize ISO3, preserve `Indicator Code`/`Year`/`Value`, drop
+   null-valued observations, deduplicate to grain (country × indicator × year)
 4. **Procurement:** Join with supplier_ref, standardize column names
+
+> **WGI is already long-format — nothing is unpivoted.** This step used to read
+> `bronze_WB_ESGCSV` + `bronze_WB_ESGSeries` (a wide Excel extract), unpivot year
+> columns, filter to 2020 and write `silver_WB`. That lineage is retired and none of
+> those tables exist. The live source is the World Bank API via
+> `bronze_ingest_wgi.Notebook`, which delivers one row per country per indicator per
+> year. Silver preserves `Year`/`Value` because they are the `WGIᶜ` governance weight
+> in the supply-risk model (DEC-001); dropping them was the defect task-031 fixed.
 
 **Tables:**
 - `silver_procurement` - Cleaned procurement with supplier info
 - `silver_epi2024results` - Cleaned EPI data
-- `silver_WB` - Unpivoted and filtered WGI data
+- `silver_wgi` - Governance indicators, grain (country_iso3, indicator_name, year),
+  columns `country_iso3`, `country_name`, `indicator_name`, `indicator_code`,
+  `year`, `value`
 - `silver_globalsupplyshares` - Cleaned supply shares
 
 **Notebook:** `bronze-to-silver.Notebook`

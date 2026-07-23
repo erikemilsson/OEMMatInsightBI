@@ -160,18 +160,39 @@ ORDER BY failure_count DESC;
 
 ## Email Notification Setup (Fabric UI)
 
-Email notifications require configuration in the Fabric workspace UI. They cannot be set via the pipeline JSON alone.
+**Pipeline-level** email notifications are configured in the Fabric workspace UI — they
+cannot be set via the pipeline JSON. **Activity-level** notifications *can*: see the
+`notifyOption` note below.
+
+> ⚠️ **Notifications do not fire for on-demand runs.** They are attached to the
+> *schedule*, so a pipeline you trigger manually — which is how this project is run
+> today (task-010, scheduling, is On Hold) — will fail silently no matter what is
+> configured here. Do not treat this setup as coverage until the pipeline is scheduled.
 
 ### Steps to Configure
 
 1. Open the Fabric workspace: [OEMMatInsightBI Workspace](https://app.fabric.microsoft.com/groups/99e4cc6d-6ec3-49a7-aed9-b69b04a97aa9)
 2. Navigate to the orchestrator pipeline
-3. Click **Settings** (gear icon) > **Notifications**
+3. **Home** > **Schedule** > **Failure notifications**
+   *(The older path — Settings gear > Notifications — no longer exists.)*
 4. Enable email notifications for:
    - **Pipeline failure** (after all retries exhausted)
    - **Pipeline success** (optional, for daily summary)
 5. Add recipients: data engineering team email(s)
 6. Save
+
+### Activity-level `notifyOption` (JSON-settable)
+
+The three `RefreshDataflow` activities in `orchestrator_pipeline_bronze_to_gold` each
+carry a `notifyOption` property, currently `"NoNotification"`. Setting it to
+`"MailOnFailure"` in `pipeline-content.json` gives per-activity mail without touching
+the UI — and, unlike the schedule-attached pipeline notification above, it is version
+controlled. It covers only those three activities, so it complements rather than
+replaces the pipeline-level setup.
+
+> Choosing between these (or deferring both with a recorded reason) is **task-041**
+> criterion 5. Do not configure ad hoc — the decision belongs with the error-handler
+> wiring.
 
 ### Alternative: Power Automate / Logic App
 

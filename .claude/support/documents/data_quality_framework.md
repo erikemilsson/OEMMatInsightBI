@@ -1046,13 +1046,24 @@ def log_quality_check(check_name: str, result: dict):
 
 **Severity Levels:**
 
-| Score Range | Severity | Action | Notification |
-|-------------|----------|--------|--------------|
+> ⚠️ **This table is ASPIRATIONAL and describes score bands only. No row of it halts
+> the pipeline** — the implemented gate ignores `score` entirely. Read the section
+> immediately below before acting on this table; conflating the two is a recorded
+> source of mis-scoped work (FR-012).
+
+| Score Range | Severity | Intended Action | Notification |
+|-------------|----------|-----------------|--------------|
 | 95-100 | Excellent | None | None |
 | 85-94 | Good | Log warning | Daily summary email |
 | 70-84 | Fair | Alert | Email on check failure |
 | 50-69 | Poor | Escalate | Email + Slack alert |
-| 0-49 | Critical | Block pipeline | Email + Slack + PagerDuty |
+| 0-49 | Critical | Escalate (does **not** block — see below) | Email + Slack + PagerDuty |
+
+**Implementation status:** none of the notification actions in this table are wired —
+the pipeline currently carries `NoNotification` on every activity and no
+email/Teams/webhook configuration (task-041 owns that decision). The only column with
+a live implementation is the score band itself, via
+`gold_quality_history.breach_flag` at a `< 70.0` threshold — which is advisory.
 
 ### Score severity vs. the blocking gate (they are different mechanisms)
 
