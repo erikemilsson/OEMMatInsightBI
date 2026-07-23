@@ -1106,21 +1106,76 @@ except Exception as e:
 date_seq_df = spark.range(1).select(F.sequence(start, end).alias("dseq"))
 df = date_seq_df.select(F.explode(F.col("dseq")).alias("date"))
 
-# Build dimension with additional useful attributes
-dim_date = (
-    df
-    .withColumn("date_key", F.date_format("date","yyyyMMdd").cast(IntegerType()))
-    .withColumn("year", F.year("date"))
-    .withColumn("month", F.month("date"))
-    .withColumn("day", F.dayofmonth("date"))
-    .withColumn("month_name", F.date_format("date","MMM"))
-    .withColumn("quarter", F.quarter("date"))  # Added quarter
-    .withColumn("day_of_week", F.dayofweek("date"))  # Added day of week
-    .withColumn("week_of_year", F.weekofyear("date"))  # Added week of year
-    .select("date_key","date","year","month","day","month_name","quarter","day_of_week","week_of_year")
+
+def date_attributes(date_df):
+    """Derive every dim_date attribute from a single `date` column.
+
+    Factored out (task-030) so the real calendar sequence and the UNKNOWN-DATE
+    member below are built by the SAME expressions — the sentinel row can never
+    drift out of schema or attribute agreement with the rest of the dimension.
+    """
+    return (
+        date_df
+        .withColumn("date_key", F.date_format("date","yyyyMMdd").cast(IntegerType()))
+        .withColumn("year", F.year("date"))
+        .withColumn("month", F.month("date"))
+        .withColumn("day", F.dayofmonth("date"))
+        .withColumn("month_name", F.date_format("date","MMM"))
+        .withColumn("quarter", F.quarter("date"))  # Added quarter
+        .withColumn("day_of_week", F.dayofweek("date"))  # Added day of week
+        .withColumn("week_of_year", F.weekofyear("date"))  # Added week of year
+        .select("date_key","date","year","month","day","month_name","quarter","day_of_week","week_of_year")
+    )
+
+
+# -----------------------------------------------------------------------------
+# task-030 (AC1) — EXPLICIT UNKNOWN-DATE MEMBER, not a NULL date_key
+# -----------------------------------------------------------------------------
+# DECISION: transactions whose source date is NULL or fails the date cast are kept
+# in fact_procurement and pointed at a sentinel dim_date member (19000101 /
+# 1900-01-01) instead of carrying a NULL date_key. The alternative considered was
+# quarantining them out of the fact into the unmapped audit.
+#
+# Why the unknown member wins here:
+#   1. It is the SAME philosophy this notebook already applies to the other two
+#      dimensions — an unmapped material becomes 'Unknown Material' and an unmapped
+#      country becomes 'Unknown - Global' (see the fact_procurement cell). One
+#      mental model for every dimension miss beats a per-dimension special case.
+#   2. No data loss: the transaction's spend stays in the fact, so the unfiltered
+#      grand total is the true total. Quarantining would make gold spend silently
+#      UNDERSTATE actual spend — the same class of invisible divergence this task
+#      exists to remove, just pointed the other way.
+#   3. A NULL date_key matches no dim_date row, so in DirectLake the row vanishes
+#      from every date-related visual while still counting in unfiltered cards.
+#      A real member is selectable in a slicer: the undated spend is visible and
+#      explainable instead of missing.
+#   4. The BLOCKING referential-integrity check owned by task-026
+#      (fact_procurement.date_key -> gold_dim_date, 0% tolerance) uses a LEFT ANTI
+#      join, which counts a NULL key as an orphan. Any NULL date_key would halt the
+#      pipeline. Routing to a member that genuinely exists in the dimension keeps
+#      that gate green for a reason, rather than by luck.
+#
+# 19000101 (not -1) because every other date_key in this model is yyyyMMdd, and
+# downstream SQL/DAX may parse it back to a date. The sentinel keeps that invariant.
+#
+# NOTE for whoever marks gold_dim_date as a Power BI date table: this member breaks
+# date contiguity (1900 then a jump to the real range). gold_dim_date is not marked
+# as a date table today (no dataCategory: Time in the TMDL). If it ever is, exclude
+# the sentinel from the marked table rather than deleting it from the dimension.
+UNKNOWN_DATE_KEY = 19000101
+UNKNOWN_DATE = "1900-01-01"
+
+dim_date_calendar = date_attributes(df).filter(F.col("date_key") != F.lit(UNKNOWN_DATE_KEY))
+dim_date_unknown = date_attributes(
+    spark.range(1).select(F.lit(UNKNOWN_DATE).cast(DateType()).alias("date"))
 )
 
+# Build dimension with additional useful attributes
+dim_date = dim_date_calendar.unionByName(dim_date_unknown)
+
 write_tbl(dim_date, "gold_dim_date")
+print(f"  ↳ includes the UNKNOWN-DATE member date_key={UNKNOWN_DATE_KEY} "
+      f"({UNKNOWN_DATE}) — fact rows with no usable transaction date point here")
 
 # METADATA ********************
 
@@ -1276,14 +1331,67 @@ else:
     print(f"fact_procurement: INCREMENTAL — silver window from {_lookback_str} "
           f"(7-day look-back from {p_from_date})")
 
-# Extended unit normalization map
+# -----------------------------------------------------------------------------
+# Unit normalization (task-030 AC2)
+# -----------------------------------------------------------------------------
+# ONE python dict is the source of truth: it builds the Spark map used by the fact
+# AND drives the unit-domain report printed below, so the two can never disagree.
+# The four factors are the ones documented in calculations.md § "Quantity Base".
+# (The old trailing comment "... (rest remains same)" implied a truncated map; it
+# did not — these four ARE the whole map, which is exactly why the fallback below
+# mattered so much.)
+#
+# MIRRORED CHECK: data_quality_checks.Notebook carries the advisory
+# business_rule_validation rule "Unit In Conversion Domain" on silver_procurement
+# with this same domain. Fabric notebooks cannot import from each other, so the
+# list is duplicated by necessity — change both together.
+UNIT_CONVERSION_FACTORS = {
+    "kg": 1.0,
+    "g": 0.001,
+    "mg": 0.000001,
+    "t": 1000.0,
+}
 unit_norm = F.create_map(*[
-    F.lit("kg"), F.lit(1.0),
-    F.lit("g"), F.lit(0.001),
-    F.lit("mg"), F.lit(0.000001),
-    F.lit("t"), F.lit(1000.0),
-    # ... (rest remains same)
+    lit for unit, factor in UNIT_CONVERSION_FACTORS.items()
+    for lit in (F.lit(unit), F.lit(factor))
 ])
+
+# Lookup key for the map. TRIM matters: without it a source value of " kg" misses
+# the map, and under the AC2 fix below a miss now yields a NULL quantity_base — so
+# whitespace alone would silently drop a perfectly good row from spend.
+unit_key = F.lower(F.trim(F.col("p.unit")))
+
+# -----------------------------------------------------------------------------
+# task-030 (AC3) — unitprice_eur basis. OPEN QUESTION, owner: Erik.
+# -----------------------------------------------------------------------------
+# calculations.md:7 asserts spend_eur = quantity_base (kg) x unitprice_eur (EUR/kg),
+# i.e. the price is per KILOGRAM regardless of the row's Unit. But bronze carries a
+# per-row Unit column, so the price may well be per THAT unit — in which case spend
+# for a tonne-denominated row is inflated x1000 today.
+#
+# This has NOT been verified against the Azure SQL source and is NOT changed here.
+# The switch below exists so that confirming the answer is a one-token edit:
+#
+#     "per_kg"        (current, documented assumption)  spend = quantity_base * price
+#     "per_row_unit"  (if Erik's check says otherwise)  spend = quantity_original * price
+#
+# THE ONLY EDIT NEEDED IF THE ANSWER IS "per row unit": change UNITPRICE_BASIS on the
+# next line. Then also update calculations.md:7, bronze_tables.md, and align
+# populate_low_confidence_audit's spend_impact (it already uses the raw
+# quantity * unitpriceeur form) — see task-030 notes.
+UNITPRICE_BASIS = "per_kg"
+
+if UNITPRICE_BASIS == "per_kg":
+    # Price is EUR per kilogram: multiply the kg-normalized quantity.
+    spend_eur_expr = F.col("quantity_base") * F.col("p.unitpriceeur")
+elif UNITPRICE_BASIS == "per_row_unit":
+    # Price is EUR per the row's own Unit: multiply the ORIGINAL quantity, with no
+    # conversion on the price side (converting both sides would double-count).
+    spend_eur_expr = F.col("p.quantity") * F.col("p.unitpriceeur")
+else:
+    raise ValueError(
+        f"UNITPRICE_BASIS must be 'per_kg' or 'per_row_unit', got {UNITPRICE_BASIS!r}"
+    )
 
 # Prepare procurement data
 p = (
@@ -1294,6 +1402,57 @@ p = (
     .withColumn("prod_country", F.trim("productioncountry"))
     .withColumn("row_id", F.monotonically_increasing_id())  # Add row ID for tracking
 ).alias("p")
+
+# -----------------------------------------------------------------------------
+# task-030 (AC2) — OBSERVED UNIT DOMAIN + unrecognized-unit audit
+# -----------------------------------------------------------------------------
+# Printed every run so the actual unit vocabulary of the source is visible instead
+# of assumed. Computed off `p` (the rows actually being loaded) BEFORE the dimension
+# joins, so the counts are per source transaction and cannot be skewed by a join.
+p_units = (
+    p
+    .select(unit_key.alias("unit_key"))
+    .groupBy("unit_key")
+    # NOT aliased `count`: pyspark Row subclasses tuple, so row.count would return
+    # the bound tuple method and float(row.count) raises TypeError.
+    .agg(F.count(F.lit(1)).alias("row_count"))
+    .orderBy(F.desc("row_count"))
+    .collect()
+)
+print("\n--- Unit domain observed in silver_procurement (this load window) ---")
+for u in p_units:
+    known = u.unit_key in UNIT_CONVERSION_FACTORS
+    label = "recognized" if known else "UNRECOGNIZED — quantity_base withheld"
+    print(f"  {str(u.unit_key):>12} : {u.row_count:>8,} rows   [{label}]")
+
+# Durable audit of every unit outside the conversion map. A console print dies with
+# the notebook page; this table is queryable after the fact and is what /view-unmapped
+# style investigation needs. Deliberately its OWN table rather than a row in
+# gold_unmapped_procurement_audit: that table is consumed wholesale by
+# populate_gap_registry, which would turn a unit into a gap_type='unit' registry
+# entry and inflate the "unmapped records" dashboard metric. Unit coverage is a
+# conversion-map gap, not a dimension-alias gap.
+unit_audit = (
+    p
+    .withColumn("unit_key", unit_key)
+    .withColumn("unit_factor", unit_norm[F.col("unit_key")])
+    .filter(F.col("unit_factor").isNull())
+    .groupBy(F.col("unit_key").alias("unmapped_unit"))
+    .agg(
+        F.count(F.lit(1)).alias("row_count"),
+        F.sum(F.col("quantity").cast("double")).alias("quantity_original_sum"),
+    )
+    .withColumn("detected_timestamp", F.current_timestamp())
+)
+write_tbl(unit_audit, "gold_unmapped_unit_audit")
+
+unrecognized_unit_rows = sum(u.row_count for u in p_units
+                             if u.unit_key not in UNIT_CONVERSION_FACTORS)
+if unrecognized_unit_rows > 0:
+    print(f"⚠️  WARNING: {unrecognized_unit_rows:,} rows carry a unit outside "
+          f"{sorted(UNIT_CONVERSION_FACTORS)} — quantity_base and spend_eur are NULL "
+          f"for those rows (see {DB}.gold_unmapped_unit_audit). Add the unit to "
+          f"UNIT_CONVERSION_FACTORS (and calculations.md) to convert them.")
 
 # Build fact with comprehensive joins and quality tracking
 fact_procurement_raw = (
@@ -1309,13 +1468,19 @@ fact_procurement_raw = (
     .join(dim_country_lu.alias("c_prod"), F.col("p.prod_country") == F.col("c_prod.lookup_name"), "left")
     
     # Calculate derived fields
-    .withColumn("unit_factor", unit_norm[F.lower(F.col("p.unit"))])
+    .withColumn("unit_factor", unit_norm[unit_key])
+    # task-030 (AC2): the fallback used to be .otherwise(F.col("p.quantity")) — a row
+    # denominated in 'lb' or 'tonne' kept its RAW magnitude while being labelled kg,
+    # so quantity_base and spend_eur were quietly wrong by whatever the real factor
+    # was (x1000 for a tonne). NULL is the honest answer: we do not know the kg
+    # equivalent. It is a known-unknown that SUM() skips and the audit table above
+    # names, instead of an unknown-unknown baked into the number.
     .withColumn("quantity_base",
-                F.when(F.col("unit_factor").isNotNull(), 
-                       F.col("p.quantity") * F.col("unit_factor"))
-                .otherwise(F.col("p.quantity")))
-    .withColumn("spend_eur",
-                F.col("quantity_base") * F.col("p.unitpriceeur"))
+                F.when(F.col("unit_factor").isNotNull(),
+                       (F.col("p.quantity") * F.col("unit_factor")).cast("double"))
+                .otherwise(F.lit(None).cast("double")))
+    # Basis chosen at the top of this cell (task-030 AC3, pending source confirmation).
+    .withColumn("spend_eur", spend_eur_expr)
     
     # NEW: Add data quality indicators
     .withColumn("data_quality_score",
@@ -1352,8 +1517,15 @@ fact_procurement_complete = (
          .otherwise(F.col("c_prod.country_key"))
     )
     
+    # task-030 (AC1): route a failed date join to the explicit UNKNOWN-DATE member
+    # instead of leaving date_key NULL — same placeholder philosophy as the three
+    # dimension keys above. See the dim_date cell for the full rationale.
+    .withColumn("date_key_final",
+        F.coalesce(F.col("d.date_key"), F.lit(UNKNOWN_DATE_KEY).cast(IntegerType()))
+    )
+
     .select(
-        F.col("d.date_key"),
+        F.col("date_key_final").alias("date_key"),
         F.col("material_key_final").alias("material_key"),
         F.col("supplier_hq_country_key_final").alias("supplier_hq_country_key"),
         F.col("production_country_key_final").alias("production_country_key"),
@@ -1366,6 +1538,19 @@ fact_procurement_complete = (
         F.col("p.row_id").alias("source_row_id")
     )
 )
+
+# task-030 (AC1): how many transactions had no usable date this run. Printed rather
+# than silently absorbed — the whole point of the unknown member is that undated
+# spend stays countable.
+undated_rows = fact_procurement_raw.filter(F.col("d.date_key").isNull()).count()
+if undated_rows > 0:
+    print(f"⚠️  WARNING: {undated_rows:,} transactions have no usable date "
+          f"(NULL or uncastable) — routed to dim_date member {UNKNOWN_DATE_KEY}. "
+          f"They are included in unfiltered totals and selectable in a date slicer, "
+          f"but cannot be attributed to a real period.")
+else:
+    print(f"✓ fact_procurement: every transaction resolved to a real date "
+          f"(0 rows on the {UNKNOWN_DATE_KEY} unknown-date member)")
 
 # Write fact_procurement — full overwrite (full load / first load) or transaction-grain
 # delete-insert over the incremental window.
@@ -1385,7 +1570,19 @@ else:
     # date_key >= this minimum is in the window; deleting target rows with date_key >= min and
     # re-inserting the window is therefore lossless AND idempotent. (Rows with a NULL date are
     # excluded by the incremental window filter above, so they never accumulate here.)
-    window_min_date_key = fact_procurement_complete.agg(F.min("date_key")).first()[0]
+    #
+    # task-030: the UNKNOWN-DATE member is EXCLUDED from the boundary computation. Undated rows
+    # now carry date_key=19000101, which is below every real date_key — if one ever reached this
+    # frame the boundary would collapse to 19000101 and the delete would wipe the ENTIRE fact
+    # table before re-inserting only the window. Today the incremental filter (date >= look-back)
+    # already drops undated rows before the join, so this is belt-and-braces; it stays correct if
+    # that filter is ever changed. Undated rows written by a full load sit below the boundary and
+    # are therefore preserved, not deleted, by subsequent incremental runs.
+    window_min_date_key = (
+        fact_procurement_complete
+        .filter(F.col("date_key") != F.lit(UNKNOWN_DATE_KEY))
+        .agg(F.min("date_key")).first()[0]
+    )
     if window_min_date_key is None:
         print("fact_procurement: incremental window is empty — nothing to delete-insert")
     else:

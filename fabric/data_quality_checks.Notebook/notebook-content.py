@@ -907,6 +907,61 @@ try:
 except Exception as e:
     print(f"  [SKIP] fact_epi_score business rules: {str(e)}")
 
+# -----------------------------------------------------------------------------
+# task-030 (AC4): UNIT-DOMAIN CHECK — silver_procurement.unit
+# -----------------------------------------------------------------------------
+# Checked on SILVER, not on the gold fact: fact_procurement does not carry the unit
+# column, only the already-converted quantity_base. Silver is the last layer where
+# the source vocabulary still exists.
+#
+# Why it matters: silver-to-gold2 converts to kg with a four-entry map
+# (kg/g/mg/t = calculations.md). task-030 changed the fallback for any OTHER unit
+# from "pass the raw magnitude through as if it were kg" (silent corruption) to a
+# NULL quantity_base. That makes the defect honest but not visible — this check is
+# what makes it visible, and it fires one layer EARLIER than the resulting NULLs.
+#
+# ADVISORY BY DESIGN: ("business_rule_validation", "oem_lh.silver_procurement") is
+# deliberately NOT in BLOCKING_CHECKS. The gate's blocking set was ratified under
+# DEC-003 against data that currently passes; a new blocking check would halt the
+# pipeline on the first exotic unit. Promoting it is a deliberate decision to take
+# once task-030 AC3 confirms the unitprice basis and the observed unit domain is
+# known (silver-to-gold2 now prints that domain every run and persists the
+# unrecognized slice to gold_unmapped_unit_audit).
+#
+# The domain below MIRRORS UNIT_CONVERSION_FACTORS in silver-to-gold2.Notebook.
+# Fabric notebooks cannot import from each other — change both together.
+#
+# The "unit IS NOT NULL AND" prefix is load-bearing, not defensive noise.
+# validate_business_rules counts violations as NOT (condition). For a NULL unit,
+# `lower(trim(unit)) IN (...)` evaluates to NULL, `NOT NULL` is NULL, and the filter
+# drops the row — so a NULL unit would slip through the check entirely while
+# silver-to-gold2 correctly treats it as unrecognized (a map lookup on a NULL key
+# returns NULL). Verified on a local SparkSession: without the prefix the violation
+# set is ['lb']; with it, ['lb', NULL].
+silver_procurement_rules = [
+    {"name": "Unit In Conversion Domain",
+     "condition": "unit IS NOT NULL AND lower(trim(unit)) IN ('kg', 'g', 'mg', 't')",
+     "severity": "error"},
+]
+
+try:
+    silver_proc_br_result = validate_business_rules(
+        "oem_lh.silver_procurement", silver_procurement_rules
+    )
+except Exception as e:
+    print(f"  [SKIP] silver_procurement business rules: {str(e)}")
+
+# NO DUPLICATE date_key CHECK IS ADDED HERE (task-030 AC4, second half).
+# The fact_procurement.date_key -> gold_dim_date referential-integrity check is
+# already owned by TASK-026 — see Check 6's ri_checks list, entry
+# ("oem_lh.fact_procurement", "date_key", "oem_lh.gold_dim_date", "date_key"), which
+# is BLOCKING via ("referential_integrity", "oem_lh.fact_procurement").
+# It covers the NULL case too: validate_referential_integrity uses a LEFT ANTI join,
+# and a NULL key matches no dimension row, so NULL date_key rows count as orphans and
+# fail the check at 0% tolerance. task-030 keeps that check green by construction —
+# undated rows now point at the explicit UNKNOWN-DATE member (date_key 19000101),
+# which is a real row in gold_dim_date.
+
 # METADATA ********************
 
 # META {

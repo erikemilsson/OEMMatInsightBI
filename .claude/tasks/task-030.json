@@ -2,7 +2,7 @@
   "id": "task-030",
   "title": "Harden fact_procurement inputs — NULL date_key rows leak into the fact, unknown units silently pass through as kg, unitpriceeur semantics unverified",
   "description": "Three input-hardening gaps in the fact_procurement build. (A) Rows whose date fails the cast keep NULL date_key via the left join to dim_date — unlike material/country misses there is no placeholder or filter, so in DirectLake those rows vanish from every date-filtered visual while still counting in unfiltered totals; card totals and time-series won't reconcile, and no RI check covers date_key. (B) unit_norm covers only kg/g/mg/t (matching calculations.md) but the fallback for any OTHER unit is .otherwise(quantity) — a row with unit 'lb' or 'tonne' keeps its raw magnitude labeled kg, silently corrupting quantity_base and spend_eur, with no DQ check on the unit domain. (C) calculations.md asserts unitprice_eur is EUR-per-kg; bronze carries a per-row Unit column, so if the source price is actually per row-unit, spend for tonne-denominated rows is inflated x1000. The audit could not verify this against the Azure SQL source — it needs a one-time human confirmation.",
-  "status": "Pending",
+  "status": "Finished",
   "priority": "P2",
   "difficulty": 3,
   "owner": "both",
@@ -15,7 +15,8 @@
   "section_snapshot_ref": "",
   "estimated_hours": 3,
   "files_affected": [
-    "fabric/silver-to-gold2.Notebook/notebook-content.py"
+    "fabric/silver-to-gold2.Notebook/notebook-content.py",
+    "fabric/data_quality_checks.Notebook/notebook-content.py"
   ],
   "acceptanceCriteria": [
     "NULL date_key rows are handled deliberately: either quarantined to the unmapped audit (consistent with the material/country placeholder philosophy — 'no data loss' medallion principle) or given an explicit unknown-date member in dim_date; silently-vanishing-from-date-visuals is eliminated. Choice commented in the notebook.",
@@ -36,10 +37,120 @@
   ],
   "user_feedback": "",
   "created_date": "2026-07-13",
-  "updated_date": "2026-07-13",
-  "completion_date": null,
-  "verification_attempts": 0,
+  "updated_date": "2026-07-23",
+  "completion_date": "2026-07-23",
+  "verification_attempts": 1,
   "out_of_spec": false,
   "absorbed_into": "",
-  "interaction_hint": "dashboard"
+  "interaction_hint": "dashboard",
+  "verification_history": [
+    {
+      "result": "pass",
+      "attempt": 1,
+      "timestamp": "2026-07-23T15:35:00Z",
+      "mode": "per_task",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "partial",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "summary": "AC1/AC2/AC4 verified by EXECUTION over notebook source extracted verbatim by line range - 33/33 local Spark assertions, 94/94 pytest. BOUNDARY CLAIM CORRECTED: pre-change F.min ignores NULLs so the old boundary was the real window min (20240315), NOT a table wipe - there was no pre-existing data-loss bug. The 19000101 collapse is a hazard AC1's sentinel INTRODUCES; the shipped guard pre-empts it and leaves task-024 semantics unchanged (guarded boundary == pre-change boundary; sentinel rows sit below it so undated rows survive a full load). AC1: 0 NULL date_key reach the fact, sentinel exists exactly once (the != filter de-dups even when the calendar covers 1900-01-01), attributes reproduced by an independent call to the shared date_attributes() helper, LEFT ANTI fact->dim = 0 orphans so task-026's BLOCKING RI check stays green by construction, row count preserved 8/8. AC2: 'lb' -> NULL quantity_base AND NULL spend_eur, NULL unit likewise, padded '  KG ' still converts (TRIM guard genuinely prevents a NEW null), audit persisted to its OWN gold_unmapped_unit_audit. Gap-registry containment confirmed with positive control: populate_gap_registry reads only the two audit tables by explicit name; the new table appears nowhere in it. AC4: BLOCKING_CHECKS byte-identical to baseline, new rule advisory-only, date_key check delegated to task-026's existing ri_checks entry not duplicated. The implementer's self-caught NULL-semantics bug reproduced and the guard confirmed. Scope clean: all silver-to-gold2 hunks inside old 1109-1388, zero hunks in task-028's work (1650+) or the registry region (2473+). Fabric cell-kind sequence identical to baseline in both notebooks, every META payload valid JSON.",
+      "issues": [
+        {
+          "severity": "minor",
+          "description": "The completion report framed the boundary guard as fixing a pre-existing latent data-loss bug; measured behaviour shows F.min ignores NULLs, so the hazard is introduced by the sentinel and correctly pre-empted. Code right, framing wrong."
+        },
+        {
+          "severity": "minor",
+          "description": "calculations.md and gold_tables.md still document the pre-change contract (quantity_base always populated, no UNKNOWN-DATE member, no gold_unmapped_unit_audit). Captured as FR-022; belongs to task-033's doc sweep."
+        },
+        {
+          "severity": "minor",
+          "description": "NULL quantity_base/spend_eur escape the pre-existing advisory 'Positive Quantity'/'Positive Spend' fact rules (0 violations despite 2 NULL rows) - the same NULL semantics guarded in the new rule was not retro-applied. Coverage not lost: the new silver-side rule catches the population one layer earlier."
+        },
+        {
+          "severity": "minor",
+          "description": "unionByName with the sentinel branch relaxes gold_dim_date's Delta schema nullability. Harmless under overwriteSchema=true, no consumer asserts nullability, but the written schema does change."
+        },
+        {
+          "severity": "minor",
+          "description": "Three extra Spark actions per gold run; gold_unmapped_unit_audit is window-scoped in incremental mode like the existing audit tables (a no-op today since p_from_date defaults to 1900-01-01)."
+        }
+      ]
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-07-23T15:35:00Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "partial",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "summary": "AC1/AC2/AC4 verified by EXECUTION over notebook source extracted verbatim by line range - 33/33 local Spark assertions, 94/94 pytest. BOUNDARY CLAIM CORRECTED: pre-change F.min ignores NULLs so the old boundary was the real window min (20240315), NOT a table wipe - there was no pre-existing data-loss bug. The 19000101 collapse is a hazard AC1's sentinel INTRODUCES; the shipped guard pre-empts it and leaves task-024 semantics unchanged (guarded boundary == pre-change boundary; sentinel rows sit below it so undated rows survive a full load). AC1: 0 NULL date_key reach the fact, sentinel exists exactly once (the != filter de-dups even when the calendar covers 1900-01-01), attributes reproduced by an independent call to the shared date_attributes() helper, LEFT ANTI fact->dim = 0 orphans so task-026's BLOCKING RI check stays green by construction, row count preserved 8/8. AC2: 'lb' -> NULL quantity_base AND NULL spend_eur, NULL unit likewise, padded '  KG ' still converts (TRIM guard genuinely prevents a NEW null), audit persisted to its OWN gold_unmapped_unit_audit. Gap-registry containment confirmed with positive control: populate_gap_registry reads only the two audit tables by explicit name; the new table appears nowhere in it. AC4: BLOCKING_CHECKS byte-identical to baseline, new rule advisory-only, date_key check delegated to task-026's existing ri_checks entry not duplicated. The implementer's self-caught NULL-semantics bug reproduced and the guard confirmed. Scope clean: all silver-to-gold2 hunks inside old 1109-1388, zero hunks in task-028's work (1650+) or the registry region (2473+). Fabric cell-kind sequence identical to baseline in both notebooks, every META payload valid JSON.",
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "The completion report framed the boundary guard as fixing a pre-existing latent data-loss bug; measured behaviour shows F.min ignores NULLs, so the hazard is introduced by the sentinel and correctly pre-empted. Code right, framing wrong."
+      },
+      {
+        "severity": "minor",
+        "description": "calculations.md and gold_tables.md still document the pre-change contract (quantity_base always populated, no UNKNOWN-DATE member, no gold_unmapped_unit_audit). Captured as FR-022; belongs to task-033's doc sweep."
+      },
+      {
+        "severity": "minor",
+        "description": "NULL quantity_base/spend_eur escape the pre-existing advisory 'Positive Quantity'/'Positive Spend' fact rules (0 violations despite 2 NULL rows) - the same NULL semantics guarded in the new rule was not retro-applied. Coverage not lost: the new silver-side rule catches the population one layer earlier."
+      },
+      {
+        "severity": "minor",
+        "description": "unionByName with the sentinel branch relaxes gold_dim_date's Delta schema nullability. Harmless under overwriteSchema=true, no consumer asserts nullability, but the written schema does change."
+      },
+      {
+        "severity": "minor",
+        "description": "Three extra Spark actions per gold run; gold_unmapped_unit_audit is window-scoped in incremental mode like the existing audit tables (a no-op today since p_from_date defaults to 1900-01-01)."
+      }
+    ],
+    "attempt": 1
+  },
+  "user_review_pending": true,
+  "test_protocol": {
+    "summary": "AC3 (unitpriceeur basis, against Azure SQL) and AC5 (post-/run-gold reconciliation) remain yours; AC1/AC2/AC4 are verified locally.",
+    "estimated_time": "20 minutes (AC3 dominates)",
+    "steps": [
+      {
+        "type": "interactive",
+        "instruction": "In Azure SQL inspect dbo.Procurement rows whose Unit is NOT 'kg' (e.g. 't' or 'g') and judge whether UnitPriceEUR is per kilogram or per that row's own Unit. A tonne row priced ~1000x a comparable kg row means per-kg; similar magnitude means per-row-unit.",
+        "expected": "A definitive answer: 'per kg' or 'per row unit'."
+      },
+      {
+        "type": "interactive",
+        "instruction": "If 'per row unit', change UNITPRICE_BASIS from 'per_kg' to 'per_row_unit' in silver-to-gold2 (the branch is already wired and locally tested). Either way record the answer in calculations.md line 7 and the bronze schema doc, and align populate_low_confidence_audit's spend_impact to the same semantics.",
+        "expected": "Notebook constant and docs agree on one basis."
+      },
+      {
+        "type": "command",
+        "command": "/run-gold",
+        "instruction": "Run /run-gold, then read the '--- Unit domain observed in silver_procurement ---' block and the date warning line.",
+        "expected": "The unit table lists the real source vocabulary; either 0 rows on the 19000101 member or an explicit undated count."
+      },
+      {
+        "type": "command",
+        "instruction": "SELECT COUNT(*) FROM oem_lh.fact_procurement WHERE date_key IS NULL; and SELECT * FROM oem_lh.gold_unmapped_unit_audit;",
+        "expected": "NULL count is 0. The unit audit is empty if the source only uses kg/g/mg/t, else it names each unmapped unit."
+      },
+      {
+        "type": "visual",
+        "instruction": "In Power BI compare the unfiltered total-spend card against the same measure summed across all date-dimension values.",
+        "expected": "They reconcile. Any residual gap is attributable to unrecognized-unit rows (NULL spend_eur), which the audit names."
+      }
+    ]
+  }
 }
