@@ -51,7 +51,7 @@ OEMMatInsightBI/
 - **Delta Lake**: All gold tables use Delta format for MERGE support
 - **TMDL**: Semantic model defined as code (not .pbix)
 - **Quality observability**: Three tables track data quality trends over time
-- **Testable transforms**: Python modules in `src/` with pytest coverage
+- **Testable transforms**: Python modules in `src/` with pytest coverage. **`src/` is a tested *mirror*, not the code the pipeline runs** — the Fabric notebooks duplicate this logic inline and import nothing from `src/`. Task-032 made that a deliberate *reference-implementation contract* rather than accidental drift: `tests/` loads the notebook's own functions (`load_notebook_functions`) and pins parity against the `src/` version, and where semantics intentionally differ the gap is asserted rather than fixed (see `tests/test_data_quality.py::test_check_duplicates_semantics_differ_from_notebook`). Changing one side without the other fails CI by design.
 - Erik works in Fabric UI; Claude writes code locally. Tasks with `owner: "both"` need coordination.
 - **Friction register**: frictions are *not* converted to tasks — they carry `owned_by_task` and are clustered by `/audit-coherence`. Local conventions: `.claude/support/reference/project-friction-conventions.md`
 

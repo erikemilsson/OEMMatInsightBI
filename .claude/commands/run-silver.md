@@ -7,7 +7,7 @@ Execute the bronze-to-silver data cleaning and standardization transformations.
 This command runs the `bronze-to-silver.Notebook` which performs:
 - Column name standardization (lowercase with underscores)
 - Data type conversions and casting
-- Unpivoting and reshaping (WGI year columns)
+- Deduplication to a declared grain (WGI: country × indicator × year)
 - Filtering and quality checks
 - Join operations (procurement + supplier reference)
 
@@ -73,17 +73,25 @@ This command runs the `bronze-to-silver.Notebook` which performs:
 #   - Drop unused 't' column
 ```
 
-### 3. World Bank WGI Cleaning
+### 3. World Governance Indicators (WGI) Cleaning
 ```python
-# Input: bronze_WB_ESGCSV + bronze_WB_ESGSeries
-# Output: silver_WB
+# Input:  bronze_WGI   (written by bronze_ingest_wgi.Notebook from the World Bank API)
+# Output: silver_wgi
 # Operations:
-#   - Unpivot year columns (y_2000, y_2001, ...) to long format
-#   - Filter for year 2020 only
-#   - Join with ESGSeries for topic metadata
-#   - Cast scores to DOUBLE
-#   - Filter scores to 0-100 range
+#   - Standardize Country Code -> country_iso3 (UPPER, trimmed)
+#   - Trim Country Name / Series Name
+#   - Preserve Indicator Code, Year (INT) and Value (DOUBLE)
+#   - Drop rows with a NULL value (the API returns a row per requested year
+#     whether or not an observation exists)
+#   - Deduplicate to grain (country_iso3, indicator_name, year)
 ```
+
+> **Bronze is already long-format — nothing is unpivoted here.** The retired
+> `WGI_file2table.Dataflow` read a wide Excel extract and produced 2023 *percentile
+> ranks* (0–100) as `bronze_WB_ESGCSV`/`bronze_WB_ESGSeries` → `silver_WB`. None of
+> those artifacts exist. The live source is the World Bank API, which serves
+> *estimates* (≈ −2.5…+2.5) in long format, so there are no year columns to pivot and
+> no 0–100 range to validate. See task-031.
 
 ### 4. Procurement Data Cleaning
 ```python
@@ -106,7 +114,7 @@ After silver transformation completes, verify:
 silver_tables = [
     "silver_epi2024results",
     "silver_globalsupplyshares",
-    "silver_WB",
+    "silver_wgi",
     "silver_procurement"
 ]
 
@@ -118,7 +126,9 @@ for table in silver_tables:
 **Expected Row Counts:**
 - silver_epi2024results: ~180-200 rows (same as bronze)
 - silver_globalsupplyshares: ~5,000-10,000 rows (same as bronze)
-- silver_WB: ~1,200-1,500 rows (unpivoted from wide format, filtered to 2020)
+- silver_wgi: tens of thousands of rows — 6 indicators × ~200 countries × ~25 published
+  years, minus years with no observation. (The old ~1,200-1,500 figure assumed a single
+  year; the table now carries the full time series.)
 - silver_procurement: ~100,000-200,000 rows (joined with supplier ref)
 
 **Data Quality Checks:**
@@ -127,10 +137,14 @@ for table in silver_tables:
 spark.table("oem_lh.silver_procurement").filter("date is null or materialname is null").count()
 # Should be 0
 
-# Check WB score range
-spark.table("oem_lh.silver_WB").filter("score < 0 or score > 100").count()
-# Should be 0
+# Check WGI grain is unique (task-031 contract) and all six indicators arrived
+wgi = spark.table("oem_lh.silver_wgi")
+assert wgi.count() == wgi.select("country_iso3", "indicator_name", "year").distinct().count()
+print(wgi.select("indicator_code").distinct().count(), "indicators")  # should be 6
 ```
+
+> There is no 0–100 range check: the API serves estimates (≈ −2.5…+2.5), not the
+> retired extract's percentile ranks.
 
 ## Troubleshooting
 
@@ -153,6 +167,23 @@ spark.table("oem_lh.silver_WB").filter("score < 0 or score > 100").count()
 - Verify bronze table schemas match expected format
 - Check for schema drift in source data
 - Review column name changes
+
+**`RuntimeError: bronze_WGI is missing ['Indicator Code', 'Year', 'Value']`:**
+- This is a deliberate stop, not a crash. `bronze_WGI` is still being written by the
+  retired `WGI_file2table.Dataflow` (Excel, 2023 percentile ranks) instead of by
+  `bronze_ingest_wgi.Notebook` (World Bank API, long format, estimates).
+- The two are not interchangeable: accepting the dataflow's shape would put a
+  differently-scaled quantity in `value` and silently redefine the `WGIᶜ` governance
+  weight in the supply-risk model (DEC-001).
+- **Fix:** complete **task-035** — replace the `bronze_WGI` RefreshDataflow activity in
+  `orchestrator_pipeline_bronze_to_gold` with a TridentNotebook activity calling
+  `bronze_ingest_wgi`. Running that notebook by hand unblocks one run, but the next
+  pipeline run overwrites `bronze_WGI` from the dataflow again.
+
+**`RuntimeError: WGI indicator_name -> indicator_code is not 1:1`:**
+- Two indicator codes are sharing a series name, so `silver_wgi` would not be unique at
+  its declared grain and the gold coverage rule (which counts DISTINCT `indicator_name`)
+  would undercount that country. Reconcile the source before loading.
 
 ## Next Steps
 

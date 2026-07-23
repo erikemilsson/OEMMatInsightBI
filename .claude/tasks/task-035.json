@@ -27,11 +27,12 @@
   "notes": [
     "PROMOTED by /health-check 2026-07-19 from task-005's legacy inline subtask array (id was task-005-3). task-005 remains Finished — the EPI and WGI ingestion notebooks were built and verified; this was the human-owned Fabric-UI tail.",
     "STALENESS CHECK FIRST — this item was authored against a pipeline that has since been reworked by tasks 022/024/026. Before doing the work, open the current pipeline-content.json and verify the RefreshDataflow activities literally still exist and that the EPI/WGI notebooks are literally still unwired. If the topology has already moved on, close this as a no-op with a note rather than forcing the original plan onto it.",
-    "COORDINATE with task-022 and task-026 — all three touch orchestrator_pipeline_bronze_to_gold.DataPipeline/pipeline-content.json. Sequence this after their Fabric application to avoid clobbering their activity changes."
+    "COORDINATE with task-022 and task-026 — all three touch orchestrator_pipeline_bronze_to_gold.DataPipeline/pipeline-content.json. Sequence this after their Fabric application to avoid clobbering their activity changes.",
+    "FR-025 ASSIGNED 2026-07-23: this task must also update the bronze_WGI data-quality contract. data_quality_checks.Notebook asserts schema {'Country Name','Country Code','Series Name','Percentile Rank 2023'} with required fields ['Country Name','Country Code','Series Name'] — the retired Excel dataflow's shape. bronze-to-silver now HARD-REQUIRES ['Indicator Code','Year','Value'] (task-031), so the two contradict. Today bronze-to-silver fails first and the DQ activity never runs; once this task repoints bronze_WGI at bronze_ingest_wgi, the DQ schema check will start logging an advisory fail (it is not in BLOCKING_CHECKS, so it cannot halt the pipeline, but it will be noise). Update the expected schema to the API long format in the same change that rewires the activity."
   ],
   "user_feedback": "",
   "created_date": "2026-07-19",
-  "updated_date": "2026-07-19",
+  "updated_date": "2026-07-23",
   "completion_date": null,
   "verification_attempts": 0,
   "out_of_spec": false,

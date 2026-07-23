@@ -33,7 +33,8 @@
     "EVIDENCE (B): unit_norm map at lines 1065-1071 (kg/g/mg/t only, comment '... (rest remains same)'); fallback .otherwise(F.col('p.quantity')) at 1099-1101. calculations.md:14-18 documents exactly these four factors, so the map matches the doc — the FALLBACK is the bug.",
     "EVIDENCE (C): calculations.md:7 'spend_eur = quantity_base (kg) x unitprice_eur (EUR/kg)'; bronze schema has Unit per row (bronze_tables.md:12) making per-unit pricing plausible. UNVERIFIED in audit — flagged explicitly as needing source confirmation, hence owner=both.",
     "SIDE NOTE for consistency: populate_low_confidence_audit computes spend_impact as SUM(quantity * unitpriceeur) (line 2325) — i.e. WITHOUT unit conversion — inconsistent with fact spend (quantity_base * price). Whichever semantics (C) confirms, align this too.",
-    "COORDINATE: same file as tasks 023/025/027/028 — serialize."
+    "COORDINATE: same file as tasks 023/025/027/028 — serialize.",
+    "FR-006 REVERSE-LINK 2026-07-23: this task owns the register entry for the silver<->gold spend reconciliation check (data_quality_framework.md § 2.3 Check 8). That check reconciles exactly only under uniform base units — gold computes spend_eur from kg-normalized quantity_base while unitprice_eur is not converted — so task-026 classified it ADVISORY rather than blocking. It can be promoted to blocking once AC3 confirms the unitprice basis (and, if the answer is 'per row unit', once UNITPRICE_BASIS is flipped). FR-006 therefore closes with AC3, not with the code already shipped."
   ],
   "user_feedback": "",
   "created_date": "2026-07-13",

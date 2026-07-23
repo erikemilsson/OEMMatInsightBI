@@ -36,7 +36,7 @@ if total_unmapped == 0:
 else:
     # Group by unmapped field type
     print("\n--- Unmapped Values by Field ---")
-    unmapped_proc.groupBy("unmapped_field").agg(
+    unmapped_proc.groupBy("unmapped_type").agg(
         count("*").alias("record_count"),
         _round(_sum("spend_eur"), 2).alias("total_spend_eur")
     ).orderBy(col("record_count").desc()).show(truncate=False)
@@ -50,7 +50,7 @@ else:
             ROUND(SUM(spend_eur), 2) as total_spend_eur,
             ROUND(AVG(spend_eur), 2) as avg_spend_eur
         FROM oem_lh.gold_unmapped_procurement_audit
-        WHERE unmapped_field = 'supplier_hq_country'
+        WHERE unmapped_type = 'hq_country'
         GROUP BY unmapped_value
         ORDER BY frequency DESC
         LIMIT 20
@@ -64,7 +64,7 @@ else:
             COUNT(*) as frequency,
             ROUND(SUM(spend_eur), 2) as total_spend_eur
         FROM oem_lh.gold_unmapped_procurement_audit
-        WHERE unmapped_field = 'production_country'
+        WHERE unmapped_type = 'prod_country'
         GROUP BY unmapped_value
         ORDER BY frequency DESC
         LIMIT 20
@@ -79,7 +79,7 @@ else:
             ROUND(SUM(spend_eur), 2) as total_spend_eur,
             ROUND(AVG(spend_eur), 2) as avg_spend_eur
         FROM oem_lh.gold_unmapped_procurement_audit
-        WHERE unmapped_field = 'material'
+        WHERE unmapped_type = 'material'
         GROUP BY unmapped_value
         ORDER BY frequency DESC
         LIMIT 20
@@ -177,7 +177,7 @@ unmapped_countries = spark.sql("""
         unmapped_value as alias_to_add,
         COUNT(*) OVER (PARTITION BY unmapped_value) as frequency
     FROM oem_lh.gold_unmapped_procurement_audit
-    WHERE unmapped_field IN ('supplier_hq_country', 'production_country')
+    WHERE unmapped_type IN ('hq_country', 'prod_country')
 """).orderBy(col("frequency").desc()).limit(10).collect()
 
 if unmapped_countries:
@@ -195,7 +195,7 @@ unmapped_materials = spark.sql("""
         unmapped_value as alias_to_add,
         COUNT(*) OVER (PARTITION BY unmapped_value) as frequency
     FROM oem_lh.gold_unmapped_procurement_audit
-    WHERE unmapped_field = 'material'
+    WHERE unmapped_type = 'material'
 """).orderBy(col("frequency").desc()).limit(10).collect()
 
 if unmapped_materials:
@@ -214,14 +214,14 @@ Save unmapped values to CSV for manual review and alias creation:
 unmapped_proc_export = spark.sql("""
     SELECT
         unmapped_value,
-        unmapped_field,
+        unmapped_type,
         COUNT(*) as frequency,
         ROUND(SUM(spend_eur), 2) as total_spend_eur,
         ROUND(AVG(spend_eur), 2) as avg_spend_eur,
         '' as suggested_match,
         0.95 as suggested_confidence
     FROM oem_lh.gold_unmapped_procurement_audit
-    GROUP BY unmapped_value, unmapped_field
+    GROUP BY unmapped_value, unmapped_type
     ORDER BY frequency DESC
 """)
 
