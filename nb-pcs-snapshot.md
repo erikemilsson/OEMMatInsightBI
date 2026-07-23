@@ -1,0 +1,1424 @@
+- generic [ref=e3]:
+  - list [ref=e5]:
+    - listitem
+    - listitem
+    - listitem [ref=e6]:
+      - generic [ref=e8] [cursor=pointer]: Skip to main content
+  - banner [ref=e12]:
+    - generic [ref=e13]:
+      - button "App launcher" [ref=e15] [cursor=pointer]:
+        - img [ref=e18]
+      - button "Notebook_1" [ref=e21] [cursor=pointer]:
+        - generic [ref=e22]: Notebook_1
+        - generic [ref=e323]: Saved
+        - img [ref=e23]: 
+    - generic [ref=e25]:
+      - img [ref=e27]
+      - textbox "Global search" [ref=e29]:
+        - /placeholder: Search
+    - generic [ref=e31]:
+      - 'button "Trials activated: 19 days left" [ref=e227] [cursor=pointer]':
+        - generic [ref=e228]:
+          - generic [ref=e229]: "Trials activated:"
+          - generic [ref=e230]: 19 days left
+      - generic [ref=e32]:
+        - button "Focus mode" [ref=e33] [cursor=pointer]:
+          - img [ref=e36]
+        - button "Notifications" [ref=e38] [cursor=pointer]:
+          - img [ref=e41]
+          - generic [ref=e231]: "5"
+        - button "Settings" [ref=e43] [cursor=pointer]:
+          - img [ref=e46]
+        - button "Download" [ref=e48] [cursor=pointer]:
+          - img [ref=e51]
+        - button "Help & Support" [ref=e53] [cursor=pointer]:
+          - img [ref=e56]
+        - button "Help improve Fabric (preview)" [ref=e58] [cursor=pointer]:
+          - img [ref=e61]
+      - button "Account manager for" [ref=e65] [cursor=pointer]:
+        - generic [ref=e67]:
+          - text: 
+          - img
+  - generic [ref=e75]:
+    - navigation [ref=e78]:
+      - menu "Sidebar" [ref=e79]:
+        - generic [ref=e80]:
+          - menuitem "Home" [ref=e82] [cursor=pointer]:
+            - generic [ref=e83]:
+              - img [ref=e85]
+              - generic [ref=e87]: Home
+          - generic [ref=e232]:
+            - menuitem "Copilot" [ref=e233] [cursor=pointer]:
+              - generic [ref=e236]: Copilot
+            - menuitem "Unpin Copilot" [ref=e237] [cursor=pointer]:
+              - img [ref=e240]
+          - generic [ref=e242]:
+            - menuitem "Create" [ref=e243] [cursor=pointer]:
+              - generic [ref=e244]:
+                - img [ref=e246]
+                - generic [ref=e248]: Create
+            - menuitem "Unpin Create" [ref=e249] [cursor=pointer]:
+              - img [ref=e252]
+          - generic [ref=e254]:
+            - menuitem "OneLake catalog" [ref=e255] [cursor=pointer]:
+              - generic [ref=e256]:
+                - img [ref=e258]
+                - generic [ref=e260]: OneLake catalog
+            - menuitem "Unpin OneLake catalog" [ref=e261] [cursor=pointer]:
+              - img [ref=e264]
+          - generic [ref=e266]:
+            - menuitem "Apps" [ref=e267] [cursor=pointer]:
+              - generic [ref=e268]:
+                - img [ref=e270]
+                - generic [ref=e272]: Apps
+            - menuitem "Unpin Apps" [ref=e273] [cursor=pointer]:
+              - img [ref=e276]
+          - generic [ref=e278]:
+            - menuitem "Scorecards" [ref=e279] [cursor=pointer]:
+              - generic [ref=e280]:
+                - img [ref=e282]
+                - generic [ref=e284]: Scorecards
+            - menuitem "Unpin Scorecards" [ref=e285] [cursor=pointer]:
+              - img [ref=e288]
+          - generic [ref=e290]:
+            - menuitem "Browse" [ref=e291] [cursor=pointer]:
+              - generic [ref=e292]:
+                - img [ref=e294]
+                - generic [ref=e296]: Browse
+            - menuitem "Unpin Browse" [ref=e297] [cursor=pointer]:
+              - img [ref=e300]
+          - generic [ref=e302]:
+            - menuitem "Learn" [ref=e303] [cursor=pointer]:
+              - generic [ref=e304]:
+                - img [ref=e306]
+                - generic [ref=e308]: Learn
+            - menuitem "Unpin Learn" [ref=e309] [cursor=pointer]:
+              - img [ref=e312]
+          - separator [ref=e170]
+          - menuitem "Workspaces" [ref=e173] [cursor=pointer]:
+            - generic [ref=e174]:
+              - img [ref=e176]
+              - generic [ref=e178]: Workspaces
+          - menuitem "OEMMatInsightBI" [ref=e181] [cursor=pointer]:
+            - generic [ref=e185]: OEMMatInsightBI
+          - generic [ref=e186]:
+            - separator [ref=e187]
+            - menuitem "Notebook_1 - OEMMatInsightBI" [ref=e190] [cursor=pointer]:
+              - generic [ref=e191]:
+                - button [ref=e314]:
+                  - generic "Close" [ref=e315]:
+                    - img [ref=e317]
+                - generic [ref=e193]: Notebook_1
+            - menuitem "More options" [ref=e195] [cursor=pointer]:
+              - img [ref=e198]
+        - menuitem "Power BI" [ref=e203] [cursor=pointer]:
+          - generic [ref=e206]: Power BI
+    - main [ref=e208]:
+      - iframe [active] [ref=e321]:
+        - generic [ref=f4e1]:
+          - generic [ref=f4e9]:
+            - generic [ref=f4e11]:
+              - generic [ref=f4e12]:
+                - tablist [ref=f4e13]:
+                  - tab "Home" [selected] [ref=f4e15] [cursor=pointer]:
+                    - generic [ref=f4e16]: Home
+                  - tab "Edit" [ref=f4e17] [cursor=pointer]:
+                    - generic [ref=f4e18]: Edit
+                  - tab "AI tools" [ref=f4e19] [cursor=pointer]:
+                    - generic [ref=f4e20]: AI tools
+                  - tab "Run" [ref=f4e21] [cursor=pointer]:
+                    - generic [ref=f4e22]: Run
+                  - tab "View" [ref=f4e23] [cursor=pointer]:
+                    - generic [ref=f4e24]: View
+                - generic [ref=f4e29]:
+                  - button "Comments" [ref=f4e30]:
+                    - img [ref=f4e32]
+                    - text: Comments
+                  - button "History" [ref=f4e34]:
+                    - img [ref=f4e36]
+                    - text: History
+                  - button "Develop" [ref=f4e38]:
+                    - button "Develop" [ref=f4e39]:
+                      - img [ref=f4e41]
+                      - text: Develop
+                      - img [ref=f4e44]
+                  - button "Share" [ref=f4e46]:
+                    - img [ref=f4e48]
+                    - text: Share
+                  - generic [ref=f4e52]:
+                    - generic:
+                      - generic [ref=f4e53]: To move through the items use left and right arrow keys
+                      - generic:
+                        - list "List of collaborators"
+                    - button "Co-editing Collaborate in real time automatically when two or more people open the same notebook." [ref=f4e54] [cursor=pointer]:
+                      - generic [ref=f4e56]: 
+              - toolbar [ref=f4e58]:
+                - button "Save as" [ref=f4e60]:
+                  - img [ref=f4e62]
+                - button "Download as" [ref=f4e65]:
+                  - img [ref=f4e67]
+                - button "Settings" [ref=f4e69]:
+                  - img [ref=f4e71]
+                - separator [ref=f4e73]
+                - button "Run all" [ref=f4e75]:
+                  - button "Run all" [ref=f4e76]:
+                    - img [ref=f4e786]
+                    - text: Run all
+                  - button "Run all" [ref=f4e80]:
+                    - img [ref=f4e82]
+                - separator [ref=f4e84]
+                - button "Standard session" [ref=f4e86]:
+                  - img [ref=f4e88]
+                  - generic [ref=f4e90]: Standard session
+                  - img [ref=f4e92]
+                - button "Stop session" [ref=f4e94]:
+                  - img [ref=f4e96]
+                - separator [ref=f4e98]
+                - button "Language" [ref=f4e100]:
+                  - img [ref=f4e102]
+                  - text: PySpark (Python)
+                  - img [ref=f4e105]
+                - generic "Environment" [ref=f4e107]:
+                  - generic [ref=f4e108]: Environment
+                  - button "Set default environment" [ref=f4e109]:
+                    - generic [ref=f4e110]: Workspace default
+                    - img [ref=f4e112]
+                - separator [ref=f4e114]
+                - button "Data Wrangler" [ref=f4e117]:
+                  - img [ref=f4e119]
+                  - text: Data Wrangler
+                  - img [ref=f4e123]
+                - separator [ref=f4e125]
+                - button "New AutoML run" [ref=f4e126]:
+                  - img [ref=f4e128]
+                - button "Add to pipeline" [ref=f4e131]:
+                  - img [ref=f4e133]
+                - button "Open in VS Code" [ref=f4e135]:
+                  - button "Open in VS Code" [ref=f4e137]:
+                    - img [ref=f4e139]
+                - separator [ref=f4e141]
+                - button "Your Fabric license SKU does not allow access to copilot (preview). Learn why Copilot is disabled" [disabled] [ref=f4e788]:
+                  - img [ref=f4e144]
+                  - text: Copilot
+            - generic [ref=f4e152]:
+              - button
+              - generic [ref=f4e153]:
+                - generic [ref=f4e154]:
+                  - generic [ref=f4e156]:
+                    - generic [ref=f4e157]:
+                      - generic [ref=f4e158]: Explorer
+                      - button "Collapse" [ref=f4e160]:
+                        - img [ref=f4e162]
+                    - tablist [ref=f4e164]:
+                      - tab "Data items" [selected] [ref=f4e166] [cursor=pointer]:
+                        - img [ref=f4e168]
+                        - generic [ref=f4e170]: Data items
+                      - button "Resources" [ref=f4e171] [cursor=pointer]:
+                        - img [ref=f4e173]
+                        - generic [ref=f4e175]: Resources
+                      - tab "Connections" [ref=f4e176] [cursor=pointer]:
+                        - img [ref=f4e178]
+                        - generic [ref=f4e180]: Connections
+                    - generic [ref=f4e189]:
+                      - generic [ref=f4e190]:
+                        - button "Add data items" [ref=f4e191]:
+                          - img [ref=f4e193]
+                          - text: Add data items
+                        - button "Search" [ref=f4e195]:
+                          - img [ref=f4e197]
+                      - generic [ref=f4e201]:
+                        - generic:
+                          - tree "Explorer":
+                            - generic [ref=f4e202]:
+                              - treeitem "OneLake" [expanded] [level=1] [ref=f4e203] [cursor=pointer]:
+                                - generic [ref=f4e205]:
+                                  - img [ref=f4e207]
+                                  - generic [ref=f4e209]: OneLake
+                                  - toolbar
+                              - treeitem "oem_lh" [level=2] [ref=f4e212] [cursor=pointer]:
+                                - 'generic "Name: oem_lh Workspace: OEMMatInsightBI Supported: Read and write Type: Lakehouse" [ref=f4e214]':
+                                  - img [ref=f4e216]
+                                  - img [ref=f4e219]
+                                  - generic [ref=f4e227]:
+                                    - text: oem_lh
+                                    - img [ref=f4e228]
+                                  - toolbar
+                  - separator [ref=f4e233]
+                  - generic [ref=f4e238]:
+                    - region "Notebook content. Press ⌘ + Alt + B to use shortcuts optimized for screen readers" [ref=f4e257]:
+                      - region "Code cell at position 1 of 6" [ref=f4e789]:
+                        - generic [ref=f4e273]:
+                          - generic [ref=f4e276]:
+                            - generic "This cell has an execution count of 1" [ref=f4e290]: "[1]"
+                            - generic [ref=f4e291]:
+                              - code [ref=f4e299]:
+                                - generic [ref=f4e300]:
+                                  - textbox "Editor content;Press Alt+F1 in a cell to get a list of accessibility options" [ref=f4e301]
+                                  - generic [ref=f4e304]:
+                                    - generic [ref=f4e307]: "1"
+                                    - generic [ref=f4e309]: "2"
+                                    - generic [ref=f4e311]: "3"
+                                    - generic [ref=f4e313]: "4"
+                                    - generic [ref=f4e314]:
+                                      - generic [ref=f4e315] [cursor=pointer]: 
+                                      - generic [ref=f4e316]: "5"
+                                    - generic [ref=f4e318]: "6"
+                                    - generic [ref=f4e320]: "7"
+                                    - generic [ref=f4e322]: "8"
+                                    - generic [ref=f4e324]: "9"
+                                    - generic [ref=f4e326]: "10"
+                                    - generic [ref=f4e328]: "11"
+                                    - generic [ref=f4e330]: "12"
+                                    - generic [ref=f4e331]:
+                                      - generic [ref=f4e332] [cursor=pointer]: 
+                                      - generic [ref=f4e333]: "13"
+                                    - generic [ref=f4e335]: "14"
+                                    - generic [ref=f4e337]: "15"
+                                    - generic [ref=f4e339]: "16"
+                                    - generic [ref=f4e340]:
+                                      - generic [ref=f4e341] [cursor=pointer]: 
+                                      - generic [ref=f4e342]: "17"
+                                    - generic [ref=f4e344]: "18"
+                                  - generic [ref=f4e364]:
+                                    - generic [ref=f4e366]: from pyspark.sql import functions as F
+                                    - generic [ref=f4e369]: p = spark.table("oem_lh.bronze_procurement_transactional")
+                                    - generic [ref=f4e372]: per_material_unit = (
+                                    - generic [ref=f4e374]: p.groupBy("MaterialName", "Unit")
+                                    - generic [ref=f4e376]: .agg(F.count("*").alias("rows"),
+                                    - generic [ref=f4e378]: F.round(F.avg("UnitPriceEUR"), 4).alias("avg_unitprice_eur"),
+                                    - generic [ref=f4e380]: F.round(F.avg("Quantity"), 2).alias("avg_quantity"))
+                                    - generic [ref=f4e382]: )
+                                    - generic [ref=f4e385]: "# keep only materials that appear under >= 2 distinct units — the clean comparison"
+                                    - generic [ref=f4e387]: spanning = (per_material_unit.groupBy("MaterialName")
+                                    - generic [ref=f4e389]: .agg(F.countDistinct("Unit").alias("n_units"))
+                                    - generic [ref=f4e391]: .filter("n_units >= 2"))
+                                    - generic [ref=f4e394]: display(per_material_unit.join(spanning.select("MaterialName"), "MaterialName")
+                                    - generic [ref=f4e396]: .orderBy("MaterialName", "Unit"))
+                              - generic [ref=f4e398]:
+                                - generic [ref=f4e399]:
+                                  - img "Finished" [ref=f4e401]: 
+                                  - generic [ref=f4e406]: "- Session ready in 9 sec 680 ms. Command executed in 28 sec 339 ms by Fabric User on 7/23/2026, 8:09:07 PM"
+                                - button "PySpark (Python)" [ref=f4e409] [cursor=pointer]:
+                                  - generic [ref=f4e410]:
+                                    - generic [ref=f4e412]: PySpark (Python)
+                                    - generic [ref=f4e413]: 
+                          - generic [ref=f4e462]:
+                            - generic [ref=f4e463]:
+                              - generic [ref=f4e465]:
+                                - tablist [ref=f4e466]:
+                                  - tab "Table" [selected] [ref=f4e468] [cursor=pointer]:
+                                    - img [ref=f4e470]
+                                    - generic [ref=f4e473]: Table
+                                - status [ref=f4e475]
+                              - button "New chart" [ref=f4e476]:
+                                - img [ref=f4e478]
+                                - text: New chart
+                              - generic [ref=f4e481]:
+                                - button "Filter" [ref=f4e482]:
+                                  - img [ref=f4e484]
+                                - button "DataFrame visualizer is detached from server. Please re-execute the cell to access all the functionalities." [disabled] [ref=f4e487]:
+                                  - img [ref=f4e489]
+                                  - text: 5 columns, 0 rows
+                                  - img [ref=f4e492]
+                            - generic [ref=f4e494]:
+                              - generic [ref=f4e495]:
+                                - generic [ref=f4e496]:
+                                  - heading "Table view" [level=2] [ref=f4e498]
+                                  - generic [ref=f4e499]:
+                                    - button "Download" [ref=f4e500]:
+                                      - img [ref=f4e502]
+                                      - text: Download
+                                      - img [ref=f4e505]
+                                    - generic [ref=f4e508]:
+                                      - img [ref=f4e510]
+                                      - textbox "Filter by keyword" [ref=f4e512]
+                                - generic [ref=f4e513]:
+                                  - img [ref=f4e514]
+                                  - generic [ref=f4e516]: No data available
+                              - generic [ref=f4e519]:
+                                - button "Expand inspect panel" [ref=f4e521]:
+                                  - img [ref=f4e523]
+                                - generic [ref=f4e526]: Inspect
+                      - region "Code cell at position 2 of 6" [ref=f4e790]:
+                        - generic [ref=f4e548]:
+                          - generic [ref=f4e551]:
+                            - generic "This cell has an execution count of 2" [ref=f4e555]: "[2]"
+                            - generic [ref=f4e556]:
+                              - code [ref=f4e564]:
+                                - generic [ref=f4e565]:
+                                  - textbox "Editor content" [ref=f4e566]
+                                  - generic [ref=f4e569]:
+                                    - generic [ref=f4e572]: "1"
+                                    - generic [ref=f4e573]:
+                                      - generic [ref=f4e574] [cursor=pointer]: 
+                                      - generic [ref=f4e575]: "2"
+                                    - generic [ref=f4e577]: "3"
+                                    - generic [ref=f4e579]: "4"
+                                    - generic [ref=f4e581]: "5"
+                                    - generic [ref=f4e583]: "6"
+                                    - generic [ref=f4e585]: "7"
+                                    - generic [ref=f4e587]: "8"
+                                    - generic [ref=f4e589]: "9"
+                                    - generic [ref=f4e591]: "10"
+                                    - generic [ref=f4e593]: "11"
+                                    - generic [ref=f4e595]: "12"
+                                  - generic [ref=f4e610]:
+                                    - generic [ref=f4e612]: factors = "map('kg',1.0, 'g',0.001, 'mg',0.000001, 't',1000.0)"
+                                    - generic [ref=f4e614]: display(spark.sql(f"""
+                                    - generic [ref=f4e616]: SELECT lower(trim(Unit)) AS unit,
+                                    - generic [ref=f4e618]: COUNT(*) AS rows,
+                                    - generic [ref=f4e620]: ROUND(MIN(UnitPriceEUR), 4) AS min_price,
+                                    - generic [ref=f4e622]: ROUND(AVG(UnitPriceEUR), 4) AS avg_price,
+                                    - generic [ref=f4e624]: ROUND(MAX(UnitPriceEUR), 4) AS max_price,
+                                    - generic [ref=f4e626]: "ROUND(AVG(UnitPriceEUR / {factors}[lower(trim(Unit))]), 4) AS avg_price_per_kg_IF_per_row_unit"
+                                    - generic [ref=f4e628]: FROM oem_lh.bronze_procurement_transactional
+                                    - generic [ref=f4e630]: GROUP BY lower(trim(Unit))
+                                    - generic [ref=f4e632]: ORDER BY rows DESC
+                                    - generic [ref=f4e634]: "\"\"\"))"
+                              - generic [ref=f4e636]:
+                                - generic [ref=f4e637]:
+                                  - img "Failed" [ref=f4e639]: 
+                                  - generic [ref=f4e795]: "- Command executed in 2 sec 112 ms by Fabric User on 7/23/2026, 8:09:09 PM"
+                                - button "PySpark (Python)" [ref=f4e642] [cursor=pointer]:
+                                  - generic [ref=f4e643]:
+                                    - generic [ref=f4e645]: PySpark (Python)
+                                    - generic [ref=f4e646]: 
+                          - group "Notebook cell error" [ref=f4e654]:
+                            - generic [ref=f4e655]:
+                              - generic [ref=f4e656]: AnalysisException
+                              - generic [ref=f4e657]: "[UNSUPPORTED_FEATURE.LATERAL_COLUMN_ALIAS_IN_AGGREGATE_FUNC] The feature is not supported: Referencing a lateral column alias `Unit` in the aggregate function \"avg((UnitPriceEUR / map(kg, 1.0, g, 0.001, mg, 0.000001, t, 1000.0)[lower(trim(lateralAliasReference(Unit)))]))\"."
+                            - generic "Error actions" [ref=f4e658]:
+                              - generic "Your Fabric license SKU does not allow access to copilot (preview). Learn why Copilot is disabled" [ref=f4e800]:
+                                - button "Diagnose with Copilot" [disabled]:
+                                  - generic:
+                                    - generic:
+                                      - img
+                                  - text: Diagnose with Copilot
+                              - button "Show traceback" [ref=f4e659] [cursor=pointer]:
+                                - generic [ref=f4e662]: Show traceback
+                              - button "Copy traceback" [ref=f4e663] [cursor=pointer]:
+                                - generic [ref=f4e665]: 
+                      - region "Code cell at position 3 of 6" [ref=f4e801]:
+                        - generic [ref=f4e687]:
+                          - generic [ref=f4e690]:
+                            - generic "This cell has an execution count of 3" [ref=f4e694]: "[3]"
+                            - generic [ref=f4e695]:
+                              - code [ref=f4e805]:
+                                - generic [ref=f4e806]:
+                                  - textbox "Editor content" [ref=f4e807]
+                                  - generic [ref=f4e810]:
+                                    - generic [ref=f4e811]:
+                                      - generic [ref=f4e813] [cursor=pointer]: 
+                                      - generic [ref=f4e814]: "1"
+                                    - generic [ref=f4e815]:
+                                      - generic [ref=f4e816] [cursor=pointer]: 
+                                      - generic [ref=f4e817]: "2"
+                                    - generic [ref=f4e819]: "3"
+                                    - generic [ref=f4e820]:
+                                      - generic [ref=f4e821] [cursor=pointer]: 
+                                      - generic [ref=f4e822]: "4"
+                                    - generic [ref=f4e824]: "5"
+                                  - generic [ref=f4e831]:
+                                    - generic [ref=f4e833]: "for t in [\"bronze_GlobalSupplyShares\", \"bronze_EUSupplyShares\"]:"
+                                    - generic [ref=f4e835]: "try:"
+                                    - generic [ref=f4e837]: "print(f\"{t:28} EXISTS {spark.table(f'oem_lh.{t}').count():>8,} rows\")"
+                                    - generic [ref=f4e839]: "except Exception as ex:"
+                                    - generic [ref=f4e841]: "print(f\"{t:28} MISSING ({type(ex).__name__})\")"
+                              - generic [ref=f4e842]:
+                                - generic [ref=f4e843]:
+                                  - img "Finished" [ref=f4e845]: 
+                                  - generic [ref=f4e850]: "- Command executed in 9 sec 371 ms by Fabric User on 7/23/2026, 8:09:33 PM"
+                                - button "PySpark (Python)" [ref=f4e853] [cursor=pointer]:
+                                  - generic [ref=f4e854]:
+                                    - generic [ref=f4e856]: PySpark (Python)
+                                    - generic [ref=f4e857]: 
+                          - code [ref=f4e710]: bronze_GlobalSupplyShares EXISTS 2,561 rows bronze_EUSupplyShares EXISTS 907 rows
+                      - region "Code cell at position 4 of 6" [ref=f4e858]:
+                        - generic [ref=f4e732]:
+                          - generic [ref=f4e735]:
+                            - generic "This cell has an execution count of 4" [ref=f4e739]: "[4]"
+                            - generic [ref=f4e740]:
+                              - code [ref=f4e862]:
+                                - generic [ref=f4e863]:
+                                  - textbox "Editor content" [ref=f4e864]
+                                  - generic [ref=f4e867]:
+                                    - generic [ref=f4e870]: "1"
+                                    - generic [ref=f4e872]: "2"
+                                    - generic [ref=f4e874]: "3"
+                                    - generic [ref=f4e876]: "4"
+                                    - generic [ref=f4e878]: "5"
+                                    - generic [ref=f4e880]: "6"
+                                    - generic [ref=f4e882]: "7"
+                                    - generic [ref=f4e884]: "8"
+                                    - generic [ref=f4e886]: "9"
+                                    - generic [ref=f4e888]: "10"
+                                    - generic [ref=f4e889]:
+                                      - generic [ref=f4e890] [cursor=pointer]: 
+                                      - generic [ref=f4e891]: "11"
+                                    - generic [ref=f4e893]: "12"
+                                    - generic [ref=f4e895]: "13"
+                                    - generic [ref=f4e896]:
+                                      - generic [ref=f4e897] [cursor=pointer]: 
+                                      - generic [ref=f4e898]: "14"
+                                    - generic [ref=f4e900]: "15"
+                                    - generic [ref=f4e902]: "16"
+                                    - generic [ref=f4e904]: "17"
+                                    - generic [ref=f4e905]:
+                                      - generic [ref=f4e906] [cursor=pointer]: 
+                                      - generic [ref=f4e907]: "18"
+                                    - generic [ref=f4e909]: "19"
+                                    - generic [ref=f4e910]:
+                                      - generic [ref=f4e911] [cursor=pointer]: 
+                                      - generic [ref=f4e912]: "20"
+                                    - generic [ref=f4e914]: "21"
+                                  - generic [ref=f4e937]:
+                                    - generic [ref=f4e939]: from pyspark.sql import functions as F
+                                    - generic [ref=f4e942]: g = spark.table("oem_lh.bronze_GlobalSupplyShares")
+                                    - generic [ref=f4e944]: e = spark.table("oem_lh.bronze_EUSupplyShares")
+                                    - generic [ref=f4e947]: print("Global columns:", g.columns)
+                                    - generic [ref=f4e949]: "print(\"EU columns: \", e.columns)"
+                                    - generic [ref=f4e951]: print("Global rows:", g.count(), "| EU rows:", e.count())
+                                    - generic [ref=f4e954]: "# If the two copy activities accidentally point at the same CSV, the row sets are identical."
+                                    - generic [ref=f4e956]: "if sorted(g.columns) == sorted(e.columns):"
+                                    - generic [ref=f4e958]: identical = g.exceptAll(e).count() == 0 and e.exceptAll(g).count() == 0
+                                    - generic [ref=f4e960]: print("IDENTICAL row sets:", identical, "(True ⇒ same source copied twice — a misconfig)")
+                                    - generic [ref=f4e962]: "else:"
+                                    - generic [ref=f4e964]: print("Schemas differ ⇒ distinct datasets.")
+                                    - generic [ref=f4e967]: "# Global supply should be dominated by big producers (CN, etc.); EU sourcing should look different."
+                                    - generic [ref=f4e969]: "if \"Country\" in g.columns:"
+                                    - generic [ref=f4e971]: display(g.groupBy("Country").count().orderBy(F.desc("count")).limit(10))
+                                    - generic [ref=f4e973]: "if \"Country\" in e.columns:"
+                                    - generic [ref=f4e975]: display(e.groupBy("Country").count().orderBy(F.desc("count")).limit(10))
+                              - generic [ref=f4e976]:
+                                - generic [ref=f4e977]:
+                                  - img "Finished" [ref=f4e979]: 
+                                  - generic [ref=f4e984]: "- Command executed in 7 sec 517 ms by Fabric User on 7/23/2026, 8:09:41 PM"
+                                - button "PySpark (Python)" [ref=f4e987] [cursor=pointer]:
+                                  - generic [ref=f4e988]:
+                                    - generic [ref=f4e990]: PySpark (Python)
+                                    - generic [ref=f4e991]: 
+                          - generic [ref=f4e754]:
+                            - code [ref=f4e755]: "Global columns: ['Material', 'Stage', 'Country', 'Share', 't'] EU columns: ['Material', 'Stage', 'Country', 'Share', 't'] Global rows: 2561 | EU rows: 907 IDENTICAL row sets: False (True ⇒ same source copied twice — a misconfig)"
+                            - generic [ref=f4e998]:
+                              - generic [ref=f4e999]:
+                                - generic [ref=f4e1001]:
+                                  - tablist [ref=f4e1002]:
+                                    - tab "Table" [selected] [ref=f4e1004] [cursor=pointer]:
+                                      - img [ref=f4e1006]
+                                      - generic [ref=f4e1009]: Table
+                                  - status [ref=f4e1011]
+                                - button "New chart" [ref=f4e1012]:
+                                  - img [ref=f4e1014]
+                                  - text: New chart
+                                - generic [ref=f4e1017]:
+                                  - button "Filter" [ref=f4e1018]:
+                                    - img [ref=f4e1020]
+                                  - button "DataFrame visualizer is detached from server. Please re-execute the cell to access all the functionalities." [disabled] [ref=f4e1023]:
+                                    - img [ref=f4e1025]
+                                    - text: 2 columns, 10 rows
+                                    - img [ref=f4e1028]
+                              - generic [ref=f4e1030]:
+                                - generic [ref=f4e1031]:
+                                  - generic [ref=f4e1032]:
+                                    - heading "Table view" [level=2] [ref=f4e1034]
+                                    - generic [ref=f4e1035]:
+                                      - button "Download" [ref=f4e1036]:
+                                        - img [ref=f4e1038]
+                                        - text: Download
+                                        - img [ref=f4e1041]
+                                      - generic [ref=f4e1044]:
+                                        - img [ref=f4e1046]
+                                        - textbox "Filter by keyword" [ref=f4e1048]
+                                  - grid [ref=f4e1049]:
+                                    - generic:
+                                      - rowgroup:
+                                        - row "Country count":
+                                          - generic [ref=f4e1052]:
+                                            - columnheader [ref=f4e1053]:
+                                              - img [ref=f4e1058]
+                                              - separator [ref=f4e1060]
+                                            - columnheader "Country" [ref=f4e1061]:
+                                              - generic [ref=f4e1063]:
+                                                - button "Country" [ref=f4e1064]:
+                                                  - img [ref=f4e1066]
+                                                  - generic "Country" [ref=f4e1068]
+                                                - menu [ref=f4e1069]:
+                                                  - menuitem "Country" [ref=f4e1070]:
+                                                    - img [ref=f4e1072]
+                                              - separator [ref=f4e1074]
+                                            - columnheader "count" [ref=f4e1075]:
+                                              - generic [ref=f4e1077]:
+                                                - button "count" [ref=f4e1078]:
+                                                  - img [ref=f4e1080]
+                                                  - generic "count" [ref=f4e1084]
+                                                - menu [ref=f4e1085]:
+                                                  - menuitem "count" [ref=f4e1086]:
+                                                    - img [ref=f4e1088]
+                                              - separator [ref=f4e1090]
+                                      - rowgroup:
+                                        - generic [ref=f4e1092]:
+                                          - row "1 China 114":
+                                            - gridcell "1" [ref=f4e1093]:
+                                              - generic [ref=f4e1096]: "1"
+                                            - gridcell "China" [ref=f4e1097]:
+                                              - generic [ref=f4e1100]: China
+                                            - gridcell "114" [ref=f4e1101]:
+                                              - generic [ref=f4e1104]: "114"
+                                          - row "2 Russia 96":
+                                            - gridcell "2" [ref=f4e1105]:
+                                              - generic [ref=f4e1108]: "2"
+                                            - gridcell "Russia" [ref=f4e1109]:
+                                              - generic [ref=f4e1112]: Russia
+                                            - gridcell "96" [ref=f4e1113]:
+                                              - generic [ref=f4e1116]: "96"
+                                          - row "3 United States 75":
+                                            - gridcell "3" [ref=f4e1117]:
+                                              - generic [ref=f4e1120]: "3"
+                                            - gridcell "United States" [ref=f4e1121]:
+                                              - generic [ref=f4e1124]: United States
+                                            - gridcell "75" [ref=f4e1125]:
+                                              - generic [ref=f4e1128]: "75"
+                                          - row "4 Brazil 70":
+                                            - gridcell "4" [ref=f4e1129]:
+                                              - generic [ref=f4e1132]: "4"
+                                            - gridcell "Brazil" [ref=f4e1133]:
+                                              - generic [ref=f4e1136]: Brazil
+                                            - gridcell "70" [ref=f4e1137]:
+                                              - generic [ref=f4e1140]: "70"
+                                          - row "5 India 69":
+                                            - gridcell "5" [ref=f4e1141]:
+                                              - generic [ref=f4e1144]: "5"
+                                            - gridcell "India" [ref=f4e1145]:
+                                              - generic [ref=f4e1148]: India
+                                            - gridcell "69" [ref=f4e1149]:
+                                              - generic [ref=f4e1152]: "69"
+                                          - row "6 Australia 65":
+                                            - gridcell "6" [ref=f4e1153]:
+                                              - generic [ref=f4e1156]: "6"
+                                            - gridcell "Australia" [ref=f4e1157]:
+                                              - generic [ref=f4e1160]: Australia
+                                            - gridcell "65" [ref=f4e1161]:
+                                              - generic [ref=f4e1164]: "65"
+                                          - row "7 Vietnam 55":
+                                            - gridcell "7" [ref=f4e1165]:
+                                              - generic [ref=f4e1168]: "7"
+                                            - gridcell "Vietnam" [ref=f4e1169]:
+                                              - generic [ref=f4e1172]: Vietnam
+                                            - gridcell "55" [ref=f4e1173]:
+                                              - generic [ref=f4e1176]: "55"
+                                          - row "8 Canada 49":
+                                            - gridcell "8" [ref=f4e1177]:
+                                              - generic [ref=f4e1180]: "8"
+                                            - gridcell "Canada" [ref=f4e1181]:
+                                              - generic [ref=f4e1184]: Canada
+                                            - gridcell "49" [ref=f4e1185]:
+                                              - generic [ref=f4e1188]: "49"
+                                          - row "9 South Africa 46":
+                                            - gridcell "9" [ref=f4e1189]:
+                                              - generic [ref=f4e1192]: "9"
+                                            - gridcell "South Africa" [ref=f4e1193]:
+                                              - generic [ref=f4e1196]: South Africa
+                                            - gridcell "46" [ref=f4e1197]:
+                                              - generic [ref=f4e1200]: "46"
+                                          - row "10 Thailand 45":
+                                            - gridcell "10" [ref=f4e1201]:
+                                              - generic [ref=f4e1204]: "10"
+                                            - gridcell "Thailand" [ref=f4e1205]:
+                                              - generic [ref=f4e1208]: Thailand
+                                            - gridcell "45" [ref=f4e1209]:
+                                              - generic [ref=f4e1212]: "45"
+                                - generic [ref=f4e1216]:
+                                  - button "Expand inspect panel" [ref=f4e1218]:
+                                    - img [ref=f4e1220]
+                                  - generic [ref=f4e1223]: Inspect
+                            - generic [ref=f4e1230]:
+                              - generic [ref=f4e1231]:
+                                - generic [ref=f4e1233]:
+                                  - tablist [ref=f4e1234]:
+                                    - tab "Table" [selected] [ref=f4e1236] [cursor=pointer]:
+                                      - img [ref=f4e1238]
+                                      - generic [ref=f4e1241]: Table
+                                  - status [ref=f4e1243]
+                                - button "New chart" [ref=f4e1244]:
+                                  - img [ref=f4e1246]
+                                  - text: New chart
+                                - generic [ref=f4e1249]:
+                                  - button "Filter" [ref=f4e1250]:
+                                    - img [ref=f4e1252]
+                                  - button "DataFrame visualizer is detached from server. Please re-execute the cell to access all the functionalities." [disabled] [ref=f4e1255]:
+                                    - img [ref=f4e1257]
+                                    - text: 2 columns, 10 rows
+                                    - img [ref=f4e1260]
+                              - generic [ref=f4e1262]:
+                                - generic [ref=f4e1263]:
+                                  - generic [ref=f4e1264]:
+                                    - heading "Table view" [level=2] [ref=f4e1266]
+                                    - generic [ref=f4e1267]:
+                                      - button "Download" [ref=f4e1268]:
+                                        - img [ref=f4e1270]
+                                        - text: Download
+                                        - img [ref=f4e1273]
+                                      - generic [ref=f4e1276]:
+                                        - img [ref=f4e1278]
+                                        - textbox "Filter by keyword" [ref=f4e1280]
+                                  - grid [ref=f4e1281]:
+                                    - generic:
+                                      - rowgroup:
+                                        - row "Country count":
+                                          - generic [ref=f4e1284]:
+                                            - columnheader [ref=f4e1285]:
+                                              - img [ref=f4e1290]
+                                              - separator [ref=f4e1292]
+                                            - columnheader "Country" [ref=f4e1293]:
+                                              - generic [ref=f4e1295]:
+                                                - button "Country" [ref=f4e1296]:
+                                                  - img [ref=f4e1298]
+                                                  - generic "Country" [ref=f4e1300]
+                                                - menu [ref=f4e1301]:
+                                                  - menuitem "Country" [ref=f4e1302]:
+                                                    - img [ref=f4e1304]
+                                              - separator [ref=f4e1306]
+                                            - columnheader "count" [ref=f4e1307]:
+                                              - generic [ref=f4e1309]:
+                                                - button "count" [ref=f4e1310]:
+                                                  - img [ref=f4e1312]
+                                                  - generic "count" [ref=f4e1316]
+                                                - menu [ref=f4e1317]:
+                                                  - menuitem "count" [ref=f4e1318]:
+                                                    - img [ref=f4e1320]
+                                              - separator [ref=f4e1322]
+                                      - rowgroup:
+                                        - generic [ref=f4e1324]:
+                                          - row "1 China 46":
+                                            - gridcell "1" [ref=f4e1325]:
+                                              - generic [ref=f4e1328]: "1"
+                                            - gridcell "China" [ref=f4e1329]:
+                                              - generic [ref=f4e1332]: China
+                                            - gridcell "46" [ref=f4e1333]:
+                                              - generic [ref=f4e1336]: "46"
+                                          - row "2 Russia 43":
+                                            - gridcell "2" [ref=f4e1337]:
+                                              - generic [ref=f4e1340]: "2"
+                                            - gridcell "Russia" [ref=f4e1341]:
+                                              - generic [ref=f4e1344]: Russia
+                                            - gridcell "43" [ref=f4e1345]:
+                                              - generic [ref=f4e1348]: "43"
+                                          - row "3 Germany 37":
+                                            - gridcell "3" [ref=f4e1349]:
+                                              - generic [ref=f4e1352]: "3"
+                                            - gridcell "Germany" [ref=f4e1353]:
+                                              - generic [ref=f4e1356]: Germany
+                                            - gridcell "37" [ref=f4e1357]:
+                                              - generic [ref=f4e1360]: "37"
+                                          - row "4 Spain 33":
+                                            - gridcell "4" [ref=f4e1361]:
+                                              - generic [ref=f4e1364]: "4"
+                                            - gridcell "Spain" [ref=f4e1365]:
+                                              - generic [ref=f4e1368]: Spain
+                                            - gridcell "33" [ref=f4e1369]:
+                                              - generic [ref=f4e1372]: "33"
+                                          - row "5 France 29":
+                                            - gridcell "5" [ref=f4e1373]:
+                                              - generic [ref=f4e1376]: "5"
+                                            - gridcell "France" [ref=f4e1377]:
+                                              - generic [ref=f4e1380]: France
+                                            - gridcell "29" [ref=f4e1381]:
+                                              - generic [ref=f4e1384]: "29"
+                                          - row "6 United States 28":
+                                            - gridcell "6" [ref=f4e1385]:
+                                              - generic [ref=f4e1388]: "6"
+                                            - gridcell "United States" [ref=f4e1389]:
+                                              - generic [ref=f4e1392]: United States
+                                            - gridcell "28" [ref=f4e1393]:
+                                              - generic [ref=f4e1396]: "28"
+                                          - row "7 Poland 27":
+                                            - gridcell "7" [ref=f4e1397]:
+                                              - generic [ref=f4e1400]: "7"
+                                            - gridcell "Poland" [ref=f4e1401]:
+                                              - generic [ref=f4e1404]: Poland
+                                            - gridcell "27" [ref=f4e1405]:
+                                              - generic [ref=f4e1408]: "27"
+                                          - row "8 Finland 24":
+                                            - gridcell "8" [ref=f4e1409]:
+                                              - generic [ref=f4e1412]: "8"
+                                            - gridcell "Finland" [ref=f4e1413]:
+                                              - generic [ref=f4e1416]: Finland
+                                            - gridcell "24" [ref=f4e1417]:
+                                              - generic [ref=f4e1420]: "24"
+                                          - row "9 United Kingdom 24":
+                                            - gridcell "9" [ref=f4e1421]:
+                                              - generic [ref=f4e1424]: "9"
+                                            - gridcell "United Kingdom" [ref=f4e1425]:
+                                              - generic [ref=f4e1428]: United Kingdom
+                                            - gridcell "24" [ref=f4e1429]:
+                                              - generic [ref=f4e1432]: "24"
+                                          - row "10 Norway 23":
+                                            - gridcell "10" [ref=f4e1433]:
+                                              - generic [ref=f4e1436]: "10"
+                                            - gridcell "Norway" [ref=f4e1437]:
+                                              - generic [ref=f4e1440]: Norway
+                                            - gridcell "23" [ref=f4e1441]:
+                                              - generic [ref=f4e1444]: "23"
+                                - generic [ref=f4e1448]:
+                                  - button "Expand inspect panel" [ref=f4e1450]:
+                                    - img [ref=f4e1452]
+                                  - generic [ref=f4e1455]: Inspect
+                      - region "Code cell at position 5 of 6" [ref=f4e1457]:
+                        - generic [ref=f4e1471]:
+                          - generic [ref=f4e1474]:
+                            - generic "This cell has an execution count of 5" [ref=f4e1478]: "[5]"
+                            - generic [ref=f4e1479]:
+                              - code [ref=f4e1487]:
+                                - generic [ref=f4e1488]:
+                                  - textbox "Editor content" [ref=f4e1489]: display(spark.sql(""" SELECT lower(trim(Unit)) AS unit, COUNT(*) AS n_rows, ROUND(MIN(UnitPriceEUR),4) AS min_price, ROUND(AVG(UnitPriceEUR),4) AS avg_price, ROUND(MAX(UnitPriceEUR),4) AS max_price FROM oem_lh.bronze_procurement_transactional GROUP BY lower(trim(Unit)) ORDER BY n_rows DESC """))
+                                  - generic [ref=f4e1492]:
+                                    - generic [ref=f4e1493]:
+                                      - generic [ref=f4e1494] [cursor=pointer]: 
+                                      - generic [ref=f4e1495]: "1"
+                                    - generic [ref=f4e1497]: "2"
+                                    - generic [ref=f4e1499]: "3"
+                                    - generic [ref=f4e1501]: "4"
+                                    - generic [ref=f4e1503]: "5"
+                                    - generic [ref=f4e1505]: "6"
+                                    - generic [ref=f4e1507]: "7"
+                                    - generic [ref=f4e1510]: "8"
+                                  - generic [ref=f4e1520]:
+                                    - generic [ref=f4e1522]: display(spark.sql("""
+                                    - generic [ref=f4e1524]: SELECT lower(trim(Unit)) AS unit, COUNT(*) AS n_rows,
+                                    - generic [ref=f4e1526]: ROUND(MIN(UnitPriceEUR),4) AS min_price,
+                                    - generic [ref=f4e1528]: ROUND(AVG(UnitPriceEUR),4) AS avg_price,
+                                    - generic [ref=f4e1530]: ROUND(MAX(UnitPriceEUR),4) AS max_price
+                                    - generic [ref=f4e1532]: FROM oem_lh.bronze_procurement_transactional
+                                    - generic [ref=f4e1534]: GROUP BY lower(trim(Unit)) ORDER BY n_rows DESC
+                                    - generic [ref=f4e1536]: "\"\"\"))"
+                              - generic [ref=f4e1538]:
+                                - generic [ref=f4e1539]:
+                                  - generic [ref=f4e1540]:
+                                    - img "Finished" [ref=f4e1541]: 
+                                    - generic [ref=f4e1542]: 13 sec
+                                  - generic [ref=f4e1547]: "- Command executed in 13 sec 355 ms by Fabric User on 7/23/2026, 8:18:07 PM"
+                                - button "PySpark (Python)" [ref=f4e1550] [cursor=pointer]:
+                                  - generic [ref=f4e1551]:
+                                    - generic [ref=f4e1553]: PySpark (Python)
+                                    - generic [ref=f4e1554]: 
+                          - generic [ref=f4e1555]:
+                            - generic [ref=f4e1565]:
+                              - button "Button Collapsed" [ref=f4e1567]:
+                                - img [ref=f4e1569]
+                              - menubar [ref=f4e1575]:
+                                - menuitem "Spark jobs (3 of 3 succeeded)" [ref=f4e1576]:
+                                  - img [ref=f4e1578]
+                                  - generic [ref=f4e1598]: Spark jobs (3 of 3 succeeded)
+                                - menuitem "Resources" [ref=f4e1599]:
+                                  - img [ref=f4e1601]
+                                  - generic [ref=f4e1603]: Resources
+                                - menuitem "Log" [ref=f4e1604]:
+                                  - img [ref=f4e1606]
+                                  - generic [ref=f4e1608]: Log
+                                - menuitem "More actions" [ref=f4e1610] [cursor=pointer]:
+                                  - generic [ref=f4e1612]: 
+                            - generic [ref=f4e1625]:
+                              - generic [ref=f4e1626]:
+                                - generic [ref=f4e1628]:
+                                  - tablist [ref=f4e1629]:
+                                    - tab "Table" [selected] [ref=f4e1631] [cursor=pointer]:
+                                      - img [ref=f4e1633]
+                                      - generic [ref=f4e1636]: Table
+                                  - status [ref=f4e1638]
+                                - button "New chart" [ref=f4e1639]:
+                                  - img [ref=f4e1641]
+                                  - text: New chart
+                                - generic [ref=f4e1644]:
+                                  - button "Filter" [ref=f4e1645]:
+                                    - img [ref=f4e1647]
+                                  - button "DataFrame visualizer is detached from server. Please re-execute the cell to access all the functionalities." [ref=f4e1650]:
+                                    - img [ref=f4e1652]
+                                    - text: 5 columns, 2 rows
+                                    - img [ref=f4e1655]
+                              - generic [ref=f4e1657]:
+                                - generic [ref=f4e1658]:
+                                  - generic [ref=f4e1659]:
+                                    - heading "Table view" [level=2] [ref=f4e1661]
+                                    - generic [ref=f4e1662]:
+                                      - button "Download" [ref=f4e1663]:
+                                        - img [ref=f4e1665]
+                                        - text: Download
+                                        - img [ref=f4e1668]
+                                      - generic [ref=f4e1671]:
+                                        - img [ref=f4e1673]
+                                        - textbox "Filter by keyword" [ref=f4e1675]
+                                  - grid [ref=f4e1676]:
+                                    - generic:
+                                      - rowgroup:
+                                        - row "unit n_rows min_price avg_price max_price":
+                                          - generic [ref=f4e1679]:
+                                            - columnheader [ref=f4e1680]:
+                                              - img [ref=f4e1685]
+                                              - separator [ref=f4e1687]
+                                            - columnheader "unit" [ref=f4e1688]:
+                                              - generic [ref=f4e1690]:
+                                                - button "unit" [ref=f4e1691]:
+                                                  - img [ref=f4e1693]
+                                                  - generic "unit" [ref=f4e1695]
+                                                - menu [ref=f4e1696]:
+                                                  - menuitem "unit" [ref=f4e1697]:
+                                                    - img [ref=f4e1699]
+                                              - separator [ref=f4e1701]
+                                            - columnheader "n_rows" [ref=f4e1702]:
+                                              - generic [ref=f4e1704]:
+                                                - button "n_rows" [ref=f4e1705]:
+                                                  - img [ref=f4e1707]
+                                                  - generic "n_rows" [ref=f4e1711]
+                                                - menu [ref=f4e1712]:
+                                                  - menuitem "n_rows" [ref=f4e1713]:
+                                                    - img [ref=f4e1715]
+                                              - separator [ref=f4e1717]
+                                            - columnheader "min_price" [ref=f4e1718]:
+                                              - generic [ref=f4e1720]:
+                                                - button "min_price" [ref=f4e1721]:
+                                                  - img [ref=f4e1723]
+                                                  - generic "min_price" [ref=f4e1727]
+                                                - menu [ref=f4e1728]:
+                                                  - menuitem "min_price" [ref=f4e1729]:
+                                                    - img [ref=f4e1731]
+                                              - separator [ref=f4e1733]
+                                            - columnheader "avg_price" [ref=f4e1734]:
+                                              - generic [ref=f4e1736]:
+                                                - button "avg_price" [ref=f4e1737]:
+                                                  - img [ref=f4e1739]
+                                                  - generic "avg_price" [ref=f4e1743]
+                                                - menu [ref=f4e1744]:
+                                                  - menuitem "avg_price" [ref=f4e1745]:
+                                                    - img [ref=f4e1747]
+                                              - separator [ref=f4e1749]
+                                            - columnheader "max_price" [ref=f4e1750]:
+                                              - generic [ref=f4e1752]:
+                                                - button "max_price" [ref=f4e1753]:
+                                                  - img [ref=f4e1755]
+                                                  - generic "max_price" [ref=f4e1759]
+                                                - menu [ref=f4e1760]:
+                                                  - menuitem "max_price" [ref=f4e1761]:
+                                                    - img [ref=f4e1763]
+                                              - separator [ref=f4e1765]
+                                      - rowgroup:
+                                        - generic [ref=f4e1767]:
+                                          - row "1 kg 108 1.35 25.5051 91.86":
+                                            - gridcell "1" [ref=f4e1768]:
+                                              - generic [ref=f4e1771]: "1"
+                                            - gridcell "kg" [ref=f4e1772]:
+                                              - generic [ref=f4e1775]: kg
+                                            - gridcell "108" [ref=f4e1776]:
+                                              - generic [ref=f4e1779]: "108"
+                                            - gridcell "1.35" [ref=f4e1780]:
+                                              - generic [ref=f4e1783]: "1.35"
+                                            - gridcell "25.5051" [ref=f4e1784]:
+                                              - generic [ref=f4e1787]: "25.5051"
+                                            - gridcell "91.86" [ref=f4e1788]:
+                                              - generic [ref=f4e1791]: "91.86"
+                                          - row "2 pcs 24 10.94 28.9146 49.39":
+                                            - gridcell "2" [ref=f4e1792]:
+                                              - generic [ref=f4e1795]: "2"
+                                            - gridcell "pcs" [ref=f4e1796]:
+                                              - generic [ref=f4e1799]: pcs
+                                            - gridcell "24" [ref=f4e1800]:
+                                              - generic [ref=f4e1803]: "24"
+                                            - gridcell "10.94" [ref=f4e1804]:
+                                              - generic [ref=f4e1807]: "10.94"
+                                            - gridcell "28.9146" [ref=f4e1808]:
+                                              - generic [ref=f4e1811]: "28.9146"
+                                            - gridcell "49.39" [ref=f4e1812]:
+                                              - generic [ref=f4e1815]: "49.39"
+                                - generic [ref=f4e1819]:
+                                  - button "Expand inspect panel" [ref=f4e1821]:
+                                    - img [ref=f4e1823]
+                                  - generic [ref=f4e1826]: Inspect
+                      - region "Code cell at position 6 of 6" [ref=f4e1834]:
+                        - generic [ref=f4e1848]:
+                          - generic [ref=f4e1851]:
+                            - generic [ref=f4e1853]:
+                              - group "Run cell" [ref=f4e1856]:
+                                - generic [ref=f4e1857]:
+                                  - button "Run cell" [ref=f4e1858] [cursor=pointer]:
+                                    - generic [ref=f4e1859]: 
+                                  - button "Additional commands" [ref=f4e1860] [cursor=pointer]:
+                                    - generic [ref=f4e1862]: 
+                              - generic "This cell has an execution count of 6" [ref=f4e1865]: "[6]"
+                            - generic [ref=f4e1866]:
+                              - code [ref=f4e1874]:
+                                - generic [ref=f4e1875]:
+                                  - textbox "Editor content" [ref=f4e1876]: SELECT MaterialName, SupplierName, Region, Quantity, UnitPriceEUR, ROUND(Quantity * UnitPriceEUR, 2) AS line_spend_eur FROM oem_lh.bronze_procurement_transactional WHERE lower(trim(Unit)) = 'pcs' """) print("pcs rows:", pcs.count(), "| total pcs spend now going to NULL under per_kg:", round(pcs.agg(F.sum("line_spend_eur")).first()[0], 2), "EUR", "| distinct materials:", pcs.select("MaterialName").distinct().count()) display(pcs.orderBy(F.desc("line_spend_eur")))
+                                  - generic [ref=f4e1879]:
+                                    - generic [ref=f4e1881]: "1"
+                                    - generic [ref=f4e1882]:
+                                      - generic [ref=f4e1883] [cursor=pointer]: 
+                                      - generic [ref=f4e1884]: "2"
+                                    - generic [ref=f4e1886]: "3"
+                                    - generic [ref=f4e1888]: "4"
+                                    - generic [ref=f4e1890]: "5"
+                                    - generic [ref=f4e1892]: "6"
+                                    - generic [ref=f4e1894]: "7"
+                                    - generic [ref=f4e1895]:
+                                      - generic [ref=f4e1896] [cursor=pointer]: 
+                                      - generic [ref=f4e1897]: "8"
+                                    - generic [ref=f4e1899]: "9"
+                                    - generic [ref=f4e1901]: "10"
+                                    - generic [ref=f4e1903]: "11"
+                                    - generic [ref=f4e1906]: "12"
+                                  - generic [ref=f4e1920]:
+                                    - generic [ref=f4e1922]: from pyspark.sql import functions as F
+                                    - generic [ref=f4e1924]: pcs = spark.sql("""
+                                    - generic [ref=f4e1926]: SELECT MaterialName, SupplierName, Region, Quantity, UnitPriceEUR,
+                                    - generic [ref=f4e1928]: ROUND(Quantity * UnitPriceEUR, 2) AS line_spend_eur
+                                    - generic [ref=f4e1930]: FROM oem_lh.bronze_procurement_transactional
+                                    - generic [ref=f4e1932]: WHERE lower(trim(Unit)) = 'pcs'
+                                    - generic [ref=f4e1934]: "\"\"\")"
+                                    - generic [ref=f4e1936]: print("pcs rows:", pcs.count(),
+                                    - generic [ref=f4e1938]: "\"| total pcs spend now going to NULL under per_kg:\","
+                                    - generic [ref=f4e1940]: round(pcs.agg(F.sum("line_spend_eur")).first()[0], 2), "EUR",
+                                    - generic [ref=f4e1942]: "\"| distinct materials:\", pcs.select(\"MaterialName\").distinct().count())"
+                                    - generic [ref=f4e1944]: display(pcs.orderBy(F.desc("line_spend_eur")))
+                              - generic [ref=f4e1946]:
+                                - generic [ref=f4e1947]:
+                                  - generic [ref=f4e1948]:
+                                    - img "Finished" [ref=f4e1949]: 
+                                    - generic [ref=f4e1950]: 4 sec
+                                  - generic [ref=f4e1955]: "- Command executed in 2 sec 173 ms by Fabric User on 7/23/2026, 8:22:44 PM"
+                                - button "PySpark (Python)" [ref=f4e1958] [cursor=pointer]:
+                                  - generic [ref=f4e1959]:
+                                    - generic [ref=f4e1961]: PySpark (Python)
+                                    - generic [ref=f4e1962]: 
+                              - menubar "Use left and right arrow keys to navigate between commands" [ref=f4e1967]:
+                                - group [ref=f4e1968]:
+                                  - menuitem "Ask help from Copilot (preview)" [disabled] [ref=f4e1969]:
+                                    - img [ref=f4e1972]
+                                  - menuitem "Expand this cell to fill the notebook screen" [ref=f4e1974] [cursor=pointer]:
+                                    - generic [ref=f4e1976]: 
+                                  - menuitem "Convert to markdown cell" [ref=f4e1977] [cursor=pointer]:
+                                    - generic [ref=f4e1979]: 
+                                  - menuitem "Clear output" [ref=f4e1980] [cursor=pointer]:
+                                    - generic [ref=f4e1982]: 
+                                  - menuitem "Save as view" [disabled] [ref=f4e1983]:
+                                    - generic [ref=f4e1985]: 
+                                  - menuitem "More commands" [ref=f4e1987] [cursor=pointer]:
+                                    - generic [ref=f4e1989]: 
+                                - group [ref=f4e1990]:
+                                  - menuitem "Delete cell" [ref=f4e1991] [cursor=pointer]:
+                                    - generic [ref=f4e1993]: 
+                          - generic [ref=f4e1994]:
+                            - generic [ref=f4e2004]:
+                              - button "Button Collapsed" [ref=f4e2006]:
+                                - img [ref=f4e2008]
+                              - menubar [ref=f4e2014]:
+                                - menuitem "Spark jobs (8 of 8 succeeded)" [ref=f4e2015]:
+                                  - img [ref=f4e2017]
+                                  - generic [ref=f4e2037]: Spark jobs (8 of 8 succeeded)
+                                - menuitem "Resources" [ref=f4e2038]:
+                                  - img [ref=f4e2040]
+                                  - generic [ref=f4e2042]: Resources
+                                - menuitem "More actions" [ref=f4e2044] [cursor=pointer]:
+                                  - generic [ref=f4e2046]: 
+                            - generic [ref=f4e2047]:
+                              - button "Output menu" [ref=f4e2050] [cursor=pointer]:
+                                - generic [ref=f4e2052]: 
+                              - generic [ref=f4e2056]:
+                                - code [ref=f4e2057]: "pcs rows: 24 | total pcs spend now going to NULL under per_kg: 1743318.52 EUR | distinct materials: 2"
+                                - generic [ref=f4e2064]:
+                                  - generic [ref=f4e2065]:
+                                    - generic [ref=f4e2067]:
+                                      - tablist [ref=f4e2068]:
+                                        - tab "Table" [selected] [ref=f4e2070] [cursor=pointer]:
+                                          - img [ref=f4e2072]
+                                          - generic [ref=f4e2075]: Table
+                                      - status [ref=f4e2077]
+                                    - button "New chart" [ref=f4e2078]:
+                                      - img [ref=f4e2080]
+                                      - text: New chart
+                                    - generic [ref=f4e2083]:
+                                      - button "Filter" [ref=f4e2084]:
+                                        - img [ref=f4e2086]
+                                      - button "DataFrame visualizer is detached from server. Please re-execute the cell to access all the functionalities." [ref=f4e2089]:
+                                        - img [ref=f4e2091]
+                                        - text: 6 columns, 24 rows
+                                        - img [ref=f4e2094]
+                                  - generic [ref=f4e2096]:
+                                    - generic [ref=f4e2097]:
+                                      - generic [ref=f4e2098]:
+                                        - heading "Table view" [level=2] [ref=f4e2100]
+                                        - generic [ref=f4e2101]:
+                                          - button "Download" [ref=f4e2102]:
+                                            - img [ref=f4e2104]
+                                            - text: Download
+                                            - img [ref=f4e2107]
+                                          - generic [ref=f4e2110]:
+                                            - img [ref=f4e2112]
+                                            - textbox "Filter by keyword" [ref=f4e2114]
+                                      - grid [ref=f4e2115]:
+                                        - generic:
+                                          - rowgroup:
+                                            - row "MaterialName SupplierName Region Quantity UnitPriceEUR line_spend_eur":
+                                              - generic [ref=f4e2118]:
+                                                - columnheader [ref=f4e2119]:
+                                                  - img [ref=f4e2124]
+                                                  - separator [ref=f4e2126]
+                                                - columnheader "MaterialName" [ref=f4e2127]:
+                                                  - generic [ref=f4e2129]:
+                                                    - button "MaterialName" [ref=f4e2130]:
+                                                      - img [ref=f4e2132]
+                                                      - generic "MaterialName" [ref=f4e2134]
+                                                    - menu [ref=f4e2135]:
+                                                      - menuitem "MaterialName" [ref=f4e2136]:
+                                                        - img [ref=f4e2138]
+                                                  - separator [ref=f4e2140]
+                                                - columnheader "SupplierName" [ref=f4e2141]:
+                                                  - generic [ref=f4e2143]:
+                                                    - button "SupplierName" [ref=f4e2144]:
+                                                      - img [ref=f4e2146]
+                                                      - generic "SupplierName" [ref=f4e2148]
+                                                    - menu [ref=f4e2149]:
+                                                      - menuitem "SupplierName" [ref=f4e2150]:
+                                                        - img [ref=f4e2152]
+                                                  - separator [ref=f4e2154]
+                                                - columnheader "Region" [ref=f4e2155]:
+                                                  - generic [ref=f4e2157]:
+                                                    - button "Region" [ref=f4e2158]:
+                                                      - img [ref=f4e2160]
+                                                      - generic "Region" [ref=f4e2162]
+                                                    - menu [ref=f4e2163]:
+                                                      - menuitem "Region" [ref=f4e2164]:
+                                                        - img [ref=f4e2166]
+                                                  - separator [ref=f4e2168]
+                                                - columnheader "Quantity" [ref=f4e2169]:
+                                                  - generic [ref=f4e2171]:
+                                                    - button "Quantity" [ref=f4e2172]:
+                                                      - img [ref=f4e2174]
+                                                      - generic "Quantity" [ref=f4e2178]
+                                                    - menu [ref=f4e2179]:
+                                                      - menuitem "Quantity" [ref=f4e2180]:
+                                                        - img [ref=f4e2182]
+                                                  - separator [ref=f4e2184]
+                                                - columnheader "UnitPriceEUR" [ref=f4e2185]:
+                                                  - generic [ref=f4e2187]:
+                                                    - button "UnitPriceEUR" [ref=f4e2188]:
+                                                      - img [ref=f4e2190]
+                                                      - generic "UnitPriceEUR" [ref=f4e2194]
+                                                    - menu [ref=f4e2195]:
+                                                      - menuitem "UnitPriceEUR" [ref=f4e2196]:
+                                                        - img [ref=f4e2198]
+                                                  - separator [ref=f4e2200]
+                                                - columnheader "line_spend_eur" [ref=f4e2201]:
+                                                  - generic [ref=f4e2203]:
+                                                    - button "line_spend_eur" [ref=f4e2204]:
+                                                      - img [ref=f4e2206]
+                                                      - generic "line_spend_eur" [ref=f4e2210]
+                                                    - menu [ref=f4e2211]:
+                                                      - menuitem "line_spend_eur" [ref=f4e2212]:
+                                                        - img [ref=f4e2214]
+                                                  - separator [ref=f4e2216]
+                                          - rowgroup:
+                                            - generic [ref=f4e2218]:
+                                              - row "1 Electronics (controllers, sensors) MicroTech Pte Ltd APAC 3221 48.970001220703125 157732.37":
+                                                - gridcell "1" [ref=f4e2219]:
+                                                  - generic [ref=f4e2222]: "1"
+                                                - gridcell "Electronics (controllers, sensors)" [ref=f4e2223]:
+                                                  - generic [ref=f4e2226]: Electronics (controllers, sensors)
+                                                - gridcell "MicroTech Pte Ltd" [ref=f4e2227]:
+                                                  - generic [ref=f4e2230]: MicroTech Pte Ltd
+                                                - gridcell "APAC" [ref=f4e2231]:
+                                                  - generic [ref=f4e2234]: APAC
+                                                - gridcell "3221" [ref=f4e2235]:
+                                                  - generic [ref=f4e2238]: "3221"
+                                                - gridcell "48.970001220703125" [ref=f4e2239]:
+                                                  - generic [ref=f4e2242]: "48.970001220703125"
+                                                - gridcell "157732.37" [ref=f4e2243]:
+                                                  - generic [ref=f4e2246]: "157732.37"
+                                              - row "2 Electronics (controllers, sensors) MicroTech Pte Ltd APAC 3192 46.599998474121094 148747.2":
+                                                - gridcell "2" [ref=f4e2247]:
+                                                  - generic [ref=f4e2250]: "2"
+                                                - gridcell "Electronics (controllers, sensors)" [ref=f4e2251]:
+                                                  - generic [ref=f4e2254]: Electronics (controllers, sensors)
+                                                - gridcell "MicroTech Pte Ltd" [ref=f4e2255]:
+                                                  - generic [ref=f4e2258]: MicroTech Pte Ltd
+                                                - gridcell "APAC" [ref=f4e2259]:
+                                                  - generic [ref=f4e2262]: APAC
+                                                - gridcell "3192" [ref=f4e2263]:
+                                                  - generic [ref=f4e2266]: "3192"
+                                                - gridcell "46.599998474121094" [ref=f4e2267]:
+                                                  - generic [ref=f4e2270]: "46.599998474121094"
+                                                - gridcell "148747.2" [ref=f4e2271]:
+                                                  - generic [ref=f4e2274]: "148747.2"
+                                              - row "3 Electronics (controllers, sensors) MicroTech Pte Ltd APAC 3293 44.22999954223633 145649.39":
+                                                - gridcell "3" [ref=f4e2275]:
+                                                  - generic [ref=f4e2278]: "3"
+                                                - gridcell "Electronics (controllers, sensors)" [ref=f4e2279]:
+                                                  - generic [ref=f4e2282]: Electronics (controllers, sensors)
+                                                - gridcell "MicroTech Pte Ltd" [ref=f4e2283]:
+                                                  - generic [ref=f4e2286]: MicroTech Pte Ltd
+                                                - gridcell "APAC" [ref=f4e2287]:
+                                                  - generic [ref=f4e2290]: APAC
+                                                - gridcell "3293" [ref=f4e2291]:
+                                                  - generic [ref=f4e2294]: "3293"
+                                                - gridcell "44.22999954223633" [ref=f4e2295]:
+                                                  - generic [ref=f4e2298]: "44.22999954223633"
+                                                - gridcell "145649.39" [ref=f4e2299]:
+                                                  - generic [ref=f4e2302]: "145649.39"
+                                              - row "4 Electronics (controllers, sensors) MicroTech Pte Ltd APAC 3109 46.790000915527344 145470.11":
+                                                - gridcell "4" [ref=f4e2303]:
+                                                  - generic [ref=f4e2306]: "4"
+                                                - gridcell "Electronics (controllers, sensors)" [ref=f4e2307]:
+                                                  - generic [ref=f4e2310]: Electronics (controllers, sensors)
+                                                - gridcell "MicroTech Pte Ltd" [ref=f4e2311]:
+                                                  - generic [ref=f4e2314]: MicroTech Pte Ltd
+                                                - gridcell "APAC" [ref=f4e2315]:
+                                                  - generic [ref=f4e2318]: APAC
+                                                - gridcell "3109" [ref=f4e2319]:
+                                                  - generic [ref=f4e2322]: "3109"
+                                                - gridcell "46.790000915527344" [ref=f4e2323]:
+                                                  - generic [ref=f4e2326]: "46.790000915527344"
+                                                - gridcell "145470.11" [ref=f4e2327]:
+                                                  - generic [ref=f4e2330]: "145470.11"
+                                              - row "5 Electronics (controllers, sensors) MicroTech Pte Ltd APAC 3231 44.689998626708984 144393.39":
+                                                - gridcell "5" [ref=f4e2331]:
+                                                  - generic [ref=f4e2334]: "5"
+                                                - gridcell "Electronics (controllers, sensors)" [ref=f4e2335]:
+                                                  - generic [ref=f4e2338]: Electronics (controllers, sensors)
+                                                - gridcell "MicroTech Pte Ltd" [ref=f4e2339]:
+                                                  - generic [ref=f4e2342]: MicroTech Pte Ltd
+                                                - gridcell "APAC" [ref=f4e2343]:
+                                                  - generic [ref=f4e2346]: APAC
+                                                - gridcell "3231" [ref=f4e2347]:
+                                                  - generic [ref=f4e2350]: "3231"
+                                                - gridcell "44.689998626708984" [ref=f4e2351]:
+                                                  - generic [ref=f4e2354]: "44.689998626708984"
+                                                - gridcell "144393.39" [ref=f4e2355]:
+                                                  - generic [ref=f4e2358]: "144393.39"
+                                              - row "6 Electronics (controllers, sensors) MicroTech Pte Ltd APAC 2862 49.38999938964844 141354.18":
+                                                - gridcell "6" [ref=f4e2359]:
+                                                  - generic [ref=f4e2362]: "6"
+                                                - gridcell "Electronics (controllers, sensors)" [ref=f4e2363]:
+                                                  - generic [ref=f4e2366]: Electronics (controllers, sensors)
+                                                - gridcell "MicroTech Pte Ltd" [ref=f4e2367]:
+                                                  - generic [ref=f4e2370]: MicroTech Pte Ltd
+                                                - gridcell "APAC" [ref=f4e2371]:
+                                                  - generic [ref=f4e2374]: APAC
+                                                - gridcell "2862" [ref=f4e2375]:
+                                                  - generic [ref=f4e2378]: "2862"
+                                                - gridcell "49.38999938964844" [ref=f4e2379]:
+                                                  - generic [ref=f4e2382]: "49.38999938964844"
+                                                - gridcell "141354.18" [ref=f4e2383]:
+                                                  - generic [ref=f4e2386]: "141354.18"
+                                              - row "7 Electronics (controllers, sensors) MicroTech Pte Ltd APAC 3120 42.43000030517578 132381.6":
+                                                - gridcell "7" [ref=f4e2387]:
+                                                  - generic [ref=f4e2390]: "7"
+                                                - gridcell "Electronics (controllers, sensors)" [ref=f4e2391]:
+                                                  - generic [ref=f4e2394]: Electronics (controllers, sensors)
+                                                - gridcell "MicroTech Pte Ltd" [ref=f4e2395]:
+                                                  - generic [ref=f4e2398]: MicroTech Pte Ltd
+                                                - gridcell "APAC" [ref=f4e2399]:
+                                                  - generic [ref=f4e2402]: APAC
+                                                - gridcell "3120" [ref=f4e2403]:
+                                                  - generic [ref=f4e2406]: "3120"
+                                                - gridcell "42.43000030517578" [ref=f4e2407]:
+                                                  - generic [ref=f4e2410]: "42.43000030517578"
+                                                - gridcell "132381.6" [ref=f4e2411]:
+                                                  - generic [ref=f4e2414]: "132381.6"
+                                              - row "8 Electronics (controllers, sensors) MicroTech Pte Ltd APAC 2796 47.15999984741211 131859.36":
+                                                - gridcell "8" [ref=f4e2415]:
+                                                  - generic [ref=f4e2418]: "8"
+                                                - gridcell "Electronics (controllers, sensors)" [ref=f4e2419]:
+                                                  - generic [ref=f4e2422]: Electronics (controllers, sensors)
+                                                - gridcell "MicroTech Pte Ltd" [ref=f4e2423]:
+                                                  - generic [ref=f4e2426]: MicroTech Pte Ltd
+                                                - gridcell "APAC" [ref=f4e2427]:
+                                                  - generic [ref=f4e2430]: APAC
+                                                - gridcell "2796" [ref=f4e2431]:
+                                                  - generic [ref=f4e2434]: "2796"
+                                                - gridcell "47.15999984741211" [ref=f4e2435]:
+                                                  - generic [ref=f4e2438]: "47.15999984741211"
+                                                - gridcell "131859.36" [ref=f4e2439]:
+                                                  - generic [ref=f4e2442]: "131859.36"
+                                              - row "9 Electronics (controllers, sensors) MicroTech Pte Ltd APAC 2724 47.790000915527344 130179.96":
+                                                - gridcell "9" [ref=f4e2443]:
+                                                  - generic [ref=f4e2446]: "9"
+                                                - gridcell "Electronics (controllers, sensors)" [ref=f4e2447]:
+                                                  - generic [ref=f4e2450]: Electronics (controllers, sensors)
+                                                - gridcell "MicroTech Pte Ltd" [ref=f4e2451]:
+                                                  - generic [ref=f4e2454]: MicroTech Pte Ltd
+                                                - gridcell "APAC" [ref=f4e2455]:
+                                                  - generic [ref=f4e2458]: APAC
+                                                - gridcell "2724" [ref=f4e2459]:
+                                                  - generic [ref=f4e2462]: "2724"
+                                                - gridcell "47.790000915527344" [ref=f4e2463]:
+                                                  - generic [ref=f4e2466]: "47.790000915527344"
+                                                - gridcell "130179.96" [ref=f4e2467]:
+                                                  - generic [ref=f4e2470]: "130179.96"
+                                              - row "10 Electronics (controllers, sensors) MicroTech Pte Ltd APAC 3068 42.209999084472656 129500.28":
+                                                - gridcell "10" [ref=f4e2471]:
+                                                  - generic [ref=f4e2474]: "10"
+                                                - gridcell "Electronics (controllers, sensors)" [ref=f4e2475]:
+                                                  - generic [ref=f4e2478]: Electronics (controllers, sensors)
+                                                - gridcell "MicroTech Pte Ltd" [ref=f4e2479]:
+                                                  - generic [ref=f4e2482]: MicroTech Pte Ltd
+                                                - gridcell "APAC" [ref=f4e2483]:
+                                                  - generic [ref=f4e2486]: APAC
+                                                - gridcell "3068" [ref=f4e2487]:
+                                                  - generic [ref=f4e2490]: "3068"
+                                                - gridcell "42.209999084472656" [ref=f4e2491]:
+                                                  - generic [ref=f4e2494]: "42.209999084472656"
+                                                - gridcell "129500.28" [ref=f4e2495]:
+                                                  - generic [ref=f4e2498]: "129500.28"
+                                              - row "11 Electronics (controllers, sensors) MicroTech Pte Ltd APAC 2973 43.400001525878906 129028.2":
+                                                - gridcell "11" [ref=f4e2499]:
+                                                  - generic [ref=f4e2502]: "11"
+                                                - gridcell "Electronics (controllers, sensors)" [ref=f4e2503]:
+                                                  - generic [ref=f4e2506]: Electronics (controllers, sensors)
+                                                - gridcell "MicroTech Pte Ltd" [ref=f4e2507]:
+                                                  - generic [ref=f4e2510]: MicroTech Pte Ltd
+                                                - gridcell "APAC" [ref=f4e2511]:
+                                                  - generic [ref=f4e2514]: APAC
+                                                - gridcell "2973" [ref=f4e2515]:
+                                                  - generic [ref=f4e2518]: "2973"
+                                                - gridcell "43.400001525878906" [ref=f4e2519]:
+                                                  - generic [ref=f4e2522]: "43.400001525878906"
+                                                - gridcell "129028.2" [ref=f4e2523]:
+                                                  - generic [ref=f4e2526]: "129028.2"
+                                              - row "12 Electronics (controllers, sensors) MicroTech Pte Ltd APAC 2847 42.650001525878906 121424.55":
+                                                - gridcell "12" [ref=f4e2527]:
+                                                  - generic [ref=f4e2530]: "12"
+                                                - gridcell "Electronics (controllers, sensors)" [ref=f4e2531]:
+                                                  - generic [ref=f4e2534]: Electronics (controllers, sensors)
+                                                - gridcell "MicroTech Pte Ltd" [ref=f4e2535]:
+                                                  - generic [ref=f4e2538]: MicroTech Pte Ltd
+                                                - gridcell "APAC" [ref=f4e2539]:
+                                                  - generic [ref=f4e2542]: APAC
+                                                - gridcell "2847" [ref=f4e2543]:
+                                                  - generic [ref=f4e2546]: "2847"
+                                                - gridcell "42.650001525878906" [ref=f4e2547]:
+                                                  - generic [ref=f4e2550]: "42.650001525878906"
+                                                - gridcell "121424.55" [ref=f4e2551]:
+                                                  - generic [ref=f4e2554]: "121424.55"
+                                              - row "13 Tires (Rubber compound) GlobalRubber SA NA 588 13.130000114440918 7720.44":
+                                                - gridcell "13" [ref=f4e2555]:
+                                                  - generic [ref=f4e2558]: "13"
+                                                - gridcell "Tires (Rubber compound)" [ref=f4e2559]:
+                                                  - generic [ref=f4e2562]: Tires (Rubber compound)
+                                                - gridcell "GlobalRubber SA" [ref=f4e2563]:
+                                                  - generic [ref=f4e2566]: GlobalRubber SA
+                                                - gridcell "NA" [ref=f4e2567]:
+                                                  - generic [ref=f4e2570]: NA
+                                                - gridcell "588" [ref=f4e2571]:
+                                                  - generic [ref=f4e2574]: "588"
+                                                - gridcell "13.130000114440918" [ref=f4e2575]:
+                                                  - generic [ref=f4e2578]: "13.130000114440918"
+                                                - gridcell "7720.44" [ref=f4e2579]:
+                                                  - generic [ref=f4e2582]: "7720.44"
+                                              - row "14 Tires (Rubber compound) GlobalRubber SA NA 572 13.199999809265137 7550.4":
+                                                - gridcell "14" [ref=f4e2583]:
+                                                  - generic [ref=f4e2586]: "14"
+                                                - gridcell "Tires (Rubber compound)" [ref=f4e2587]:
+                                                  - generic [ref=f4e2590]: Tires (Rubber compound)
+                                                - gridcell "GlobalRubber SA" [ref=f4e2591]:
+                                                  - generic [ref=f4e2594]: GlobalRubber SA
+                                                - gridcell "NA" [ref=f4e2595]:
+                                                  - generic [ref=f4e2598]: NA
+                                                - gridcell "572" [ref=f4e2599]:
+                                                  - generic [ref=f4e2602]: "572"
+                                                - gridcell "13.199999809265137" [ref=f4e2603]:
+                                                  - generic [ref=f4e2606]: "13.199999809265137"
+                                                - gridcell "7550.4" [ref=f4e2607]:
+                                                  - generic [ref=f4e2610]: "7550.4"
+                                              - row "15 Tires (Rubber compound) GlobalRubber SA NA 588 12.789999961853027 7520.52":
+                                                - gridcell "15" [ref=f4e2611]:
+                                                  - generic [ref=f4e2614]: "15"
+                                                - gridcell "Tires (Rubber compound)" [ref=f4e2615]:
+                                                  - generic [ref=f4e2618]: Tires (Rubber compound)
+                                                - gridcell "GlobalRubber SA" [ref=f4e2619]:
+                                                  - generic [ref=f4e2622]: GlobalRubber SA
+                                                - gridcell "NA" [ref=f4e2623]:
+                                                  - generic [ref=f4e2626]: NA
+                                                - gridcell "588" [ref=f4e2627]:
+                                                  - generic [ref=f4e2630]: "588"
+                                                - gridcell "12.789999961853027" [ref=f4e2631]:
+                                                  - generic [ref=f4e2634]: "12.789999961853027"
+                                                - gridcell "7520.52" [ref=f4e2635]:
+                                                  - generic [ref=f4e2638]: "7520.52"
+                                              - row "16 Tires (Rubber compound) GlobalRubber SA NA 582 12.90999984741211 7513.62":
+                                                - gridcell "16" [ref=f4e2639]:
+                                                  - generic [ref=f4e2642]: "16"
+                                                - gridcell "Tires (Rubber compound)" [ref=f4e2643]:
+                                                  - generic [ref=f4e2646]: Tires (Rubber compound)
+                                                - gridcell "GlobalRubber SA" [ref=f4e2647]:
+                                                  - generic [ref=f4e2650]: GlobalRubber SA
+                                                - gridcell "NA" [ref=f4e2651]:
+                                                  - generic [ref=f4e2654]: NA
+                                                - gridcell "582" [ref=f4e2655]:
+                                                  - generic [ref=f4e2658]: "582"
+                                                - gridcell "12.90999984741211" [ref=f4e2659]:
+                                                  - generic [ref=f4e2662]: "12.90999984741211"
+                                                - gridcell "7513.62" [ref=f4e2663]:
+                                                  - generic [ref=f4e2666]: "7513.62"
+                                              - row "17 Tires (Rubber compound) GlobalRubber SA NA 555 13.149999618530273 7298.25":
+                                                - gridcell "17" [ref=f4e2667]:
+                                                  - generic [ref=f4e2670]: "17"
+                                                - gridcell "Tires (Rubber compound)" [ref=f4e2671]:
+                                                  - generic [ref=f4e2674]: Tires (Rubber compound)
+                                                - gridcell "GlobalRubber SA" [ref=f4e2675]:
+                                                  - generic [ref=f4e2678]: GlobalRubber SA
+                                                - gridcell "NA" [ref=f4e2679]:
+                                                  - generic [ref=f4e2682]: NA
+                                                - gridcell "555" [ref=f4e2683]:
+                                                  - generic [ref=f4e2686]: "555"
+                                                - gridcell "13.149999618530273" [ref=f4e2687]:
+                                                  - generic [ref=f4e2690]: "13.149999618530273"
+                                                - gridcell "7298.25" [ref=f4e2691]:
+                                                  - generic [ref=f4e2694]: "7298.25"
+                                              - row "18 Tires (Rubber compound) GlobalRubber SA NA 579 12.4399995803833 7202.76":
+                                                - gridcell "18" [ref=f4e2695]:
+                                                  - generic [ref=f4e2698]: "18"
+                                                - gridcell "Tires (Rubber compound)" [ref=f4e2699]:
+                                                  - generic [ref=f4e2702]: Tires (Rubber compound)
+                                                - gridcell "GlobalRubber SA" [ref=f4e2703]:
+                                                  - generic [ref=f4e2706]: GlobalRubber SA
+                                                - gridcell "NA" [ref=f4e2707]:
+                                                  - generic [ref=f4e2710]: NA
+                                                - gridcell "579" [ref=f4e2711]:
+                                                  - generic [ref=f4e2714]: "579"
+                                                - gridcell "12.4399995803833" [ref=f4e2715]:
+                                                  - generic [ref=f4e2718]: "12.4399995803833"
+                                                - gridcell "7202.76" [ref=f4e2719]:
+                                                  - generic [ref=f4e2722]: "7202.76"
+                                              - row "19 Tires (Rubber compound) GlobalRubber SA NA 547 12.970000267028809 7094.59":
+                                                - gridcell "19" [ref=f4e2723]:
+                                                  - generic [ref=f4e2726]: "19"
+                                                - gridcell "Tires (Rubber compound)" [ref=f4e2727]:
+                                                  - generic [ref=f4e2730]: Tires (Rubber compound)
+                                                - gridcell "GlobalRubber SA" [ref=f4e2731]:
+                                                  - generic [ref=f4e2734]: GlobalRubber SA
+                                                - gridcell "NA" [ref=f4e2735]:
+                                                  - generic [ref=f4e2738]: NA
+                                                - gridcell "547" [ref=f4e2739]:
+                                                  - generic [ref=f4e2742]: "547"
+                                                - gridcell "12.970000267028809" [ref=f4e2743]:
+                                                  - generic [ref=f4e2746]: "12.970000267028809"
+                                                - gridcell "7094.59" [ref=f4e2747]:
+                                                  - generic [ref=f4e2750]: "7094.59"
+                                    - generic [ref=f4e2754]:
+                                      - button "Expand inspect panel" [ref=f4e2756]:
+                                        - img [ref=f4e2758]
+                                      - generic [ref=f4e2761]: Inspect
+                    - separator [ref=f4e763]
+                - generic [ref=f4e765]:
+                  - generic [ref=f4e766]:
+                    - button "Session ready" [ref=f4e767]:
+                      - img [ref=f4e2768]
+                      - generic [ref=f4e771]: Session ready
+                    - button "The notebook is saved automatically. To save changes manually, navigate to the Edit tab and change your save options." [ref=f4e772]:
+                      - img [ref=f4e774]
+                      - generic [ref=f4e776]: "AutoSave: On"
+                  - button "Selected Cell 6 of 6 cells" [ref=f4e2770]:
+                    - img [ref=f4e779]
+                    - text: Selected Cell 6 of 6 cells
+          - generic [ref=f4e782]:
+            - alert
+            - alert
+          - alert [ref=f4e2774]: New code cell created at position 6
+          - status [ref=f4e2776]: Checkpoint created

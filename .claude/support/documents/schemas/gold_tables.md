@@ -9,9 +9,9 @@ date_key                    INTEGER (yyyyMMdd; 19000101 = UNKNOWN DATE, never NU
 material_key                BIGINT (xxhash64)
 supplier_hq_country_key     BIGINT (xxhash64)
 production_country_key      BIGINT (xxhash64)
-quantity_base               DOUBLE, NULLABLE (kg; NULL when the unit is unrecognized)
-unitprice_eur               DOUBLE
-spend_eur                   DOUBLE, NULLABLE (quantity_base × unitprice_eur)
+quantity_base               DOUBLE, NULLABLE (kg; NULL for non-mass units, e.g. pcs)
+unitprice_eur               DOUBLE (per the row's source Unit — EUR/kg, EUR/piece)
+spend_eur                   DOUBLE (quantity_original × unitprice_eur; per_row_unit)
 data_quality_score          DOUBLE (0-1 scale)
 quality_category            STRING (High/Medium/Low/Unmapped)
 source_row_id               BIGINT (traces back to the silver transaction)
@@ -25,10 +25,12 @@ in unfiltered totals — cards and time-series would not reconcile. It would als
 the BLOCKING referential-integrity check (`fact_procurement.date_key →
 gold_dim_date`), which counts NULL as an orphan at 0% tolerance.
 
-**`quantity_base` and `spend_eur` are nullable** (task-030) — NULL whenever the row's
-unit is outside the four-entry conversion map. See `calculations.md § Quantity Base`.
-Anything averaging or summing these must expect NULLs; the affected rows are named in
-`gold_unmapped_unit_audit`.
+**`quantity_base` is nullable** (task-030) — NULL whenever the row's unit is outside
+the four-entry mass map (e.g. `pcs`, which has no kg equivalent). **`spend_eur` is
+computed for every row** as `quantity × unitprice` (per_row_unit, task-030 AC3), so a
+`pcs` row has NULL `quantity_base` but a real `spend_eur`. Anything summing
+`quantity_base` must expect NULLs; the no-mass rows are named in
+`gold_unmapped_unit_audit`. See `calculations.md § Spend EUR`.
 
 ### fact_supply_share
 Grain: One row per material × stage × country × year

@@ -34,7 +34,8 @@
     "EVIDENCE (C): calculations.md:7 'spend_eur = quantity_base (kg) x unitprice_eur (EUR/kg)'; bronze schema has Unit per row (bronze_tables.md:12) making per-unit pricing plausible. UNVERIFIED in audit — flagged explicitly as needing source confirmation, hence owner=both.",
     "SIDE NOTE for consistency: populate_low_confidence_audit computes spend_impact as SUM(quantity * unitpriceeur) (line 2325) — i.e. WITHOUT unit conversion — inconsistent with fact spend (quantity_base * price). Whichever semantics (C) confirms, align this too.",
     "COORDINATE: same file as tasks 023/025/027/028 — serialize.",
-    "FR-006 REVERSE-LINK 2026-07-23: this task owns the register entry for the silver<->gold spend reconciliation check (data_quality_framework.md § 2.3 Check 8). That check reconciles exactly only under uniform base units — gold computes spend_eur from kg-normalized quantity_base while unitprice_eur is not converted — so task-026 classified it ADVISORY rather than blocking. It can be promoted to blocking once AC3 confirms the unitprice basis (and, if the answer is 'per row unit', once UNITPRICE_BASIS is flipped). FR-006 therefore closes with AC3, not with the code already shipped."
+    "FR-006 REVERSE-LINK 2026-07-23: this task owns the register entry for the silver<->gold spend reconciliation check (data_quality_framework.md § 2.3 Check 8). That check reconciles exactly only under uniform base units — gold computes spend_eur from kg-normalized quantity_base while unitprice_eur is not converted — so task-026 classified it ADVISORY rather than blocking. It can be promoted to blocking once AC3 confirms the unitprice basis (and, if the answer is 'per row unit', once UNITPRICE_BASIS is flipped). FR-006 therefore closes with AC3, not with the code already shipped.",
+    "AC3 RESOLVED 2026-07-23 (per_row_unit) via live-source measurement (Playwright read of a Fabric notebook). Unit domain = {kg:108, pcs:24}; no tonnes/grams. pcs = electronic control units + tyres, priced per piece → UnitPriceEUR is per-row-unit. CRITICAL: the shipped per_kg formula (spend = quantity_base × price) NULLed every pcs row's spend because quantity_base is NULL for non-mass units — €1,743,318.52 of real procurement (the largest category) silently lost. Fixed: UNITPRICE_BASIS='per_row_unit' → spend = quantity × unitprice for all rows (kg spend unchanged; pcs spend restored; quantity_base stays NULL for pcs, correctly). AC2 audit/warning text updated (a non-mass unit withholds MASS, not SPEND). Docs aligned. AC3's original protocol prose had the interpretation inverted (verify-agent only covered AC1/AC2/AC4) — corrected in the protocol steps. AC5 (post-run reconciliation) is the only remaining item; run gold to rebuild spend."
   ],
   "user_feedback": "",
   "created_date": "2026-07-13",
@@ -128,13 +129,13 @@
     "steps": [
       {
         "type": "interactive",
-        "instruction": "In Azure SQL inspect dbo.Procurement rows whose Unit is NOT 'kg' (e.g. 't' or 'g') and judge whether UnitPriceEUR is per kilogram or per that row's own Unit. A tonne row priced ~1000x a comparable kg row means per-kg; similar magnitude means per-row-unit.",
-        "expected": "A definitive answer: 'per kg' or 'per row unit'."
+        "instruction": "RESOLVED 2026-07-23 (per_row_unit). Confirmed against oem_lh.bronze_procurement_transactional: the unit domain is {kg:108, pcs:24} — no mass units other than kg. pcs (electronic control units, tyres) can only be priced per piece, so UnitPriceEUR is per the row's Unit, not per kg. [Historical note: the earlier text here said 'a tonne row priced ~1000x a kg row means per-kg' — that was INVERTED; ~1000x would have meant per-row-unit. Moot now, since there are no tonnes.]",
+        "expected": "Answer recorded: per_row_unit."
       },
       {
         "type": "interactive",
-        "instruction": "If 'per row unit', change UNITPRICE_BASIS from 'per_kg' to 'per_row_unit' in silver-to-gold2 (the branch is already wired and locally tested). Either way record the answer in calculations.md line 7 and the bronze schema doc, and align populate_low_confidence_audit's spend_impact to the same semantics.",
-        "expected": "Notebook constant and docs agree on one basis."
+        "instruction": "DONE 2026-07-23: UNITPRICE_BASIS set to 'per_row_unit' in silver-to-gold2; calculations.md, bronze_tables.md and gold_tables.md aligned; populate_low_confidence_audit already used the quantity × unitprice form so it is now consistent. Re-run gold to rebuild spend — the 24 pcs rows (€1.74M, incl. the Electronics category) move from NULL back to real spend.",
+        "expected": "After /run-gold: fact_procurement pcs rows carry real spend_eur; quantity_base still NULL for pcs."
       },
       {
         "type": "command",

@@ -9,9 +9,16 @@ MaterialName                STRING (NVARCHAR(100))
 SupplierName                STRING (NVARCHAR(200))
 Region                      STRING (NVARCHAR(100))
 Quantity                    DECIMAL(18,2)
-Unit                        STRING (NVARCHAR(50))
-UnitPriceEUR                DECIMAL(18,2)
+Unit                        STRING (NVARCHAR(50))   -- observed domain: kg, pcs
+UnitPriceEUR                DECIMAL(18,2)           -- per the row's Unit (EUR/kg, EUR/piece)
 ```
+
+**`UnitPriceEUR` is per the row's `Unit`, not per kilogram** (confirmed against the
+live source 2026-07-23, task-030 AC3). The observed `Unit` domain is `kg` (108 rows)
+and `pcs` (24 rows — electronic control units, tyres); a `pcs` price can only be per
+piece. Gold computes `spend_eur = Quantity × UnitPriceEUR` accordingly, and
+`quantity_base` (kg) is NULL for non-mass units like `pcs`. See `calculations.md §
+Spend EUR`.
 
 ## bronze_supplier_ref
 Source: Azure SQL dbo.SupplierInfo

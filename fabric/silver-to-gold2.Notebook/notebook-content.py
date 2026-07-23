@@ -1357,37 +1357,43 @@ unit_norm = F.create_map(*[
 ])
 
 # Lookup key for the map. TRIM matters: without it a source value of " kg" misses
-# the map, and under the AC2 fix below a miss now yields a NULL quantity_base — so
-# whitespace alone would silently drop a perfectly good row from spend.
+# the map and a miss yields a NULL quantity_base — so whitespace alone would silently
+# strip the kg mass off a perfectly good mass row (spend survives under per_row_unit,
+# but the row would wrongly land in the no-mass audit).
 unit_key = F.lower(F.trim(F.col("p.unit")))
 
 # -----------------------------------------------------------------------------
-# task-030 (AC3) — unitprice_eur basis. OPEN QUESTION, owner: Erik.
+# task-030 (AC3) — unitprice_eur basis. CONFIRMED per_row_unit (2026-07-23).
 # -----------------------------------------------------------------------------
-# calculations.md:7 asserts spend_eur = quantity_base (kg) x unitprice_eur (EUR/kg),
-# i.e. the price is per KILOGRAM regardless of the row's Unit. But bronze carries a
-# per-row Unit column, so the price may well be per THAT unit — in which case spend
-# for a tonne-denominated row is inflated x1000 today.
+# CONFIRMED against the live source (oem_lh.bronze_procurement_transactional): the
+# unit domain is {kg (108 rows), pcs (24 rows)} — no mass units other than kg. `pcs`
+# (electronic control units, tyres) can only be priced PER PIECE, so unitprice_eur is
+# per the row's own Unit, not per kilogram. The kg rows are consistent with this (for
+# a kg row per-kg == per-row-unit).
 #
-# This has NOT been verified against the Azure SQL source and is NOT changed here.
-# The switch below exists so that confirming the answer is a one-token edit:
+# WHY THIS MATTERED: under the old "per_kg" formula spend = quantity_base * price, and
+# quantity_base is NULL for any non-mass unit (task-030 AC2), so EVERY pcs row's spend
+# collapsed to NULL — €1.74M of real procurement (the largest category) silently gone.
+# per_row_unit computes spend = quantity_original * price for every row, which is the
+# honest line total: correct for kg (EUR/kg × kg) AND for pcs (EUR/pc × pcs), and it
+# leaves the kg rows' spend unchanged. quantity_base stays NULL for pcs — correct, a
+# piece has no kg mass — but that no longer poisons spend.
 #
-#     "per_kg"        (current, documented assumption)  spend = quantity_base * price
-#     "per_row_unit"  (if Erik's check says otherwise)  spend = quantity_original * price
-#
-# THE ONLY EDIT NEEDED IF THE ANSWER IS "per row unit": change UNITPRICE_BASIS on the
-# next line. Then also update calculations.md:7, bronze_tables.md, and align
-# populate_low_confidence_audit's spend_impact (it already uses the raw
-# quantity * unitpriceeur form) — see task-030 notes.
-UNITPRICE_BASIS = "per_kg"
+# This also reconciles populate_low_confidence_audit, which already computes
+# spend_impact as raw quantity * unitpriceeur (i.e. per_row_unit).
+UNITPRICE_BASIS = "per_row_unit"
 
-if UNITPRICE_BASIS == "per_kg":
-    # Price is EUR per kilogram: multiply the kg-normalized quantity.
-    spend_eur_expr = F.col("quantity_base") * F.col("p.unitpriceeur")
-elif UNITPRICE_BASIS == "per_row_unit":
-    # Price is EUR per the row's own Unit: multiply the ORIGINAL quantity, with no
-    # conversion on the price side (converting both sides would double-count).
+if UNITPRICE_BASIS == "per_row_unit":
+    # Price is EUR per the row's own Unit: multiply the ORIGINAL quantity. No conversion
+    # on the price side (converting both sides would double-count), and — crucially —
+    # spend does NOT depend on quantity_base, so a non-mass unit (pcs) still gets a real
+    # spend even though its quantity_base is NULL.
     spend_eur_expr = F.col("p.quantity") * F.col("p.unitpriceeur")
+elif UNITPRICE_BASIS == "per_kg":
+    # Retained for completeness. Price is EUR per kilogram: multiply the kg-normalized
+    # quantity. DO NOT use with the current data — it NULLs out every pcs row's spend,
+    # because quantity_base is NULL for units outside {kg,g,mg,t}.
+    spend_eur_expr = F.col("quantity_base") * F.col("p.unitpriceeur")
 else:
     raise ValueError(
         f"UNITPRICE_BASIS must be 'per_kg' or 'per_row_unit', got {UNITPRICE_BASIS!r}"
@@ -1404,11 +1410,17 @@ p = (
 ).alias("p")
 
 # -----------------------------------------------------------------------------
-# task-030 (AC2) — OBSERVED UNIT DOMAIN + unrecognized-unit audit
+# task-030 (AC2) — OBSERVED UNIT DOMAIN + no-mass-conversion audit
 # -----------------------------------------------------------------------------
 # Printed every run so the actual unit vocabulary of the source is visible instead
 # of assumed. Computed off `p` (the rows actually being loaded) BEFORE the dimension
 # joins, so the counts are per source transaction and cannot be skewed by a join.
+#
+# NOTE (task-030 AC3, per_row_unit): a unit outside {kg,g,mg,t} means "no kg mass
+# equivalent", so quantity_base is NULL — but under per_row_unit spend_eur is STILL
+# computed (quantity × unitprice). So an unrecognized unit withholds MASS, not SPEND.
+# The live source's non-mass unit is `pcs` (electronic control units, tyres): those
+# rows have a real spend and a NULL quantity_base, which is exactly right.
 p_units = (
     p
     .select(unit_key.alias("unit_key"))
@@ -1422,7 +1434,8 @@ p_units = (
 print("\n--- Unit domain observed in silver_procurement (this load window) ---")
 for u in p_units:
     known = u.unit_key in UNIT_CONVERSION_FACTORS
-    label = "recognized" if known else "UNRECOGNIZED — quantity_base withheld"
+    label = "mass unit — quantity_base in kg" if known \
+        else "non-mass unit — quantity_base NULL (spend still computed)"
     print(f"  {str(u.unit_key):>12} : {u.row_count:>8,} rows   [{label}]")
 
 # Durable audit of every unit outside the conversion map. A console print dies with
@@ -1430,8 +1443,8 @@ for u in p_units:
 # style investigation needs. Deliberately its OWN table rather than a row in
 # gold_unmapped_procurement_audit: that table is consumed wholesale by
 # populate_gap_registry, which would turn a unit into a gap_type='unit' registry
-# entry and inflate the "unmapped records" dashboard metric. Unit coverage is a
-# conversion-map gap, not a dimension-alias gap.
+# entry and inflate the "unmapped records" dashboard metric. A missing mass factor is
+# a conversion-map gap, not a dimension-alias gap.
 unit_audit = (
     p
     .withColumn("unit_key", unit_key)
@@ -1446,13 +1459,15 @@ unit_audit = (
 )
 write_tbl(unit_audit, "gold_unmapped_unit_audit")
 
-unrecognized_unit_rows = sum(u.row_count for u in p_units
-                             if u.unit_key not in UNIT_CONVERSION_FACTORS)
-if unrecognized_unit_rows > 0:
-    print(f"⚠️  WARNING: {unrecognized_unit_rows:,} rows carry a unit outside "
-          f"{sorted(UNIT_CONVERSION_FACTORS)} — quantity_base and spend_eur are NULL "
-          f"for those rows (see {DB}.gold_unmapped_unit_audit). Add the unit to "
-          f"UNIT_CONVERSION_FACTORS (and calculations.md) to convert them.")
+no_mass_rows = sum(u.row_count for u in p_units
+                   if u.unit_key not in UNIT_CONVERSION_FACTORS)
+if no_mass_rows > 0:
+    print(f"ℹ️  NOTE: {no_mass_rows:,} rows carry a non-mass unit outside "
+          f"{sorted(UNIT_CONVERSION_FACTORS)} (e.g. pcs). Their quantity_base is NULL "
+          f"(no kg equivalent) but spend_eur IS computed as quantity × unitprice "
+          f"under per_row_unit (see {DB}.gold_unmapped_unit_audit). Only add a unit to "
+          f"UNIT_CONVERSION_FACTORS if it is a MASS unit with a real kg factor — do NOT "
+          f"map pcs to a mass, that would fabricate a weight.")
 
 # Build fact with comprehensive joins and quality tracking
 fact_procurement_raw = (

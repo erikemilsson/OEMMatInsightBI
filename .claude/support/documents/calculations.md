@@ -4,20 +4,28 @@
 
 ### Spend EUR
 ```
-spend_eur = quantity_base (kg) × unitprice_eur (EUR/kg)
+spend_eur = quantity_original × unitprice_eur      (per_row_unit basis)
 ```
 
-> ⚠️ **The "EUR/kg" basis is an ASSUMPTION, not a verified fact.** Bronze carries a
-> per-row `Unit`, so the source price may be per that unit rather than per kilogram —
-> in which case spend for a tonne-denominated row is inflated ×1000 today. The
-> notebook exposes a `UNITPRICE_BASIS` switch (`"per_kg"` | `"per_row_unit"`) with
-> both branches wired and tested; confirming the answer against the Azure SQL source
-> is a one-token edit. Until it is confirmed, treat spend on non-kg rows as
-> provisional. Tracked as task-030 AC3.
+`unitprice_eur` is **per the row's own `Unit`** — EUR/kg for a `kg` row, EUR/piece for
+a `pcs` row. Confirmed against the live source 2026-07-23 (task-030 AC3): the unit
+domain is `{kg, pcs}`, and `pcs` (electronic control units, tyres) can only be priced
+per piece. So spend is the plain line total `quantity × unitprice`, and it does **not**
+go through the kg normalization.
+
+> **This is deliberately independent of `quantity_base`.** A non-mass unit like `pcs`
+> has `quantity_base = NULL` (no kg equivalent) but a perfectly real `spend_eur`. The
+> earlier `per_kg` formula `spend = quantity_base × unitprice` tied the two together and
+> collapsed every `pcs` row's spend to NULL — €1.74M of real procurement (the largest
+> category) silently lost. `per_row_unit` fixes that while leaving `kg` rows unchanged
+> (for a `kg` row, `quantity_original == quantity_base`).
 >
-> If the answer turns out to be `per_row_unit`, `spend_eur = quantity (original) ×
-> unitprice_eur` with **no** conversion on the price side, and
-> `populate_low_confidence_audit`'s `spend_impact` must be aligned to the same basis.
+> `populate_low_confidence_audit`'s `spend_impact` already uses this same
+> `quantity × unitprice` form, so the two are now consistent.
+>
+> The notebook keeps a `UNITPRICE_BASIS` switch (`"per_row_unit"` | `"per_kg"`); it is
+> set to `per_row_unit`. Do not switch to `per_kg` with the current data — it re-breaks
+> `pcs` spend.
 
 ### Quantity Base (Unit Normalization)
 ```
@@ -31,19 +39,21 @@ conversion_factors = {
 }
 ```
 
-**Units outside this map yield `NULL`, not a passthrough** (task-030). A row whose
-unit is `lb`, `tonne`, or anything else not listed gets `quantity_base = NULL` **and**
-`spend_eur = NULL`. Both columns are therefore nullable.
+**Units outside this map yield `quantity_base = NULL`, not a passthrough** (task-030).
+A row whose unit is `pcs`, `lb`, or anything else not listed has no kg mass, so
+`quantity_base` is NULL. `quantity_base` is therefore nullable. **`spend_eur` is not
+affected** — it is `quantity × unitprice` regardless of unit (see Spend EUR above).
 
 This replaced a fallback of `.otherwise(quantity)`, which kept the row's *raw
-magnitude* while labelling it kg — so a tonne row understated by ×1000 and nothing
-anywhere reported it. `NULL` is the honest answer: we do not know the kg equivalent.
-`SUM()` skips it, and the affected rows are named in **`gold_unmapped_unit_audit`**
-(unit, row count, original quantity total), with the full observed unit domain printed
-on every gold run.
+magnitude* while labelling it kg — so a piece count or a tonne would masquerade as kg
+mass and nothing reported it. `NULL` is the honest answer for the mass: we do not know
+the kg equivalent of a piece. `SUM(quantity_base)` skips it, and the affected rows are
+named in **`gold_unmapped_unit_audit`** (unit, row count, original quantity total), with
+the full observed unit domain printed on every gold run.
 
-The lookup is `lower(trim(unit))` — under NULL-on-miss semantics, stray whitespace
-alone would otherwise drop a good row out of spend.
+The lookup is `lower(trim(unit))` — stray whitespace would otherwise strip the kg mass
+off a genuine mass row (spend survives, but the row would wrongly land in the no-mass
+audit).
 
 > The same four-unit domain is mirrored as an **advisory** DQ rule ("Unit In
 > Conversion Domain") on `silver_procurement` in `data_quality_checks.Notebook`. It is
