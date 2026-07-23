@@ -2,7 +2,7 @@
   "id": "task-022",
   "title": "Fix global supply-shares lineage — wire fact_GlobalSupplyShares CSV into the pipeline (replaces 22x-duplicated bronze)",
   "description": "bronze_GlobalSupplyShares (what silver -> fact_supply_share is built on) holds 56,342 rows = exactly 22x its real source. Confirmed in oem_lh: total 56,342 / distinct 2,561, and distinct (2,561) matches the source CSV fact_GlobalSupplyShares&t.csv exactly. The current table is a one-off bad load (NOT produced by the pipeline — the pipeline only ingests the EU CSV). Fix: add a copy activity that ingests the Global CSV from the source GitHub repo into bronze_GlobalSupplyShares with OverwriteSchema, so the pipeline produces the correct 2,561-row table and keeps it fresh. Discovered via FR-004 (audit C-02 -> /iterate grounding -> Fabric verification -> source-repo trace).",
-  "status": "In Progress",
+  "status": "Finished",
   "priority": "P1",
   "difficulty": 4,
   "owner": "both",
@@ -56,12 +56,14 @@
     "CRIT 5 RESULTS 2026-07-22 (Erik, notebook_throwaway). Reconciliation: bronze_GlobalSupplyShares 2561 -> silver_globalsupplyshares 2561 -> fact_supply_share 2561. Perfect pass-through, zero rows dropped (no invalid-stage drops occurred). Mapping: 0 unmapped materials, 47 unmapped countries out of 2561 (98.2% country coverage). Duplicate grains: 2. Share sums per (material, stage): 46 groups fall outside 100% +/- 1, spanning 88.7% to 119.5%.",
     "CRIT 5 VERDICT — the inflation question PASSES. On the old 22x-duplicated data these group sums would have returned ~2200%; they return ~100%. That is the criterion's headline question ('did the numbers change materially, and in the direction the 22x duplication predicts') answered affirmatively, and it is corroborated by the clean 2561->2561->2561 reconciliation. Recommend crit 5 be accepted as met.",
     "NEW OBSERVATION (not part of crit 5, needs its own decision): share_pct does not sum to 100% per (material, stage) — 46 of roughly 74 possible material x stage groups are outside +/-1%, ranging 88.7% to 119.5%, with values both above and below 100. This is NOT explained by the 22x duplication (gone), the UNKNOWN collapse (share values are preserved through it, so group sums are unaffected), or the 2 duplicate grains (negligible across 46 groups). Most likely the source CSV is only approximately normalized — real EU CRM supply-share data aggregates multiple reporting sources with rounding and occasionally overlapping country categories. Needs source-data characterization before any gold-layer normalization is considered, because normalizing to 100% would silently discard whatever the >100% excess represents. Candidate home: task-038 (the HHI work depends directly on share semantics — HHI over shares that sum to 119.5% is not comparable to HHI over shares summing to 93%).",
-    "LIVE-LAKEHOUSE CONFIRMATION 2026-07-23 (FR-004 closed): oem_lh now holds bronze_GlobalSupplyShares (2,561 rows) AND bronze_EUSupplyShares (907 rows) as DISTINCT tables — same schema, non-identical row sets. The two copy activities this task added pull two different EU-CRM CSVs from two connections. The phantom-read that FR-004 flagged (silver reading a table nothing wrote) is gone. This task's core lineage deliverable is confirmed working in the live workspace; ready for review/close via /work complete when you're ready."
+    "LIVE-LAKEHOUSE CONFIRMATION 2026-07-23 (FR-004 closed): oem_lh now holds bronze_GlobalSupplyShares (2,561 rows) AND bronze_EUSupplyShares (907 rows) as DISTINCT tables — same schema, non-identical row sets. The two copy activities this task added pull two different EU-CRM CSVs from two connections. The phantom-read that FR-004 flagged (silver reading a table nothing wrote) is gone. This task's core lineage deliverable is confirmed working in the live workspace; ready for review/close via /work complete when you're ready.",
+    "COMPLETED 2026-07-23 via /work complete (owner=both; Claude's half verified pass, user attested). Deliverable validation against all 6 ACs: AC0 copy activity present in pipeline JSON; AC1 source resolves to a distinct Global CSV (live: 2,561 rows, row sets non-identical to bronze_EUSupplyShares's 907); AC2 bronze_GlobalSupplyShares = 2,561 rows = the expected de-duplicated count (the 22x-dup load is gone); AC4 fact_supply_share rebuilt from the clean data in the silver-to-gold2 run that completed today; AC5 FR-004 resolved + spec Orchestration reconciled via /iterate (FR-008).",
+    "AC3 DECISION RECORDED — KEEP bronze_EUSupplyShares / bronzecopy_EUSupplyShares as the EU-sourcing cut. Rationale: DEC-001 (approved, Option B) computes HHI_WGI,t for BOTH the global supply mix AND the EU sourcing mix, so the EU table is a REQUIRED input to task-038 (gold_supply_risk). Retiring it would contradict a ratified decision and break the downstream. It is currently unread (silver reads Global) but that is expected — task-038 wires it. Not a free choice; settled by DEC-001."
   ],
-  "user_feedback": "",
+  "user_feedback": "Verified on live Fabric data 2026-07-23: bronze_GlobalSupplyShares (2,561) and bronze_EUSupplyShares (907) are distinct tables. EU table kept for task-038 per DEC-001. OPTIONAL residual spot-checks not run (evidence already strong): AC2 distinct==total WITHIN Global, and AC4 fact_supply_share before/after row counts — happy to run either if wanted.",
   "created_date": "2026-06-22",
   "updated_date": "2026-07-23",
-  "completion_date": null,
+  "completion_date": "2026-07-23",
   "verification_attempts": 1,
   "out_of_spec": false,
   "absorbed_into": "",
@@ -142,7 +144,7 @@
       }
     ]
   },
-  "user_review_pending": true,
+  "user_review_pending": false,
   "test_protocol": {
     "summary": "Erik's Fabric half — repoint the Global source connection, deploy, run, and confirm the 22x duplication is gone (acceptance #2, #3, #5).",
     "estimated_time": "20-30 minutes (Fabric session)",
