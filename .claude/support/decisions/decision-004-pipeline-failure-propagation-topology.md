@@ -1,10 +1,11 @@
 ---
 id: DEC-004
 title: Failure-propagation topology for wiring pipeline_error_handler into the orchestrator
-status: proposed
+status: approved
 category: architecture
 created: 2026-07-23
-decided:
+decided: 2026-07-23
+decided_by: user
 related:
   tasks: [task-041, task-037, task-011]
   decisions: []
@@ -23,7 +24,7 @@ blocks: [task-041]
 
 Mark your selection by checking one box:
 
-- [ ] Option A: Pipeline-level on-failure activities using `dependencyConditions: ["Failed", "Skipped"]` — fan-in on the terminal activity + a trailing `Fail`, 2 activities total  *(recommended, contingent on one experiment)*
+- [x] Option A: Pipeline-level on-failure activities using `dependencyConditions: ["Failed", "Skipped"]` — fan-in on the terminal activity + a trailing `Fail`, 2 activities total  *(recommended, contingent on one experiment)*
 - [ ] Option B: `%run` the handler from inside each transformation notebook  *(requires a recorded scope reduction — fails criterion 2 as written)*
 - [ ] Option C: Wrapper / parent pipeline invoking the current one, with centralized failure handling
 

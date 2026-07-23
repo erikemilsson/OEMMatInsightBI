@@ -2,7 +2,7 @@
   "id": "task-006_3",
   "title": "Test incremental load: full + incremental runs, verify no duplicates",
   "description": "Deploy changes to Fabric and run end-to-end validation: (1) full load with p_full_load=true, (2) incremental load with p_full_load=false and p_from_date set, (3) verify no duplicate records in silver_procurement and fact_procurement, (4) compare row counts and performance.",
-  "status": "Blocked",
+  "status": "Pending",
   "priority": "P2",
   "difficulty": 3,
   "owner": "both",
@@ -21,16 +21,20 @@
     "Performance improvement measured (target: >50% time reduction for incremental)",
     "incremental_load_strategy.md updated with actual performance numbers"
   ],
-  "dependencies": ["task-006_2", "task-039"],
+  "dependencies": [
+    "task-006_2",
+    "task-039"
+  ],
   "notes": [
-    "HARD PREREQUISITE task-039 (added 2026-07-22): neither bronze-to-silver nor silver-to-gold2 has a designated Fabric parameters cell, so the pipeline's p_full_load / p_from_date are discarded at run time. Test protocol step 1 ('Run pipeline with p_full_load=true') is currently a silent no-op — the notebook takes the incremental branch regardless and this test would pass against superseded behavior. Do not run this test until task-039 lands.",
+    "HARD PREREQUISITE task-039 (added 2026-07-22): RESOLVED 2026-07-23 (task-039): both bronze-to-silver and silver-to-gold2 now carry a designated Fabric parameters cell, so the pipeline's p_full_load / p_from_date are discarded at run time. Test protocol step 1 ('Run pipeline with p_full_load=true') is currently a silent no-op — the notebook takes the incremental branch regardless and this test would pass against superseded behavior. Do not run this test until task-039 lands.",
     "Erik runs the pipeline in Fabric UI, Claude reviews results",
     "Check duplicate detection: SELECT COUNT(*), COUNT(DISTINCT key) FROM fact_procurement",
     "Compare bronze_load_metadata timestamps before and after",
-    "BLOCKED 2026-07-22: gated on a physical-world prerequisite — Erik must run the pipeline in Fabric before Claude has anything to review. Empty files_affected + 'Erik runs the pipeline, Claude reviews results' means Claude cannot act first, so per FB-100 this must not sit in Pending (it made the project read as Claude-actionable when it wasn't). Additionally gated behind the task-022..026 Fabric validation batch, which changes the very MERGE grain (task-024) this test measures — running it before that batch lands would test superseded logic. Return to Pending once 022-026 are validated."
+    "BLOCKED 2026-07-22: gated on a physical-world prerequisite — Erik must run the pipeline in Fabric before Claude has anything to review. Empty files_affected + 'Erik runs the pipeline, Claude reviews results' means Claude cannot act first, so per FB-100 this must not sit in Pending (it made the project read as Claude-actionable when it wasn't). Additionally gated behind the task-022..026 Fabric validation batch, which changes the very MERGE grain (task-024) this test measures — running it before that batch lands would test superseded logic. Return to Pending once 022-026 are validated.",
+    "UNBLOCKED 2026-07-23: task-039 Finished (verify pass, attempt 2). This test is now the runtime proof for task-039's AC4 as well - a p_full_load=true run must print the FULL LOAD message, not the INCREMENTAL one."
   ],
   "created_date": "2026-04-05",
-  "updated_date": "2026-07-22",
+  "updated_date": "2026-07-23",
   "task_verification": {},
   "verification_attempts": 0,
   "verification_history": [],

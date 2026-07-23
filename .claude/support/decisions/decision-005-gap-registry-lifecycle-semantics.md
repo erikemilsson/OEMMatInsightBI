@@ -1,10 +1,11 @@
 ---
 id: DEC-005
 title: gold_gap_registry lifecycle and occurrence semantics — set-to-current, reopen-as-Open, coarse gap_type
-status: proposed
+status: approved
 category: architecture
 created: 2026-07-23
-decided:
+decided: 2026-07-23
+decided_by: user
 recommended_by: implement-agent
 recommendation_date: 2026-07-23
 related:
@@ -37,7 +38,7 @@ blocks: []
 
 Mark your selection by checking one box:
 
-- [ ] Ratify all three as implemented  *(recommended)*
+- [x] Ratify all three as implemented  *(recommended)*
 - [ ] Ratify 1 and 2, revisit 3 (registry `gap_type` granularity)
 - [ ] Revisit — I want to change one or more
 

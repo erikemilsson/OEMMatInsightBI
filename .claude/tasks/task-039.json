@@ -2,7 +2,7 @@
   "id": "task-039",
   "title": "Designate real Fabric parameter cells — pipeline notebook parameters have never been injected",
   "description": "The orchestrator pipeline passes p_full_load / p_from_date to the bronze-to-silver and silver-to-gold notebook activities, but neither notebook has a designated parameters cell in the Fabric workspace, so the injected values are discarded. Fabric's only mechanism for this is the 'Toggle parameter cell' command in the notebook UI; it cannot be declared by hand in notebook-content.py. Toggle the parameter cell on the two notebooks in Fabric, commit from the workspace, and capture the resulting serialization in the repo so the marker is known and reproducible.",
-  "status": "Pending",
+  "status": "Finished",
   "priority": "P2",
   "difficulty": 2,
   "owner": "both",
@@ -16,7 +16,8 @@
   "estimated_hours": 1,
   "files_affected": [
     "fabric/bronze-to-silver.Notebook/notebook-content.py",
-    "fabric/silver-to-gold2.Notebook/notebook-content.py"
+    "fabric/silver-to-gold2.Notebook/notebook-content.py",
+    "CLAUDE.md"
   ],
   "acceptanceCriteria": [
     "In the Fabric UI, the first code cell of bronze-to-silver (the `p_full_load = \"false\"` / `p_from_date = \"1900-01-01\"` cell) is toggled as the parameters cell via the cell's ... menu -> Toggle parameter cell.",
@@ -35,34 +36,116 @@
     "WHY THIS IS NOT URGENT: the pipeline's own parameter defaults (p_full_load=false, p_from_date='1900-01-01') are identical to the values hardcoded in both notebooks, so a default-parameter run behaves the same whether injection works or not. The defect only bites when a run overrides them — which is exactly what task-006_3's test protocol does.",
     "BLOCKS task-006_3: its test protocol step 1 is 'Run pipeline with p_full_load=true in Fabric UI'. Until this task lands, that step is a silent no-op — the notebook takes the incremental branch regardless and the test would pass against superseded behavior.",
     "RELATED task-029: once the high-water-mark computes a real p_from_date and the pipeline starts passing it, this stops being latent and becomes a live correctness bug.",
-    "DO NOT hand-write a parameters-cell marker into notebook-content.py from memory or inference. Inventing plausible-looking Fabric metadata is what caused this defect in the first place; the marker must come from an observed round trip."
+    "DO NOT hand-write a parameters-cell marker into notebook-content.py from memory or inference. Inventing plausible-looking Fabric metadata is what caused this defect in the first place; the marker must come from an observed round trip.",
+    "AC4 PROVEN 2026-07-23 via run 1a796705. Evidence route (new): activity Output -> SparkMonitoringURL -> Spark monitor -> Item snapshots tab renders the executed notebook with cell outputs and an Input-parameter grid. Injected cell lands at position 4, immediately beneath the parameters cell at position 3, ~120 lines ahead of the first read."
   ],
   "user_feedback": "",
   "created_date": "2026-07-22",
-  "updated_date": "2026-07-22",
-  "completion_date": null,
-  "verification_attempts": 0,
-  "task_verification": {},
-  "verification_history": [],
+  "updated_date": "2026-07-23",
+  "completion_date": "2026-07-23",
+  "verification_attempts": 2,
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-07-23T01:20:00Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "pass",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "summary": "AC1/AC2/AC3/AC5 pass, re-established from scratch. Marker '# PARAMETERS CELL ********************' (20 asterisks, byte-identical to commit 4302538) on the p_full_load/p_from_date defaults cell in both notebooks, preceding first read by 124 and 1199 lines. Commit 4302538 confirmed workspace-authored; 5-line delta fully accounted for, no META line touched, no content loss (3 markdown lines traced via git log -S to introduction at 2c67de3 and repair at 4302538). Marker census exactly matches the pipeline's parameterized-activity set in both directions (2 of 8 notebooks, 2 of 3 TridentNotebook activities). AC5 recorded in root CLAUDE.md Gotchas and judged sufficient to reproduce without Fabric. AC4 (runtime injection proof) deferred to the human Fabric run. AC4 CLOSED 2026-07-23 by pipeline run 1a796705 (1:04:37 PM, p_full_load=true, Succeeded): the notebook snapshot (Spark monitor -> Item snapshots) shows the parameters cell carrying the Parameters badge, Fabric's auto-inserted '# This cell is generated from runtime parameters' cell directly beneath it at position 4, the FULL LOAD branch taken ('Procurement: FULL LOAD - reading all bronze records'), 'full overwrite complete (132 rows)', and an Input-parameter grid reading p_full_load=True. All 5 acceptance criteria now met.",
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "files_affected did not list root CLAUDE.md where the AC5 deliverable landed - corrected by orchestrator."
+      },
+      {
+        "severity": "minor",
+        "description": "task-006_3's HARD PREREQUISITE note was factually stale - corrected by orchestrator on unblock."
+      }
+    ],
+    "attempt": 2
+  },
+  "verification_history": [
+    {
+      "result": "fail",
+      "attempt": 1,
+      "timestamp": "2026-07-23T00:05:00Z",
+      "mode": "per_task",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "fail",
+        "output_quality": "pass",
+        "runtime_validation": "partial",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "summary": "AC1-AC3 pass: marker read off commit 4302538 as '# PARAMETERS CELL ********************' (delimiter token, not a META key), on the correct defaults cell in both notebooks, marker set exactly equal to the set of parameterized TridentNotebook activities, parameters cell precedes first read in both, commit dropped no content. AC5 failed: marker not recorded outside fabric/. AC4 deferred to human Fabric run.",
+      "issues": [
+        {
+          "severity": "major",
+          "description": "AC5 unmet: serialization marker not recorded in .claude/support/documents/ or root CLAUDE.md gotchas."
+        },
+        {
+          "severity": "minor",
+          "description": "AC4 not demonstrated: no p_full_load=true run observed; Fabric unreachable from this environment."
+        },
+        {
+          "severity": "minor",
+          "description": "Informational: commit also rewrote three markdown lines '# # text' -> '# text' in bronze-to-silver; judged a repair of hand-edit corruption from commit 2c67de3, not content loss."
+        }
+      ]
+    },
+    {
+      "result": "pass",
+      "attempt": 2,
+      "timestamp": "2026-07-23T01:20:00Z",
+      "mode": "per_task",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "partial",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "summary": "AC1/AC2/AC3/AC5 pass, re-established from scratch. Marker '# PARAMETERS CELL ********************' (20 asterisks, byte-identical to commit 4302538) on the p_full_load/p_from_date defaults cell in both notebooks, preceding first read by 124 and 1199 lines. Commit 4302538 confirmed workspace-authored; 5-line delta fully accounted for, no META line touched, no content loss (3 markdown lines traced via git log -S to introduction at 2c67de3 and repair at 4302538). Marker census exactly matches the pipeline's parameterized-activity set in both directions (2 of 8 notebooks, 2 of 3 TridentNotebook activities). AC5 recorded in root CLAUDE.md Gotchas and judged sufficient to reproduce without Fabric. AC4 (runtime injection proof) deferred to the human Fabric run.",
+      "issues": [
+        {
+          "severity": "minor",
+          "description": "AC4 not demonstrated - no p_full_load=true pipeline run observed; Fabric unreachable and delta-spark not installed. Retained as the human step in test_protocol."
+        },
+        {
+          "severity": "minor",
+          "description": "files_affected did not list root CLAUDE.md where the AC5 deliverable landed - corrected by orchestrator."
+        },
+        {
+          "severity": "minor",
+          "description": "task-006_3's HARD PREREQUISITE note was factually stale - corrected by orchestrator on unblock."
+        }
+      ]
+    }
+  ],
   "test_protocol": {
+    "summary": "Confirm the parameters-cell toggle overrides notebook defaults at runtime (AC4).",
     "steps": [
       {
         "type": "interactive",
-        "instruction": "In Fabric, open bronze-to-silver, select the first code cell, ... menu -> Toggle parameter cell. Repeat for silver-to-gold2.",
-        "expected": "Both cells show the parameters-cell badge in the notebook UI"
+        "instruction": "In Fabric, run the orchestrator pipeline with p_full_load=true (leave p_from_date at its default).",
+        "expected": "bronze-to-silver prints 'Procurement: FULL LOAD - reading all bronze records' and NOT the INCREMENTAL message. silver-to-gold2 likewise takes its _is_full_load branch."
       },
       {
-        "type": "interactive",
-        "instruction": "Commit both notebooks from the workspace Source control panel, then pull in the repo",
-        "expected": "notebook-content.py diffs show a new parameters-cell marker on those cells"
-      },
-      {
-        "type": "interactive",
-        "instruction": "Run the orchestrator pipeline with p_full_load=true",
-        "expected": "bronze-to-silver prints the full-load path, not 'Procurement: INCREMENTAL LOAD'"
+        "type": "visual",
+        "instruction": "In the run snapshot, open bronze-to-silver and inspect the cell immediately beneath the parameters cell.",
+        "expected": "Fabric has inserted an injected cell containing p_full_load = \"true\" - proof that injection lands above the first read at line 162."
       }
     ],
-    "estimated_time": "20 minutes"
+    "estimated_time": "10 minutes"
   },
   "user_review_pending": false,
   "out_of_spec": false,

@@ -1,9 +1,9 @@
 {
-  "last_clean_exit": "2026-07-23T01:30:00Z",
+  "last_clean_exit": "2026-07-23T09:00:00Z",
   "in_progress": [
     "task-022",
     "task-024"
   ],
   "awaiting_verification": [],
-  "note": "2026-07-23 /work pause. Clean exit, tree clean at b2c3434 (pushed). Handoff written. task-040 and task-027 both Finished + verified pass, both carrying user_review_pending for Fabric-side proof. DEC-003/004/005 all proposed, awaiting Erik. Next step is Erik's: Fabric Update from git, then task-039. Do NOT start another silver-to-gold2 task until DEC-005 sub-decision 3 is ratified."
+  "note": "2026-07-23 /work entry. No dispatch — every Claude-actionable task is gated (DEC-004 blocks task-041; the silver-to-gold2 freeze from the prior handoff blocks 028/030/031/039). Tree clean at 8bb5ccb. Handoff retained (not consumed) because nothing progressed and its recovery_action is still exactly current. Awaiting Erik: Fabric Update from git, DEC-003/004/005 ticks, review queue."
 }

@@ -1,10 +1,11 @@
 ---
 id: DEC-003
 title: Record the DQ gate verdict as entity='gate' rows in gold_quality_history rather than a new table
-status: proposed
+status: approved
 category: architecture
 created: 2026-07-23
-decided:
+decided: 2026-07-23
+decided_by: user
 recommended_by: implement-agent
 recommendation_date: 2026-07-22
 related:
@@ -34,7 +35,7 @@ blocks: []
 
 Mark your selection by checking one box:
 
-- [ ] Option A: Three `entity='gate'` rows appended by the enforcement cell before the raise  *(recommended — implemented under task-040)*
+- [x] Option A: Three `entity='gate'` rows appended by the enforcement cell before the raise  *(recommended — implemented under task-040)*
 - [ ] Option B: A new `gold_dq_gate_log` table
 - [ ] Option C: Move the `BLOCKING_CHECKS` definition above the persistence cell and emit the verdict from there
 
