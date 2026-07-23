@@ -28,7 +28,8 @@
   "decision_dependencies": [],
   "notes": [
     "CREATED 2026-07-23 by /work from task-028's verify-agent friction FR-021 and implement-agent issues_discovered. Not a defect in task-028 — that task's AC6 scoped only bronze_ingest_epi and silver-to-gold2, both of which it met.",
-    "Blocked-ish on a spec decision: parameterizing bronze-to-silver may be the wrong answer if single-vintage EPI is deliberate. Resolve that in /iterate before writing code."
+    "Blocked-ish on a spec decision: parameterizing bronze-to-silver may be the wrong answer if single-vintage EPI is deliberate. Resolve that in /iterate before writing code.",
+    "FR-021 RESOLVED 2026-07-23 by /iterate — the SPEC half is done: § Data Sources #2 now documents the bronze_epi{year}results / silver_epi{year}results convention, names p_epi_year and EPI_YEAR as the deriving parameters, and carries the single-vintage caveat. This task's remaining scope is the CODE half: parameterize bronze-to-silver.Notebook (hardcodes both names at lines 74/108). ADDED SCOPE found while grounding the spec edit — data_quality_checks.Notebook's BLOCKING_CHECKS contains a hardcoded ('schema_validation','oem_lh.silver_epi2024results') entry, and per that set's own comment a stale entry does NOT error, it silently demotes the check to advisory. Parameterizing the notebooks without fixing that entry would quietly drop a blocking check."
   ],
   "user_feedback": null,
   "created_date": "2026-07-23",

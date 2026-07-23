@@ -2,7 +2,7 @@
 version: 1
 status: active
 created: 2025-11-14
-updated: 2026-07-20
+updated: 2026-07-23
 ---
 
 # OEMMatInsightBI - Project Definition for Claude Code
@@ -231,9 +231,15 @@ Power BI Reports
 
 -   Pivoted to long format in silver-to-gold transformation (one row per country per indicator)
 
--   Bronze table: `bronze_epi2024results`
+**Table naming — vintage-derived:**
 
--   Silver table: `silver_epi2024results`
+-   Convention: `bronze_epi{year}results` / `silver_epi{year}results` (plus `silver_epi{year}variables`)
+
+-   Bronze table: `bronze_epi2024results` — derived by `bronze_ingest_epi.Notebook` from its `p_epi_year` parameter (default `"2024"`)
+
+-   Silver table: `silver_epi2024results` — consumed by `silver-to-gold2.Notebook` via `EPI_YEAR` (default `2024`)
+
+**Single-vintage caveat.** The naming is parameterized at both ends but **hardcoded in the middle**: `bronze-to-silver.Notebook` names `bronze_epi2024results` and `silver_epi2024results` literally (lines 74, 108). Changing the vintage at either end therefore breaks the chain rather than moving it. A second hardcoded reference sits in `data_quality_checks.Notebook`'s `BLOCKING_CHECKS` as `("schema_validation", "oem_lh.silver_epi2024results")` — and a stale entry there does **not** error, it silently demotes that check to advisory. Only the 2024 vintage is supported today; **task-042** carries the parameterization.
 
 **Update Frequency:** Annual (EPI releases yearly)
 
@@ -415,7 +421,7 @@ Power BI Reports
 
 -   Type casting with validation (integers, doubles)
 
--   Score range validation (0-100 for WB indicators)
+-   Score range validation — EPI scores 0-100. **Not applied to WGI:** the World Bank API serves *estimates* (approx. −2.5…+2.5), not the retired `WGI_file2table.Dataflow` extract's 0-100 percentile ranks. No range rule is enforced on `silver_wgi`.
 
 -   Duplicate removal on natural keys
 
@@ -875,7 +881,7 @@ The report was redesigned and rebuilt from scratch after the semantic model was 
 
 **Testing:**
 
--   [x] Unit tests for transformation logic (33 tests, `tests/`)
+-   [x] Unit tests for transformation logic (94 tests, `tests/`)
 
 -   [x] CI pipeline: GitHub Actions with matrix testing (Python 3.10-3.12)
 
@@ -1016,7 +1022,7 @@ No open issues. Previously identified gap (data quality visibility) addressed vi
 
 **Silver Layer Implementation:**
 
--   [x] Score range validation (0-100 for WB indicators)
+-   [x] Score range validation (EPI 0-100) — *not applied to WGI; see § Data Transformations*
 
 -   [x] Null filtering on key fields
 
@@ -1070,6 +1076,20 @@ No open issues. Previously identified gap (data quality visibility) addressed vi
 
 -   Observability tables: gold_quality_history, gold_gap_registry, gold_low_confidence_audit (task-018)
 
+### Pipeline Blocking Gate
+
+Quality checks are not purely advisory. `data_quality_checks.Notebook` is the pipeline's terminal activity, and it **halts the pipeline** when any check in a fixed blocking set fails.
+
+-   **Trigger:** `status == "fail"` for any check in `BLOCKING_CHECKS` — currently **13 entries**: schema validation on the core bronze tables plus `silver_epi2024results`, required-field completeness and duplicate detection on `bronze_procurement_transactional`, referential integrity at 0% tolerance on all three gold facts, lookup-name uniqueness on both lookup dimensions, and grain uniqueness on `fact_supply_share` / `fact_epi_score`.
+
+-   **Mechanism:** a single `DataQualityException` raised **after** results are persisted, so a blocked run still leaves a full audit trail.
+
+-   **Verdict rows:** the gate writes `entity = 'gate'` rows to `gold_quality_history` — `dq_gate_raised`, `dq_gate_blocking_failures`, and `dq_gate_blocking_evaluated` (which guards against a stale `BLOCKING_CHECKS` entry silently demoting a check to advisory). The gate outcome is therefore answerable from the table alone, without reading notebook source (DEC-003).
+
+-   **Not the same as `breach_flag`.** `breach_flag` is a *score* threshold (`< 70.0`) and is advisory only. The two diverge routinely: a grain-uniqueness failure on 2 rows out of 2,561 scores ~99.9 — far above the breach threshold — yet halts the pipeline. **A run can record 0 breaches and still be a blocked run.** Asserting "the gate passed" from `breach_flag` reads the wrong field.
+
+Membership of `BLOCKING_CHECKS` is a deliberate choice per check, not a severity level. New checks default to advisory; promoting one is an explicit decision (see `data_quality_framework.md § 6`).
+
 ### Expected Data Profiles
 
 Synthetic dataset — exact counts depend on Azure SQL seed scripts in `/azure/`.
@@ -1078,7 +1098,7 @@ Synthetic dataset — exact counts depend on Azure SQL seed scripts in `/azure/`
 
 **EPI Scores:** ~180-200 countries, ~30-40 indicators (wide format in bronze), year 2024, score range 0-100
 
-**WGI Indicators:** ~200+ countries, 6 governance dimensions, year 2020, score range 0-100
+**WGI Indicators:** ~200+ countries, 6 governance dimensions, years 1996-2023 (annual from 2002; biennial before), estimate scale approx. −2.5…+2.5. Grain in silver: one row per country per indicator per year.
 
 **Supply Shares:**
 
@@ -1237,7 +1257,7 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 
 ### Current Testing Status
 
-**Unit Tests:** 33 tests for transformation logic in `tests/` (task-008). **Integration Tests:** None yet. **Data Validation Tests:** Quality checks in gold layer + observability tables.
+**Unit Tests:** 94 tests for transformation logic in `tests/` (as of 2026-07-23; originally 33 from task-008, since extended by task-020/027/032). **Integration Tests:** None yet. **Data Validation Tests:** Quality checks in gold layer + observability tables.
 
 **Testing Approach:**
 

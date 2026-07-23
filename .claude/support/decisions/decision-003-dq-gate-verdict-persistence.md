@@ -15,8 +15,8 @@ implementation_anchors:
   - fabric/data_quality_checks.Notebook/notebook-content.py
   - fabric/silver-to-gold2.Notebook/notebook-content.py
 inflection_point: false
-spec_revised:
-spec_revised_date:
+spec_revised: true
+spec_revised_date: 2026-07-23
 blocks: []
 ---
 
