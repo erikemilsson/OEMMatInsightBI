@@ -2349,21 +2349,37 @@ def create_data_gaps_table():
     # indicator_name) collapses that year expansion, so the flag still depends only
     # on how many distinct indicators a country has, not how many years each spans.
     #
-    # `value IS NOT NULL` mirrors the EPI check above. bronze-to-silver already drops
-    # null-valued observations, so this filters nothing today — it is there so the
-    # rule stays honest if that upstream filter is ever relaxed, since a country
-    # whose six indicators are all empty is not governance-covered in any useful
-    # sense.
+    # `value IS NOT NULL` mirrors the EPI check above: a country whose indicators are
+    # all empty is not governance-covered. bronze-to-silver drops null-valued rows, so
+    # once the API-shaped silver_wgi is in place this filters nothing.
+    #
+    # MIGRATION GUARD (task-031/task-035 coupling): the API-shaped silver_wgi carrying
+    # `value` only exists after bronze-to-silver re-runs against a long-format bronze_WGI
+    # — which is blocked until task-035 repoints the pipeline at bronze_ingest_wgi. Until
+    # then the live silver_wgi is the retired 3-column shape (country_iso3, country_name,
+    # indicator_name) with NO `value` column, and referencing sw.value hard-fails the
+    # whole gold notebook here (AnalysisException UNRESOLVED_COLUMN). So the value filter
+    # is applied ONLY when the column is present. Post-migration: filter applies, task-031
+    # intent preserved. Pre-migration: it is skipped, gold completes, and WGI coverage
+    # simply reflects the distinct-indicator count of whatever is in silver_wgi today
+    # (which self-corrects once the real values land). Coverage semantics for the target
+    # (post-migration) state are unchanged.
     #
     # NOTE for task-038: this is a COVERAGE flag, deliberately vintage-agnostic — six
     # indicators in any year qualify. The supply-risk model needs a specific vintage
     # for WGIᶜ; picking one there does not have to change the rule here, but the two
     # should be reconciled deliberately rather than by accident.
+    _wgi_cols = [c.lower() for c in spark.table(f"{DB}.silver_wgi").columns]
+    _wgi_value_filter = "WHERE sw.value IS NOT NULL" if "value" in _wgi_cols else ""
+    if not _wgi_value_filter:
+        print("  ⚠️  silver_wgi has no `value` column (pre-task-035 schema) — WGI "
+              "coverage computed on indicator presence only; re-run after task-035 for "
+              "value-filtered coverage.")
     countries_with_wgi = spark.sql(f"""
         SELECT dc.country_key
         FROM {DB}.silver_wgi sw
         JOIN {DB}.gold_dim_country dc ON sw.country_iso3 = UPPER(dc.iso3)
-        WHERE sw.value IS NOT NULL
+        {_wgi_value_filter}
         GROUP BY dc.country_key
         HAVING COUNT(DISTINCT sw.indicator_name) >= {WGI_REQUIRED_INDICATORS}
     """)
