@@ -25,8 +25,10 @@
 # # bronze_ingest_epi
 # # Automated ingestion of Environmental Performance Index (EPI) data from Yale.
 # Replaces manual CSV upload via EPI_file2table.Dataflow.
-# # **Source:** https://epi.yale.edu/downloads/epi2024results.csv
-# **Target:** bronze_epi2024results (Delta table, overwrite)
+# # **Source:** https://epi.yale.edu/downloads/epi&lt;p_epi_year&gt;results.csv
+# **Target:** bronze_epi&lt;p_epi_year&gt;results (Delta table, overwrite) — source URL and
+# target table are both derived from the p_epi_year parameter, so each vintage lands in
+# its own table (e.g. p_epi_year="2024" -> bronze_epi2024results).
 # **License:** CC BY-NC-SA 4.0 (non-commercial use only)
 # **Update frequency:** Annual (typically June)
 # # Attribution: Environmental Performance Index 2024,
@@ -66,12 +68,22 @@ from datetime import datetime
 
 # CELL ********************
 
-# Build download URL based on year parameter
+# Build download URL AND target table name from the same year parameter (task-028).
+# These must stay coupled: the URL was already parameterised while the target table was
+# hardcoded to bronze_epi2024results, so a 2025 run would have downloaded 2025 data and
+# overwritten the 2024 table with it — 2025 numbers living under a 2024 name.
 epi_year = p_epi_year.strip()
+if not (epi_year.isdigit() and len(epi_year) == 4):
+    raise ValueError(
+        f"p_epi_year must be a 4-digit year, got {p_epi_year!r}. "
+        f"It names both the source URL and the bronze table."
+    )
 epi_url = f"https://epi.yale.edu/downloads/epi{epi_year}results.csv"
+table_name = f"bronze_epi{epi_year}results"
 
 print(f"EPI Ingestion: Downloading {epi_year} data")
 print(f"  URL: {epi_url}")
+print(f"  Target table: {table_name}")
 
 # Download with error handling and retry
 max_retries = 3
@@ -123,13 +135,23 @@ pdf = pd.read_csv(io.StringIO(csv_text))
 print(f"  Parsed {len(pdf)} rows, {len(pdf.columns)} columns")
 print(f"  Columns: {list(pdf.columns[:10])}{'...' if len(pdf.columns) > 10 else ''}")
 
-# Validate expected columns exist
+# Validate expected columns exist.
+# Yale ships some releases with vintage-suffixed metric columns ("EPI.new"/"EPI.old"),
+# which is why bronze-to-silver.Notebook's clean_and_rename() drops ".old" and strips
+# ".new" before selecting plain names. Bronze is the raw landing zone, so this notebook
+# does NOT rename — it only asserts that each required field is present in one of the two
+# shapes, and leaves normalisation to silver. Accepting only the plain names (the
+# pre-task-028 behaviour) would hard-fail on any suffixed release even though the
+# downstream pipeline handles it fine.
 required_columns = ["code", "iso", "country", "EPI"]
-missing = [c for c in required_columns if c not in pdf.columns]
+missing = [
+    c for c in required_columns
+    if c not in pdf.columns and f"{c}.new" not in pdf.columns
+]
 if missing:
     raise ValueError(
-        f"EPI CSV schema mismatch — missing required columns: {missing}. "
-        f"Available columns: {list(pdf.columns)}"
+        f"EPI CSV schema mismatch — missing required columns: {missing} "
+        f"(neither plain nor '.new'-suffixed). Available columns: {list(pdf.columns)}"
     )
 
 # Validate row count (EPI covers 180+ countries)
@@ -139,8 +161,9 @@ if len(pdf) < 100:
 # Convert to Spark DataFrame
 spark_df = spark.createDataFrame(pdf)
 
-# Write to bronze layer (overwrite — EPI is a full snapshot)
-table_name = "bronze_epi2024results"
+# Write to bronze layer (overwrite — EPI is a full snapshot).
+# table_name was derived from p_epi_year in the download cell; each vintage lands in its
+# own table, so re-running for a new year never clobbers a previous year's snapshot.
 spark_df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(table_name)
 
 row_count = spark.sql(f"SELECT COUNT(*) as cnt FROM oem_lh.{table_name}").first()["cnt"]
@@ -160,20 +183,30 @@ print(f"  Ingestion complete at {datetime.now().isoformat()}")
 
 # CELL ********************
 
-# Quick validation: show sample data and key stats
-df_check = spark.sql("SELECT code, iso, country, EPI FROM oem_lh.bronze_epi2024results ORDER BY EPI DESC LIMIT 10")
+# Quick validation: show sample data and key stats.
+# Reads the same year-derived table_name as the write above (task-028) — a hardcoded
+# bronze_epi2024results here would have silently validated last year's data.
+# The EPI column may be plain or ".new"-suffixed (see the schema check above); backtick
+# the resolved name so the dotted form parses in Spark SQL.
+_written_cols = spark.table(f"oem_lh.{table_name}").columns
+epi_col = "EPI" if "EPI" in _written_cols else "EPI.new"
+
+df_check = spark.sql(
+    f"SELECT code, iso, country, `{epi_col}` AS EPI FROM oem_lh.{table_name} "
+    f"ORDER BY `{epi_col}` DESC LIMIT 10"
+)
 print("Top 10 countries by EPI score:")
 display(df_check)
 
 # Check for nulls in key columns
-null_counts = spark.sql("""
+null_counts = spark.sql(f"""
     SELECT
         SUM(CASE WHEN code IS NULL THEN 1 ELSE 0 END) as null_code,
         SUM(CASE WHEN iso IS NULL THEN 1 ELSE 0 END) as null_iso,
         SUM(CASE WHEN country IS NULL THEN 1 ELSE 0 END) as null_country,
-        SUM(CASE WHEN EPI IS NULL THEN 1 ELSE 0 END) as null_epi,
+        SUM(CASE WHEN `{epi_col}` IS NULL THEN 1 ELSE 0 END) as null_epi,
         COUNT(*) as total_rows
-    FROM oem_lh.bronze_epi2024results
+    FROM oem_lh.{table_name}
 """)
 display(null_counts)
 

@@ -2,7 +2,7 @@
   "id": "task-028",
   "title": "Gold notebook correctness cleanups — initcap-dead material mappings, Phosphorus/Phosphorous dup, fact_supply_share double-write, misleading coverage matrix, EPI year hardcodes",
   "description": "Bundle of smaller silver-to-gold2 (and bronze_ingest_epi) correctness issues. (A) Materials are F.initcap()'d BEFORE the alias join, and Spark initcap lowercases every non-word-initial letter (including after '(' and '-'), so grp_map keys 'Steel (High-Tensile)', 'Plastic (Abs)', 'Rare Earths (Ndpr)' can never match — those materials silently classify as Other/Unknown — and the 'STEEL (High-Tensile)'/'steel (high-tensile)' alias rows can never fire. Telling detail: 'Electronics (controllers, Sensors)' and 'Tires (rubber Compound)' were already hand-tuned to initcap's output, so this bug was hit before and only two keys were fixed. (B) grp_map carries both 'Phosphorus' and 'Phosphorous' as separate standards with no alias linking them — both spellings would enter dim_material as distinct materials (alias_mappings.md says the alias should exist). (C) fact_supply_share is written twice per run — a clean version (drops unmapped) at line 1046, overwritten by the placeholder-mapped version at line 1363 — wasted compute, a DirectLake window where the intermediate table is readable, and the two versions treat '<1%' differently (1.0 vs 0.5; the 0.5 version wins). (D) gold_country_coverage_matrix ships a coverage_category computed from EPI presence ALONE (code admits 'simplified for brevity') — misleading to any consumer. (E) bronze_ingest_epi hardcodes target table bronze_epi2024results regardless of p_epi_year, and fact_epi_score hardcodes year=2024 — a future-year pull would overwrite 2024 data under a 2024-named table.",
-  "status": "Pending",
+  "status": "Finished",
   "priority": "P2",
   "difficulty": 4,
   "owner": "both",
@@ -16,7 +16,8 @@
   "estimated_hours": 4,
   "files_affected": [
     "fabric/silver-to-gold2.Notebook/notebook-content.py",
-    "fabric/bronze_ingest_epi.Notebook/notebook-content.py"
+    "fabric/bronze_ingest_epi.Notebook/notebook-content.py",
+    "tests/test_material_mapping.py"
   ],
   "acceptanceCriteria": [
     "Material normalization is made consistent: either normalize grp_map keys and alias entries to initcap-canonical form (verify each key is reachable: initcap(key)==key), or switch matching to a case-insensitive join (lower() both sides) so casing can never silently kill a mapping again. After /run-gold, 'Steel (high-tensile)'-family materials carry commodity_group='Manufactured products', not 'Other/Unknown'.",
@@ -37,14 +38,114 @@
     "EVIDENCE (D): create_country_coverage_matrix at lines 506-564 — has_epi only, coverage_score = has_epi/1.0, comment 'Simplified for brevity - would repeat pattern for each source'.",
     "EVIDENCE (E): table_name = 'bronze_epi2024results' hardcoded at bronze_ingest_epi:152 while URL uses p_epi_year (line 80); year literal 2024 at silver-to-gold2:981. Also note bronze_ingest_epi validates plain column names (code/iso/country/EPI, line 136) while bronze-to-silver's clean_and_rename handles .new/.old suffixes (lines 91-102) — written against different CSV shapes; harmonize or comment while in there.",
     "COORDINATE: same file as tasks 023/025/027 — serialize with them (files_affected overlap prevents parallel dispatch anyway).",
-    "DEAD WRITE found 2026-07-22 while implementing the territory rollup: fact_supply_share is written TWICE in silver-to-gold2 — write_tbl(fact_supply_share_clean, 'fact_supply_share') at ~:1146 and write_tbl(fact_supply_share_final, 'fact_supply_share') at ~:1500. The second overwrites the first, so the entire first construction (the fact_supply_share / fact_supply_share_clean path around :1124-1147, including its check_unmapped calls and its 'Retained N of M records' print) is dead work whose output never survives. It also emits misleading console output during every run. Candidate cleanup for this task; verify the check_unmapped side effects are genuinely duplicated by the :1351+ path before deleting."
+    "DEAD WRITE found 2026-07-22 while implementing the territory rollup: fact_supply_share is written TWICE in silver-to-gold2 — write_tbl(fact_supply_share_clean, 'fact_supply_share') at ~:1146 and write_tbl(fact_supply_share_final, 'fact_supply_share') at ~:1500. The second overwrites the first, so the entire first construction (the fact_supply_share / fact_supply_share_clean path around :1124-1147, including its check_unmapped calls and its 'Retained N of M records' print) is dead work whose output never survives. It also emits misleading console output during every run. Candidate cleanup for this task; verify the check_unmapped side effects are genuinely duplicated by the :1351+ path before deleting.",
+    "DECISIONS RECORDED 2026-07-23 (implement-agent, both within an AC that explicitly permitted either branch; verify-agent independently assessed the first as sound and contained). (1) gold_country_coverage_matrix: implemented real multi-source coverage rather than renaming to epi_presence. Rationale: all four source country-sets were already computed in the function, the alias-aware join pattern already existed, and the table sits in the semantic model's PBI_RemovedChildren list so there were zero TMDL/DAX consumers to sweep. Renaming would also have preserved the always-1 has_epi bug under an honest name. (2) Phosphorus/Phosphorous: chose 'Phosphorus' -> 'Phosphorous' per alias_mappings.md:44, matching the existing Aluminum -> Aluminium precedent (non-US form canonical); avoids editing alias_mappings.md and business_rules.md, and both spellings map to 'Chemicals' so the collapse is lossless."
   ],
   "user_feedback": "",
   "created_date": "2026-07-13",
-  "updated_date": "2026-07-22",
-  "completion_date": null,
-  "verification_attempts": 0,
+  "updated_date": "2026-07-23",
+  "completion_date": "2026-07-23",
+  "verification_attempts": 1,
   "out_of_spec": false,
   "absorbed_into": "",
-  "interaction_hint": "dashboard"
+  "interaction_hint": "dashboard",
+  "verification_history": [
+    {
+      "result": "pass",
+      "attempt": 1,
+      "timestamp": "2026-07-23T14:30:00Z",
+      "mode": "per_task",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "partial",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "summary": "AC1-AC6 verified by EXECUTING the DataFrame layer in a local[1] Spark session against baseline 68fbc17, not by reasoning. Reachability re-derived over all 66 grp_map keys + all aliases on both revisions (old: 3 dead alias LHS; new: 0). Losslessness of the 3 removed aliases proven end-to-end over 14 raw spellings - old and new (material_name_std, commodity_group) identical for all 13 non-Phosphorus inputs. The has_epi always-1 defect confirmed by running the PRE-change code verbatim: a country in no source still returned has_epi=1 / 'High Coverage'. AC4: exactly one write_tbl(fact_supply_share) survives, deleted variables have no surviving readers (positive controls run), '<1%' single-sourced at 0.5. Fabric CELL/MARKDOWN/METADATA marker invariant audited and intact; MARKDOWN->MARKDOWN adjacency has precedent in the deployed bronze-to-silver notebook. Scope clean: no hunk reaches the task-027 registry code (line 2288+) and BLOCKING_CHECKS lives in an untouched notebook. 94/94 pytest pass. AC5 design choice (real coverage over rename) assessed sound and contained - table is in the semantic model's PBI_RemovedChildren with no .tmdl, no DAX/warehouse consumers, all confirmed with positive controls.",
+      "issues": [
+        {
+          "severity": "minor",
+          "description": "AC6 met in spirit not literally: silver-to-gold2 has no p_epi_year parameter, so EPI_YEAR is a module constant; bronze-to-silver.Notebook still hardcodes bronze_epi2024results/silver_epi2024results, so the year is parameterized at both ends and hardcoded in the middle. Residual failure mode is safe (fails loudly) rather than the silent mislabeling AC6 targeted."
+        },
+        {
+          "severity": "minor",
+          "description": "check_unmapped() now has no production callsite in silver-to-gold2, so tests/test_data_quality.py's parity assertion guards a function the pipeline never executes. Retention is deliberate (documented in docstring) but the contract no longer guards live behavior."
+        },
+        {
+          "severity": "minor",
+          "description": "The new Phosphorus->Phosphorous alias extends the pre-existing nondeterministic dropDuplicates(material_name_std) at silver-to-gold2:773 - match_confidence for Phosphorous is arbitrarily 0.95 or 1.0 run to run. Inherited pattern (identical to Aluminum/Aluminium), not a new defect."
+        }
+      ]
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-07-23T14:30:00Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "partial",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "summary": "AC1-AC6 verified by EXECUTING the DataFrame layer in a local[1] Spark session against baseline 68fbc17, not by reasoning. Reachability re-derived over all 66 grp_map keys + all aliases on both revisions (old: 3 dead alias LHS; new: 0). Losslessness of the 3 removed aliases proven end-to-end over 14 raw spellings - old and new (material_name_std, commodity_group) identical for all 13 non-Phosphorus inputs. The has_epi always-1 defect confirmed by running the PRE-change code verbatim: a country in no source still returned has_epi=1 / 'High Coverage'. AC4: exactly one write_tbl(fact_supply_share) survives, deleted variables have no surviving readers (positive controls run), '<1%' single-sourced at 0.5. Fabric CELL/MARKDOWN/METADATA marker invariant audited and intact; MARKDOWN->MARKDOWN adjacency has precedent in the deployed bronze-to-silver notebook. Scope clean: no hunk reaches the task-027 registry code (line 2288+) and BLOCKING_CHECKS lives in an untouched notebook. 94/94 pytest pass. AC5 design choice (real coverage over rename) assessed sound and contained - table is in the semantic model's PBI_RemovedChildren with no .tmdl, no DAX/warehouse consumers, all confirmed with positive controls.",
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "AC6 met in spirit not literally: silver-to-gold2 has no p_epi_year parameter, so EPI_YEAR is a module constant; bronze-to-silver.Notebook still hardcodes bronze_epi2024results/silver_epi2024results, so the year is parameterized at both ends and hardcoded in the middle. Residual failure mode is safe (fails loudly) rather than the silent mislabeling AC6 targeted."
+      },
+      {
+        "severity": "minor",
+        "description": "check_unmapped() now has no production callsite in silver-to-gold2, so tests/test_data_quality.py's parity assertion guards a function the pipeline never executes. Retention is deliberate (documented in docstring) but the contract no longer guards live behavior."
+      },
+      {
+        "severity": "minor",
+        "description": "The new Phosphorus->Phosphorous alias extends the pre-existing nondeterministic dropDuplicates(material_name_std) at silver-to-gold2:773 - match_confidence for Phosphorous is arbitrarily 0.95 or 1.0 run to run. Inherited pattern (identical to Aluminum/Aluminium), not a new defect."
+      }
+    ],
+    "attempt": 1
+  },
+  "user_review_pending": true,
+  "test_protocol": {
+    "summary": "AC7 (Erik/Fabric): run the gold layer and spot-check what only real lakehouse data can show.",
+    "estimated_time": "10 minutes",
+    "steps": [
+      {
+        "type": "command",
+        "command": "/run-gold",
+        "instruction": "Run /run-gold in Fabric; watch for the new reachability guard line.",
+        "expected": "'Material mapping reachability: N keys/aliases, 0 unreachable' prints and no AssertionError."
+      },
+      {
+        "type": "command",
+        "instruction": "SELECT material_name_std, commodity_group FROM oem_lh.gold_dim_material WHERE material_name_std IN ('Steel (high-tensile)','Plastic (abs)','Rare Earths (ndpr)','Electronics (controllers, Sensors)')",
+        "expected": "All present, none 'Other/Unknown'."
+      },
+      {
+        "type": "command",
+        "instruction": "SELECT material_name_std FROM oem_lh.gold_dim_material WHERE material_name_std LIKE 'Phosphor%'",
+        "expected": "Exactly one row: 'Phosphorous'."
+      },
+      {
+        "type": "command",
+        "instruction": "SELECT coverage_category, COUNT(*) FROM oem_lh.gold_country_coverage_matrix GROUP BY coverage_category",
+        "expected": "More than one category. If every country is still 'High Coverage', the rewrite did not take effect - that was the old symptom."
+      },
+      {
+        "type": "command",
+        "instruction": "Search the run log for lines naming oem_lh.fact_supply_share.",
+        "expected": "Exactly one write line, and no 'Retained N of M records' (that belonged to the deleted duplicate build)."
+      },
+      {
+        "type": "visual",
+        "instruction": "Spot-check the Power BI supply-share visuals and commodity-group breakdown.",
+        "expected": "Supply-share totals unchanged vs the previous run; no unexpected shift into/out of 'Other/Unknown'."
+      }
+    ]
+  }
 }

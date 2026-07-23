@@ -1,0 +1,46 @@
+{
+  "id": "task-042",
+  "title": "Single-source the EPI vintage — bronze-to-silver still hardcodes bronze_epi2024results while both ends now derive the year",
+  "description": "task-028 parameterized the EPI table-name year at two of three sites: bronze_ingest_epi derives bronze_epi{p_epi_year}results and silver-to-gold2 derives silver_epi{EPI_YEAR}results from a module constant. bronze-to-silver.Notebook (lines 74/108) still hardcodes bronze_epi2024results -> silver_epi2024results, and data_quality_checks.Notebook hardcodes the same names in its schema/rowcount contracts. So the year is parameterized at both ends and hardcoded in the middle: a genuine 2025 pull would land in bronze_epi2025results and be silently ignored by silver and by the DQ suite. The residual failure mode is safe (bumping EPI_YEAR fails loudly on a missing silver table) rather than the silent mislabeling task-028 fixed, which is why this is a follow-up rather than a defect in task-028's delivery. NOTE: spec_v1 § Data Sources #2 states 'Bronze table: bronze_epi2024results' / 'Silver table: silver_epi2024results' as FIXED names, so closing this properly needs a spec reconciliation through /iterate — state the naming convention (bronze_epi{year}results) plus the single-vintage caveat, and decide whether bronze-to-silver should be parameterized or whether single-vintage is the intended design.",
+  "status": "Pending",
+  "priority": "medium",
+  "difficulty": 3,
+  "owner": "both",
+  "phase": 2,
+  "phase_name": "Silver/Gold transforms + DQ gate",
+  "spec_section": "Data Sources",
+  "spec_version": "spec_v1",
+  "estimated_hours": 1.5,
+  "files_affected": [
+    "fabric/bronze-to-silver.Notebook/notebook-content.py",
+    "fabric/data_quality_checks.Notebook/notebook-content.py",
+    ".claude/spec_v1.md"
+  ],
+  "acceptanceCriteria": [
+    "The EPI vintage has exactly one source of truth across bronze_ingest_epi, bronze-to-silver, silver-to-gold2 and data_quality_checks — no notebook hardcodes a year literal in an EPI table name.",
+    "A wrong-vintage run fails loudly rather than silently reading a stale table: reading a non-existent silver_epi{year}results raises, and the DQ suite's schema/rowcount contracts follow the same parameter.",
+    "spec_v1 § Data Sources #2 is reconciled through /iterate — it states the naming convention rather than the 2024 instance, and records whether multi-vintage is supported or single-vintage is the deliberate design.",
+    "[Erik/Fabric] a run with the current vintage still produces identical fact_epi_score output (this is a refactor, not a behavior change)."
+  ],
+  "dependencies": [
+    "task-028"
+  ],
+  "decision_dependencies": [],
+  "notes": [
+    "CREATED 2026-07-23 by /work from task-028's verify-agent friction FR-021 and implement-agent issues_discovered. Not a defect in task-028 — that task's AC6 scoped only bronze_ingest_epi and silver-to-gold2, both of which it met.",
+    "Blocked-ish on a spec decision: parameterizing bronze-to-silver may be the wrong answer if single-vintage EPI is deliberate. Resolve that in /iterate before writing code."
+  ],
+  "user_feedback": null,
+  "created_date": "2026-07-23",
+  "updated_date": "2026-07-23",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "task_verification": null,
+  "verification_history": [],
+  "test_protocol": null,
+  "user_review_pending": false,
+  "out_of_spec": false,
+  "absorbed_into": null,
+  "interaction_hint": "dashboard",
+  "recovery_state": null
+}

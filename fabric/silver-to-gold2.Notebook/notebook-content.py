@@ -49,6 +49,13 @@ DB = "oem_lh"  # Lakehouse database/schema
 LOG_UNMAPPED = True  # Enable logging of unmapped values
 FAIL_ON_UNMAPPED = False  # Whether to fail pipeline on unmapped values
 
+# EPI vintage (task-028). ONE constant drives both the silver table this notebook
+# reads and the `year` literal stamped onto fact_epi_score, so a future-year pull
+# can never land 2025 scores under year=2024. Must track p_epi_year in
+# bronze_ingest_epi.Notebook, which derives bronze_epi{year}results the same way.
+EPI_YEAR = 2024
+EPI_SILVER_TBL = f"silver_epi{EPI_YEAR}results"
+
 # Initialize logging
 logger = spark._jvm.org.apache.log4j.LogManager.getLogger("SilverToGold")
 
@@ -83,7 +90,14 @@ def merge_tbl(df, tbl_name, merge_condition):
     print(f"✓ Merged records into {DB}.{tbl_name}")
 
 def check_unmapped(df, join_col, name, fail=False):
-    """Check for unmapped values after a join"""
+    """Check for unmapped values after a join.
+
+    Retained with no callsite in this notebook: task-028 deleted the duplicate
+    fact_supply_share build that was its only caller (the surviving build reports the
+    same three dimensions in more detail). This definition is the production half of the
+    parity contract asserted by tests/test_data_quality.py::test_check_unmapped_*_parity
+    against src/transformations/data_quality.py — do not delete it without updating both.
+    """
     unmapped = df.filter(F.col(join_col).isNull())
     count = unmapped.count()
     if count > 0:
@@ -231,31 +245,42 @@ country_aliases_with_confidence = spark.createDataFrame([
     ("French Guiana", "France", 0.85, "territory"),
 ], ["alias", "standard_name", "confidence", "match_type"])
 
-# Material aliases remain similar but add confidence
-material_aliases_with_confidence = spark.createDataFrame([
-    # Case variations - high confidence
-    # Targets lowercased 2026-07-22 to match what the dim actually carries. Source
-    # material names are initcap'd BEFORE this join (see materials_raw below), and
-    # Spark's initcap lowercases everything after the first letter of each
-    # whitespace-delimited word — so "High-Tensile" becomes "High-tensile" and the dim
-    # row is "Steel (high-tensile)". The old target "Steel (High-Tensile)" existed
-    # nowhere, orphaning both aliases. NOTE: initcap already collapses these two case
-    # variants on its own, so these rows are documentation rather than live mappings;
-    # do not add further case-variation aliases — they cannot match post-initcap.
-    ("STEEL (High-Tensile)", "Steel (high-tensile)", 0.95, "case_variation"),
-    ("steel (high-tensile)", "Steel (high-tensile)", 0.95, "case_variation"),
-    
-    # Spelling variations - high confidence  
+# Material aliases remain similar but add confidence.
+#
+# REACHABILITY CONTRACT (task-028): every LHS below must satisfy initcap(lhs) == lhs.
+# Source material names are initcap'd BEFORE this join (see materials_raw below) and
+# before every fact join, and Spark's initcap lowercases everything after the first
+# letter of each whitespace-delimited word ("High-Tensile" -> "High-tensile",
+# "(ABS)" -> "(abs)"). An LHS that is not its own initcap can never be matched by any
+# input, so it is dead weight that looks like a live mapping. Enforced by the assertion
+# next to grp_map below and by tests/test_material_mapping.py — add rows only after
+# checking them against that guard.
+#
+# Removed 2026-07-23 as provably unreachable (all three had initcap(lhs) != lhs, and
+# all three were redundant anyway — initcap already collapses the source spelling onto
+# the target): "STEEL (High-Tensile)" / "steel (high-tensile)" -> "Steel (high-tensile)"
+# and "Electronics (Controllers, Sensors)" -> "Electronics (controllers, Sensors)".
+# Case-only variants NEVER need an alias row here; initcap handles them for free.
+MATERIAL_ALIASES = [
+    # Spelling variations - high confidence
     ("Aluminum", "Aluminium", 0.95, "spelling_variant"),
-    
+    # Unifies the two spellings that both reached dim_material as distinct materials
+    # (task-028 / alias_mappings.md § Spelling Variants). Direction follows the doc and
+    # the Aluminum precedent: the non-US spelling is canonical, so only "Phosphorous"
+    # enters dim_material and "Phosphorus" resolves to the same material_key.
+    ("Phosphorus", "Phosphorous", 0.95, "spelling_variant"),
+
     # Unit variations - medium confidence as we're stripping units
     ("Copper (kg)", "Copper", 0.90, "unit_removed"),
     ("Lithium (t)", "Lithium", 0.90, "unit_removed"),
-    
+
     # Abbreviations - medium confidence
-    ("Electronics (Controllers, Sensors)", "Electronics (controllers, Sensors)", 0.90, "standardized"),
     ("Electronic Components", "Electronics (controllers, Sensors)", 0.85, "generalized"),
-], ["alias", "standard_material", "confidence", "match_type"])
+]
+
+material_aliases_with_confidence = spark.createDataFrame(
+    MATERIAL_ALIASES, ["alias", "standard_material", "confidence", "match_type"]
+)
 
 write_tbl(country_aliases_with_confidence, "mapping_country_aliases_confidence")
 write_tbl(material_aliases_with_confidence, "mapping_material_aliases_confidence")
@@ -285,7 +310,7 @@ def generate_country_key(iso3_col, name_col):
                  ).otherwise(stable_key([name_col]))
 
 # 2. BUILD BASE DIMENSION WITH PROPER SCHEMA
-epi = spark.table(f"{DB}.silver_epi2024results").select(
+epi = spark.table(f"{DB}.{EPI_SILVER_TBL}").select(
     F.col("iso").alias("iso3"),
     F.col("code").cast(IntegerType()).alias("iso_numeric"),
     F.col("country").alias("country_name_epi")
@@ -621,59 +646,72 @@ assert _dup_country_n == 0, (
 # This shows which countries appear in which source systems
 def create_country_coverage_matrix():
     """
-    Create a matrix showing which countries exist in which datasets.
-    This is critical for understanding data gaps in visualizations.
-    """
-    # Get unique countries from each source
-    epi_countries = spark.table(f"{DB}.silver_epi2024results").select(
-        F.col("country").alias("country_epi")
-    ).distinct()
+    Which countries exist in which source datasets — one row per real (non-placeholder)
+    dim_country row, one has_* flag per source, and a coverage score over ALL sources.
 
-    # NOTE: silver_WB table removed (World Bank ESG data not available)
-    # Create empty DataFrame with same schema for compatibility
-    wb_countries = spark.createDataFrame([], "country_wb: string")
-    
-    supply_countries = spark.table(f"{DB}.silver_globalsupplyshares").select(
-        F.col("country").alias("country_supply")
-    ).distinct()
-    
-    proc_hq_countries = spark.table(f"{DB}.silver_procurement").select(
-        F.col("headquarterscountry").alias("country_proc_hq")
-    ).distinct()
-    
-    proc_prod_countries = spark.table(f"{DB}.silver_procurement").select(
-        F.col("productioncountry").alias("country_proc_prod")
-    ).distinct()
-    
-    # Build coverage matrix
+    Rewritten by task-028. The previous version shipped a coverage_category derived from
+    EPI alone (its own comment said "Simplified for brevity"), and the EPI probe was
+    broken besides: it left-joined on country_key and then tested `country_key IS NOT
+    NULL`, but country_key comes from the LEFT side of that join, so it is never null —
+    has_epi was hardcoded 1, coverage_score 1.0 and every country landed in
+    "High Coverage". The presence flag now comes from the joined-in side, so a miss
+    really reads 0.
+
+    Sources are matched through country_lookup (alias-aware), so a source spelling like
+    "Türkiye" or "USA" counts as presence for the country it resolves to.
+
+    NOTE: the retired World Bank ESG source (silver_WB) is deliberately absent rather
+    than joined as an always-empty frame — including it would drag every country's score
+    down by a fixed 1/N for a source that no longer exists.
+    """
+    # (flag column, distinct country values from that source)
+    sources = [
+        ("has_epi", spark.table(f"{DB}.{EPI_SILVER_TBL}")
+            .select(F.col("country").alias("src_country"))),
+        ("has_supply", spark.table(f"{DB}.silver_globalsupplyshares")
+            .select(F.col("country").alias("src_country"))),
+        ("has_proc_hq", spark.table(f"{DB}.silver_procurement")
+            .select(F.col("headquarterscountry").alias("src_country"))),
+        ("has_proc_prod", spark.table(f"{DB}.silver_procurement")
+            .select(F.col("productioncountry").alias("src_country"))),
+    ]
+
     coverage = (
         dim_country
         .filter(~F.col("is_placeholder"))  # Exclude unknown placeholders
         .select("country_key", "country_name_std", "iso3")
-        
-        # Check presence in each dataset using the lookup table
-        .join(
-            country_lookup.alias("lu_epi").join(epi_countries, 
-                F.col("lu_epi.lookup_name") == F.col("country_epi"), "inner")
-                .select("country_key").distinct(),
-            "country_key", "left"
+    )
+
+    for flag, src in sources:
+        present = (
+            country_lookup.select("lookup_name", "country_key")
+            .join(src.dropna().distinct(),
+                  F.col("lookup_name") == F.col("src_country"), "inner")
+            .select("country_key").distinct()
+            .withColumn(flag, F.lit(1))
         )
-        .withColumn("has_epi", F.when(F.col("country_key").isNotNull(), 1).otherwise(0))
-        
-        # Continue for other sources...
-        # (Simplified for brevity - would repeat pattern for each source)
-        
-        .withColumn("coverage_score", 
-            # Calculate percentage of datasets containing this country
-            F.col("has_epi") / 1.0  # Would sum all has_* columns / total sources
+        coverage = (
+            coverage
+            .join(present, "country_key", "left")
+            .withColumn(flag, F.coalesce(F.col(flag), F.lit(0)))
         )
+
+    flags = [f for f, _ in sources]
+    n_sources = len(flags)
+
+    coverage = (
+        coverage
+        .withColumn("sources_present", sum([F.col(f) for f in flags[1:]], F.col(flags[0])))
+        .withColumn("total_sources", F.lit(n_sources))
+        .withColumn("coverage_score", F.col("sources_present") / F.lit(float(n_sources)))
         .withColumn("coverage_category",
+            # With 4 sources: 4/4 High, 2-3/4 Medium, 0-1/4 Low.
             F.when(F.col("coverage_score") >= 0.8, "High Coverage")
              .when(F.col("coverage_score") >= 0.5, "Medium Coverage")
              .otherwise("Low Coverage")
         )
     )
-    
+
     write_tbl(coverage, "gold_country_coverage_matrix")
     return coverage
 
@@ -740,79 +778,111 @@ unknown_materials = spark.createDataFrame([
     ("Unknown Material", "Other/Unknown", "kg"),
 ], ["material_name_std", "commodity_group", "unit_base"])
 
-# Commodity group mapping (FIXED SYNTAX ERROR)
-grp_map = F.create_map(
-    F.lit("Lithium"), F.lit("Battery metals"),
-    F.lit("Graphite"), F.lit("Battery metals"),
-    F.lit("Copper"), F.lit("Base metals"),
-    F.lit("Nickel"), F.lit("Battery metals"),
-    F.lit("Cobalt"), F.lit("Battery metals"),
-    F.lit("Lead"), F.lit("Base metals"),
-    F.lit("Aluminum"), F.lit("Base metals"),
-    F.lit("Aluminium"), F.lit("Base metals"),
-    F.lit("Zinc"), F.lit("Base metals"),
-    F.lit("Tin"), F.lit("Base metals"),
-    F.lit("Iron Ore"), F.lit("Base metals"),
-    F.lit("Magnesium"), F.lit("Base metals"),
-    F.lit("Gold"), F.lit("Precious metals"),
-    F.lit("Silver"), F.lit("Precious metals"),
-    F.lit("Platinum"), F.lit("Precious metals"),
-    F.lit("Palladium"), F.lit("Precious metals"),
-    F.lit("Rhodium"), F.lit("Precious metals"),
-    F.lit("Iridium"), F.lit("Precious metals"),
-    F.lit("Ruthenium"), F.lit("Precious metals"),
-    F.lit("Neodymium"), F.lit("Rare earth elements"),
-    F.lit("Praseodymium"), F.lit("Rare earth elements"),
-    F.lit("Cerium"), F.lit("Rare earth elements"),
-    F.lit("Lanthanum"), F.lit("Rare earth elements"),
-    F.lit("Yttrium"), F.lit("Rare earth elements"),
-    # Key lowercased 2026-07-22: this map is probed with material_name_std, which is
-    # initcap'd upstream, so any key whose own initcap differs from itself can never
-    # match and silently falls through to "Other/Unknown". Audited all 48 keys; three
-    # were unmatchable (this one, "Plastic (Abs)", "Steel (High-Tensile)").
-    F.lit("Rare Earths (ndpr)"), F.lit("Rare earth elements"),
-    F.lit("Tungsten"), F.lit("Specialty metals"),
-    F.lit("Molybdenum"), F.lit("Specialty metals"),
-    F.lit("Titanium"), F.lit("Specialty metals"),
-    F.lit("Titanium Metal"), F.lit("Specialty metals"),
-    F.lit("Tantalum"), F.lit("Specialty metals"),
-    F.lit("Vanadium"), F.lit("Specialty metals"),
-    F.lit("Silicon Metal"), F.lit("Specialty metals"),
-    F.lit("Niobium"), F.lit("Specialty metals"),
-    F.lit("Limestone"), F.lit("Industrial minerals"),
-    F.lit("Silica Sand"), F.lit("Industrial minerals"),
-    F.lit("Kaolin"), F.lit("Industrial minerals"),
-    F.lit("Phosphorus"), F.lit("Chemicals"),
-    F.lit("Phosphate Rock"), F.lit("Chemicals"),
-    F.lit("Potash"), F.lit("Chemicals"),
-    F.lit("Sulphur"), F.lit("Chemicals"),
-    F.lit("Coking Coal"), F.lit("Energy materials"),
-    F.lit("Natural Rubber"), F.lit("Organic materials"),
-    F.lit("Electronics (controllers, Sensors)"), F.lit("Manufactured products"),
-    F.lit("Plastic (abs)"), F.lit("Manufactured products"),
-    F.lit("Tires (rubber Compound)"), F.lit("Manufactured products"),
-    F.lit("Steel (high-tensile)"), F.lit("Manufactured products"),
-    F.lit("Helium"), F.lit("Specialty gases"),
-    F.lit("Neon"), F.lit("Specialty gases"),
-    F.lit("Natural Graphite"), F.lit("Battery metals"),
-    F.lit("Erbium"), F.lit("Rare earth elements"),
-    F.lit("Thulium"), F.lit("Rare earth elements"),
-    F.lit("Holmium"), F.lit("Rare earth elements"),
-    F.lit("Lutetium"), F.lit("Rare earth elements"),
-    F.lit("Samarium"), F.lit("Rare earth elements"),
-    F.lit("Arsenic"), F.lit("Specialty metals"),
-    F.lit("Selenium"), F.lit("Specialty metals"),
-    F.lit("Germanium"), F.lit("Specialty metals"),
-    F.lit("Hafnium"), F.lit("Specialty metals"),
-    F.lit("Rhenium"), F.lit("Specialty metals"),
-    F.lit("Zirconium"), F.lit("Specialty metals"),
-    F.lit("Bismuth"), F.lit("Specialty metals"),
-    F.lit("Strontium"), F.lit("Industrial minerals"),
-    F.lit("Feldspar"), F.lit("Industrial minerals"),
-    F.lit("Gypsum"), F.lit("Industrial minerals"),
-    F.lit("Natural Teak Wood"), F.lit("Organic materials"),
-    F.lit("Phosphorous"), F.lit("Chemicals"),
+# Commodity group mapping.
+#
+# REACHABILITY CONTRACT (task-028): this map is probed with material_name_std, which is
+# initcap'd upstream, so every key must satisfy initcap(key) == key. A key that is not
+# its own initcap can never match and silently falls through to "Other/Unknown" — the
+# defect that hid "Steel (High-Tensile)", "Plastic (ABS)" and "Rare Earths (NdPr)"
+# behind Other/Unknown until 2026-07-22. Kept honest by the assertion below (fails the
+# run) and by tests/test_material_mapping.py (fails CI). Held as a plain dict rather
+# than inline F.lit() pairs precisely so both guards can enumerate the keys.
+COMMODITY_GROUPS = {
+    "Lithium": "Battery metals",
+    "Graphite": "Battery metals",
+    "Copper": "Base metals",
+    "Nickel": "Battery metals",
+    "Cobalt": "Battery metals",
+    "Lead": "Base metals",
+    "Aluminum": "Base metals",
+    "Aluminium": "Base metals",
+    "Zinc": "Base metals",
+    "Tin": "Base metals",
+    "Iron Ore": "Base metals",
+    "Magnesium": "Base metals",
+    "Gold": "Precious metals",
+    "Silver": "Precious metals",
+    "Platinum": "Precious metals",
+    "Palladium": "Precious metals",
+    "Rhodium": "Precious metals",
+    "Iridium": "Precious metals",
+    "Ruthenium": "Precious metals",
+    "Neodymium": "Rare earth elements",
+    "Praseodymium": "Rare earth elements",
+    "Cerium": "Rare earth elements",
+    "Lanthanum": "Rare earth elements",
+    "Yttrium": "Rare earth elements",
+    # Written in initcap form ("(ndpr)", not "(NdPr)") — see the contract above.
+    "Rare Earths (ndpr)": "Rare earth elements",
+    "Tungsten": "Specialty metals",
+    "Molybdenum": "Specialty metals",
+    "Titanium": "Specialty metals",
+    "Titanium Metal": "Specialty metals",
+    "Tantalum": "Specialty metals",
+    "Vanadium": "Specialty metals",
+    "Silicon Metal": "Specialty metals",
+    "Niobium": "Specialty metals",
+    "Limestone": "Industrial minerals",
+    "Silica Sand": "Industrial minerals",
+    "Kaolin": "Industrial minerals",
+    # Both spellings stay mapped even though the "Phosphorus" -> "Phosphorous" alias
+    # means only the latter reaches dim_material — they agree on the group, so the
+    # retained key is harmless insurance if that alias is ever removed.
+    "Phosphorus": "Chemicals",
+    "Phosphorous": "Chemicals",
+    "Phosphate Rock": "Chemicals",
+    "Potash": "Chemicals",
+    "Sulphur": "Chemicals",
+    "Coking Coal": "Energy materials",
+    "Natural Rubber": "Organic materials",
+    "Electronics (controllers, Sensors)": "Manufactured products",
+    "Plastic (abs)": "Manufactured products",
+    "Tires (rubber Compound)": "Manufactured products",
+    "Steel (high-tensile)": "Manufactured products",
+    "Helium": "Specialty gases",
+    "Neon": "Specialty gases",
+    "Natural Graphite": "Battery metals",
+    "Erbium": "Rare earth elements",
+    "Thulium": "Rare earth elements",
+    "Holmium": "Rare earth elements",
+    "Lutetium": "Rare earth elements",
+    "Samarium": "Rare earth elements",
+    "Arsenic": "Specialty metals",
+    "Selenium": "Specialty metals",
+    "Germanium": "Specialty metals",
+    "Hafnium": "Specialty metals",
+    "Rhenium": "Specialty metals",
+    "Zirconium": "Specialty metals",
+    "Bismuth": "Specialty metals",
+    "Strontium": "Industrial minerals",
+    "Feldspar": "Industrial minerals",
+    "Gypsum": "Industrial minerals",
+    "Natural Teak Wood": "Organic materials",
+}
+
+grp_map = F.create_map([F.lit(x) for kv in COMMODITY_GROUPS.items() for x in kv])
+
+# GUARD (task-028): fail the run — loudly, at build time — if any commodity-group key or
+# material-alias LHS is unreachable from initcap-normalized input. Both tables are matched
+# against values that have already been through F.initcap(F.trim(...)), so a key that is
+# not its own initcap is dead: materials fall through to "Other/Unknown" and aliases never
+# fire, both silently. One Spark round-trip over ~70 short strings; the mirror of this
+# assertion lives in tests/test_material_mapping.py so the contract is also enforced
+# outside Fabric.
+_reach_probe = sorted(set(COMMODITY_GROUPS) | {a[0] for a in MATERIAL_ALIASES})
+_unreachable = [
+    r["v"] for r in (
+        spark.createDataFrame([(v,) for v in _reach_probe], ["v"])
+        .filter(F.initcap(F.col("v")) != F.col("v"))
+        .collect()
+    )
+]
+assert not _unreachable, (
+    f"{len(_unreachable)} commodity-group key(s)/material alias(es) are unreachable — "
+    f"initcap() rewrites them, so nothing can ever match: {_unreachable}. "
+    f"Rewrite each in its own initcap form (e.g. 'Plastic (ABS)' -> 'Plastic (abs)')."
 )
+print(f"✓ Material mapping reachability: {len(_reach_probe)} keys/aliases, 0 unreachable")
 
 dim_material = (
     materials
@@ -899,10 +969,11 @@ assert _dup_material_n == 0, (
 # CELL ********************
 
 # EPI indicators
-# NOTE: silver_epi2024variables table may not exist in all environments
+# NOTE: the EPI variables table may not exist in all environments. Its name is derived
+# from EPI_YEAR (task-028) for the same reason the results table is.
 # Create from EPI results columns if variables metadata table is unavailable
 try:
-    epi_vars = spark.table(f"{DB}.silver_epi2024variables").select(
+    epi_vars = spark.table(f"{DB}.silver_epi{EPI_YEAR}variables").select(
         F.lit("EPI").alias("source_system"),
         "type",
         F.col("abbreviation").alias("abbrev"),
@@ -910,11 +981,11 @@ try:
         "policyobjective","issuecategory","weight","description",
         F.lit(None).cast(StringType()).alias("indicator_code")
     ).withColumn("indicator_key", stable_key(["source_system","abbrev","variable_name"]))
-    print("✓ Loaded EPI variables from silver_epi2024variables table")
+    print(f"✓ Loaded EPI variables from silver_epi{EPI_YEAR}variables table")
 except Exception as e:
     print(f"⚠️  EPI variables table not found, creating indicators from results columns: {e}")
     # Derive indicator metadata from EPI results column names
-    epi_results = spark.table(f"{DB}.silver_epi2024results")
+    epi_results = spark.table(f"{DB}.{EPI_SILVER_TBL}")
     id_cols = {"code", "iso", "country"}
     indicator_cols = [c for c in epi_results.columns if c not in id_cols]
 
@@ -1101,13 +1172,13 @@ print("Lookup tables loaded successfully")
 
 # CELL ********************
 
-epi_res = spark.table(f"{DB}.silver_epi2024results")
+epi_res = spark.table(f"{DB}.{EPI_SILVER_TBL}")
 
 # Identify metric columns
 id_cols = {"code","iso","country"}
 metric_cols = [c for c in epi_res.columns if c not in id_cols]
 if not metric_cols:
-    raise ValueError("No metric columns found in silver_epi2024results.")
+    raise ValueError(f"No metric columns found in {EPI_SILVER_TBL}.")
 
 print(f"Processing {len(metric_cols)} EPI indicators")
 
@@ -1132,7 +1203,10 @@ fact_epi_score = (
     .join(dim_country_iso3_map, on=epi_long.iso == dim_country_iso3_map.iso3, how="left")
     .join(dim_ind_lu.filter(F.col("source_system")=="EPI").select("indicator_key","abbrev"),
           on="abbrev", how="left")
-    .withColumn("year", F.lit(2024).cast(IntegerType()))
+    # task-028: stamped from EPI_YEAR, the same constant that picks EPI_SILVER_TBL above,
+    # so the vintage label can never drift from the vintage actually read. The old
+    # hardcoded F.lit(2024) would have labelled a 2025 pull as 2024.
+    .withColumn("year", F.lit(EPI_YEAR).cast(IntegerType()))
     .select(F.col("country_key"), F.col("indicator_key"), "year", F.col("score"))
 )
 
@@ -1163,49 +1237,18 @@ print(f"  Dropped {fact_epi_score.count() - fact_epi_score_clean.count()} record
 
 # MARKDOWN ********************
 
-# ## gold.fact_supply_share
-
-# CELL ********************
-
-sup = spark.table(f"{DB}.silver_globalsupplyshares").select(
-    F.initcap(F.trim("material")).alias("material"),
-    F.col("stage"),
-    F.col("country"),
-    F.regexp_replace("share", "[<%]", "").cast("double").alias("share_pct")
-)
-
-# Join with enhanced lookups
-fact_supply_share = (
-    sup
-    .join(dim_material_lu, on=F.col("material")==dim_material_lu.lookup_name, how="left")
-    .join(dim_country_lu, on=F.col("country")==dim_country_lu.lookup_name, how="left")
-    .join(dim_stage_lu, on=F.col("stage")==dim_stage_lu.stage_code, how="left")
-    .withColumn("year", F.lit(2023).cast(IntegerType()))
-    .select("material_key","stage_key","country_key","year","share_pct")
-)
-
-# Data quality checks
-total_records = fact_supply_share.count()
-check_unmapped(fact_supply_share.select("material_key"), "material_key", "materials in supply shares")
-check_unmapped(fact_supply_share.select("country_key"), "country_key", "countries in supply shares")
-check_unmapped(fact_supply_share.select("stage_key"), "stage_key", "stages in supply shares")
-
-# Clean fact table
-fact_supply_share_clean = fact_supply_share.filter(
-    (F.col("material_key").isNotNull()) & 
-    (F.col("country_key").isNotNull()) & 
-    (F.col("stage_key").isNotNull())
-)
-
-write_tbl(fact_supply_share_clean, "fact_supply_share")
-print(f"  Retained {fact_supply_share_clean.count()} of {total_records} records ({100*fact_supply_share_clean.count()/total_records:.1f}%)")
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
+# ## gold.fact_supply_share — now built once, further down (see the fact_procurement cell)
+# REMOVED by task-028: this cell used to build a first, simpler `fact_supply_share` and
+# write it to the same table the enhanced build (in the fact_procurement cell below,
+# `## gold.fact_supply_share (with enhanced quality tracking and unknown handling)`)
+# overwrites minutes later. Every row it produced was discarded, and the two builds
+# disagreed on '<1%' (this one parsed it to 1.0 via regexp_replace; the survivor uses the
+# 0.5 midpoint), so the dead write also made the notebook look like it had two answers to
+# the same question. Its only surviving side effects were console prints — the three
+# check_unmapped() calls (fail=False, so print-only) are superseded by the richer
+# "SUPPLY SHARE DATA QUALITY ANALYSIS" block in the surviving build, which reports the
+# same three dimensions with counts, percentages and top offenders. Deleting it also
+# closes the DirectLake window in which readers could see the intermediate table.
 
 # MARKDOWN ********************
 
@@ -1418,10 +1461,14 @@ supply_prep = (
         F.initcap(F.trim("material")).alias("material"),
         F.col("stage"),
         F.trim("country").alias("country"),
-        # Clean percentage values - handle various formats
-        F.when(F.col("share").contains("<"), 
-               # For values like "<1%", use 0.5% as estimate (midpoint between 0 and 1)
-               F.lit(0.5))
+        # Clean percentage values - handle various formats.
+        # '<1%' -> 0.5, the midpoint of the (0, 1) interval the source is asserting.
+        # SINGLE SOURCE OF TRUTH for censored shares (task-028): the earlier duplicate
+        # fact_supply_share build parsed '<1%' to 1.0 by stripping the '<' and was
+        # deleted, so this is now the only place the convention is expressed. It matches
+        # spec_v1 § Data Sources / Supply Shares ("'<1%' converted to 0.5%"). Any change
+        # here changes every downstream supply-share measure — do not fork it.
+        F.when(F.col("share").contains("<"), F.lit(0.5))
          .otherwise(
                F.regexp_replace("share", "[<%]", "").cast("double")
          ).alias("share_pct"),
