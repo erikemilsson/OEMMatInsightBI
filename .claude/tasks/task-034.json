@@ -25,11 +25,12 @@
   "notes": [
     "PROMOTED by /health-check 2026-07-19 from task-001's legacy inline subtask array (id was task-001-6). task-001 remains Finished — its Claude-side deliverables (gold_data_gaps table, TMDL, DAX measures, guide) were all completed and verified; this was the human-owned tail.",
     "Original note flagged this as an OPTIONAL ENHANCEMENT — treat as low priority, and feel free to close it as descoped rather than building it if the Data Gaps page no longer earns its place in the report.",
-    "STALENESS CHECK FIRST: this item was authored 2026-01-16. Confirm DQ_PAGE_GUIDE.md and the gold_data_gaps schema still match current reality before building — the gold layer has changed substantially since (tasks 022-031)."
+    "STALENESS CHECK FIRST: this item was authored 2026-01-16. Confirm DQ_PAGE_GUIDE.md and the gold_data_gaps schema still match current reality before building — the gold layer has changed substantially since (tasks 022-031).",
+    "SEMANTIC-MODEL SYNC FOLDED IN 2026-07-23 (Erik's call — no standalone TMDL-sync task). The repo v2 semantic model (OEMInsightBI_v2.SemanticModel) is Jan-2026-dated and has confirmed drift against the current gold schema that THIS page depends on: (a) gold_quality_history is in the model but MISSING the status/producer columns task-040 added — a DirectLake model does not pick up new COLUMNS on refresh, only new rows, so any gate-verdict visual needs the model updated first; (b) gold_unmapped_unit_audit (task-030) is not in the model at all — new tables must be added explicitly; (c) decide per audit table whether it is report-facing (gold_unmapped_*, gold_data_quality_*, mapping_* are currently out of the model — likely deliberate, confirm rather than bulk-add). When building this page, update the model (Fabric UI or TMDL) for whatever tables/columns the visuals actually read, then pull the current model back to the repo (sync-from-fabric) so fabric/OEMInsightBI_v2.SemanticModel stops being six months stale. Practically gated on task-035: the page's AC3 ('visuals populate after a pipeline run') cannot be met while the pipeline is red at Stage 2."
   ],
   "user_feedback": "",
   "created_date": "2026-07-19",
-  "updated_date": "2026-07-19",
+  "updated_date": "2026-07-23",
   "completion_date": null,
   "verification_attempts": 0,
   "out_of_spec": false,
