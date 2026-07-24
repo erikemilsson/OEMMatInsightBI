@@ -334,6 +334,80 @@ def log_activity_failure(execution_id: str, error_message: str):
 
     print(f"[FAILED] execution_id={execution_id[:8]}... | {error_category}: {error_message[:120]}")
 
+
+def log_activity_outcome(
+    activity_name: str,
+    status: str,
+    error_message: str = None,
+    pipeline_run_id: str = None,
+    retry_attempt: int = 0,
+    start_time: datetime = None,
+    end_time: datetime = None,
+    duration_seconds: float = None,
+) -> str:
+    """Record a terminal activity outcome in a SINGLE append (one-shot).
+
+    The two-phase log_activity_start / log_activity_success|failure pair assumes the
+    logger runs *inside* the activity and holds the execution_id across its lifetime.
+    The DEC-004 Option A topology instead runs a pipeline-level failure branch AFTER
+    the guarded activities have finished, reading their outcomes from POST
+    queryactivityruns — so there is no prior log_activity_start UUID to UPDATE. This
+    one-shot writes a fully-formed row from an already-known outcome and is the only
+    logging entry point that fits a pipeline-level branch. Needed identically whether
+    the branch reads queryactivityruns (recommended shape) or falls back to per-activity
+    @activity('X').Error handlers.
+
+    Args:
+        activity_name: Name of the pipeline activity.
+        status: Terminal status — "SUCCESS" or "FAILED".
+        error_message: Full error text; required when status == "FAILED".
+        pipeline_run_id: Fabric pipeline run ID for traceability.
+        retry_attempt: 0 for first attempt, 1+ for retries.
+        start_time: Activity start (e.g. from queryactivityruns); defaults to now.
+        end_time: Activity end (e.g. from queryactivityruns); defaults to now.
+        duration_seconds: Precomputed duration; derived from start/end when omitted.
+
+    Returns:
+        execution_id (UUID string) of the row written.
+    """
+    execution_id = str(uuid.uuid4())
+    now = datetime.now()
+    start_time = start_time or now
+    end_time = end_time or now
+    if duration_seconds is None:
+        duration_seconds = (end_time - start_time).total_seconds()
+
+    error_category = (
+        categorize_error(error_message)
+        if status == "FAILED" and error_message
+        else None
+    )
+
+    row = spark.createDataFrame(
+        [{
+            "execution_id": execution_id,
+            "activity_name": activity_name,
+            "status": status,
+            "start_time": start_time,
+            "end_time": end_time,
+            "duration_seconds": float(duration_seconds) if duration_seconds is not None else None,
+            "error_category": error_category,
+            "error_message": error_message,
+            "retry_attempt": retry_attempt,
+            "pipeline_run_id": pipeline_run_id,
+        }],
+        schema=execution_log_schema,
+    )
+
+    row.write.format("delta").mode("append").saveAsTable(
+        f"{DB}.{EXECUTION_LOG_TABLE}"
+    )
+
+    label = error_category or status
+    tail = f" | {error_message[:120]}" if error_message else ""
+    print(f"[{status}] {activity_name} (one-shot, id={execution_id[:8]}...) {label}{tail}")
+    return execution_id
+
 # METADATA ********************
 
 # META {

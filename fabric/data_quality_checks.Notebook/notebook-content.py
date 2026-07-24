@@ -61,6 +61,12 @@ import time
 DB = "oem_lh"
 spark.sql(f"USE {DB}")
 
+# EPI vintage — single source for the epi{year}results table names referenced by the
+# row-count, schema, required-field and BLOCKING_CHECKS contracts below (task-042).
+# A stale literal in BLOCKING_CHECKS does NOT error — it silently demotes
+# schema_validation on the EPI table to advisory — so every EPI contract derives here.
+EPI_YEAR = 2024
+
 # Pipeline run timestamp (shared across all checks)
 pipeline_run_ts = datetime.now()
 
@@ -240,7 +246,7 @@ print("\n--- Bronze Check 1: Row Count Validation ---")
 row_count_checks = [
     ("oem_lh.bronze_procurement_transactional", 100, 500000),
     ("oem_lh.bronze_supplier_ref", 5, 10000),
-    ("oem_lh.bronze_epi2024results", 150, 250),
+    (f"oem_lh.bronze_epi{EPI_YEAR}results", 150, 250),
     ("oem_lh.bronze_GlobalSupplyShares", 100, 100000),
     # task-026 (5e): bronze_WGI (WB governance percentile, one row per country x
     # indicator series) — advisory row-count guard, generous range.
@@ -331,7 +337,7 @@ print("\n--- Bronze Check 2: Schema Validation ---")
 # contract is deliberately asserted against a silver shape are listed here, so
 # gold_quality_history records the layer the assertion actually describes.
 CHECK_LAYER = {
-    "oem_lh.silver_epi2024results": "Silver",
+    f"oem_lh.silver_epi{EPI_YEAR}results": "Silver",
 }
 
 # Expected schemas per checked table
@@ -351,7 +357,7 @@ schema_checks = {
     # (code, iso, country, EPI). Asserting the raw name here would also hardcode a
     # Yale vintage: .old/.new exist because the 2024 methodology revision introduced
     # them, and they will move again.
-    "oem_lh.silver_epi2024results": {
+    f"oem_lh.silver_epi{EPI_YEAR}results": {
         "iso": "string", "country": "string", "EPI": None
     },
     "oem_lh.bronze_GlobalSupplyShares": {
@@ -465,7 +471,7 @@ completeness_checks = [
     # task-026: silver, for the same reason as the schema contract above. Also note
     # validate_required_fields passes these names to F.col(), where a dot means
     # struct navigation — the raw "EPI.new" could not be used here even if wanted.
-    ("oem_lh.silver_epi2024results",
+    (f"oem_lh.silver_epi{EPI_YEAR}results",
      ["iso", "country", "EPI"]),
     ("oem_lh.bronze_GlobalSupplyShares",
      ["Material", "Stage", "Country", "Share"]),
@@ -569,7 +575,7 @@ duplicate_checks = [
      ["Date", "MaterialName", "SupplierName", "Quantity", "Unit", "UnitPriceEUR"]),
     ("oem_lh.bronze_supplier_ref",
      ["SupplierName"]),
-    ("oem_lh.bronze_epi2024results",
+    (f"oem_lh.bronze_epi{EPI_YEAR}results",
      ["iso"]),
     ("oem_lh.bronze_GlobalSupplyShares",
      ["Material", "Stage", "Country"]),
@@ -1904,7 +1910,7 @@ BLOCKING_CHECKS = {
     # task-026: follows the contract to silver (see schema_checks). Must stay in
     # sync with the table name there — a stale entry here does not error, it
     # silently demotes the check to advisory.
-    ("schema_validation", "oem_lh.silver_epi2024results"),
+    ("schema_validation", f"oem_lh.silver_epi{EPI_YEAR}results"),
     ("schema_validation", "oem_lh.bronze_GlobalSupplyShares"),
     # Required-field completeness on procurement (0% null tolerance).
     ("required_field_completeness", "oem_lh.bronze_procurement_transactional"),

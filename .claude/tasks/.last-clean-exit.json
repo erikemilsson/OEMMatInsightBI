@@ -1,9 +1,6 @@
 {
-  "timestamp": "2026-07-23T17:00:00Z",
+  "timestamp": "2026-07-23T22:05:00Z",
   "clean_exit": true,
-  "in_progress_tasks": [
-    "task-022",
-    "task-024"
-  ],
-  "note": "/work pause \u2014 nothing in flight; both In Progress tasks are owner=both awaiting Erik's Fabric review, not interrupted Claude work"
+  "in_progress_tasks": ["task-024", "task-041", "task-042"],
+  "note": "/work session authored local halves of task-041 (log_activity_outcome prerequisite) and task-042 (EPI vintage single-sourced). All three In Progress are owner=both awaiting Erik's Fabric work — none are interrupted Claude work. Run-book: workspace/handoff-2026-07-23-fabric.md"
 }

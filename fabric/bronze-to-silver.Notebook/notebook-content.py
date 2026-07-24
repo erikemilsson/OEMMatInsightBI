@@ -40,6 +40,10 @@
 # Pipeline parameters — overridden by Fabric pipeline at runtime
 p_full_load = "false"
 p_from_date = "1900-01-01"
+# EPI vintage — single-sources the epi{year}results table names below (task-042).
+# Matches bronze_ingest_epi.Notebook's p_epi_year default; keep in sync with the
+# pipeline so bronze and silver never diverge on the vintage.
+p_epi_year = "2024"
 
 # METADATA ********************
 
@@ -71,7 +75,7 @@ from datetime import datetime, timedelta
 # CELL ********************
 
 # Load dataframe to session
-df = spark.sql("SELECT * FROM oem_lh.bronze_epi2024results")
+df = spark.sql(f"SELECT * FROM oem_lh.bronze_epi{p_epi_year}results")
 
 # Clean + rename in one go (PySpark)
 from pyspark.sql import functions as F
@@ -105,7 +109,7 @@ display(df_selected)
 
 # CELL ********************
 
-df_selected.write.format("delta").mode("overwrite").saveAsTable('silver_epi2024results')
+df_selected.write.format("delta").mode("overwrite").saveAsTable(f'silver_epi{p_epi_year}results')
 
 # METADATA ********************
 
