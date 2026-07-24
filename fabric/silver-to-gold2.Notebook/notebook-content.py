@@ -1305,6 +1305,7 @@ print(f"  Dropped {fact_epi_score.count() - fact_epi_score_clean.count()} record
 # same three dimensions with counts, percentages and top offenders. Deleting it also
 # closes the DirectLake window in which readers could see the intermediate table.
 
+
 # MARKDOWN ********************
 
 # ## gold.fact_procurement (with extensive data quality checks)
