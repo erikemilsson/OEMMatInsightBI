@@ -109,7 +109,13 @@ display(df_selected)
 
 # CELL ********************
 
-df_selected.write.format("delta").mode("overwrite").saveAsTable(f'silver_epi{p_epi_year}results')
+# overwriteSchema: bronze_epi{year}results is now produced by bronze_ingest_epi
+# (pandas -> spark), which types the score columns as double. The retired
+# EPI_file2table dataflow had landed them as text, so the pre-existing
+# silver_epi{year}results carries EPI as string and a plain mode("overwrite")
+# fails with DELTA_FAILED_TO_MERGE_FIELDS. This is a full-snapshot replace, so
+# replacing the schema is correct — same reason silver_wgi carries it below.
+df_selected.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(f'silver_epi{p_epi_year}results')
 
 # METADATA ********************
 
