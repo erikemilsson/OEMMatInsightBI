@@ -1,6 +1,8 @@
 {
-  "timestamp": "2026-07-23T22:05:00Z",
+  "timestamp": "2026-07-26T20:35:33Z",
   "clean_exit": true,
-  "in_progress_tasks": ["task-024", "task-041", "task-042"],
-  "note": "/work session authored local halves of task-041 (log_activity_outcome prerequisite) and task-042 (EPI vintage single-sourced). All three In Progress are owner=both awaiting Erik's Fabric work — none are interrupted Claude work. Run-book: workspace/handoff-2026-07-23-fabric.md"
+  "in_progress_tasks": [
+    "task-041"
+  ],
+  "note": "/work pause 2026-07-26. EPI single-source thread CLOSED: task-035 + task-042 Finished and verified. Repo<->Fabric drift cleared (Fabric commit 11bb463) -- the never-git-Update-the-pipeline guardrail no longer applies. Code pushed to 12e2b19; 3 task JSONs uncommitted pending Erik's call."
 }
