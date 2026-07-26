@@ -605,3 +605,176 @@ print("\nPipeline error handler ready.")
 # META   "language": "python",
 # META   "language_group": "synapse_pyspark"
 # META }
+
+# CELL ********************
+
+# =============================================================================
+# PIPELINE-LEVEL FAILURE HARVEST (DEC-004 Option A) - task-041
+# =============================================================================
+# Runs as the orchestrator's on-failure branch: one activity hanging off the
+# terminal data_quality_checks via dependencyConditions ["Failed", "Skipped"].
+# Because that pipeline is a single convergent DAG, and "Skipped" propagates
+# transitively, this one handler covers all upstream activities.
+#
+# It reads per-activity outcomes from POST queryactivityruns rather than
+# @activity('X').Error, because a SKIPPED activity carries no error field.
+#
+# Empirically established 2026-07-27 (scratch_qar_test run
+# 7c2781b8-6ad2-4bd6-bf0d-ff8acccf6991), because the docs address none of it:
+#   * queryactivityruns DOES return rows while the run is still in progress -
+#     which is the only reason this shape works at all, since the handler
+#     executes inside the run it queries.
+#   * lastUpdatedAfter / lastUpdatedBefore are MANDATORY in practice. Omit them
+#     and the endpoint returns HTTP 200 with an empty value array for every run,
+#     which mimics both a wrong run id and an in-progress limitation. This cost
+#     three misdiagnosed runs; do not "simplify" them away.
+#   * The response is an OBJECT ({"value": [...], "continuationToken": ...}),
+#     not the bare array shown in the Microsoft Learn sample.
+#   * The handler sees ITSELF in the results, with status "InProgress" - hence
+#     the self-skip below, without which every run logs a phantom row.
+#   * "error" is always present, even on success, as a dict of empty strings.
+#     Branch on status; `if a["error"]` is truthy for every activity.
+# =============================================================================
+
+import requests
+import notebookutils
+from datetime import datetime
+
+WORKSPACE_ID = "99e4cc6d-6ec3-49a7-aed9-b69b04a97aa9"
+
+# This notebook's own activity name in orchestrator_pipeline_bronze_to_gold.
+# Must match the activity name in pipeline-content.json.
+SELF_ACTIVITY_NAME = "pipeline_error_handler"
+
+# Fabric activity status -> gold_pipeline_execution_log status.
+# Anything not listed (InProgress, Queued, Skipped, Cancelled) is not a terminal
+# outcome this log models, and is counted-and-reported rather than written.
+_TERMINAL_STATUS = {"Succeeded": "SUCCESS", "Failed": "FAILED"}
+
+
+def _parse_activity_ts(value):
+    """Parse a queryactivityruns ISO-8601 timestamp to a naive datetime.
+
+    Fabric returns 7 fractional-second digits (e.g. 2026-07-26T22:01:31.5737206Z);
+    datetime.fromisoformat accepts at most 6, so the fraction is truncated.
+    """
+    if not value:
+        return None
+    text = value.replace("Z", "+00:00")
+    if "." in text:
+        head, rest = text.split(".", 1)
+        digits = ""
+        for char in rest:
+            if not char.isdigit():
+                break
+            digits += char
+        text = head + "." + digits[:6] + rest[len(digits):]
+    return datetime.fromisoformat(text).replace(tzinfo=None)
+
+
+def fetch_activity_runs(run_id):
+    """Return the activity-run records for one pipeline run."""
+    token = notebookutils.credentials.getToken("pbi")
+    url = (
+        "https://api.fabric.microsoft.com/v1/workspaces/"
+        + WORKSPACE_ID
+        + "/datapipelines/pipelineruns/"
+        + run_id
+        + "/queryactivityruns"
+    )
+    body = {
+        "filters": [],
+        "orderBy": [{"orderBy": "ActivityRunStart", "order": "DESC"}],
+        # Mandatory - see header note. A missing window yields 200 + [].
+        "lastUpdatedAfter": "2020-01-01T00:00:00.0000000Z",
+        "lastUpdatedBefore": "2030-01-01T00:00:00.0000000Z",
+    }
+    response = requests.post(
+        url,
+        headers={
+            "Authorization": "Bearer " + token,
+            "Content-Type": "application/json",
+        },
+        json=body,
+    )
+    response.raise_for_status()
+    return response.json().get("value", [])
+
+
+def harvest_pipeline_run(run_id):
+    """Write one execution-log row per terminal activity in run_id.
+
+    Logs successes as well as failures, so get_execution_summary() and
+    get_retry_effectiveness() have both outcomes to compare.
+    """
+    activities = fetch_activity_runs(run_id)
+
+    # Fail loud rather than logging nothing. This branch only fires when an
+    # upstream activity failed, so at least that activity must come back. An
+    # empty result means the query is broken (bad window, bad run id, lost
+    # permission) - exactly the silent-no-op this task exists to eliminate.
+    if not activities:
+        raise RuntimeError(
+            "queryactivityruns returned no activities for pipeline run "
+            + str(run_id)
+            + ". The on-failure branch fired, so at least one failed activity "
+            "must exist. Check the lastUpdatedAfter/lastUpdatedBefore window "
+            "and the token scope before trusting an empty execution log."
+        )
+
+    written = 0
+    skipped = []
+
+    for activity in activities:
+        name = activity.get("activityName")
+        raw_status = activity.get("status")
+
+        if name == SELF_ACTIVITY_NAME:
+            continue
+
+        log_status = _TERMINAL_STATUS.get(raw_status)
+        if log_status is None:
+            skipped.append(str(name) + " (" + str(raw_status) + ")")
+            continue
+
+        error = activity.get("error") or {}
+        message = (error.get("message") or "").strip() or None
+
+        start_time = _parse_activity_ts(activity.get("activityRunStart"))
+        end_time = _parse_activity_ts(activity.get("activityRunEnd"))
+        duration_ms = activity.get("durationInMs")
+
+        log_activity_outcome(
+            activity_name=name,
+            status=log_status,
+            error_message=message,
+            pipeline_run_id=activity.get("pipelineRunId") or run_id,
+            retry_attempt=activity.get("retryAttempt") or 0,
+            start_time=start_time,
+            end_time=end_time,
+            duration_seconds=(duration_ms / 1000.0) if duration_ms is not None else None,
+        )
+        written += 1
+
+    print("Harvested pipeline run " + str(run_id) + ": " + str(written) + " row(s) logged.")
+    if skipped:
+        print("Non-terminal activities not logged: " + ", ".join(skipped))
+    return written
+
+
+# -----------------------------------------------------------------------------
+# Entry point. p_run_id is injected by the pipeline (parameter cell at the top).
+# Empty means the notebook is being run standalone, where there is no run to
+# harvest - so this is a no-op rather than an error.
+# -----------------------------------------------------------------------------
+if p_run_id:
+    harvest_pipeline_run(p_run_id)
+else:
+    print("No p_run_id supplied - standalone mode, nothing harvested.")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }

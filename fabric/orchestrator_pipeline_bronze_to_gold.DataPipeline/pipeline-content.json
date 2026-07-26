@@ -466,6 +466,57 @@
         },
         "name": "bronze_EPI",
         "dependsOn": []
+      },
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f90",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "p_run_id": {
+              "value": "@pipeline().RunId",
+              "type": "string"
+            }
+          }
+        },
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "pipeline_error_handler",
+        "description": "Task 041 / DEC-004 Option A: on-failure branch. Fires when data_quality_checks fails OR is skipped; because the pipeline is a single convergent DAG and Skipped propagates transitively, this one handler covers all upstream activities. Reads per-activity outcomes via POST queryactivityruns (not @activity('X').Error, which is empty for skipped activities) and writes one gold_pipeline_execution_log row per terminal activity, successes included.",
+        "dependsOn": [
+          {
+            "activity": "data_quality_checks",
+            "dependencyConditions": [
+              "Failed",
+              "Skipped"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "Fail",
+        "typeProperties": {
+          "message": {
+            "value": "@concat('Orchestrator run failed. Per-activity outcomes were logged to gold_pipeline_execution_log for pipeline run ', pipeline().RunId)",
+            "type": "Expression"
+          },
+          "errorCode": "ORCHESTRATOR_RUN_FAILED"
+        },
+        "name": "fail_orchestrator_run",
+        "description": "MANDATORY, not cosmetic. Attaching a handler to the terminal activity produces the documented Try-Catch shape, in which the overall run reports Succeeded once the handler succeeds - which would silently undo task-026's DQ gate and make every failing run look green. Confirmed live 2026-07-27 (scratch_qar_test run 3bda2a8f reported Succeeded despite a Failed activity). This activity re-fails the run after the log has been written.",
+        "dependsOn": [
+          {
+            "activity": "pipeline_error_handler",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
       }
     ],
     "parameters": {
