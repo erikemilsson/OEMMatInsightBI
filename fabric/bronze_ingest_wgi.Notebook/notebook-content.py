@@ -74,14 +74,20 @@ from datetime import datetime
 
 # CELL ********************
 
-# WGI indicator codes — all 6 governance dimensions (estimate scores)
+# WGI indicator codes — all 6 governance dimensions (estimate scores).
+# NOTE (2026-07-26): the World Bank re-coded WGI in the API. The classic CC.EST / GE.EST / …
+# codes were ARCHIVED to source 57 ("WDI Database Archives") and now return
+# "indicator not found"; the LIVE estimate series under source 3 are GOV_WGI_*.EST.
+# We fetch with the new API codes but STORE the classic short code + name, so the bronze_WGI
+# contract (Indicator Code, Series Name) is unchanged for every downstream layer.
+# Map: API code -> (canonical Indicator Code, canonical Series Name)
 WGI_INDICATORS = {
-    "CC.EST": "Control of Corruption: Estimate",
-    "GE.EST": "Government Effectiveness: Estimate",
-    "PV.EST": "Political Stability and Absence of Violence/Terrorism: Estimate",
-    "RL.EST": "Rule of Law: Estimate",
-    "RQ.EST": "Regulatory Quality: Estimate",
-    "VA.EST": "Voice and Accountability: Estimate",
+    "GOV_WGI_CC.EST": ("CC.EST", "Control of Corruption: Estimate"),
+    "GOV_WGI_GE.EST": ("GE.EST", "Government Effectiveness: Estimate"),
+    "GOV_WGI_PV.EST": ("PV.EST", "Political Stability and Absence of Violence/Terrorism: Estimate"),
+    "GOV_WGI_RL.EST": ("RL.EST", "Rule of Law: Estimate"),
+    "GOV_WGI_RQ.EST": ("RQ.EST", "Regulatory Quality: Estimate"),
+    "GOV_WGI_VA.EST": ("VA.EST", "Voice and Accountability: Estimate"),
 }
 
 # World Bank API v2 base URL
@@ -92,8 +98,8 @@ start_year = p_start_year.strip()
 end_year = p_end_year.strip()
 
 print(f"WGI Ingestion: Fetching {len(WGI_INDICATORS)} indicators for {start_year}-{end_year}")
-for code, name in WGI_INDICATORS.items():
-    print(f"  - {code}: {name}")
+for api_code, (short_code, name) in WGI_INDICATORS.items():
+    print(f"  - {short_code} (API {api_code}): {name}")
 
 # METADATA ********************
 
@@ -108,10 +114,12 @@ for code, name in WGI_INDICATORS.items():
 
 # CELL ********************
 
-def fetch_indicator(indicator_code, start_year, end_year, max_retries=3):
+def fetch_indicator(api_code, short_code, series_name, start_year, end_year, max_retries=3):
     """
     Fetch all country data for a single WGI indicator from the World Bank API.
-    Uses JSON format with pagination.
+    Uses JSON format with pagination. Queries the live API code (api_code, e.g.
+    GOV_WGI_CC.EST) but records the canonical short_code / series_name so the bronze
+    contract stays stable for downstream.
 
     Returns a list of dicts with keys: country_name, country_code, indicator_code,
     indicator_name, year, value.
@@ -121,7 +129,7 @@ def fetch_indicator(indicator_code, start_year, end_year, max_retries=3):
     total_pages = 1  # Will be updated from API response
 
     while page <= total_pages:
-        url = f"{API_BASE}/country/all/indicator/{indicator_code}"
+        url = f"{API_BASE}/country/all/indicator/{api_code}"
         params = {
             "source": "3",  # WGI source ID
             "format": "json",
@@ -138,24 +146,24 @@ def fetch_indicator(indicator_code, start_year, end_year, max_retries=3):
             except requests.exceptions.RequestException as e:
                 if attempt == max_retries:
                     raise RuntimeError(
-                        f"World Bank API call failed for {indicator_code} "
+                        f"World Bank API call failed for {api_code} "
                         f"(page {page}) after {max_retries} attempts: {e}"
                     ) from e
-                print(f"  Retry {attempt} for {indicator_code} page {page}: {e}")
+                print(f"  Retry {attempt} for {api_code} page {page}: {e}")
                 time.sleep(2 * attempt)  # Simple backoff
 
         data = response.json()
 
         # World Bank API returns [metadata, records] — check for valid response
         if not isinstance(data, list) or len(data) < 2:
-            print(f"  WARNING: Unexpected API response for {indicator_code} page {page}")
+            print(f"  WARNING: Unexpected API response for {api_code} page {page}")
             break
 
         metadata = data[0]
         entries = data[1]
 
         if entries is None:
-            print(f"  No data returned for {indicator_code} page {page}")
+            print(f"  No data returned for {api_code} page {page}")
             break
 
         total_pages = metadata.get("pages", 1)
@@ -169,8 +177,8 @@ def fetch_indicator(indicator_code, start_year, end_year, max_retries=3):
             records.append({
                 "country_name": entry.get("country", {}).get("value", ""),
                 "country_code": entry.get("countryiso3code", ""),
-                "indicator_code": indicator_code,
-                "indicator_name": entry.get("indicator", {}).get("value", ""),
+                "indicator_code": short_code,
+                "indicator_name": series_name,
                 "year": entry.get("date", ""),
                 "value": float(value),
             })
@@ -182,9 +190,9 @@ def fetch_indicator(indicator_code, start_year, end_year, max_retries=3):
 
 # Fetch all indicators
 all_records = []
-for code, name in WGI_INDICATORS.items():
-    print(f"  Fetching {code} ({name})...")
-    indicator_records = fetch_indicator(code, start_year, end_year)
+for api_code, (short_code, series_name) in WGI_INDICATORS.items():
+    print(f"  Fetching {short_code} (API {api_code})...")
+    indicator_records = fetch_indicator(api_code, short_code, series_name, start_year, end_year)
     all_records.extend(indicator_records)
     print(f"    -> {len(indicator_records)} records")
     # Brief pause between indicators to be a good API citizen

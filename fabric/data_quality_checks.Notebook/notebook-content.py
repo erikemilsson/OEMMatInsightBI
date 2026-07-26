@@ -248,8 +248,8 @@ row_count_checks = [
     ("oem_lh.bronze_supplier_ref", 5, 10000),
     (f"oem_lh.bronze_epi{EPI_YEAR}results", 150, 250),
     ("oem_lh.bronze_GlobalSupplyShares", 100, 100000),
-    # task-026 (5e): bronze_WGI (WB governance percentile, one row per country x
-    # indicator series) — advisory row-count guard, generous range.
+    # task-035 (FR-025): bronze_WGI — WB API long format, one row per country x indicator
+    # x year (was: wide, one row per country). Advisory row-count guard, generous range.
     ("oem_lh.bronze_WGI", 50, 500000),
 ]
 
@@ -363,11 +363,14 @@ schema_checks = {
     "oem_lh.bronze_GlobalSupplyShares": {
         "Material": "string", "Stage": "string", "Country": "string", "Share": None
     },
-    # task-026 (5e): bronze_WGI schema. Advisory — validates the descriptor columns
-    # plus the percentile value column exist (Percentile Rank 2023 is numeric).
+    # task-035 (FR-025): bronze_WGI schema — World Bank API LONG format written by
+    # bronze_ingest_wgi (one row per country x indicator x year). Advisory. Replaces the
+    # retired WGI_file2table wide shape (which held "Percentile Rank 2023"); Year/Value
+    # are the long-format observation columns (Value is None = presence-only, it is nullable).
     "oem_lh.bronze_WGI": {
         "Country Name": "string", "Country Code": "string",
-        "Series Name": "string", "Percentile Rank 2023": None
+        "Series Name": "string", "Indicator Code": "string",
+        "Year": "string", "Value": None,
     },
 }
 
@@ -475,9 +478,11 @@ completeness_checks = [
      ["iso", "country", "EPI"]),
     ("oem_lh.bronze_GlobalSupplyShares",
      ["Material", "Stage", "Country", "Share"]),
-    # task-026 (5e): bronze_WGI required descriptor fields (advisory).
+    # task-035 (FR-025): bronze_WGI required fields — long-format grain keys + descriptors
+    # (advisory). Value is EXCLUDED: a NULL Value is how the World Bank API encodes
+    # "no observation for this country x indicator x year", so it is legitimately nullable.
     ("oem_lh.bronze_WGI",
-     ["Country Name", "Country Code", "Series Name"]),
+     ["Country Name", "Country Code", "Series Name", "Indicator Code", "Year"]),
 ]
 
 completeness_results = []
