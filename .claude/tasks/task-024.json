@@ -2,7 +2,7 @@
   "id": "task-024",
   "title": "Fix procurement incremental MERGE grain — silver and gold merges collide on non-unique keys (crash or silent transaction loss)",
   "description": "Both procurement MERGEs use keys coarser than the data's grain, with no pre-merge dedupe. Silver: bronze-to-silver merges on (date, materialname, suppliername) — but bronze grain is 'one row per material purchase' (bronze_tables.md:5), so two same-day purchases of the same material from the same supplier are legitimate and will either throw Delta's 'multiple source rows matched' error (same batch) or silently overwrite each other (cross-run via whenMatchedUpdateAll). The incremental_load_strategy doc specifies a 4-column key including region AND a mandatory dedupe step (doc lines 223-266) — the notebook drops region entirely and never dedupes. Gold: fact_procurement merges on (date_key, material_key, supplier_hq_country_key, production_country_key) — supplier is not in the key, so two same-day transactions from different suppliers HQ'd in the same country collide; the doc anticipates exactly this and mandates aggregation to the merge grain (doc lines 336-344), not implemented. Additionally the gold merge reads the ENTIRE silver table with no p_from_date filter (line 1062), contradicting the doc's filtered gold merge and making collisions certain across full history on every incremental run.",
-  "status": "In Progress",
+  "status": "Finished",
   "priority": "P1",
   "difficulty": 6,
   "owner": "both",
@@ -45,12 +45,13 @@
     "Recoverable today only because p_from_date defaults to 1900-01-01, making the window the full table so the next successful run rebuilds everything from bronze. That safety net DISAPPEARS when task-029 lands a real high-water-mark: the window narrows, and a mid-operation failure would then delete a date range without re-inserting it — silent partial data loss rather than an obviously-empty table. Sequence this before or alongside task-029.",
     "SAME PATTERN at silver-to-gold2:1285-1290 for fact_procurement (delete on date_key >= window, then append). It has not failed yet but is identical in shape. A partial pipeline success could leave a hollow fact table feeding the report.",
     "Candidate remedies (not yet evaluated): write to a staging table and swap; use Delta MERGE with a synthetic row-identity column so the operation is single-statement and atomic; or replicate the window into a temp table first so a failed append can be rolled forward. Choosing one is a design decision, not a bug fix.",
-    "LIVE BASELINE 2026-07-24 (Claude via Playwright/SQL endpoint, pre-Erik-run): silver_procurement AND fact_procurement each = 132 rows, spend 3,273,776.03, and collision_surplus = 0 on BOTH old merge keys (silver 3-col, gold 4-col) — current demo data is naturally unique on the merge grain. CONFIRMS the synthetic-data caveat: crit 4 CANNOT be exercised by re-running on production data (nothing collides); the deliberate two-same-key-row injection into a dev bronze copy is mandatory. Idempotency (crit 5) baseline + ready-to-paste comparison queries saved to .claude/support/workspace/task-024-procurement-baseline.md (fact checksum excludes the unstable source_row_id)."
+    "LIVE BASELINE 2026-07-24 (Claude via Playwright/SQL endpoint, pre-Erik-run): silver_procurement AND fact_procurement each = 132 rows, spend 3,273,776.03, and collision_surplus = 0 on BOTH old merge keys (silver 3-col, gold 4-col) — current demo data is naturally unique on the merge grain. CONFIRMS the synthetic-data caveat: crit 4 CANNOT be exercised by re-running on production data (nothing collides); the deliberate two-same-key-row injection into a dev bronze copy is mandatory. Idempotency (crit 5) baseline + ready-to-paste comparison queries saved to .claude/support/workspace/task-024-procurement-baseline.md (fact checksum excludes the unstable source_row_id).",
+    "ERIK FABRIC HALF DONE + VERIFIED LIVE 2026-07-26: crit 4 (duplicate-key test) — injected two same-(date,material,supplier) sentinel rows (qty 9991/9992) into bronze, ran bronze-to-silver + silver-to-gold2 standalone: NO Delta 'multiple source rows matched' error; silver_procurement kept all 3 rows for the key (828+9991+9992) and fact_procurement carried both sentinels (sentinels_in_fact=2) — the old MERGE would have crashed/collapsed them. crit 5 — a full pipeline incremental run was idempotent (re-run reproduced identical checksums) AND full-load equivalent (p_full_load=true left sum_spend_eur unchanged at 3273776.03). Cleanup (delete sentinels + re-run the 2 notebooks) restored baseline exactly: silver 132/chk -91720925, fact 132/chk -152995066. All criteria met -> Finished. NB the injection required casting to Quantity's real type (smallint), not the doc's DECIMAL(18,2)."
   ],
   "user_feedback": "",
   "created_date": "2026-07-13",
   "updated_date": "2026-07-22",
-  "completion_date": null,
+  "completion_date": "2026-07-26",
   "verification_attempts": 1,
   "task_verification": {
     "result": "pass",
@@ -112,7 +113,7 @@
     "automated_results": "py_compile passed both notebooks. Idempotency, NULL-date safety, watermark-default full-rewrite, schema-match verified by static analysis. Spark/Delta/Fabric execution = Erik's half.",
     "estimated_time": "20-30 minutes in Fabric"
   },
-  "user_review_pending": true,
+  "user_review_pending": false,
   "out_of_spec": false,
   "absorbed_into": "",
   "interaction_hint": "dashboard"

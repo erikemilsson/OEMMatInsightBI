@@ -45,6 +45,22 @@
 
 # CELL ********************
 
+# EPI vintage parameter (task-042 crit 1). TOGGLE THIS CELL as the notebook's parameter
+# cell (Fabric UI: ⋯ → Toggle parameter cell) so the pipeline can single-source one
+# p_epi_year across every EPI notebook. Keep EPI_YEAR the ONLY assignment here — Fabric
+# injects the override BELOW this cell, and all EPI table-name contracts derive from it
+# in later cells.
+EPI_YEAR = 2024
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
 from pyspark.sql import functions as F, Window as W
 from pyspark.sql.types import (
     StructType, StructField, StringType, DoubleType, DateType,
@@ -61,11 +77,11 @@ import time
 DB = "oem_lh"
 spark.sql(f"USE {DB}")
 
-# EPI vintage — single source for the epi{year}results table names referenced by the
-# row-count, schema, required-field and BLOCKING_CHECKS contracts below (task-042).
-# A stale literal in BLOCKING_CHECKS does NOT error — it silently demotes
-# schema_validation on the EPI table to advisory — so every EPI contract derives here.
-EPI_YEAR = 2024
+# EPI vintage: EPI_YEAR now lives in the dedicated parameter cell at the top of this
+# notebook (task-042 crit 1) so the pipeline can single-source it. The EPI table-name
+# contracts below read it AFTER Fabric's injected override. (A stale literal in
+# BLOCKING_CHECKS would silently demote EPI schema_validation to advisory — keep it
+# parameterized.)
 
 # Pipeline run timestamp (shared across all checks)
 pipeline_run_ts = datetime.now()

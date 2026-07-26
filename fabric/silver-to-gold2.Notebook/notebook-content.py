@@ -39,6 +39,21 @@ p_from_date = "1900-01-01"
 
 # CELL ********************
 
+# EPI vintage parameter (task-042 crit 1). TOGGLE THIS CELL as the notebook's parameter
+# cell (Fabric UI: ⋯ → Toggle parameter cell) so the pipeline can single-source one
+# p_epi_year across every EPI notebook. Keep EPI_YEAR the ONLY assignment here — Fabric
+# injects the override BELOW this cell, so table names derived from it live in later cells.
+EPI_YEAR = 2024
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
 from pyspark.sql import functions as F, Window as W
 from pyspark.sql.types import IntegerType, StringType, FloatType, DateType, StructType, StructField, DoubleType, LongType
 import logging
@@ -49,11 +64,10 @@ DB = "oem_lh"  # Lakehouse database/schema
 LOG_UNMAPPED = True  # Enable logging of unmapped values
 FAIL_ON_UNMAPPED = False  # Whether to fail pipeline on unmapped values
 
-# EPI vintage (task-028). ONE constant drives both the silver table this notebook
-# reads and the `year` literal stamped onto fact_epi_score, so a future-year pull
-# can never land 2025 scores under year=2024. Must track p_epi_year in
+# EPI vintage: EPI_YEAR now lives in the dedicated parameter cell at the top of this
+# notebook (task-042 crit 1) so the pipeline can single-source it; this derivation reads
+# it AFTER Fabric's injected override, so it tracks the passed vintage. Keep in sync with
 # bronze_ingest_epi.Notebook, which derives bronze_epi{year}results the same way.
-EPI_YEAR = 2024
 EPI_SILVER_TBL = f"silver_epi{EPI_YEAR}results"
 
 # Initialize logging
