@@ -37,6 +37,18 @@
 # # **Usage:** This notebook can be run standalone to create/inspect the log table,
 # or its functions can be referenced from other notebooks via `%run`.
 
+
+# PARAMETERS CELL ********************
+
+p_run_id = ""
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 from pyspark.sql import functions as F
