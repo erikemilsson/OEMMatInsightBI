@@ -34,7 +34,7 @@
 # # Attribution: Environmental Performance Index 2024,
 # Yale Center for Environmental Law & Policy, https://epi.yale.edu/
 
-# CELL ********************
+# PARAMETERS CELL ********************
 
 # Pipeline parameters — overridden by Fabric pipeline at runtime
 p_epi_year = "2024"

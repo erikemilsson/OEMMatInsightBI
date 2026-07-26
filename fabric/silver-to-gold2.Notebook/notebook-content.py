@@ -20,7 +20,7 @@
 # META   }
 # META }
 
-# PARAMETERS CELL ********************
+# CELL ********************
 
 # Pipeline parameters — overridden by orchestrator pipeline when invoked
 p_full_load = "false"
@@ -37,7 +37,7 @@ p_from_date = "1900-01-01"
 
 # ## Setup and Conventions
 
-# CELL ********************
+# PARAMETERS CELL ********************
 
 # EPI vintage parameter (task-042 crit 1). TOGGLE THIS CELL as the notebook's parameter
 # cell (Fabric UI: ⋯ → Toggle parameter cell) so the pipeline can single-source one

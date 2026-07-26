@@ -43,7 +43,8 @@
 # | 50-69   | Poor      | Log error, flag for review |
 # | 0-49    | Critical  | Log error, halt advisory |
 
-# CELL ********************
+
+# PARAMETERS CELL ********************
 
 # EPI vintage parameter (task-042 crit 1). TOGGLE THIS CELL as the notebook's parameter
 # cell (Fabric UI: ⋯ → Toggle parameter cell) so the pipeline can single-source one
