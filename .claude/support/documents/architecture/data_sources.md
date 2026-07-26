@@ -33,9 +33,11 @@ This project integrates data from 4 primary sources: 1 transactional database + 
   - `ProductionCountry` (NVARCHAR(100)) - Production location
   - `Region` (NVARCHAR(100)) - Geographic region
 
-**Ingestion:** Dataflow `bronze_azureSQLdb2table.Dataflow`
+**Ingestion:** Dataflow `bronze_azureSQLdb2table.Dataflow` (pipeline activity `bronze_procurement`)
 **Frequency:** (TBD - currently manual/on-demand)
-**Load Type:** Full refresh (incremental planned in Task 06)
+**Load Type:** Full refresh at bronze. **Incremental starts at silver** — `silver_procurement`
+and `fact_procurement` load via delete-insert over a 7-day look-back window driven by
+`p_full_load` / `p_from_date`. See `incremental_load_strategy.md § 3`.
 
 **Setup Scripts:** (in `/azure` folder)
 - `user_creation.sql` - Database user setup
@@ -46,9 +48,10 @@ This project integrates data from 4 primary sources: 1 transactional database + 
 ## 2. Environmental Performance Index (EPI)
 
 **Source:** Yale Center for Environmental Law & Policy
-**Format:** CSV file
-**Year:** 2024
-**URL:** (TBD - currently manual file upload)
+**Format:** CSV downloaded over HTTPS (no manual upload)
+**Year:** Whatever `p_epi_year` names — `"2024"` today
+**URL:** `https://epi.yale.edu/downloads/epi{p_epi_year}results.csv`
+**License:** CC BY-NC-SA 4.0 (non-commercial use only)
 
 ### Content
 
@@ -63,53 +66,76 @@ This project integrates data from 4 primary sources: 1 transactional database + 
 - `EPI` (DOUBLE) - Overall EPI score
 - ~30+ indicator columns (air quality, biodiversity, climate change, etc.)
 
-**Ingestion:** Dataflow `EPI_file2table.Dataflow`
-**Frequency:** Annual (typically Q2-Q3 each year)
-**Load Type:** Full replacement (annual snapshot)
-**Current Table:** `bronze_epi2024results`
+**Ingestion:** `bronze_ingest_epi.Notebook` (PySpark; pipeline activity `bronze_EPI`).
+Supersedes the retired `EPI_file2table.Dataflow` manual-upload lineage.
+**Frequency:** Annual (Yale typically publishes in June)
+**Load Type:** Full replacement (annual snapshot, `mode("overwrite")`)
+**Current Table:** `bronze_epi{p_epi_year}results` — e.g. `bronze_epi2024results`
+
+The download URL and the target table name are derived from the **same** `p_epi_year`
+parameter, so each vintage lands in its own table. Decoupling them was a real bug: the URL
+was parameterised while the table name was hardcoded, so a 2025 run would have written
+2025 numbers into `bronze_epi2024results`. A non-4-digit `p_epi_year` raises, and a 404
+raises with the year echoed back.
 
 **Transformation:**
 - Bronze: Wide format (one row per country, 30+ columns)
-- Silver: Cleaned (drop .old columns, cast types)
-- Gold: Pivoted to long format (one row per country × indicator)
+- Silver: Cleaned (drop .old columns, cast types) → `silver_epi{year}results`
+- Gold: Pivoted to long format (one row per country × indicator) → `fact_epi_score`
 
-**Update Schedule:** Manually update when new EPI release published
-**Automation:** Task 05 - Investigate automated ingestion
+**Update Schedule:** Pass the new year as `p_epi_year` when the release lands
+**Automation:** ✅ Automated (notebook in the pipeline)
 
 ## 3. World Governance Indicators (WGI)
 
 **Source:** World Bank
-**Format:** CSV files (2 files: data + metadata)
-**Year:** 2020 (filtered during transformation)
-**URL:** (TBD - currently manual file upload)
+**Format:** JSON over HTTPS — **World Bank API v2**, paginated
+**Year:** All years in the requested range (no year filter is applied)
+**URL:** `https://api.worldbank.org/v2/country/all/indicator/{code}`
 
 ### Content
 
 **Purpose:** Country-level governance quality metrics
-**Grain:** One row per country × indicator × year
+**Grain:** One row per country × indicator × year (**long format as delivered**)
 **Countries:** ~200+ countries
-**Indicators:** 6 governance dimensions
+**Indicators:** 6 governance dimensions, all `*.EST` estimate series — `CC.EST`, `GE.EST`,
+`PV.EST`, `RL.EST`, `RQ.EST`, `VA.EST`
 
 **Key Fields:**
 - `Country Name` (STRING) - Full country name
-- `Country Code` (STRING) - ISO country code
-- `Indicator Name` (STRING) - Name of governance indicator
-- `Indicator Code` (STRING) - Coded identifier
-- `Topic` (STRING) - Governance dimension (from ESGSeries metadata)
-- `y_[YEAR]` columns (DOUBLE) - Score values by year
-- `Score` (DOUBLE) - Unpivoted score (after transformation)
+- `Country Code` (STRING) - ISO3 country code
+- `Series Name` (STRING) - Name of governance indicator, e.g. "Control of Corruption: Estimate"
+- `Indicator Code` (STRING) - Coded identifier, e.g. `CC.EST`
+- `Year` (STRING) - Observation year; cast to INT in silver
+- `Value` (DOUBLE) - Governance **estimate**, roughly −2.5 … +2.5
 
-**Ingestion:** Dataflow `WGI_file2table.Dataflow`
+**Ingestion:** `bronze_ingest_wgi.Notebook` (PySpark; pipeline activity `bronze_WGI`).
+Supersedes the retired `WGI_file2table.Dataflow` CSV lineage.
 **Frequency:** Annual (typically Q3-Q4)
-**Load Type:** Full replacement
-**Current Tables:** `bronze_WB_ESGCSV`, `bronze_WB_ESGSeries`
+**Load Type:** Full replacement (`mode("overwrite")` — WGI is a full snapshot refresh)
+**Current Table:** `bronze_WGI`
+
+The World Bank re-coded WGI in the API: the classic `CC.EST` / `GE.EST` / … codes were
+archived to source 57 and now return "indicator not found"; the live estimate series are
+`GOV_WGI_*.EST` under source 3. The notebook **fetches with the new codes but stores the
+classic short code and series name**, so the `Indicator Code` / `Series Name` contract is
+unchanged for every downstream layer.
 
 **Transformation:**
-- Bronze: Wide format (year columns y_2000, y_2001, ...)
-- Silver: Unpivoted to long format, filtered to year 2020
-- Gold: Joined with EPI data via country_key
+- Bronze: Long format already — nothing is unpivoted
+- Silver: Standardize ISO3, cast `Year`/`Value`, drop null-valued observations,
+  deduplicate to grain (country_iso3 × indicator_code × year) → `silver_wgi`
+- Gold: Feeds the governance-coverage flags in `gold_data_gaps` (a country counts as
+  governance-covered only when all **six** indicators are present)
 
-**Automation:** Task 05 - Investigate World Bank API integration
+> ⚠️ **Retired lineage.** `bronze_WB_ESGCSV` and `bronze_WB_ESGSeries` — the wide extract
+> with `y_2000 … y_2023` year columns plus a separate `Topic` metadata table, filtered to
+> 2020, written to `silver_WB` — no longer exist. The retired dataflow emitted 2023
+> **percentile ranks (0-100)**, which are not interchangeable with the API's estimates, so
+> `bronze-to-silver` **hard-fails** if `bronze_WGI` is missing `Indicator Code` / `Year` /
+> `Value` rather than silently falling back.
+
+**Automation:** ✅ Automated (notebook in the pipeline)
 
 ## 4. EU Critical Raw Materials - Global Supply Shares
 
@@ -131,14 +157,24 @@ This project integrates data from 4 primary sources: 1 transactional database + 
 - `Country` (STRING) - Supplier country
 - `Share` (STRING) - Supply percentage (e.g., "45%", "<1%")
 
-**Ingestion:** Copy activity `bronzecopy_EUSupplyShares` (in pipeline)
-**Frequency:** (TBD - currently on-demand)
-**Load Type:** Full replacement
-**Current Table:** `bronze_GlobalSupplyShares`
+**Ingestion:** **two** Copy activities, one per scope — they are separate sources, not one:
 
-**Transformation:**
-- Bronze: String share values with % symbols
-- Silver: Clean headers, drop unused column
+| Copy activity | Target table | Consumed downstream? |
+|---|---|---|
+| `bronzecopy_GlobalSupplyShares` | `bronze_GlobalSupplyShares` | ✅ Yes — `bronze-to-silver` builds `silver_globalsupplyshares` from it |
+| `bronzecopy_EUSupplyShares` | `bronze_EUSupplyShares` | ❌ No consumer yet |
+
+**Frequency:** (TBD - currently on-demand)
+**Load Type:** Full replacement (`OverwriteSchema` table action)
+
+> ⚠️ `bronze_EUSupplyShares` is landed on every pipeline run but **nothing reads it** — no
+> notebook in `fabric/` and nothing in `src/` references it. Either a silver transformation
+> is missing or the copy activity is dead weight; resolve before building against it.
+
+**Transformation** (global file only):
+- Bronze: String share values with % symbols; a `t` column carrying the source's trade
+  parameter
+- Silver: Clean headers, drop the `t` column
 - Gold: Convert "<1%" to 0.5%, cast to numeric, assign year=2023
 
 **Automation:** ✅ Already automated (HTTP source in pipeline)
@@ -147,15 +183,15 @@ This project integrates data from 4 primary sources: 1 transactional database + 
 
 ### Source → Bronze
 ```
-Azure SQL ──────────────> bronze_procurement_transactional
-                         bronze_supplier_ref
+Azure SQL ──────────────> bronze_procurement_transactional      (dataflow)
+                          bronze_supplier_ref
 
-EPI CSV ───────────────> bronze_epi2024results
+Yale EPI HTTPS ────────> bronze_epi{year}results                (notebook)
 
-WGI CSV ───────────────> bronze_WB_ESGCSV
-                         bronze_WB_ESGSeries
+World Bank API v2 ─────> bronze_WGI                             (notebook)
 
-EU CRM HTTP ───────────> bronze_GlobalSupplyShares
+EU CRM HTTP ───────────> bronze_GlobalSupplyShares              (copy activity)
+                          bronze_EUSupplyShares                  (copy activity)
 ```
 
 ### Update Frequencies
@@ -163,8 +199,8 @@ EU CRM HTTP ───────────> bronze_GlobalSupplyShares
 | Source | Frequency | Last Update | Next Update |
 |--------|-----------|-------------|-------------|
 | Azure SQL | Daily (planned) | Manual | Implement scheduling |
-| EPI | Annual | 2024 | Q2-Q3 2025 |
-| WGI | Annual | 2020 | Q3-Q4 2024 |
+| EPI | Annual | 2024 vintage (`p_epi_year`) | Pass the new year when Yale publishes |
+| WGI | Annual | Full series from the API each run | Automatic — no vintage to bump |
 | EU CRM | Annual | 2023 | Unknown |
 
 ## Data Quality by Source
@@ -185,7 +221,11 @@ EU CRM HTTP ───────────> bronze_GlobalSupplyShares
 - **Reliability:** High (World Bank official data)
 - **Completeness:** High (~200 countries)
 - **Consistency:** Medium (methodology changes over time)
-- **Issues:** Requires unpivoting, year filtering
+- **Issues:** The API returns a row for every year in the requested range whether or not
+  an observation exists, so null-valued rows must be dropped in silver (WGI was biennial
+  1996–2000). The World Bank also re-coded the indicator series, which the ingest notebook
+  absorbs. **No range validation is applied** — values are estimates (≈ −2.5 … +2.5), not
+  the retired extract's 0-100 percentile ranks.
 
 ### EU CRM
 - **Reliability:** High (EU Commission official data)
@@ -200,10 +240,25 @@ EU CRM HTTP ───────────> bronze_GlobalSupplyShares
 - Verify authentication credentials in dataflow
 - Test connection in dataflow editor
 
-### EPI/WGI File Not Found
-- Verify CSV files uploaded to workspace Files section
-- Check dataflow source configuration
-- Ensure file paths and names match exactly
+### EPI download fails
+- A 404 means Yale has no file for that `p_epi_year`, or changed the URL pattern — the
+  notebook raises with the attempted URL echoed back
+- Other HTTP errors retry 3× before failing
+- Check `p_epi_year` is a 4-digit year (a malformed value raises before any download)
+
+### WGI fetch returns no data / fewer than 6 indicators
+- `bronze_ingest_wgi` raises outright if zero records come back — check network access to
+  `api.worldbank.org` from the Fabric capacity
+- `bronze-to-silver` warns when `silver_wgi` carries fewer than 6 distinct indicators;
+  the gold coverage rule requires all six, so WGI coverage reads 0 when one is missing.
+  Check the ingest fetch log for an indicator that 404'd (the World Bank archives series
+  periodically — see the code-mapping note in § 3)
+
+### `bronze-to-silver` fails with "bronze_WGI is missing ['Indicator Code', 'Year', 'Value']"
+- `bronze_WGI` is being written by the retired `WGI_file2table.Dataflow` rather than by
+  `bronze_ingest_wgi.Notebook`. The error message carries the fix. Running the notebook by
+  hand unblocks one run, but the next pipeline run overwrites bronze from the dataflow
+  again — the pipeline activity itself must point at the notebook
 
 ### EU CRM HTTP Error
 - Check GitHub URL is accessible
@@ -218,8 +273,13 @@ EU CRM HTTP ───────────> bronze_GlobalSupplyShares
 ## Related Files
 
 - `/azure/` - Azure SQL setup scripts
-- `/fabric/bronze_azureSQLdb2table.Dataflow/` - SQL ingestion
-- `/fabric/EPI_file2table.Dataflow/` - EPI ingestion
-- `/fabric/WGI_file2table.Dataflow/` - WGI ingestion
-- `/.claude/tasks/05_automate_external_data_ingestion.md` - Automation task
+- `/fabric/bronze_azureSQLdb2table.Dataflow/` - SQL ingestion (live)
+- `/fabric/bronze_ingest_epi.Notebook/` - EPI ingestion (live)
+- `/fabric/bronze_ingest_wgi.Notebook/` - WGI ingestion (live)
+- `/fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/` - Orchestration + the two supply-share copy activities
+- `/.claude/support/documents/schemas/bronze_tables.md` - Bronze table schemas
 - `/project_definition.md` - Lines 126-319 (Data Sources section)
+
+**Retired** (artifacts still on disk, no longer in the pipeline):
+- `/fabric/EPI_file2table.Dataflow/` — superseded by `bronze_ingest_epi.Notebook`
+- `/fabric/WGI_file2table.Dataflow/` — superseded by `bronze_ingest_wgi.Notebook`

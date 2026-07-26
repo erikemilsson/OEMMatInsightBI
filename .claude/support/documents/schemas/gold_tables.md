@@ -161,9 +161,15 @@ kg/g/mg/t.
 | `gold_data_gaps_summary` | Coverage rollup for KPI cards |
 | `gold_country_coverage_matrix` | Country presence across all source datasets |
 | `gold_data_quality_metrics` / `gold_data_quality_dashboard` | Quality metric rollups |
-| `gold_dim_country_lookup` / `gold_dim_material_lookup` | Alias-aware join surfaces |
+| `gold_dim_country_lookup` / `gold_dim_material_lookup` | Alias-aware join surfaces (see `transformations/alias_mappings.md`) |
 | `mapping_country_aliases_confidence` / `mapping_material_aliases_confidence` | Alias tables with confidence scores |
+| `gold_low_confidence_audit` | One row per fuzzy match below 0.95 confidence, pre-aggregated with `frequency` + `spend_impact`. Point-in-time snapshot, truncated to 0 rows when clean |
+| `gold_quality_history` | Append-only quality metrics per run |
+| `gold_gap_registry` | One row per distinct unmapped value, with lifecycle fields |
 
-> `gold_quality_history` and `gold_gap_registry` are written by
-> `data_quality_checks.Notebook`, not by `silver-to-gold2` — see
-> `data_quality_architecture.md`.
+> **Who writes the observability tables.** `silver-to-gold2` creates *and* populates all
+> three (`populate_quality_history()`, `populate_gap_registry()`,
+> `populate_low_confidence_audit()`). `data_quality_checks.Notebook` **also** appends
+> per-check rows to `gold_quality_history` — that is why the table carries a `producer`
+> column — but it does **not** write `gold_gap_registry`. (An earlier version of this note
+> had the ownership backwards.) See `data_quality_architecture.md` for the full schemas.

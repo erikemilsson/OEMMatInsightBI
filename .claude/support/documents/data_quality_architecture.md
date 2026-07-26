@@ -83,17 +83,15 @@ flowchart LR
     Q6 --> R2
 
     %% Styling - Implemented (green)
+    style Q2 fill:#d4edda,stroke:#155724,stroke-width:2px
     style Q3 fill:#d4edda,stroke:#155724,stroke-width:2px
+    style Q3b fill:#d4edda,stroke:#155724,stroke-width:2px
     style Q4 fill:#d4edda,stroke:#155724,stroke-width:2px
-
-    %% Styling - Partial (light green)
-    style Q2 fill:#c3e6cb,stroke:#155724,stroke-width:2px,stroke-dasharray:5
+    style Q5 fill:#d4edda,stroke:#155724,stroke-width:2px
+    style Q6 fill:#d4edda,stroke:#155724,stroke-width:2px
 
     %% Styling - Planned (yellow, dashed)
     style Q1 fill:#fff3cd,stroke:#856404,stroke-width:2px,stroke-dasharray:5
-    style Q3b fill:#fff3cd,stroke:#856404,stroke-width:2px,stroke-dasharray:5
-    style Q5 fill:#fff3cd,stroke:#856404,stroke-width:2px,stroke-dasharray:5
-    style Q6 fill:#fff3cd,stroke:#856404,stroke-width:2px,stroke-dasharray:5
     style R2 fill:#fff3cd,stroke:#856404,stroke-width:2px,stroke-dasharray:5
 ```
 
@@ -103,9 +101,17 @@ flowchart LR
 
 | Color | Border | Status | Components |
 |-------|--------|--------|------------|
-| Green (#d4edda) | Solid | **IMPLEMENTED** | Quality Scoring [3], Coverage Tracking [4] |
-| Light Green (#c3e6cb) | Dashed | **PARTIAL** | Orphan Tables [2] - exists but missing lifecycle fields |
-| Yellow (#fff3cd) | Dashed | **PLANNED** | Join Metrics [1], Low Conf Audit [3b], History [5], Registry [6] |
+| Green (#d4edda) | Solid | **IMPLEMENTED** | Orphan Tables [2], Quality Scoring [3], Low Conf Audit [3b], Coverage Tracking [4], Quality History [5], Gap Registry [6] |
+| Yellow (#fff3cd) | Dashed | **PLANNED** | Join Metrics [1], DQ Dashboard report |
+
+> **Status sweep 2026-07-26 (task-033).** [3b], [5] and [6] were still marked PLANNED
+> although all three are created and written on every pipeline run by
+> `silver-to-gold2.Notebook` (`gold_low_confidence_audit`, `gold_quality_history`,
+> `gold_gap_registry`); `gold_quality_history` additionally receives per-check rows from
+> `data_quality_checks.Notebook`. [2] was marked PARTIAL for "missing lifecycle fields" —
+> those fields are not missing, they live on `gold_gap_registry` by design (see [2]
+> below). Only [1] Silver Join Metrics is genuinely unbuilt: `gold_join_metrics` does not
+> exist anywhere in `fabric/` or `src/`.
 
 ---
 
@@ -207,9 +213,10 @@ END
 
 | Attribute | Value |
 |-----------|-------|
-| **Status** | PLANNED |
+| **Status** | IMPLEMENTED |
 | **Layer** | Gold |
 | **Purpose** | Capture matches below 0.95 confidence for review |
+| **Written by** | `silver-to-gold2.Notebook` — `populate_low_confidence_audit()` |
 
 **Rationale:** The alias system may auto-match values like "Singpaore" → "Singapore" with 0.85 confidence. These matches are "good enough" but should be surfaced for verification.
 
@@ -227,6 +234,15 @@ gold_low_confidence_audit
 ```
 
 **Business Value:** Surface "fuzzy matches" that might be incorrect, separate from truly unmapped values.
+
+**Load semantics:** point-in-time snapshot — `mode("overwrite")` with `overwriteSchema`,
+executed **unconditionally**. A run that finds no fuzzy matches truncates the table to
+zero rows rather than leaving the previous run's rows in place (task-027; the table is in
+the DirectLake semantic model, so stale rows would keep reporting remediated matches).
+`frequency` and `spend_impact` *are* stored columns here — unlike
+`gold_unmapped_procurement_audit`, this table is pre-aggregated by
+`(source_value, matched_to, confidence)`. `spend_impact` is NULL for the `supply_share`
+entity, which has no spend.
 
 ---
 
@@ -268,9 +284,10 @@ gold_data_gaps_summary
 
 | Attribute | Value |
 |-----------|-------|
-| **Status** | PLANNED |
+| **Status** | IMPLEMENTED |
 | **Layer** | Observability |
 | **Purpose** | Append-only storage of quality metrics per pipeline run |
+| **Written by** | **Both** `silver-to-gold2.Notebook` (coverage/match metrics) and `data_quality_checks.Notebook` (per-check results). The `producer` column is what tells the two apart — without it, `COUNT(DISTINCT refresh_timestamp)` over the whole table double-counts runs. |
 
 **Schema:**
 ```sql
@@ -301,9 +318,10 @@ gold_quality_history
 
 | Attribute | Value |
 |-----------|-------|
-| **Status** | PLANNED |
+| **Status** | IMPLEMENTED |
 | **Layer** | Observability |
 | **Purpose** | SCD tracking of unmapped values with lifecycle management |
+| **Written by** | `silver-to-gold2.Notebook` — `populate_gap_registry()` (this table is **not** written by `data_quality_checks.Notebook`) |
 
 **Schema:**
 ```sql
@@ -337,15 +355,15 @@ gold_gap_registry
 
 ---
 
-## Implementation Priority
+## Implementation Status
 
-| Priority | Component | Effort | Why |
-|----------|-----------|--------|-----|
-| **1** | [6] Gap Registry | Medium | Track gap lifecycle, answer "how long has this been broken?" |
-| **2** | [5] Quality History | Medium | Enable trend analysis and regression detection |
-| **3** | [3b] Low Confidence Audit | Low | Surface fuzzy matches for verification |
-| **4** | [2] Enhance Orphan Tables | Low | Add first_seen, last_seen, status to existing tables |
-| **5** | [1] Silver Join Metrics | Medium | Monitor join health |
+| Component | Status | Notes |
+|-----------|--------|-------|
+| [6] Gap Registry | ✅ Built | `populate_gap_registry()` in `silver-to-gold2` |
+| [5] Quality History | ✅ Built | Appended by `silver-to-gold2` **and** `data_quality_checks`; `status` is the field the blocking gate reads |
+| [3b] Low Confidence Audit | ✅ Built | `populate_low_confidence_audit()` in `silver-to-gold2` |
+| [2] Orphan Tables | ✅ Built | Lifecycle fields live on [6] by design — not a gap |
+| [1] Silver Join Metrics | 📋 Not built | Only remaining item. `gold_join_metrics` exists nowhere in `fabric/` or `src/`; joins run but match rates are never captured |
 
 ---
 
@@ -404,12 +422,14 @@ CREATE TABLE gold_low_confidence_audit (
 ## Related Files
 
 **Existing Implementation:**
-- `/fabric/silver-to-gold2.Notebook` - Quality scoring logic
+- `/fabric/silver-to-gold2.Notebook` - Quality scoring; creates and populates [2], [3], [3b], [4], [5], [6]
+- `/fabric/data_quality_checks.Notebook` - Per-check results into [5]; owns the blocking gate
 - `/fabric/create_quality_views.sql` - 8 monitoring views
-- `/src/transformations/data_quality.py` - Quality functions
+- `/src/transformations/data_quality.py` - Quality functions (tested mirror of the notebook logic)
 
 **Design Documents:**
 - `/.claude/support/documents/data_coverage_flow.md` - Coverage dashboard
+- `/.claude/support/documents/data_quality_framework.md` - Check catalogue, scoring, and the blocking gate
 
 **Tasks:**
 - Task 001 - Enhance Data Quality Visibility
@@ -417,4 +437,4 @@ CREATE TABLE gold_low_confidence_audit (
 
 ---
 
-*Last Updated: 2026-01-19*
+*Last Updated: 2026-07-26 (task-033 documentation drift sweep)*

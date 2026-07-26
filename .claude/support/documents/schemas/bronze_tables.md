@@ -30,8 +30,8 @@ ProductionCountry           STRING (NVARCHAR(100))
 Region                      STRING (NVARCHAR(100))
 ```
 
-## bronze_epi2024results
-Source: EPI CSV file
+## bronze_epi{year}results
+Source: EPI CSV, downloaded by `bronze_ingest_epi.Notebook`
 Grain: One row per country (wide format)
 ```
 code                        INTEGER
@@ -41,33 +41,57 @@ EPI                         DOUBLE
 [30+ indicator columns]     DOUBLE (e.g., AIR, BIO, CLI, etc.)
 ```
 
-## bronze_WB_ESGCSV
-Source: WGI CSV file
-Grain: One row per country × indicator (wide format with year columns)
+The table name carries the vintage — `bronze_epi2024results` for `p_epi_year = "2024"`.
+The year comes from the pipeline parameter `p_epi_year`, so a new vintage lands in its own
+table rather than overwriting the previous one.
+
+## bronze_WGI
+Source: **World Bank API v2** (`https://api.worldbank.org/v2`), ingested by
+`bronze_ingest_wgi.Notebook` (pipeline activity `bronze_WGI`)
+Grain: One row per country × indicator × year (**long format**)
 ```
 Country Name                STRING
 Country Code                STRING (ISO3)
-Indicator Name              STRING
-Indicator Code              STRING
-y_2000, y_2001, ..., y_2023 DOUBLE (year columns)
+Series Name                 STRING  -- e.g. "Control of Corruption: Estimate"
+Indicator Code              STRING  -- e.g. "CC.EST"
+Year                        STRING  -- cast to INT in silver
+Value                       DOUBLE  -- governance ESTIMATE, roughly -2.5 … +2.5
 ```
 
-## bronze_WB_ESGSeries
-Source: WGI metadata CSV
-Grain: One row per indicator
-```
-Indicator Code              STRING
-Topic                       STRING
-Indicator Name              STRING
-```
+**Six indicators**, all `*.EST` estimate series: `CC.EST`, `GE.EST`, `PV.EST`, `RL.EST`,
+`RQ.EST`, `VA.EST`. The notebook fetches the World Bank's current API codes
+(`GOV_WGI_*.EST`, source 3) but **stores the classic short code and series name**, so the
+`Indicator Code` / `Series Name` contract is stable for every downstream layer even though
+the API re-coded the series.
+
+Write mode is `overwrite` with `overwriteSchema` — WGI is a full snapshot refresh.
+
+> **Retired lineage.** `bronze_WB_ESGCSV` and `bronze_WB_ESGSeries` — the wide Excel/CSV
+> extract with `y_2000 … y_2023` year columns and a separate metadata table, produced by
+> `WGI_file2table.Dataflow` — are **retired and no longer exist**. That dataflow emitted a
+> different and incompatible shape: four columns (`Country Name`, `Country Code`,
+> `Series Name`, `Percentile Rank 2023`) holding 2023 **percentile ranks (0–100)**, not
+> estimates. `bronze-to-silver` therefore **hard-fails** with an actionable message if
+> `bronze_WGI` is missing `Indicator Code` / `Year` / `Value`, rather than falling back —
+> a percentile rank landing in `value` under the same column name would silently change
+> what `WGIᶜ` means in the DEC-001 supply-risk formula.
 
 ## bronze_GlobalSupplyShares
-Source: EU CRM GitHub CSV (HTTP)
+Source: EU CRM CSV over HTTP — Copy activity `bronzecopy_GlobalSupplyShares`
 Grain: One row per material × stage × country
 ```
 Material                    STRING
 Stage                       STRING ("E" or "P")
 Country                     STRING
 Share                       STRING (percentage with % symbol)
-t                           STRING (unused, dropped in silver)
+t                           STRING (the source's trade parameter; dropped in silver)
 ```
+
+## bronze_EUSupplyShares
+Source: EU CRM CSV over HTTP — Copy activity `bronzecopy_EUSupplyShares`
+Grain: One row per material × stage × country (EU-scope companion to the global file)
+
+**Ingested but not yet consumed.** The pipeline lands this table on every run, but no
+notebook reads it — `bronze-to-silver` builds `silver_globalsupplyshares` from
+`bronze_GlobalSupplyShares` only. Columns are not documented here because no
+transformation has pinned them; check the live table before building against it.

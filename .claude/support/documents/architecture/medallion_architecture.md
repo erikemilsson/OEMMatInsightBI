@@ -10,8 +10,8 @@ The project implements a **medallion architecture** (bronze → silver → gold)
 ┌─────────────────────┐
 │   Source Systems    │
 │  - Azure SQL DB     │
-│  - EPI CSV Files    │
-│  - WGI CSV Files    │
+│  - EPI CSV (HTTP)   │
+│  - World Bank API   │
 │  - EU CRM HTTP      │
 └──────────┬──────────┘
            │
@@ -26,11 +26,11 @@ The project implements a **medallion architecture** (bronze → silver → gold)
 │ - bronze_           │
 │   supplier_ref      │
 │ - bronze_           │
-│   epi2024results    │
-│ - bronze_WB_ESGCSV  │
-│ - bronze_WB_        │
-│   ESGSeries         │
+│   epi{year}results  │
+│ - bronze_WGI        │
 │ - bronze_Global     │
+│   SupplyShares      │
+│ - bronze_EU         │
 │   SupplyShares      │
 └──────────┬──────────┘
            │
@@ -44,8 +44,8 @@ The project implements a **medallion architecture** (bronze → silver → gold)
 │ - silver_           │
 │   procurement       │
 │ - silver_           │
-│   epi2024results    │
-│ - silver_WB         │
+│   epi{year}results  │
+│ - silver_wgi        │
 │ - silver_global     │
 │   supplyshares      │
 └──────────┬──────────┘
@@ -74,17 +74,18 @@ The project implements a **medallion architecture** (bronze → silver → gold)
            │
            ▼
 ┌─────────────────────┐
-│   WAREHOUSE SYNC    │
-│  (SQL Interface)    │
+│ DATA QUALITY CHECKS │
+│ (blocking gate)     │
 │                     │
-│ oem_wh warehouse    │
-│ (mirrors gold)      │
+│ data_quality_checks │
+│ .Notebook           │
 └──────────┬──────────┘
            │
            ▼
 ┌─────────────────────┐
 │  SEMANTIC MODEL     │
-│  (DirectLake)       │
+│  (DirectLake on     │
+│   oem_lh lakehouse) │
 └──────────┬──────────┘
            │
            ▼
@@ -93,6 +94,13 @@ The project implements a **medallion architecture** (bronze → silver → gold)
 │  (Visualizations)   │
 └─────────────────────┘
 ```
+
+> **There is no Warehouse Sync stage.** This diagram used to place an `oem_wh`
+> warehouse mirror between gold and the semantic model. The `oem_wh.Warehouse` artifact
+> does exist in `fabric/` (table DDL only), but **no pipeline activity populates it** and
+> the semantic model reads DirectLake directly off the `oem_lh` lakehouse
+> (`expressions.tmdl`: `expression 'DirectLake - oem_lh'`). If a SQL-interface mirror is
+> ever wanted it needs its own task; until then it is not part of the flow.
 
 ## Layer Definitions
 
@@ -110,15 +118,24 @@ The project implements a **medallion architecture** (bronze → silver → gold)
 **Data Format:** Delta Lake (Parquet + transaction log)
 
 **Tables:**
-- `bronze_procurement_transactional` - Procurement transactions
-- `bronze_supplier_ref` - Supplier reference data
-- `bronze_epi2024results` - Environmental Performance Index
-- `bronze_WB_ESGCSV` - World Bank WGI data
-- `bronze_WB_ESGSeries` - WGI metadata
-- `bronze_GlobalSupplyShares` - EU CRM supply concentration
+
+| Table | Contents | Ingested by |
+|---|---|---|
+| `bronze_procurement_transactional` | Procurement transactions | `bronze_azureSQLdb2table.Dataflow` (pipeline activity `bronze_procurement`) |
+| `bronze_supplier_ref` | Supplier reference data | same dataflow |
+| `bronze_epi{year}results` | Environmental Performance Index (e.g. `bronze_epi2024results`) | `bronze_ingest_epi.Notebook`, parameterised on `p_epi_year` |
+| `bronze_WGI` | World Bank governance indicators, long format | `bronze_ingest_wgi.Notebook` (World Bank API v2) |
+| `bronze_GlobalSupplyShares` | Global supply concentration | Copy activity `bronzecopy_GlobalSupplyShares` (HTTP) |
+| `bronze_EUSupplyShares` | EU supply concentration | Copy activity `bronzecopy_EUSupplyShares` (HTTP) |
+
+> **Retired lineage.** `bronze_WB_ESGCSV`, `bronze_WB_ESGSeries` and the
+> `WGI_file2table.Dataflow` that produced them are retired; those tables no longer exist
+> and nothing downstream reads them. WGI now arrives from the World Bank API as
+> `bronze_WGI`. See `schemas/bronze_tables.md` for the shape.
 
 **Ingestion Methods:**
-- Dataflows (Azure SQL, file uploads)
+- Dataflow (Azure SQL)
+- Notebooks (World Bank API, EPI download)
 - Copy activities (HTTP sources)
 
 **Commands:** `/run-bronze`
@@ -153,7 +170,8 @@ The project implements a **medallion architecture** (bronze → silver → gold)
 
 **Tables:**
 - `silver_procurement` - Cleaned procurement with supplier info
-- `silver_epi2024results` - Cleaned EPI data
+- `silver_epi{year}results` - Cleaned EPI data (e.g. `silver_epi2024results`; the vintage
+  follows the `p_epi_year` pipeline parameter)
 - `silver_wgi` - Governance indicators, grain (country_iso3, indicator_name, year),
   columns `country_iso3`, `country_name`, `indicator_name`, `indicator_code`,
   `year`, `value`
@@ -195,8 +213,15 @@ The project implements a **medallion architecture** (bronze → silver → gold)
 - `gold_dim_material_lookup` - Material alias mappings
 - `gold_unmapped_procurement_audit` - Unmapped procurement values
 - `gold_unmapped_supply_audit` - Unmapped supply values
+- `gold_unmapped_unit_audit` - Units outside the kg conversion map
 - `gold_data_quality_metrics` - Quality summary statistics
 - `gold_country_coverage_matrix` - Country presence across sources
+- `gold_data_gaps` / `gold_data_gaps_summary` - EPI/WGI coverage per country
+
+**Observability Tables** (also written by this notebook — see `data_quality_architecture.md`):
+- `gold_quality_history` - Append-only quality metrics per run
+- `gold_gap_registry` - Lifecycle tracking of distinct unmapped values
+- `gold_low_confidence_audit` - Matches that succeeded below 0.95 confidence
 
 **Notebook:** `silver-to-gold2.Notebook`
 
@@ -220,11 +245,21 @@ The project implements a **medallion architecture** (bronze → silver → gold)
 
 **Pipeline:** `orchestrator_pipeline_bronze_to_gold.DataPipeline`
 
-**Stages:**
-1. **Bronze (Parallel):** 4 sources ingested simultaneously
-2. **Silver (Sequential):** Wait for all bronze, then transform
-3. **Gold (Sequential):** Wait for silver, then apply business logic
-4. **Warehouse Sync (Sequential):** Copy gold to warehouse for BI
+**Stages** (8 activities — grounded against `pipeline-content.json`):
+
+1. **Bronze (Parallel):** 5 activities with no interdependencies —
+   `bronzecopy_GlobalSupplyShares` and `bronzecopy_EUSupplyShares` (Copy),
+   `bronze_procurement` (RefreshDataflow), `bronze_WGI` and `bronze_EPI`
+   (TridentNotebook).
+2. **Silver (Sequential):** `bronze-to-silver data cleaning` — depends on all five
+   bronze activities succeeding.
+3. **Gold (Sequential):** `silver-to-gold` — depends on silver.
+4. **Data Quality (Sequential):** `data_quality_checks` — depends on gold. Raises the
+   blocking gate; see `data_quality_framework.md § 6`.
+
+**Pipeline parameters:** `p_full_load`, `p_from_date`, `p_epi_year`. `p_epi_year` is
+single-sourced to both EPI-aware notebooks; `p_full_load` / `p_from_date` drive the
+incremental window in `bronze-to-silver` and `silver-to-gold`.
 
 **Runtime:** ~20-30 minutes end-to-end (estimate)
 
@@ -233,17 +268,30 @@ The project implements a **medallion architecture** (bronze → silver → gold)
 ## Best Practices Implemented
 
 ✅ **Immutable Bronze:** Never modify bronze data, always reprocess from source
-✅ **Idempotent Transformations:** Running twice produces same result
+✅ **Idempotent Transformations:** Running twice produces the same result. This became
+true with task-024: `silver_procurement` and `fact_procurement` use **delete-insert over
+the load window** (delete every row at or after the window's minimum date, then append the
+window) rather than a natural-key MERGE. Re-running deletes and re-inserts exactly the
+same rows. The earlier MERGE was *not* idempotent — it collapsed legitimate same-day
+transactions onto one key, crashing on same-batch duplicates and silently overwriting
+cross-run ones. See `incremental_load_strategy.md § 3`.
 ✅ **Delta Lake Format:** ACID transactions, time travel, schema evolution
 ✅ **Audit Trail:** Track all unmapped values and quality issues
-✅ **No Data Loss:** Use placeholders instead of dropping unmapped data
+✅ **No Data Loss:** Use placeholders instead of dropping unmapped data. No deduplication
+is applied to procurement — two same-day purchases of the same material from the same
+supplier are distinct transactions and both survive.
 
 ## Future Enhancements
 
-📋 **Incremental Load:** (Task 06) - Only process changed records
+📋 **True Incremental Load:** the delete-insert machinery is in place, but `p_from_date`
+still defaults to `1900-01-01`, so today's "incremental" window is the full history —
+correct and idempotent, just not yet efficient. Becomes genuinely incremental when the
+high-water-mark tracking lands (task-029).
 📋 **Partitioning:** (Task 12) - Partition by date for query performance
 📋 **V-Order:** (Task 12) - Optimize for DirectLake queries
-📋 **Data Quality Checks:** (Task 07) - Automated validation at each layer
+📋 **Silver Join Metrics:** capture per-join match rates (`data_quality_architecture.md § [1]`)
+📋 **Warehouse Sync:** populate `oem_wh` as a SQL interface over gold, if wanted — no
+pipeline activity does this today
 
 ## Related Files
 

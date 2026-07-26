@@ -137,15 +137,35 @@ quarter = CEILING(month / 3.0)
 
 ## Surrogate Key Generation
 
-### xxhash64 Function
+### `stable_key()`
 ```python
-from pyspark.sql.functions import xxhash64, concat_ws
+from pyspark.sql import functions as F
 
-surrogate_key = xxhash64(concat_ws("||", col1, col2, ...))
+def stable_key(cols):
+    return F.abs(
+        F.xxhash64(*[F.coalesce(F.col(c).cast("string"), F.lit("∅")) for c in cols])
+    ).cast("bigint")
 ```
 
-Example:
-```
-country_key = xxhash64("USA") = -8844688327304771973
-material_key = xxhash64("Lithium") = 1234567890123456789
+Three properties matter, and all three are load-bearing:
+
+- **Columns are passed separately, not concatenated.** `xxhash64` takes varargs; there is
+  no `concat_ws` delimiter step.
+- **NULLs are coalesced to `∅`** (U+2205) before hashing, so a NULL component produces a
+  deterministic key instead of a NULL key.
+- **`abs()` makes every key positive.** Keys are `BIGINT` and never negative — code or
+  DAX that assumes a signed range is reading the wrong contract.
+
+Mirrored (with docstrings and tests) in `src/transformations/key_generation.py`.
+
+```python
+material_key  = stable_key(["material_name_std"])
+stage_key     = stable_key(["stage_code"])
+indicator_key = stable_key(["source_system", "abbrev", "variable_name"])
+gap_id        = stable_key(["gap_natural_key", "entity", "gap_type"])
+
+# country_key is ISO3-first, falling back to the name when ISO3 is absent
+# (generate_country_key in silver-to-gold2)
+country_key = F.when(F.col(iso3_col).isNotNull(), stable_key([iso3_col])) \
+               .otherwise(stable_key([name_col]))
 ```

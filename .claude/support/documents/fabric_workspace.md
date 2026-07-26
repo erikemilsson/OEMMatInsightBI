@@ -47,7 +47,7 @@ oem_lh/
 
 **Warehouse ID:** `b1cb7506-8d2d-4e4a-97cc-2b580da8eda0`
 
-**Purpose:** SQL-queryable layer for Power BI DirectLake semantic model
+**Purpose:** SQL-queryable layer over gold — **not currently in the data flow**
 
 **Connection:**
 - **Endpoint:** `2BINPJYTVAEEVEF26XKMILPX4E-NXGOJGODN2TUTLWZW2NQJKL2VE.datawarehouse.fabric.microsoft.com`
@@ -55,15 +55,21 @@ oem_lh/
 - **Authentication:** Workspace identity (automatic)
 
 **Tables/Views:**
-- Mirrors gold layer tables from lakehouse
+- `fabric/oem_wh.Warehouse/dbo/Tables/` holds DDL for the 3 facts + 5 dimensions
 - Schema: `dbo` (default)
-- DirectLake queries these tables directly from underlying parquet files
+
+> ⚠️ **Nothing populates this warehouse.** No pipeline activity syncs gold → `oem_wh`,
+> and the semantic model does not read from it (see below). The DDL is real; the data
+> flow into it is not. Treat the warehouse as a future SQL-interface option, not as part
+> of the current architecture — see `architecture/medallion_architecture.md`.
 
 ### Semantic Model: `OEMInsightBI_v2`
 
 **Type:** DirectLake
 
-**Connection:** Linked to `oem_wh` warehouse
+**Connection:** DirectLake on the **`oem_lh` lakehouse** — `definition/expressions.tmdl`
+declares a single expression, `'DirectLake - oem_lh'`. It does **not** connect to the
+`oem_wh` warehouse; the report reads the gold Delta tables in the lakehouse directly.
 
 **Refresh:** Automatic (no explicit refresh needed with DirectLake)
 
@@ -81,43 +87,53 @@ oem_lh/
 
 ## Artifacts Inventory
 
-### Notebooks (2)
-1. **bronze-to-silver.Notebook**
-   - Purpose: Bronze → Silver transformation
-   - Language: PySpark
-   - Attached to: oem_lh lakehouse
+### Notebooks (8)
 
-2. **silver-to-gold2.Notebook**
-   - Purpose: Silver → Gold transformation
-   - Language: PySpark
-   - Attached to: oem_lh lakehouse
+All PySpark, all attached to the `oem_lh` lakehouse.
 
-### Dataflows (3)
-1. **bronze_azureSQLdb2table.Dataflow**
+**In the orchestrator pipeline:**
+1. **bronze_ingest_epi.Notebook** — downloads the EPI CSV → `bronze_epi{year}results`, parameterised on `p_epi_year`
+2. **bronze_ingest_wgi.Notebook** — World Bank API v2 → `bronze_WGI`
+3. **bronze-to-silver.Notebook** — Bronze → Silver transformation
+4. **silver-to-gold2.Notebook** — Silver → Gold transformation
+5. **data_quality_checks.Notebook** — post-gold DQ checks; raises the blocking gate
+
+**Not in the pipeline (run on demand):**
+6. **pipeline_error_handler.Notebook** — error-path handling
+7. **data_quality_analysis.Notebook** — ad-hoc quality analysis
+8. **sample-quality-data.Notebook** — seeds sample rows into the observability tables
+
+### Dataflows (1 live, 2 retired)
+1. **bronze_azureSQLdb2table.Dataflow** — ✅ live
    - Source: Azure SQL Database
    - Destination: bronze_procurement_transactional, bronze_supplier_ref
    - Language: Power Query M
+   - Driven by the pipeline's `bronze_procurement` RefreshDataflow activity
 
-2. **EPI_file2table.Dataflow**
-   - Source: File upload (CSV)
-   - Destination: bronze_epi2024results
-   - Language: Power Query M
+2. **EPI_file2table.Dataflow** — ⚠️ retired
+   - Superseded by `bronze_ingest_epi.Notebook`. The artifact is still on disk but no
+     pipeline activity refreshes it.
 
-3. **WGI_file2table.Dataflow**
-   - Source: File upload (CSV)
-   - Destination: bronze_WB_ESGCSV, bronze_WB_ESGSeries
-   - Language: Power Query M
+3. **WGI_file2table.Dataflow** — ⚠️ retired
+   - Superseded by `bronze_ingest_wgi.Notebook`. It wrote `bronze_WB_ESGCSV` +
+     `bronze_WB_ESGSeries` (wide Excel extract, 2023 percentile ranks); those tables no
+     longer exist and `bronze-to-silver` hard-fails if `bronze_WGI` still carries that
+     shape. See `schemas/bronze_tables.md`.
 
 ### Pipelines (1)
 1. **orchestrator_pipeline_bronze_to_gold.DataPipeline**
    - Purpose: End-to-end orchestration
-   - Activities: 7 (4 bronze, 1 silver, 1 gold, 1 warehouse sync)
+   - Activities: **8** — 5 bronze (2 Copy, 1 RefreshDataflow, 2 TridentNotebook),
+     1 silver, 1 gold, 1 data-quality. **No warehouse-sync activity.**
+   - Parameters: `p_full_load`, `p_from_date`, `p_epi_year`
    - Schedule: Manual (pending Task 10)
 
-### Copy Jobs (1)
-1. **copyjob1.CopyJob**
-   - Purpose: Sync gold lakehouse → warehouse
-   - Triggered by: Pipeline stage 4
+### Copy Jobs (0)
+
+None. `copyjob1.CopyJob` ("sync gold lakehouse → warehouse") was **archived** in the
+2025-12-15 artifact cleanup and exists only under
+`.archive/fabric-cleanup-20251215-132143/` — it is not a workspace artifact and nothing
+triggers it. See `docs/architecture/fabric-artifacts-inventory.md`.
 
 ## Git Integration
 
@@ -244,13 +260,17 @@ oem_lh/
    - Verify lakehouse is online (not paused)
    - Restart Spark session in notebook
 
-2. **Warehouse sync failing:**
-   - Check warehouse is online
-   - Verify schema compatibility
-   - Review copy job logs
+2. **Pipeline halts after `silver-to-gold`:**
+   - The `data_quality_checks` activity raised the **blocking gate** — a check in
+     `BLOCKING_CHECKS` returned `status = 'fail'`
+   - Read the failing check from `gold_quality_history` (`producer = 'data_quality_checks'`,
+     `status = 'fail'`) rather than from the score, which does not drive the gate
+   - See `data_quality_framework.md § 6` for the blocking set and the
+     score-vs-gate distinction
 
 3. **DirectLake not working:**
-   - Verify semantic model connected to warehouse
+   - Verify the semantic model's `'DirectLake - oem_lh'` expression points at the
+     **lakehouse** (`oem_lh`), not the warehouse
    - Check table schemas match model definitions
    - Refresh semantic model metadata
 

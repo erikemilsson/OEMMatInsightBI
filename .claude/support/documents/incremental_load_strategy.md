@@ -1,17 +1,22 @@
 # Incremental Load Strategy - OEMMatInsightBI
 
-**Status:** Design Complete
-**Last Updated:** 2025-11-03
+**Status:** Partly implemented — silver/gold load mechanics shipped (task-024); high-water-mark tracking (§ 4-5) still design-only
+**Last Updated:** 2026-07-26 (task-033 drift sweep: § 3 Silver/Gold reconciled with the shipped delete-insert)
 **Owner:** Claude Code
 
 ## Executive Summary
 
-This document defines the incremental load strategy for the OEMMatInsightBI data pipeline. The pipeline currently has parameters (`p_full_load`, `p_from_date`) but lacks implementation logic. This strategy focuses on **procurement transactional data** for incremental loading while maintaining full refresh for reference and external data sources.
+This document defines the incremental load strategy for the OEMMatInsightBI data pipeline. It focuses on **procurement transactional data** for incremental loading while maintaining full refresh for reference and external data sources.
+
+`p_full_load` and `p_from_date` are wired end to end and **the load logic exists** (task-024): both `bronze-to-silver` and `silver-to-gold2` branch on `p_full_load` and window on `p_from_date`. What is still missing is the *watermark source* — nothing computes `p_from_date`, so it stays at its `1900-01-01` default (§ 4-5, task-029).
 
 **Key Decisions:**
 - ✅ **Incremental:** Procurement transactional data (daily growth)
 - ✅ **Full Refresh:** Reference tables, external ESG data (annual snapshots)
-- ✅ **Merge Strategy:** UPSERT using Delta Lake MERGE operations
+- ⚠️ **Merge Strategy:** ~~UPSERT using Delta Lake MERGE~~ → **delete-insert over the load
+  window**, decided and implemented in task-024 (2026-07-14). The natural-key MERGE this
+  document originally designed is *incorrect* for the transaction grain — see § 3 Silver
+  and Gold layer strategies below.
 - ✅ **High-Water Mark:** Metadata table tracks last successful load dates
 
 **Expected Benefits:**
@@ -30,13 +35,14 @@ This document defines the incremental load strategy for the OEMMatInsightBI data
 |------------|-------|----------------|----------|------------------|-----------|
 | **bronze_procurement_transactional** | Bronze | `Date` | 🔄 **Incremental** | Daily | Transactional data, grows continuously |
 | **bronze_supplier_ref** | Bronze | N/A | 🔁 Full Refresh | Weekly | Small reference table (~100 rows), changes rare |
-| **bronze_epi2024results** | Bronze | N/A | 🔁 Full Refresh | Annual | Annual snapshot, version-based |
-| **bronze_wgi_raw** | Bronze | N/A | 🔁 Full Refresh | Annual | Annual snapshot, API provides full dataset |
+| **bronze_epi{year}results** | Bronze | N/A | 🔁 Full Refresh | Annual | Annual snapshot; a new vintage lands in its own table (`p_epi_year`) |
+| **bronze_WGI** | Bronze | N/A | 🔁 Full Refresh | Annual | Annual snapshot, World Bank API provides the full dataset |
 | **bronze_GlobalSupplyShares** | Bronze | N/A | 🔁 Full Refresh | Annual | Static material shares, rarely updated |
-| **silver_procurement** | Silver | `date` | 🔄 **Incremental** | Daily | Derived from bronze procurement |
-| **silver_supplier** | Silver | N/A | 🔁 Full Refresh | Weekly | Derived from bronze supplier (small) |
-| **silver_epi** | Silver | N/A | 🔁 Full Refresh | Annual | Cleaned EPI data |
-| **silver_wgi** | Silver | N/A | 🔁 Full Refresh | Annual | Cleaned WGI data |
+| **bronze_EUSupplyShares** | Bronze | N/A | 🔁 Full Refresh | Annual | Ingested by the pipeline; no downstream consumer yet |
+| **silver_procurement** | Silver | `date` | 🔄 **Incremental** | Daily | Derived from bronze procurement (delete-insert) |
+| **silver_epi{year}results** | Silver | N/A | 🔁 Full Refresh | Annual | Cleaned EPI data |
+| **silver_wgi** | Silver | N/A | 🔁 Full Refresh | Annual | Cleaned WGI data (long format) |
+| **silver_globalsupplyshares** | Silver | N/A | 🔁 Full Refresh | Annual | Cleaned supply shares |
 | **fact_procurement** | Gold | `date_key` | 🔄 **Incremental** | Daily | Fact table with surrogate keys |
 | **fact_epi_score** | Gold | `year` | 🔁 Full Refresh | Annual | Low volume, full refresh acceptable |
 | **fact_supply_share** | Gold | N/A | 🔁 Full Refresh | Annual | Static shares, full refresh acceptable |
@@ -48,9 +54,15 @@ This document defines the incremental load strategy for the OEMMatInsightBI data
 
 ### Load Strategy Summary
 
-- **🔄 Incremental (3 tables):** procurement transactional data + fact_procurement
+- **🔄 Incremental (3 tables):** procurement transactional data, `silver_procurement`,
+  `fact_procurement`. All three use **delete-insert over the load window**, not MERGE.
 - **🔁 Full Refresh (14 tables):** Reference data, external data, small dimensions
-- **Expected Time Savings:** Incremental run ~5 min vs Full load ~30 min (83% faster)
+- **⚠️ SCD Type 1 rows are design-only.** `gold_dim_country` and `gold_dim_material` are
+  written today by `write_tbl()` — a plain overwrite. No SCD merge is implemented.
+- **Expected Time Savings:** Incremental run ~5 min vs Full load ~30 min (83% faster).
+  **Not yet realised:** `p_from_date` still defaults to `1900-01-01`, so the "incremental"
+  window is currently the full history — correct and idempotent, but not yet faster. The
+  saving arrives with high-water-mark tracking (§ 4, task-029).
 
 ---
 
@@ -88,6 +100,10 @@ Strategy: Look-back window of 7 days
 |-------|-------|----------------|-------|
 | **Silver** | `silver_procurement` | `date` | Derived from bronze `Date`, after cleaning |
 | **Gold** | `fact_procurement` | `date_key` | Integer format YYYYMMDD (e.g., 20240115) |
+
+These are **window keys**, not merge keys: they select which rows are read and which
+rows are deleted before the window is re-appended. There is no natural or surrogate merge
+key at either layer — see § 3.
 
 ---
 
@@ -171,18 +187,58 @@ df_suppliers.write.format("delta").mode("overwrite").saveAsTable("bronze_supplie
 
 ### Silver Layer Strategy
 
-#### Procurement (Incremental with Merge)
+#### Procurement (Incremental — delete-insert, IMPLEMENTED)
 
-**Current Behavior:**
+> **This section was rewritten 2026-07-26 (task-033) to match what task-024 shipped.**
+> The natural-key MERGE originally designed below is preserved after the implemented
+> version as a *rejected design*, because the reason it was rejected is the load-bearing
+> part.
+
+**Implemented behavior** — `bronze-to-silver.Notebook`, cell "Write silver_procurement":
+
 ```python
-# In bronze-to-silver.Notebook
-bronze_procurement = spark.table("bronze_procurement_transactional")
-silver_procurement = transform_procurement(bronze_procurement)
-# OVERWRITES entire table
-silver_procurement.write.format("delta").mode("overwrite").saveAsTable("silver_procurement")
+# is_full_load / the 7-day look-back window are derived earlier in the notebook.
+if is_full_load:
+    silver_df.write.format("delta").mode("overwrite").saveAsTable("silver_procurement")
+elif not spark.catalog.tableExists("oem_lh.silver_procurement"):
+    # First load — create the table via overwrite
+    silver_df.write.format("delta").mode("overwrite").saveAsTable("silver_procurement")
+else:
+    # Delete-insert over the look-back window.
+    # Boundary = the MINIMUM date actually present in this run's window, NOT p_from_date.
+    window_min_date = silver_df.agg(F.min("date")).first()[0]
+    if window_min_date is not None:
+        target_table = DeltaTable.forName(spark, "oem_lh.silver_procurement")
+        target_table.delete(F.col("date") >= F.lit(window_min_date))
+        silver_df.write.format("delta").mode("append").saveAsTable("silver_procurement")
 ```
 
-**Target Behavior (Incremental Merge):**
+**Why the boundary is the window's minimum date, not `p_from_date`:** `silver_df` was read
+with a 7-day look-back, so it contains every bronze row at or after the look-back date.
+Deleting only `>= p_from_date` would leave the `[look-back, p_from_date)` rows in place and
+then re-append them — duplicating exactly that range. Deleting from the window minimum
+replaces the window exactly: lossless in, lossless out, and re-running is idempotent.
+
+**No deduplication is applied.** This is deliberate and is the opposite of the "Deduplication
+Strategy" the rejected design prescribes below.
+
+##### Rejected design: natural-key MERGE
+
+**Why it was rejected (task-024, 2026-07-14).** Bronze grain is *one row per material
+purchase*. Two same-day purchases of the same material from the same supplier are
+**legitimately distinct transactions**, but they share the natural key
+`(date, materialname, suppliername, region)`. The MERGE therefore collapsed them:
+
+| Case | MERGE outcome |
+|---|---|
+| Both duplicates in the same batch | Delta raises *"multiple source rows matched"* — the run **crashes** |
+| Duplicates across runs | `whenMatchedUpdateAll` silently overwrites the earlier one — **data loss** |
+
+The dedupe step below "fixes" the crash by *causing* the data loss deliberately, so it was
+rejected with the MERGE. `region` was additionally dropped from the silver layer entirely
+(`silver_df = df_joined.drop("region")`), so a merge key naming it could not have been
+built as written.
+
 ```python
 from delta.tables import DeltaTable
 
@@ -251,9 +307,12 @@ def incremental_load_silver_procurement(p_full_load=False, p_from_date="1900-01-
 - Handles updates to existing transactions (e.g., corrections)
 - No need for surrogate key at silver layer
 
-**Deduplication Strategy:**
+**Deduplication Strategy (NOT IMPLEMENTED — do not apply):**
 
-If source data has duplicates:
+⚠️ The block below silently drops legitimate duplicate transactions. It exists only to
+make the rejected MERGE survive its own key collision. The shipped pipeline keeps every
+transaction.
+
 ```python
 # Deduplicate before merge
 silver_df_dedup = (silver_df
@@ -267,9 +326,75 @@ silver_df_dedup = (silver_df
 
 ### Gold Layer Strategy
 
-#### Fact Tables (Incremental with Merge)
+**Implementation status:** only `fact_procurement` is incremental, and it uses
+delete-insert (below). Every other gold table — the three facts' siblings, all
+dimensions, the lookups and the audit tables — is written by `write_tbl()`, which is a
+plain **`mode("overwrite")` with `overwriteSchema`**. The SCD Type 1 MERGE design in
+"Dimension Tables" further down is a design sketch, not shipped code.
 
-**fact_procurement Incremental Load:**
+#### fact_procurement (Incremental — delete-insert, IMPLEMENTED)
+
+**Implemented behavior** — `silver-to-gold2.Notebook`, cell "gold.fact_procurement":
+
+```python
+_is_full_load = p_full_load.strip().lower() == "true"
+_fact_exists = spark.catalog.tableExists(f"{DB}.fact_procurement")
+
+# Read window: mirror bronze-to-silver's 7-day look-back, or the whole table on a
+# full/first load.
+if _is_full_load or not _fact_exists:
+    proc = spark.table(f"{DB}.silver_procurement")
+else:
+    _lookback_str = (datetime.strptime(p_from_date, "%Y-%m-%d")
+                     - timedelta(days=7)).strftime("%Y-%m-%d")
+    proc = (spark.table(f"{DB}.silver_procurement")
+            .filter(F.col("date").cast("date") >= F.lit(_lookback_str)))
+
+# ... dimension joins, quality scoring ...
+
+# Write
+if _is_full_load or not _fact_exists:
+    write_tbl(fact_procurement_complete, "fact_procurement")     # overwrite
+else:
+    # Boundary = min date_key in the window, EXCLUDING the UNKNOWN-DATE member.
+    window_min_date_key = (fact_procurement_complete
+        .filter(F.col("date_key") != F.lit(UNKNOWN_DATE_KEY))
+        .agg(F.min("date_key")).first()[0])
+    if window_min_date_key is not None:
+        target = DeltaTable.forName(spark, f"{DB}.fact_procurement")
+        target.delete(F.col("date_key") >= F.lit(window_min_date_key))
+        (fact_procurement_complete.write.format("delta").mode("append")
+            .saveAsTable(f"{DB}.fact_procurement"))
+        spark.sql(f"OPTIMIZE {DB}.fact_procurement")
+```
+
+**Delete-insert boundary:** `MIN(date_key)` over the windowed fact — the gold analogue of
+the silver rule above, and lossless for the same reason.
+
+**The UNKNOWN-DATE member must be excluded from the boundary** (task-030). Undated
+transactions carry `date_key = 19000101`, which is below every real `date_key`. If one
+reached the boundary computation, the delete would collapse to `date_key >= 19000101` and
+**wipe the entire fact table** before re-inserting only the window. The incremental read
+filter already drops undated rows, so the exclusion is belt-and-braces — and it keeps the
+code correct if that filter ever changes. Undated rows written by a full load sit below
+the boundary and are therefore preserved by subsequent incremental runs.
+
+**Grain is unchanged:** one row per transaction, no aggregation, no dedupe.
+
+##### Rejected design: surrogate-key MERGE
+
+**Why it was rejected (task-024).** The proposed key
+`(date_key, material_key, supplier_hq_country_key)` — later
+`(…, production_country_key)` — is **coarser than the transaction grain**, so it fails the
+same way the silver MERGE did: same-batch duplicates crash on Delta's *"multiple source
+rows matched"*, cross-run duplicates are silently overwritten. The "use aggregation"
+escape hatch at the end of this block changes the fact's grain from *transaction* to
+*day × material × supplier*, which contradicts the grain declared in `schemas/gold_tables.md`.
+
+⚠️ The sketch below also carries `spend_eur = quantity_base × unitprice_eur`. That formula
+was **removed in task-030**: `quantity_base` is NULL for non-mass units, so it collapsed
+every `pcs` row's spend to NULL. The shipped formula is `quantity_original × unitprice_eur`
+— see `calculations.md § Spend EUR`.
 
 ```python
 from delta.tables import DeltaTable
@@ -343,7 +468,14 @@ fact_df_agg = fact_df.groupBy("date_key", "material_key", "supplier_hq_country_k
                      )
 ```
 
-#### Dimension Tables (SCD Type 1)
+#### Dimension Tables (SCD Type 1) — DESIGN SKETCH, NOT IMPLEMENTED
+
+⚠️ Nothing below is shipped. `gold_dim_country` and `gold_dim_material` are written by
+`write_tbl()` (plain `mode("overwrite")` + `overwriteSchema`) on every gold run. The
+sketch also reads a table named `silver_supplier`, which does not exist — supplier
+attributes are joined into `silver_procurement` at the silver layer, and the dimension is
+actually sourced from the EPI silver table plus a curated missing-countries list. Treat
+this section as a future design, not as documentation of current behavior.
 
 **gold_dim_country (Slowly Changing Dimension Type 1):**
 
