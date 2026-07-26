@@ -412,7 +412,10 @@ display(df_wgi_clean)
 
 # CELL ********************
 
-df_wgi_clean.write.format("delta").mode("overwrite").saveAsTable("silver_wgi")
+# task-035: silver_wgi migrates from the retired 3-col identity shape to the task-031
+# long format (adds indicator_code / year / value), so the overwrite must replace the
+# schema too. overwriteSchema is safe here — silver_wgi is a full-snapshot rebuild each run.
+df_wgi_clean.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable("silver_wgi")
 
 # METADATA ********************
 
