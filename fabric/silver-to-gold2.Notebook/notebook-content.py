@@ -20,11 +20,24 @@
 # META   }
 # META }
 
-# CELL ********************
+# PARAMETERS CELL ********************
 
-# Pipeline parameters — overridden by orchestrator pipeline when invoked
+# Pipeline parameters — overridden by the orchestrator pipeline when invoked.
+#
+# ALL of them must live in THIS ONE CELL. Fabric permits exactly one parameters cell
+# per notebook and injects the runtime override directly beneath it, so any parameter
+# assigned in a different cell is never overridden — it silently keeps its default.
+# EPI_YEAR was briefly given its own parameters cell for task-042 crit 1; because that
+# is a move rather than an addition, it took the marker off p_full_load/p_from_date and
+# pinned gold to an incremental load no matter what the pipeline passed (invisible on a
+# p_full_load=false run, wrong on a full one). Hence the consolidation.
+#
+# Every derivation that reads these — EPI_SILVER_TBL below, _is_full_load and
+# _watermark_date further down — lives in a LATER cell, which is what makes the
+# injection ordering correct.
 p_full_load = "false"
 p_from_date = "1900-01-01"
+EPI_YEAR = 2024
 
 # METADATA ********************
 
@@ -36,21 +49,6 @@ p_from_date = "1900-01-01"
 # MARKDOWN ********************
 
 # ## Setup and Conventions
-
-# PARAMETERS CELL ********************
-
-# EPI vintage parameter (task-042 crit 1). TOGGLE THIS CELL as the notebook's parameter
-# cell (Fabric UI: ⋯ → Toggle parameter cell) so the pipeline can single-source one
-# p_epi_year across every EPI notebook. Keep EPI_YEAR the ONLY assignment here — Fabric
-# injects the override BELOW this cell, so table names derived from it live in later cells.
-EPI_YEAR = 2024
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
 
 # CELL ********************
 
