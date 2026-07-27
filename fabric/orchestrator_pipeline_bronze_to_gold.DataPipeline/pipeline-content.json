@@ -487,33 +487,14 @@
           "secureOutput": false
         },
         "name": "pipeline_error_handler",
-        "description": "Task 041 / DEC-004 Option A: on-failure branch. Fires when data_quality_checks fails OR is skipped; because the pipeline is a single convergent DAG and Skipped propagates transitively, this one handler covers all upstream activities. Reads per-activity outcomes via POST queryactivityruns (not @activity('X').Error, which is empty for skipped activities) and writes one gold_pipeline_execution_log row per terminal activity, successes included.",
+        "description": "Task 041 / DEC-004 Option A (amended 2026-07-27): runs on EVERY outcome of data_quality_checks - Succeeded, Failed and Skipped. Because the pipeline is a single convergent DAG and Skipped propagates transitively, this one handler covers all upstream activities. Reads per-activity outcomes via POST queryactivityruns (not @activity('X').Error, which is empty for skipped activities) and writes one gold_pipeline_execution_log row per terminal activity, successes included, so a clean run populates the log too (criterion 3). The notebook then RE-RAISES if any activity failed, which is what keeps a failing run red - without it the Try-Catch shape would report the whole run as Succeeded and silently undo task-026's DQ gate. That raise replaces the trailing Fail activity the original DEC-004 shape used.",
         "dependsOn": [
           {
             "activity": "data_quality_checks",
             "dependencyConditions": [
+              "Succeeded",
               "Failed",
               "Skipped"
-            ]
-          }
-        ]
-      },
-      {
-        "type": "Fail",
-        "typeProperties": {
-          "message": {
-            "value": "@concat('Orchestrator run failed. Per-activity outcomes were logged to gold_pipeline_execution_log for pipeline run ', pipeline().RunId)",
-            "type": "Expression"
-          },
-          "errorCode": "ORCHESTRATOR_RUN_FAILED"
-        },
-        "name": "fail_orchestrator_run",
-        "description": "MANDATORY, not cosmetic. Attaching a handler to the terminal activity produces the documented Try-Catch shape, in which the overall run reports Succeeded once the handler succeeds - which would silently undo task-026's DQ gate and make every failing run look green. Confirmed live 2026-07-27 (scratch_qar_test run 3bda2a8f reported Succeeded despite a Failed activity). This activity re-fails the run after the log has been written.",
-        "dependsOn": [
-          {
-            "activity": "pipeline_error_handler",
-            "dependencyConditions": [
-              "Succeeded"
             ]
           }
         ]

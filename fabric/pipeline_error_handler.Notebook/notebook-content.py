@@ -609,15 +609,32 @@ print("\nPipeline error handler ready.")
 # CELL ********************
 
 # =============================================================================
-# PIPELINE-LEVEL FAILURE HARVEST (DEC-004 Option A) - task-041
+# PIPELINE-LEVEL RUN HARVEST (DEC-004 Option A, as amended) - task-041
 # =============================================================================
-# Runs as the orchestrator's on-failure branch: one activity hanging off the
-# terminal data_quality_checks via dependencyConditions ["Failed", "Skipped"].
-# Because that pipeline is a single convergent DAG, and "Skipped" propagates
-# transitively, this one handler covers all upstream activities.
+# Runs as the orchestrator's terminal activity: one activity hanging off
+# data_quality_checks via dependencyConditions ["Succeeded", "Failed",
+# "Skipped"] - i.e. on EVERY outcome, not just failures. Because that pipeline
+# is a single convergent DAG, and "Skipped" propagates transitively, this one
+# handler covers all upstream activities.
 #
 # It reads per-activity outcomes from POST queryactivityruns rather than
 # @activity('X').Error, because a SKIPPED activity carries no error field.
+#
+# WHY IT RUNS ON SUCCESS TOO, and why it re-raises:
+# DEC-004 originally paired a failure-only handler with a trailing native Fail
+# activity, because attaching a handler to the terminal activity produces the
+# Try-Catch shape in which the whole run reports Succeeded once the handler
+# succeeds - silently undoing task-026's DQ gate. But a failure-only handler
+# never fires on a clean run, so the log only ever contained failures, and
+# criterion 3 (a successful run must populate the log, so get_execution_summary
+# and get_retry_effectiveness have both outcomes to compare) could not be met.
+# Proven by orchestrator run b5d799b1-3643-45d9-9a63-bcae0cc8199a on 2026-07-27:
+# 8 activities all Succeeded, 0 log rows written.
+# Running on every outcome and re-raising when a FAILED row was logged serves
+# both criteria with one activity: the log is always written, and a failing run
+# still ends red because this activity fails. The trailing Fail activity is not
+# merely redundant under this shape - it would fail a healthy run - so it was
+# removed with this change.
 #
 # Empirically established 2026-07-27 (scratch_qar_test run
 # 7c2781b8-6ad2-4bd6-bf0d-ff8acccf6991), because the docs address none of it:
@@ -706,6 +723,9 @@ def harvest_pipeline_run(run_id):
 
     Logs successes as well as failures, so get_execution_summary() and
     get_retry_effectiveness() have both outcomes to compare.
+
+    Raises RuntimeError, after all rows are written, if any activity failed -
+    which is what makes the orchestrator run report Failed. See the cell header.
     """
     activities = fetch_activity_runs(run_id)
 
@@ -717,13 +737,14 @@ def harvest_pipeline_run(run_id):
         raise RuntimeError(
             "queryactivityruns returned no activities for pipeline run "
             + str(run_id)
-            + ". The on-failure branch fired, so at least one failed activity "
+            + ". This handler runs on every outcome, so the upstream activities "
             "must exist. Check the lastUpdatedAfter/lastUpdatedBefore window "
             "and the token scope before trusting an empty execution log."
         )
 
     written = 0
     skipped = []
+    failures = []
 
     for activity in activities:
         name = activity.get("activityName")
@@ -755,10 +776,29 @@ def harvest_pipeline_run(run_id):
             duration_seconds=(duration_ms / 1000.0) if duration_ms is not None else None,
         )
         written += 1
+        if log_status == "FAILED":
+            failures.append(str(name) + ": " + str(message or "no error message"))
 
     print("Harvested pipeline run " + str(run_id) + ": " + str(written) + " row(s) logged.")
     if skipped:
         print("Non-terminal activities not logged: " + ", ".join(skipped))
+
+    # Re-raise AFTER every row is written, so the log survives the failure.
+    # This is what keeps a failing run red: without it, the Try-Catch shape
+    # would report the whole run as Succeeded once this handler succeeded,
+    # silently undoing task-026's DQ gate. Confirmed live 2026-07-27.
+    if failures:
+        raise RuntimeError(
+            "Orchestrator run "
+            + str(run_id)
+            + " had "
+            + str(len(failures))
+            + " failed activity(ies); "
+            + str(written)
+            + " row(s) were written to the execution log first. "
+            + " | ".join(failures)
+        )
+
     return written
 
 
