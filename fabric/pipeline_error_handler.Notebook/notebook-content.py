@@ -108,6 +108,26 @@ TRANSIENT_ERROR_PATTERNS = [
     "502 bad gateway",
     "504 gateway timeout",
     "deadlock detected",
+    # HTTP status codes - retryable (5xx server-side, plus 429 throttling).
+    # TWO phrasings occur in practice and both must be matched: Fabric/ADF's
+    # HybridDeliveryException writes "status code 429 TooManyRequests" (no space
+    # in the reason phrase), while the inner System.Net.WebException writes
+    # "The remote server returned an error: (429)". Neither matches a naive
+    # "429 too many requests" pattern. See the note on PERMANENT below.
+    # These are listed BEFORE the permanent 4xx block matters, because
+    # categorize_error checks TRANSIENT first - which is what keeps 429 out of
+    # the permanent client-error bucket.
+    "status code 429",
+    "(429)",
+    "toomanyrequests",
+    "status code 500",
+    "(500)",
+    "status code 502",
+    "(502)",
+    "status code 503",
+    "(503)",
+    "status code 504",
+    "(504)",
     # Spark-Specific
     "spark session failed to start",
     "executor lost",
@@ -131,10 +151,35 @@ PERMANENT_ERROR_PATTERNS = [
     "schema mismatch",
     "type mismatch",
     # Resource Not Found
+    # "404 not found" is kept for completeness but does NOT match real Fabric
+    # output - see the HTTP block below. Verified 2026-07-27 against orchestrator
+    # run 742ff1ff-42d8-4fb6-9845-8c7a183c060d, where a deliberately-broken Copy
+    # source produced:
+    #   ErrorCode=HttpRequestFailedWithClientError,...Message=Http request failed
+    #   with client error, status code 404 NotFound, ... ''Type=System.Net.
+    #   WebException,Message=The remote server returned an error: (404) Not Found.
+    # "404 NotFound" has no space; "(404) Not Found" has a parenthesis in the way.
+    # The whole list was written from imagination rather than a real error string,
+    # so this textbook-permanent failure was categorised "Unknown". Do not add
+    # patterns here without checking them against text a live run actually emits.
     "404 not found",
     "file not found",
     "path does not exist",
     "database does not exist",
+    # HTTP status codes - not retryable (4xx client-side). 429 is deliberately
+    # absent: it is throttling, and is matched by the TRANSIENT list above, which
+    # categorize_error checks first.
+    "status code 400",
+    "(400)",
+    "status code 401",
+    "(401)",
+    "status code 403",
+    "(403)",
+    "status code 404",
+    "(404)",
+    "status code 409",
+    "(409)",
+    "http request failed with client error",
     # Data Quality Issues
     "constraint violation",
     "duplicate key",
