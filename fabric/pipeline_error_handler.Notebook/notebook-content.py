@@ -763,6 +763,26 @@ def fetch_activity_runs(run_id):
     return response.json().get("value", [])
 
 
+def derive_retry_attempt(activity, starts_by_key):
+    """Derive the 0-based retry ordinal for one activity row.
+
+    queryactivityruns returns retryAttempt: null even for retried activities
+    (confirmed on orchestrator run 742ff1ff, 2026-07-27: four Copy attempts,
+    all retryAttempt: null), so the field is unreliable and ignored. The ordinal
+    is derived instead by counting same-activity rows in the same pipeline run
+    whose activityRunStart is strictly earlier than this row's. The first
+    attempt is 0; each retry increments by 1. Activities that ran once map to 0.
+
+    ISO-8601 UTC strings ('...Z') sort lexicographically the same way they sort
+    chronologically, so raw string comparison is safe without parsing. Ties
+    (two rows, same activity, same start) would map both to the same ordinal -
+    this never happens in practice because retries are minutes apart.
+    """
+    key = (activity.get("pipelineRunId"), activity.get("activityName"))
+    own_start = activity.get("activityRunStart") or ""
+    return sum(1 for t in starts_by_key.get(key, []) if t < own_start)
+
+
 def harvest_pipeline_run(run_id):
     """Write one execution-log row per terminal activity in run_id.
 
@@ -786,6 +806,13 @@ def harvest_pipeline_run(run_id):
             "must exist. Check the lastUpdatedAfter/lastUpdatedBefore window "
             "and the token scope before trusting an empty execution log."
         )
+
+    # Per-(run, activity) start-time lists, so each row's retry ordinal can be
+    # derived by ranking (queryactivityruns' retryAttempt is always null).
+    starts_by_key = {}
+    for a in activities:
+        key = (a.get("pipelineRunId"), a.get("activityName"))
+        starts_by_key.setdefault(key, []).append(a.get("activityRunStart") or "")
 
     written = 0
     skipped = []
@@ -815,7 +842,7 @@ def harvest_pipeline_run(run_id):
             status=log_status,
             error_message=message,
             pipeline_run_id=activity.get("pipelineRunId") or run_id,
-            retry_attempt=activity.get("retryAttempt") or 0,
+            retry_attempt=derive_retry_attempt(activity, starts_by_key),
             start_time=start_time,
             end_time=end_time,
             duration_seconds=(duration_ms / 1000.0) if duration_ms is not None else None,
