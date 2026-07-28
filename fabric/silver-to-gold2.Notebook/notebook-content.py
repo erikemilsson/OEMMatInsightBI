@@ -58,7 +58,7 @@ p_execution_id = ""
 # CELL ********************
 
 from pyspark.sql import functions as F, Window as W
-from pyspark.sql.types import IntegerType, StringType, FloatType, DateType, StructType, StructField, DoubleType, LongType
+from pyspark.sql.types import IntegerType, StringType, FloatType, DateType, StructType, StructField, DoubleType, LongType, TimestampType
 import logging
 from datetime import datetime
 
