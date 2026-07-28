@@ -2,7 +2,7 @@
   "id": "task-029",
   "title": "Implement the documented high-water-mark system (bronze_load_metadata + parameter flow) — or formally descope it via /iterate",
   "description": "incremental_load_strategy.md sections 4-5 specify a bronze_load_metadata table, get_last_load_date()/update_load_metadata() functions, and p_from_date flowing to the bronze dataflows. NONE of it exists: grep across fabric/ and src/ finds no bronze_load_metadata anywhere; the pipeline passes a static p_from_date defaulting to '1900-01-01' (pipeline-content.json:478-481); and the bronze dataflow activities receive no parameters at all (bronze_procurement activity, lines 290-307). Net effect today: 'incremental' mode reprocesses all of bronze from 1899-12-25 through the fragile MERGE path (see task-024) with none of the documented 70-90% savings, and bronze always full-loads regardless. This is the largest single doc-vs-implementation drift in the incremental strategy. Two honest resolutions: (a) implement the watermark (metadata table + notebook auto-retrieve + optionally dataflow parameter pushdown), or (b) decide the portfolio project doesn't need real watermarking and update the strategy doc to describe the actual design (static parameter, caller-supplied watermark) via /iterate.",
-  "status": "Pending",
+  "status": "Finished",
   "priority": "P2",
   "difficulty": 5,
   "owner": "both",
@@ -17,7 +17,11 @@
   "files_affected": [
     "fabric/bronze-to-silver.Notebook/notebook-content.py",
     "fabric/silver-to-gold2.Notebook/notebook-content.py",
-    "fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/pipeline-content.json"
+    "fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/pipeline-content.json",
+    "src/transformations/watermark.py",
+    "tests/test_watermark.py",
+    "tests/conftest.py",
+    ".claude/support/documents/incremental_load_strategy.md"
   ],
   "acceptanceCriteria": [
     "Path chosen and recorded: (a) implement watermark, or (b) descope with doc update via /iterate. If (b), the remaining criteria below are replaced by the doc reconciliation and this task closes with the /iterate proposal applied.",
@@ -30,19 +34,109 @@
   "dependencies": ["task-024"],
   "decision_dependencies": [],
   "notes": [
+    "[IMPLEMENTED 2026-07-28] Path (a) built. src/transformations/watermark.py (reference impl: resolve_effective_watermark, metadata_row, get_last_load_date, update_load_metadata). bronze-to-silver notebook: inline mirror of all four + effective_from_date resolution + p_execution_id param + try/except around procurement write writing SUCCESS (max date loaded) or FAILED (effective_from_date attempted) metadata rows; empty-window (None max date) skips the SUCCESS row. silver-to-gold2 notebook: inline mirror of read-side functions + effective_from_date via get_last_load_date(exclude_execution_id=p_execution_id) for gold coordination; fact_procurement read keys off effective_from_date. pipeline-content.json: added p_execution_id parameter (default '') + @pipeline().RunId binding to both notebook activities. incremental_load_strategy.md §4-5 rewritten to describe shipped design (auto-retrieve sentinel, source_table naming, gold coordination via exclude_execution_id, bronze full-refresh deferred per criterion 6). tests/test_watermark.py: 27 tests (precedence, row construction, read path over Spark fixture, notebook parity for both notebooks). tests/conftest.py: added spark.sql.ansi.enabled=false. Precedence: full_load→1900-01-01; explicit p_from_date!=1900-01-01→override; else auto-retrieve last SUCCESS. Source_table: single key 'bronze_procurement_transactional' shared by silver+gold. Gold coordination: gold excludes the current run's execution_id so it reads the PREVIOUS run's watermark (one mechanism, one value per run) — recorded as DEC-006. Pipeline touched: YES — p_execution_id added (justified: gold coordination needs a pipeline-level run identifier so silver-to-gold2 can distinguish the current run's just-written SUCCESS row from the previous run's).",
     "AUDIT-DERIVED (pipeline quality audit 2026-07-13): finding #10 (high tier). Not spec-decomposed — empty drift fingerprints.",
     "EVIDENCE: Grep for bronze_load_metadata/get_last_load_date across fabric/ and src/ returns nothing (only the local 'watermark_date' variable in bronze-to-silver:180). Pipeline parameter defaults at pipeline-content.json:474-481. Bronze dataflow activities carry no parameters: bronze_procurement at lines 290-307, bronze_WGI at 272-289, bronze_EPI at 308-325. Doc contract: incremental_load_strategy.md sections 4 (lines 397-474) and 5 (lines 478-599).",
-    "DEPENDS ON task-024 because the value of a watermark is moot until the MERGE path it feeds is safe, and 024 may add the gold-side p_from_date filter this task then wires to the metadata table.",
+    "DEPENDS ON task-024 because the value of a watermark is moot until the MERGE path it feeds is safe, and 024 may add the the gold-side p_from_date filter this task then wires to the metadata table.",
     "FILE CONFLICT: pipeline-content.json is also touched by task-022 (In Progress) and task-026 — serialize.",
     "DESCOPE GUIDANCE: if (b), the doc rewrite goes through /iterate per DEC-016 only if the content lives in spec files; incremental_load_strategy.md is a support document, so a direct edit is permitted — but check whether spec_v1.md references the watermark design (grep 'watermark|high-water' in .claude/spec_v1.md first; if yes, that part routes through /iterate).",
-    "PORTFOLIO ANGLE: this project exists to demonstrate production patterns (root CLAUDE.md: 'incremental Delta MERGE' is a named learning goal) — option (a) is more aligned with the project's purpose; option (b) is honest-but-lighter. Erik's call."
+    "PORTFOLIO ANGLE: this project exists to demonstrate production patterns (root CLAUDE.md: 'incremental Delta MERGE' is a named learning goal) — option (a) is more aligned with the project's purpose; option (b) is honest-but-lighter. Erik's call.",
+    "DECISION (2026-07-28, user): Path (a) chosen — implement the notebook-side watermark system (bronze_load_metadata Delta table + get_last_load_date/update_load_metadata + auto-retrieve + metadata row + gold coordination). Dataflow pushdown DEFERRED per criterion 6 — bronze stays full-refresh at demo volume; incremental_load_strategy.md §5 to be edited to remove the overclaim (the 'Dataflow Parameter Passing' block claims bronze dataflows receive p_from_date; they do not) and describe the actual design (bronze full-refresh; the watermark gates the silver/gold MERGE window, not the bronze extract). Confirmed drift still real at dispatch: no bronze_load_metadata/get_last_load_date anywhere in fabric/ or src/; pipeline p_from_date still defaults 1900-01-01 (pipeline-content.json:552-554); bronze dataflow activities (bronze_procurement/WGI/EPI at lines 289/445/467) take no parameters; task-024 dependency is Finished+verified (2026-07-26). task-022 and task-026 are both Finished — the pipeline-content.json file conflict flagged in the 2026-07-13 notes is no longer live.",
+    "[VERIFIED 2026-07-28, attempt 1, PASS] verify-agent independent pass. All 6 acceptance criteria verified. Schema matches doc §4 exactly. Precedence + gold coordination (DEC-006) + dataflow deferral all match doc. try/except re-raises after FAILED row (root-cause rule satisfied); empty-window skip is a commented design choice. Reference-implementation contract (task-032) honored: notebooks inline (no src/ imports), tests pin src↔notebook parity via _load_notebook_functions, parity on behavior not constant names. pipeline-content.json valid; p_execution_id bound to @pipeline().RunId on both notebooks; bronze dataflows take no params (pushdown deferred). Local suite: 148 tests pass (27 new watermark + 121 existing) — note: implementer's '156 tests' claim was off by 8 (claimed 129 existing, actual 121); all pass, count claim inaccurate. Criterion 5 (two-run advancement + forced failure) is Erik's Fabric-side test — Delta ops can't run locally (delta-spark not installed); test_protocol written (5 steps, ~15 min). Follow-up for orchestrator: spec_v1.md line 1494 still says 'not implemented' — stale, routes through /iterate per DEC-016 (FR-031). Minor: files_affected declared 3, touched 7 — updated to 7-file union (FB-086)."
   ],
   "user_feedback": "",
   "created_date": "2026-07-13",
-  "updated_date": "2026-07-13",
-  "completion_date": null,
-  "verification_attempts": 0,
+  "updated_date": "2026-07-28",
+  "completion_date": "2026-07-28",
+  "verification_attempts": 1,
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-07-28T15:00:00Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "partial",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "minor",
+          "description": "files_affected declared 3 files but implementation touched 7; the 4 undeclared same-domain files (src/transformations/watermark.py, tests/test_watermark.py, tests/conftest.py, .claude/support/documents/incremental_load_strategy.md) are all required by the task scope (reference-implementation contract per task-032 gotcha + criterion 6 doc edit). Resolved: orchestrator updated declared files_affected to the 7-file union (FB-086)."
+        },
+        {
+          "severity": "minor",
+          "description": "Implementer's report claimed 156 tests pass (27 new + 129 existing); actual is 148 (27 new + 121 existing). All tests pass; count claim was inaccurate by 8. No corrective action needed — tests pass; the inaccurate count was in the report narrative, not the test suite."
+        }
+      ],
+      "notes": "Per-task PASS on attempt 1. runtime_validation=partial because criterion 5 (Erik's Fabric-side two-run advancement + forced-failure test) cannot run locally — delta-spark is not installed, so Delta table creation + end-to-end watermark advancement require Fabric. user_review_pending=true; interaction_hint=dashboard."
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-07-28T15:00:00Z",
+    "attempt": 1,
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "partial",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "All 6 acceptance criteria verified. Path (a) chosen and recorded (task notes + DEC-006). bronze_load_metadata schema matches doc §4. Precedence + gold coordination (DEC-006) + dataflow deferral match doc. Root-cause rule satisfied (try/except re-raises). Reference-implementation contract (task-032) honored. pipeline-content.json valid; p_execution_id bound to @pipeline().RunId. 148 local tests pass. Criterion 5 is Erik's Fabric-side test (Delta ceiling) — test_protocol provided. Follow-up: spec_v1.md:1494 stale → /iterate (FR-031).",
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "files_affected declared 3, touched 7 — updated to 7-file union (FB-086)."
+      },
+      {
+        "severity": "minor",
+        "description": "Implementer's test-count claim (156) was inaccurate; actual 148. All pass."
+      }
+    ],
+    "evidence": []
+  },
   "out_of_spec": false,
   "absorbed_into": "",
-  "interaction_hint": "dashboard"
+  "interaction_hint": "dashboard",
+  "user_review_pending": true,
+  "test_protocol": {
+    "summary": "Erik's Fabric-side two-run watermark advancement + forced-failure test (criterion 5). Delta ops cannot run locally (delta-spark not installed) — this protocol exercises the end-to-end watermark system in Fabric.",
+    "steps": [
+      {
+        "instruction": "Sync the pipeline-content.json change (p_execution_id parameter + @pipeline().RunId binding) and notebook changes to Fabric via /sync-to-fabric. Confirm the p_execution_id parameter appears in the orchestrator pipeline's parameter list.",
+        "expected": "Pipeline artifact in Fabric shows p_execution_id parameter (default empty string) and both notebook activities (bronze-to-silver, silver-to-gold) receive p_execution_id bound to @pipeline().RunId.",
+        "type": "command",
+        "command": "/sync-to-fabric"
+      },
+      {
+        "instruction": "Run 1 (initial): Trigger orchestrator_pipeline_bronze_to_gold with p_full_load=false, p_from_date=1900-01-01 (sentinel). Observe notebook stdout in the activity logs.",
+        "expected": "bronze-to-silver stdout shows '[watermark] p_full_load='false' p_from_date='1900-01-01' last_SUCCESS=None execution_id='<run-id>' -> effective_from_date='1900-01-01'' (no prior SUCCESS row). After run, query: SELECT * FROM oem_lh.bronze_load_metadata WHERE source_table='bronze_procurement_transactional' ORDER BY load_timestamp DESC LIMIT 3 — expect at least 1 SUCCESS row with last_load_date = max(Date) from bronze_procurement_transactional, load_status='SUCCESS', execution_id populated with the pipeline RunId.",
+        "type": "command"
+      },
+      {
+        "instruction": "Run 2 (incremental): Trigger the pipeline again with the same parameters. Observe notebook stdout.",
+        "expected": "bronze-to-silver stdout shows '[watermark] ... last_SUCCESS=<date-from-run-1> ... -> effective_from_date='<YYYY-MM-DD>'' where YYYY-MM-DD is the previous run's max date (NOT 1900-01-01). silver-to-gold2 stdout shows the SAME effective_from_date (gold coordination via exclude_execution_id — gold excludes the current RunId and reads the previous SUCCESS). The silver read window is the 7-day look-back from effective_from_date, NOT the full table. A new SUCCESS row is appended to bronze_load_metadata with the new max date.",
+        "type": "command"
+      },
+      {
+        "instruction": "Forced failure: Force the procurement write to fail — e.g., drop oem_lh.silver_procurement before the write step, or inject a schema mismatch. Trigger the pipeline.",
+        "expected": "bronze-to-silver stdout shows '[watermark] FAILED row written — attempted_from=<effective_from_date> execution_id='<run-id>' error=...'. The activity fails (exception re-raised). Query bronze_load_metadata: expect a FAILED row with last_load_date = effective_from_date attempted, rows_loaded=0, load_status='FAILED'. The previous SUCCESS row is UNCHANGED — watermark did NOT advance.",
+        "type": "interactive"
+      },
+      {
+        "instruction": "Recovery run: Fix the failure condition (recreate silver_procurement or restore schema). Trigger the pipeline again with the same parameters.",
+        "expected": "bronze-to-silver auto-retrieves the PREVIOUS SUCCESS watermark (the FAILED row is filtered out by load_status='SUCCESS'). The effective_from_date is the last SUCCESS date, not the FAILED row's attempted date — confirming the watermark did not advance on failure and the system recovers correctly.",
+        "type": "command"
+      }
+    ],
+    "automated_results": "Local runtime validation: 27/27 watermark tests pass (precedence, row construction, read path over Spark fixture, notebook parity for both bronze and gold). Delta write path (update_load_metadata) and end-to-end watermark advancement require Fabric-side execution — not locally testable per the delta-spark ceiling.",
+    "estimated_time": "15 minutes"
+  }
 }

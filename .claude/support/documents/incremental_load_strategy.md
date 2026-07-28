@@ -1,14 +1,14 @@
 # Incremental Load Strategy - OEMMatInsightBI
 
-**Status:** Partly implemented — silver/gold load mechanics shipped (task-024); high-water-mark tracking (§ 4-5) still design-only
-**Last Updated:** 2026-07-26 (task-033 drift sweep: § 3 Silver/Gold reconciled with the shipped delete-insert)
+**Status:** Implemented — silver/gold load mechanics shipped (task-024); high-water-mark tracking (§ 4-5) shipped (task-029). Dataflow-side pushdown deferred (criterion 6, § 5).
+**Last Updated:** 2026-07-28 (task-029: § 4-5 rewritten to match the shipped watermark system — `bronze_load_metadata` + `get_last_load_date` + `update_load_metadata` + auto-retrieve sentinel + gold coordination via `exclude_execution_id`)
 **Owner:** Claude Code
 
 ## Executive Summary
 
 This document defines the incremental load strategy for the OEMMatInsightBI data pipeline. It focuses on **procurement transactional data** for incremental loading while maintaining full refresh for reference and external data sources.
 
-`p_full_load` and `p_from_date` are wired end to end and **the load logic exists** (task-024): both `bronze-to-silver` and `silver-to-gold2` branch on `p_full_load` and window on `p_from_date`. What is still missing is the *watermark source* — nothing computes `p_from_date`, so it stays at its `1900-01-01` default (§ 4-5, task-029).
+`p_full_load` and `p_from_date` are wired end to end and **the load logic exists** (task-024): both `bronze-to-silver` and `silver-to-gold2` branch on `p_full_load` and window on `p_from_date`. The *watermark source* landed in task-029: `bronze_load_metadata` records one row per pipeline run per tracked source, `get_last_load_date` auto-retrieves the last SUCCESSful run's max date, and `update_load_metadata` writes a SUCCESS or FAILED row after each procurement load. The effective watermark is resolved once per run and consumed by both silver and gold (one mechanism, one value per run — § 4-5).
 
 **Key Decisions:**
 - ✅ **Incremental:** Procurement transactional data (daily growth)
@@ -60,9 +60,11 @@ This document defines the incremental load strategy for the OEMMatInsightBI data
 - **⚠️ SCD Type 1 rows are design-only.** `gold_dim_country` and `gold_dim_material` are
   written today by `write_tbl()` — a plain overwrite. No SCD merge is implemented.
 - **Expected Time Savings:** Incremental run ~5 min vs Full load ~30 min (83% faster).
-  **Not yet realised:** `p_from_date` still defaults to `1900-01-01`, so the "incremental"
-  window is currently the full history — correct and idempotent, but not yet faster. The
-  saving arrives with high-water-mark tracking (§ 4, task-029).
+  **Now realisable:** with high-water-mark tracking (§ 4, task-029 shipped), a second
+  consecutive incremental run auto-retrieves the last SUCCESS watermark and reads only the
+  7-day look-back window — the silver/gold delete-insert becomes truly incremental rather
+  than rewriting the full history each run. Bronze extraction remains a full refresh
+  (criterion 6 deferred — acceptable at demo volume).
 
 ---
 
@@ -537,73 +539,163 @@ from pyspark.sql.types import StructType, StructField, StringType, DateType, Tim
 
 metadata_schema = StructType([
     StructField("source_table", StringType(), False),      # e.g., "bronze_procurement_transactional"
-    StructField("last_load_date", DateType(), False),      # Max date loaded (watermark)
-    StructField("load_timestamp", TimestampType(), False), # When load completed
-    StructField("rows_loaded", LongType(), True),          # Count of rows in this load
-    StructField("load_status", StringType(), False),       # SUCCESS, FAILED, IN_PROGRESS
-    StructField("execution_id", StringType(), True)        # Pipeline run ID (for debugging)
+    StructField("last_load_date", DateType(), False),       # Max date loaded (watermark)
+    StructField("load_timestamp", TimestampType(), False),  # When this row was written
+    StructField("rows_loaded", LongType(), True),           # Count of rows in this load (NULL on FAILED)
+    StructField("load_status", StringType(), False),        # SUCCESS, FAILED, IN_PROGRESS
+    StructField("execution_id", StringType(), True)          # Pipeline run id (for gold coordination)
 ])
-
-# Initialize table (first run only)
-initial_metadata = spark.createDataFrame([
-    ("bronze_procurement_transactional", date(1900, 1, 1), datetime.now(), 0, "SUCCESS", None)
-], schema=metadata_schema)
-
-initial_metadata.write.format("delta").mode("overwrite").saveAsTable("oem_lh.bronze_load_metadata")
 ```
 
-### Usage Pattern
+The table is created idempotently (`CREATE TABLE IF NOT EXISTS ... USING DELTA`) on the
+first `update_load_metadata` call — no separate initialization step is needed. The first
+SUCCESS row advances the watermark from the implicit default (1900-01-01, returned when
+no prior SUCCESS row exists) to whatever max date the first run loaded.
 
-**Before Load: Get Watermark**
+### Source-table naming convention
+
+One `source_table` key per tracked source. The procurement pipeline uses a single key,
+`"bronze_procurement_transactional"`, shared by both the silver and gold layers — that
+gives ONE watermark mechanism and ONE effective watermark value per run, consumed
+identically by `bronze-to-silver` (which writes the metadata row) and `silver-to-gold2`
+(which reads it). There is no second watermark for gold.
+
+### Effective-watermark precedence (criterion 3)
+
+The notebook resolves the effective watermark once, early in the run, and uses it for the
+look-back window. Precedence (with the sentinel convention documented inline):
+
+```
+1. p_full_load == "true"          -> "1900-01-01"  (full load; load from epoch)
+2. p_from_date  != "1900-01-01"   -> p_from_date   (explicit manual override)
+3. last SUCCESS row exists        -> that row's last_load_date (auto-retrieve)
+4. otherwise                      -> "1900-01-01"  (no prior SUCCESS; load from epoch)
+```
+
+The default `p_from_date == "1900-01-01"` is the "not explicitly set" sentinel. `p_full_load=true`
+is the explicit "load from epoch" path, so a caller that wants a full refresh sets `p_full_load`
+rather than relying on the default. This avoids a three-way ambiguity between "default",
+"explicit full", and "explicit override".
+
 ```python
-def get_last_load_date(source_table):
-    """Retrieve last successful load date for a table"""
-
-    result = spark.sql(f"""
-        SELECT last_load_date
-        FROM oem_lh.bronze_load_metadata
-        WHERE source_table = '{source_table}'
-          AND load_status = 'SUCCESS'
-        ORDER BY load_timestamp DESC
-        LIMIT 1
-    """).collect()
-
-    if result:
-        return result[0]["last_load_date"]
-    else:
-        return date(1900, 1, 1)  # Default: load all data
-
-# Usage in pipeline
-p_from_date = get_last_load_date("bronze_procurement_transactional")
+def resolve_effective_watermark(p_full_load, p_from_date, last_load_date):
+    if (p_full_load or "").strip().lower() == "true":
+        return "1900-01-01"
+    override = (p_from_date or "").strip()
+    if override and override != "1900-01-01":
+        return override
+    if last_load_date is not None:
+        return last_load_date.strftime("%Y-%m-%d")
+    return "1900-01-01"
 ```
 
-**After Load: Update Watermark**
+### Read: get_last_load_date
+
 ```python
-def update_load_metadata(source_table, max_date, rows_loaded, status="SUCCESS"):
-    """Update metadata after successful load"""
+def get_last_load_date(metadata_df, source_table, exclude_execution_id=None):
+    """Return the last SUCCESSful load's last_load_date for source_table, or None.
 
-    new_metadata = spark.createDataFrame([
-        (source_table, max_date, datetime.now(), rows_loaded, status, dbutils.widgets.get("execution_id"))
-    ], schema=metadata_schema)
-
-    new_metadata.write.format("delta").mode("append").saveAsTable("oem_lh.bronze_load_metadata")
-
-# Usage after load
-max_date_loaded = silver_df.agg(F.max("date")).collect()[0][0]
-rows_loaded = silver_df.count()
-update_load_metadata("bronze_procurement_transactional", max_date_loaded, rows_loaded)
+    exclude_execution_id: if non-empty, rows with this execution_id are excluded.
+        silver-to-gold2 passes the current run's execution_id so it reads the
+        PREVIOUS run's watermark (bronze-to-silver has already written its SUCCESS
+        row by the time gold starts), keeping both layers on the same effective
+        watermark for a given run.
+    """
+    q = (metadata_df
+         .filter(F.col("source_table") == source_table)
+         .filter(F.col("load_status") == "SUCCESS"))
+    if exclude_execution_id:
+        q = q.filter(F.col("execution_id") != F.lit(exclude_execution_id))
+    row = (q.orderBy(F.col("load_timestamp").desc())
+            .limit(1)
+            .select("last_load_date")
+            .collect())
+    if not row:
+        return None
+    ld = row[0]["last_load_date"]
+    return ld.date() if isinstance(ld, datetime) else ld
 ```
 
-**Error Handling:**
+### Write: update_load_metadata
+
+```python
+def update_load_metadata(source_table, last_load_date, rows_loaded, status,
+                          execution_id=None, now=None):
+    """Append one metadata row to bronze_load_metadata (creates the table on first call)."""
+    row = metadata_row(source_table, last_load_date, rows_loaded, status,
+                       execution_id=execution_id, now=now)
+    df = spark.createDataFrame([row], schema=metadata_schema)
+    try:
+        spark.sql(f"CREATE TABLE IF NOT EXISTS oem_lh.bronze_load_metadata "
+                  f"USING DELTA AS SELECT * FROM df")
+    except Exception:
+        pass  # table already exists (normal case after first run)
+    df.write.format("delta").mode("append").saveAsTable("oem_lh.bronze_load_metadata")
+```
+
+### Usage pattern (bronze-to-silver)
+
+```python
+# Resolve the effective watermark for THIS run (auto-retrieve if p_from_date is the sentinel)
+_metadata_df = (spark.table("oem_lh.bronze_load_metadata")
+                if spark.catalog.tableExists("oem_lh.bronze_load_metadata") else None)
+_last_load_date = (get_last_load_date(_metadata_df, "bronze_procurement_transactional")
+                  if _metadata_df is not None else None)
+effective_from_date = resolve_effective_watermark(p_full_load, p_from_date, _last_load_date)
+
+# Use effective_from_date for the 7-day look-back window ...
+try:
+    # ... perform the silver write (full overwrite or delete-insert over the window) ...
+    max_date_loaded = silver_df.agg(F.max("date")).first()[0]
+    rows_loaded = silver_df.count()
+    update_load_metadata("bronze_procurement_transactional", max_date_loaded, rows_loaded,
+                         status="SUCCESS", execution_id=p_execution_id)
+except Exception as e:
+    # FAILED row records the watermark that was attempted (does NOT advance — the
+    # next run re-reads from the same previous watermark).
+    update_load_metadata("bronze_procurement_transactional", effective_from_date, 0,
+                         status="FAILED", execution_id=p_execution_id)
+    raise
+```
+
+### Gold coordination (criterion 4)
+
+`silver-to-gold2` runs AFTER `bronze-to-silver` in the pipeline, so bronze-to-silver's
+SUCCESS row for the current run is already in the table when gold starts. To use the SAME
+effective watermark silver used (the PREVIOUS run's watermark), gold passes its own
+`p_execution_id` to `get_last_load_date` as `exclude_execution_id`:
+
+```python
+# silver-to-gold2: same mechanism, same source_table key, exclude the current run
+_metadata_df = (spark.table("oem_lh.bronze_load_metadata")
+                if spark.catalog.tableExists("oem_lh.bronze_load_metadata") else None)
+_last_load_date = (get_last_load_date(_metadata_df, "bronze_procurement_transactional",
+                                       exclude_execution_id=p_execution_id)
+                   if _metadata_df is not None else None)
+effective_from_date = resolve_effective_watermark(p_full_load, p_from_date, _last_load_date)
+# ... use effective_from_date for the gold-side 7-day look-back window ...
+```
+
+One watermark mechanism (`bronze_load_metadata`), one `source_table` key, one effective
+watermark value per run — consumed by both layers. No second mechanism.
+
+### Error handling
+
 ```python
 try:
-    # Perform incremental load
-    load_procurement_incremental(p_from_date)
-    update_load_metadata("bronze_procurement_transactional", max_date, rows, "SUCCESS")
+    # Perform incremental load (delete-insert over the look-back window)
+    load_procurement_incremental(effective_from_date)
+    update_load_metadata("bronze_procurement_transactional", max_date_loaded, rows, "SUCCESS")
 except Exception as e:
-    update_load_metadata("bronze_procurement_transactional", p_from_date, 0, "FAILED")
+    update_load_metadata("bronze_procurement_transactional", effective_from_date, 0, "FAILED")
     raise e
 ```
+
+The FAILED row's `last_load_date` records the watermark that was *attempted*, not a new
+max date (there is no new max — the load failed). The next run's `get_last_load_date`
+filters to `load_status = 'SUCCESS'`, so the FAILED row is skipped and the watermark stays
+at the previous SUCCESS value — the next run re-processes from the same window, which is
+correct (the failed run loaded nothing).
 
 ---
 
@@ -616,57 +708,48 @@ except Exception as e:
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `p_full_load` | Boolean | `false` | If true, perform full refresh instead of incremental |
-| `p_from_date` | String | `"1900-01-01"` | Watermark date for incremental loads (YYYY-MM-DD) |
+| `p_from_date` | String | `"1900-01-01"` | Watermark date for incremental loads (YYYY-MM-DD). The sentinel `"1900-01-01"` means "not explicitly set — auto-retrieve from `bronze_load_metadata`". |
+| `p_execution_id` | String | `""` | Pipeline run identifier (task-029). The pipeline sets this to `@pipeline().RunId`; gold passes it to `get_last_load_date(exclude_execution_id=...)` so it reads the previous run's watermark. Empty for manual notebook runs — the exclude filter is then a no-op. |
 
 ### Parameter Flow
 
 ```
 Pipeline Parameters
-  ├─ p_full_load → Dataflow activities (via expression)
-  │                 └─ If true: load all data
-  │                 └─ If false: use p_from_date filter
+  ├─ p_full_load  → Notebook activities (via widget)
+  ├─ p_from_date  → Notebook activities (via widget)
+  │                   └─ Notebook resolves effective watermark:
+  │                       full_load -> "1900-01-01"
+  │                       p_from_date != "1900-01-01" -> p_from_date (explicit override)
+  │                       else -> get_last_load_date("bronze_procurement_transactional")
+  │                   └─ 7-day look-back window applied to the silver + gold reads
   │
-  └─ p_from_date → Notebook activities (via widget)
-                   └─ Get watermark from metadata table
-                   └─ Filter bronze data >= watermark
-                   └─ Merge into silver/gold layers
+  └─ p_execution_id → Notebook activities (via widget)
+                       └─ bronze-to-silver: stamps the SUCCESS/FAILED metadata row
+                       └─ silver-to-gold2: excludes the current run's row so it
+                          reads the PREVIOUS run's watermark (gold coordination)
 ```
 
-### Dataflow Parameter Passing
+### Bronze dataflows — full refresh (criterion 6, deferred)
 
-**In Pipeline Activity:**
-```json
-{
-  "name": "bronze_procurement_dataflow",
-  "type": "RefreshDataflow",
-  "typeProperties": {
-    "dataflow": "bronze_azureSQLdb2table",
-    "parameters": {
-      "p_from_date": {
-        "value": "@pipeline().parameters.p_from_date",
-        "type": "Expression"
-      }
-    }
-  }
-}
-```
+The bronze Power Query dataflows (`bronze_procurement`, `bronze_WGI`, `bronze_EPI`) take
+**no parameters** and run as full refresh on every pipeline run. The watermark gates the
+silver/gold MERGE window, **not** the bronze extract.
 
-**In Dataflow (bronze_azureSQLdb2table.Dataflow):**
-```powerquery
-// Define parameter
-Parameter: p_from_date = "1900-01-01"
+**Decision (task-029, 2026-07-28):** dataflow-side pushdown of `p_from_date` into the
+bronze Power Query dataflows is **deferred**. At demo volume the bronze tables are small
+enough that full-refresh extraction is acceptable, and the `bronze_azureSQLdb2table.Dataflow`
+definition would need a `p_from_date` parameter plus a `Table.SelectRows` filter step to
+honor it. The honest trade-off: incremental *efficiency* is realised at the silver/gold
+layers (the delete-insert window); bronze remains a full extract.
 
-// Use in query
-let
-    FromDate = #"Parameter: p_from_date",
-    FilteredData = Table.SelectRows(Source, each [Date] >= Date.FromText(FromDate))
-in
-    FilteredData
-```
+The earlier version of this section claimed bronze dataflows received `p_from_date` and
+filtered at source — that was an overclaim. The § 1 Bronze Layer Strategy "Target Behavior"
+Power Query sketch (SQL pushdown with `WHERE Date >= ...`) remains a valid future
+enhancement but is **not** the live behavior.
 
 ### Notebook Parameter Passing
 
-**In Pipeline Activity:**
+**In Pipeline Activity (bronze-to-silver):**
 ```json
 {
   "name": "bronze-to-silver data cleaning",
@@ -674,61 +757,36 @@ in
   "typeProperties": {
     "notebook": "bronze-to-silver",
     "parameters": {
-      "p_full_load": {
-        "value": "@pipeline().parameters.p_full_load",
-        "type": "Expression"
-      },
-      "p_from_date": {
-        "value": "@pipeline().parameters.p_from_date",
-        "type": "Expression"
-      }
+      "p_full_load":   { "value": "@string(pipeline().parameters.p_full_load)", "type": "Expression" },
+      "p_from_date":   { "value": "@pipeline().parameters.p_from_date",         "type": "Expression" },
+      "p_epi_year":     { "value": "@pipeline().parameters.p_epi_year",           "type": "string" },
+      "p_execution_id": { "value": "@pipeline().RunId",                           "type": "string" }
     }
   }
 }
 ```
 
-**In Notebook (bronze-to-silver.Notebook):**
+**In Notebook (bronze-to-silver.Notebook) — parameters cell:**
 ```python
-# Get parameters from pipeline
-p_full_load = dbutils.widgets.get("p_full_load").lower() == "true"
-p_from_date = dbutils.widgets.get("p_from_date")
-
-# Use in load logic
-if p_full_load:
-    print("Performing FULL LOAD...")
-    load_mode = "overwrite"
-else:
-    print(f"Performing INCREMENTAL LOAD from {p_from_date}...")
-    load_mode = "merge"
-
-# Call incremental load function
-incremental_load_silver_procurement(p_full_load, p_from_date)
+p_full_load = "false"          # overridden by pipeline
+p_from_date = "1900-01-01"     # sentinel: "not set" -> auto-retrieve
+p_epi_year  = "2024"
+p_execution_id = ""            # overridden by pipeline (@pipeline().RunId)
 ```
 
-### Dynamic Watermark (Advanced)
-
-**Automatically retrieve watermark from metadata table:**
-
+**In Notebook (bronze-to-silver.Notebook) — watermark resolution:**
 ```python
-# In notebook startup cell
-from datetime import date
-
-# Get parameters
-p_full_load = dbutils.widgets.get("p_full_load").lower() == "true"
-p_from_date_override = dbutils.widgets.get("p_from_date")  # Optional manual override
-
-# Determine watermark
-if p_full_load:
-    p_from_date = "1900-01-01"  # Load all data
-elif p_from_date_override != "1900-01-01":
-    p_from_date = p_from_date_override  # Use manual override
-else:
-    # Auto-retrieve from metadata table
-    p_from_date = get_last_load_date("bronze_procurement_transactional").strftime("%Y-%m-%d")
-
-print(f"Load Mode: {'FULL' if p_full_load else 'INCREMENTAL'}")
-print(f"Watermark Date: {p_from_date}")
+# Resolve effective watermark once, early in the run
+_metadata_df = (spark.table("oem_lh.bronze_load_metadata")
+                if spark.catalog.tableExists("oem_lh.bronze_load_metadata") else None)
+_last_load_date = (get_last_load_date(_metadata_df, "bronze_procurement_transactional")
+                  if _metadata_df is not None else None)
+effective_from_date = resolve_effective_watermark(p_full_load, p_from_date, _last_load_date)
+# ... 7-day look-back window keys off effective_from_date, not the raw p_from_date ...
 ```
+
+`silver-to-gold2.Notebook` resolves its effective watermark the same way, passing
+`exclude_execution_id=p_execution_id` so it reads the previous run's watermark.
 
 ---
 

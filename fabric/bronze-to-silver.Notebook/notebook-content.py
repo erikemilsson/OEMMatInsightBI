@@ -44,6 +44,11 @@ p_from_date = "1900-01-01"
 # Matches bronze_ingest_epi.Notebook's p_epi_year default; keep in sync with the
 # pipeline so bronze and silver never diverge on the vintage.
 p_epi_year = "2024"
+# Pipeline run identifier — used by bronze_load_metadata for gold coordination
+# (task-029). The pipeline sets this to @pipeline().RunId; when empty (manual
+# notebook run, local test) the watermark functions skip the exclude-current-run
+# filter and fall back to the latest SUCCESS row regardless of execution_id.
+p_execution_id = ""
 
 # METADATA ********************
 
@@ -57,9 +62,132 @@ p_epi_year = "2024"
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.functions import col, expr, regexp_replace, substring
-from pyspark.sql.types import (IntegerType,StringType,DoubleType,StructType,StructField)
+from pyspark.sql.types import (IntegerType,StringType,DoubleType,StructType,StructField,
+                               DateType,TimestampType,LongType)
 from delta.tables import DeltaTable
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ## High-water mark tracking (task-029)
+# `bronze_load_metadata` records one row per pipeline run per tracked source table.
+# `get_last_load_date` reads the last SUCCESSful run's max date; `update_load_metadata`
+# appends a SUCCESS or FAILED row. The effective watermark for this run is resolved
+# once (here) and used by both the silver read below and — via the same mechanism —
+# the gold read in silver-to-gold2. See `.claude/support/documents/incremental_load_strategy.md § 4-5`.
+
+# CELL ********************
+
+# --- bronze_load_metadata schema (single source of truth; mirrored in src/transformations/watermark.py) ---
+METADATA_SCHEMA = StructType([
+    StructField("source_table", StringType(), False),       # e.g. "bronze_procurement_transactional"
+    StructField("last_load_date", DateType(), False),        # max date loaded (watermark)
+    StructField("load_timestamp", TimestampType(), False),    # when this row was written
+    StructField("rows_loaded", LongType(), True),            # row count in this load (NULL on FAILED)
+    StructField("load_status", StringType(), False),         # SUCCESS | FAILED | IN_PROGRESS
+    StructField("execution_id", StringType(), True),          # pipeline run id (gold coordination)
+])
+
+DEFAULT_WATERMARK = "1900-01-01"
+DEFAULT_SOURCE_TABLE = "bronze_procurement_transactional"
+METADATA_TABLE_FQN = "oem_lh.bronze_load_metadata"
+
+
+def resolve_effective_watermark(p_full_load, p_from_date, last_load_date):
+    """Resolve the effective watermark for this run as a "YYYY-MM-DD" string.
+
+    Precedence (criterion 3):
+      1. p_full_load == "true"          -> "1900-01-01"  (full load; load from epoch)
+      2. p_from_date != "1900-01-01"    -> p_from_date   (explicit manual override)
+      3. last_load_date is not None     -> strftime(last_load_date)
+      4. otherwise                      -> "1900-01-01"  (no prior SUCCESS row)
+
+    The "1900-01-01" value of p_from_date is the "not explicitly set" sentinel:
+    p_full_load=true is the explicit "load from epoch" path, so a caller that
+    wants a full refresh sets p_full_load rather than relying on the default.
+    """
+    if (p_full_load or "").strip().lower() == "true":
+        return DEFAULT_WATERMARK
+    override = (p_from_date or "").strip()
+    if override and override != DEFAULT_WATERMARK:
+        return override
+    if last_load_date is not None:
+        return last_load_date.strftime("%Y-%m-%d")
+    return DEFAULT_WATERMARK
+
+
+def metadata_row(source_table, last_load_date, rows_loaded, status,
+                 execution_id=None, now=None):
+    """Build ONE metadata row tuple matching METADATA_SCHEMA, for append."""
+    ts = now if now is not None else datetime.now()
+    if isinstance(last_load_date, str):
+        last_load_date = datetime.strptime(last_load_date, "%Y-%m-%d").date()
+    elif isinstance(last_load_date, datetime):
+        last_load_date = last_load_date.date()
+    return (source_table, last_load_date, ts, rows_loaded, status, execution_id)
+
+
+def get_last_load_date(metadata_df, source_table, exclude_execution_id=None):
+    """Return the last SUCCESSful load's last_load_date for source_table, or None.
+
+    exclude_execution_id: if non-empty, rows with this execution_id are excluded.
+        silver-to-gold2 passes the current run's execution_id so it reads the
+        PREVIOUS run's watermark (bronze-to-silver has already written its
+        SUCCESS row by the time gold starts), keeping both layers on the same
+        effective watermark for a given run.
+    """
+    q = (metadata_df
+         .filter(F.col("source_table") == source_table)
+         .filter(F.col("load_status") == "SUCCESS"))
+    if exclude_execution_id:
+        q = q.filter(F.col("execution_id") != F.lit(exclude_execution_id))
+    row = (q.orderBy(F.col("load_timestamp").desc())
+            .limit(1)
+            .select("last_load_date")
+            .collect())
+    if not row:
+        return None
+    ld = row[0]["last_load_date"]
+    if ld is None:
+        return None
+    if isinstance(ld, datetime):
+        return ld.date()
+    return ld
+
+
+def update_load_metadata(source_table, last_load_date, rows_loaded, status,
+                          execution_id=None, now=None):
+    """Append one metadata row to bronze_load_metadata (creates the table on first call)."""
+    row = metadata_row(source_table, last_load_date, rows_loaded, status,
+                       execution_id=execution_id, now=now)
+    df = spark.createDataFrame([row], schema=METADATA_SCHEMA)
+    try:
+        spark.sql(f"CREATE TABLE IF NOT EXISTS {METADATA_TABLE_FQN} "
+                  f"USING DELTA AS SELECT * FROM df")
+    except Exception:
+        # Table already exists (normal case after first run); the append below
+        # will re-raise if the table genuinely cannot be written.
+        pass
+    df.write.format("delta").mode("append").saveAsTable(METADATA_TABLE_FQN)
+
+
+# --- Resolve the effective watermark for THIS run ---
+# Auto-retrieve the last SUCCESSful load's watermark (excludes the current run's
+# execution_id so gold — which runs after us — reads the same previous-run
+# watermark rather than the row we are about to write).
+_metadata_df = spark.table(METADATA_TABLE_FQN) if spark.catalog.tableExists(METADATA_TABLE_FQN) else None
+_last_load_date = get_last_load_date(_metadata_df, DEFAULT_SOURCE_TABLE) if _metadata_df is not None else None
+effective_from_date = resolve_effective_watermark(p_full_load, p_from_date, _last_load_date)
+print(f"[watermark] p_full_load={p_full_load!r} p_from_date={p_from_date!r} "
+      f"last_SUCCESS={_last_load_date} execution_id={p_execution_id!r} "
+      f"-> effective_from_date={effective_from_date!r}")
 
 # METADATA ********************
 
@@ -168,7 +296,10 @@ df_newheaders.write.format("delta").mode("overwrite").saveAsTable('silver_global
 
 # CELL ********************
 
-# Read bronze procurement data — apply date filter for incremental loads
+# Read bronze procurement data — apply date filter for incremental loads.
+# task-029: the window now keys off `effective_from_date` (auto-retrieved from
+# bronze_load_metadata when the pipeline default "1900-01-01" is passed), not
+# the raw p_from_date widget value. A p_full_load=true run still reads all bronze.
 is_full_load = p_full_load.strip().lower() == "true"
 
 if is_full_load:
@@ -176,13 +307,14 @@ if is_full_load:
     print("Procurement: FULL LOAD — reading all bronze records")
 else:
     # Apply 7-day look-back window for late-arriving data
-    watermark_date = datetime.strptime(p_from_date, "%Y-%m-%d")
+    watermark_date = datetime.strptime(effective_from_date, "%Y-%m-%d")
     lookback_date = watermark_date - timedelta(days=7)
     lookback_str = lookback_date.strftime("%Y-%m-%d")
     df1 = spark.sql(
         f"SELECT * FROM oem_lh.bronze_procurement_transactional WHERE Date >= '{lookback_str}'"
     )
-    print(f"Procurement: INCREMENTAL LOAD — reading records from {lookback_str} (7-day look-back from {p_from_date})")
+    print(f"Procurement: INCREMENTAL LOAD — reading records from {lookback_str} "
+          f"(7-day look-back from effective_from_date={effective_from_date})")
 
 df2 = spark.sql("SELECT * FROM oem_lh.bronze_supplier_ref")
 display(df1)
@@ -228,34 +360,62 @@ display(silver_df)
 # (data loss). We deliberately do NOT dedupe — the strategy doc's dedupe step would silently drop
 # legitimate duplicate transactions, contradicting the transaction-grain decision. Delete-insert
 # over the incremental date window is lossless (every transaction preserved) and idempotent.
-if is_full_load:
-    silver_df.write.format("delta").mode("overwrite").saveAsTable("silver_procurement")
-    print(f"Procurement: full overwrite complete ({silver_df.count():,} rows)")
-else:
-    if not spark.catalog.tableExists("oem_lh.silver_procurement"):
-        # First load — create table via overwrite
+#
+# task-029: wrap the write in try/except and append a bronze_load_metadata row — SUCCESS with the
+# new max date loaded (advances the watermark) or FAILED with the effective_from_date that was
+# attempted (does NOT advance — next run re-reads from the same watermark). The FAILED row's
+# last_load_date records "what we tried to load from", not a new max.
+try:
+    if is_full_load:
         silver_df.write.format("delta").mode("overwrite").saveAsTable("silver_procurement")
-        print(f"Procurement: initial table created ({silver_df.count():,} rows)")
+        print(f"Procurement: full overwrite complete ({silver_df.count():,} rows)")
     else:
-        # Incremental: delete-insert over the look-back window. Delete boundary = the minimum date
-        # actually present in this run's window. silver_df was read with the same 7-day look-back,
-        # so it contains every bronze row with date >= look-back; deleting silver rows with
-        # date >= that minimum and appending silver_df replaces EXACTLY the window — no duplication
-        # in the look-back range and re-running is idempotent. (This is why the boundary is the
-        # window's min date, not p_from_date: deleting only >= p_from_date would leave the
-        # [look-back, p_from_date) rows un-deleted and then re-append them, duplicating that range.)
-        # task-029 DEPENDENCY: p_from_date defaults to "1900-01-01" until the high-water-mark lands,
-        # so today the window == full history (full rewrite each run — correct + idempotent, just
-        # not yet incremental-efficient). Becomes truly incremental once task-029 lands.
-        window_min_date = silver_df.agg(F.min("date")).first()[0]
-        if window_min_date is None:
-            print("Procurement: incremental window is empty — nothing to delete-insert")
+        if not spark.catalog.tableExists("oem_lh.silver_procurement"):
+            # First load — create table via overwrite
+            silver_df.write.format("delta").mode("overwrite").saveAsTable("silver_procurement")
+            print(f"Procurement: initial table created ({silver_df.count():,} rows)")
         else:
-            target_table = DeltaTable.forName(spark, "oem_lh.silver_procurement")
-            target_table.delete(F.col("date") >= F.lit(window_min_date))
-            silver_df.write.format("delta").mode("append").saveAsTable("silver_procurement")
-            print(f"Procurement: delete-insert complete for date >= {window_min_date} "
-                  f"({silver_df.count():,} rows re-inserted)")
+            # Incremental: delete-insert over the look-back window. Delete boundary = the minimum date
+            # actually present in this run's window. silver_df was read with the same 7-day look-back,
+            # so it contains every bronze row with date >= look-back; deleting silver rows with
+            # date >= that minimum and appending silver_df replaces EXACTLY the window — no duplication
+            # in the look-back range and re-running is idempotent. (This is why the boundary is the
+            # window's min date, not effective_from_date: deleting only >= effective_from_date would
+            # leave the [look-back, effective_from_date) rows un-deleted and then re-append them,
+            # duplicating that range.)
+            window_min_date = silver_df.agg(F.min("date")).first()[0]
+            if window_min_date is None:
+                print("Procurement: incremental window is empty — nothing to delete-insert")
+            else:
+                target_table = DeltaTable.forName(spark, "oem_lh.silver_procurement")
+                target_table.delete(F.col("date") >= F.lit(window_min_date))
+                silver_df.write.format("delta").mode("append").saveAsTable("silver_procurement")
+                print(f"Procurement: delete-insert complete for date >= {window_min_date} "
+                      f"({silver_df.count():,} rows re-inserted)")
+
+    # SUCCESS — advance the watermark to the max date actually loaded this run.
+    # On a full load the watermark advances to the overall max; on an incremental
+    # load it advances to the window's max (the newest transaction seen).
+    # If the window was empty (no rows loaded), skip the SUCCESS row — the watermark
+    # stays at the previous value, which is correct (no new data was loaded).
+    _max_date_loaded = silver_df.agg(F.max("date")).first()[0]
+    _rows_loaded = silver_df.count()
+    if _max_date_loaded is not None:
+        update_load_metadata(DEFAULT_SOURCE_TABLE, _max_date_loaded, _rows_loaded,
+                              status="SUCCESS", execution_id=p_execution_id)
+        print(f"[watermark] SUCCESS row written — source={DEFAULT_SOURCE_TABLE} "
+              f"last_load_date={_max_date_loaded} rows={_rows_loaded} execution_id={p_execution_id!r}")
+    else:
+        print(f"[watermark] no SUCCESS row written — window was empty (0 rows loaded); "
+              f"watermark stays at previous value. execution_id={p_execution_id!r}")
+except Exception as _load_err:
+    # FAILED — record the watermark that was attempted (does NOT advance) and re-raise
+    # so the pipeline error handler also logs the failure to gold_pipeline_execution_log.
+    update_load_metadata(DEFAULT_SOURCE_TABLE, effective_from_date, 0,
+                          status="FAILED", execution_id=p_execution_id)
+    print(f"[watermark] FAILED row written — attempted_from={effective_from_date} "
+          f"execution_id={p_execution_id!r} error={_load_err!r}")
+    raise
 
 # METADATA ********************
 

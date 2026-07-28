@@ -38,6 +38,11 @@
 p_full_load = "false"
 p_from_date = "1900-01-01"
 EPI_YEAR = 2024
+# Pipeline run identifier — used by bronze_load_metadata for gold coordination
+# (task-029). The pipeline sets this to @pipeline().RunId; when empty (manual
+# notebook run, local test) the watermark functions skip the exclude-current-run
+# filter and fall back to the latest SUCCESS row regardless of execution_id.
+p_execution_id = ""
 
 # METADATA ********************
 
@@ -160,6 +165,110 @@ def unmapped_gap(condition, unmapped_type, gap_dimension, value_col):
 # Pipeline execution timestamp
 pipeline_run_ts = datetime.now()
 print(f"Pipeline started at: {pipeline_run_ts}")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ## High-water mark tracking (task-029)
+# `silver-to-gold2` consumes the SAME effective watermark that `bronze-to-silver`
+# resolved for this run, via the same `bronze_load_metadata` mechanism — ONE
+# watermark value per run, consumed by both layers (criterion 4). Gold runs AFTER
+# silver in the pipeline, so bronze-to-silver has already written its SUCCESS row
+# by the time we start; we exclude the current run's execution_id to read the
+# PREVIOUS run's watermark (the one silver used for its look-back window).
+
+# CELL ********************
+
+# --- bronze_load_metadata schema (mirrored from src/transformations/watermark.py) ---
+METADATA_SCHEMA = StructType([
+    StructField("source_table", StringType(), False),
+    StructField("last_load_date", DateType(), False),
+    StructField("load_timestamp", TimestampType(), False),
+    StructField("rows_loaded", LongType(), True),
+    StructField("load_status", StringType(), False),
+    StructField("execution_id", StringType(), True),
+])
+
+DEFAULT_WATERMARK = "1900-01-01"
+DEFAULT_SOURCE_TABLE = "bronze_procurement_transactional"
+METADATA_TABLE_FQN = "oem_lh.bronze_load_metadata"
+
+
+def resolve_effective_watermark(p_full_load, p_from_date, last_load_date):
+    """Resolve the effective watermark for this run as a "YYYY-MM-DD" string.
+
+    Precedence (criterion 3):
+      1. p_full_load == "true"          -> "1900-01-01"  (full load; load from epoch)
+      2. p_from_date != "1900-01-01"    -> p_from_date   (explicit manual override)
+      3. last_load_date is not None     -> strftime(last_load_date)
+      4. otherwise                      -> "1900-01-01"  (no prior SUCCESS row)
+    """
+    if (p_full_load or "").strip().lower() == "true":
+        return DEFAULT_WATERMARK
+    override = (p_from_date or "").strip()
+    if override and override != DEFAULT_WATERMARK:
+        return override
+    if last_load_date is not None:
+        return last_load_date.strftime("%Y-%m-%d")
+    return DEFAULT_WATERMARK
+
+
+def metadata_row(source_table, last_load_date, rows_loaded, status,
+                 execution_id=None, now=None):
+    """Build ONE metadata row tuple matching METADATA_SCHEMA, for append."""
+    ts = now if now is not None else datetime.now()
+    if isinstance(last_load_date, str):
+        last_load_date = datetime.strptime(last_load_date, "%Y-%m-%d").date()
+    elif isinstance(last_load_date, datetime):
+        last_load_date = last_load_date.date()
+    return (source_table, last_load_date, ts, rows_loaded, status, execution_id)
+
+
+def get_last_load_date(metadata_df, source_table, exclude_execution_id=None):
+    """Return the last SUCCESSful load's last_load_date for source_table, or None.
+
+    exclude_execution_id: when non-empty, rows with this execution_id are excluded
+        so gold reads the PREVIOUS run's watermark (bronze-to-silver has already
+        written its SUCCESS row by the time gold starts).
+    """
+    q = (metadata_df
+         .filter(F.col("source_table") == source_table)
+         .filter(F.col("load_status") == "SUCCESS"))
+    if exclude_execution_id:
+        q = q.filter(F.col("execution_id") != F.lit(exclude_execution_id))
+    row = (q.orderBy(F.col("load_timestamp").desc())
+            .limit(1)
+            .select("last_load_date")
+            .collect())
+    if not row:
+        return None
+    ld = row[0]["last_load_date"]
+    if ld is None:
+        return None
+    if isinstance(ld, datetime):
+        return ld.date()
+    return ld
+
+
+# --- Resolve the effective watermark for THIS gold run ---
+# Same precedence as bronze-to-silver; the exclude_execution_id filter means we
+# read the PREVIOUS run's watermark (the one silver used), not the row silver
+# just wrote for this run — so both layers window on the same value per run.
+_metadata_df = (spark.table(METADATA_TABLE_FQN)
+                if spark.catalog.tableExists(METADATA_TABLE_FQN) else None)
+_last_load_date = (get_last_load_date(_metadata_df, DEFAULT_SOURCE_TABLE,
+                                       exclude_execution_id=p_execution_id)
+                   if _metadata_df is not None else None)
+effective_from_date = resolve_effective_watermark(p_full_load, p_from_date, _last_load_date)
+print(f"[watermark] gold — p_full_load={p_full_load!r} p_from_date={p_from_date!r} "
+      f"last_SUCCESS(excluding this run)={_last_load_date} execution_id={p_execution_id!r} "
+      f"-> effective_from_date={effective_from_date!r}")
 
 # METADATA ********************
 
@@ -1327,9 +1436,10 @@ print(f"  Dropped {fact_epi_score.count() - fact_epi_score_clean.count()} record
 # Read silver for the fact. In incremental mode, mirror bronze-to-silver's 7-day look-back
 # window (see bronze-to-silver notebook-content.py ~L179-186) so we only rebuild the changed
 # window; in full-load mode (or first load) read the whole silver table.
-# task-029 DEPENDENCY: p_from_date defaults to "1900-01-01" until the high-water-mark lands,
-# so today this window == the full table — correct + idempotent, just not yet incremental-
-# efficient. It becomes truly incremental once task-029 computes a real watermark.
+# task-029: the window now keys off `effective_from_date` (auto-retrieved from
+# bronze_load_metadata, excluding the current run's execution_id so gold uses the
+# SAME effective watermark silver used). Both layers consume ONE mechanism — no
+# second watermark source.
 _is_full_load = p_full_load.strip().lower() == "true"
 _fact_exists = spark.catalog.tableExists(f"{DB}.fact_procurement")
 
@@ -1337,12 +1447,12 @@ if _is_full_load or not _fact_exists:
     proc = spark.table(f"{DB}.silver_procurement")
 else:
     from datetime import timedelta
-    _watermark_date = datetime.strptime(p_from_date, "%Y-%m-%d")
+    _watermark_date = datetime.strptime(effective_from_date, "%Y-%m-%d")
     _lookback_str = (_watermark_date - timedelta(days=7)).strftime("%Y-%m-%d")
     proc = (spark.table(f"{DB}.silver_procurement")
             .filter(F.col("date").cast("date") >= F.lit(_lookback_str)))
     print(f"fact_procurement: INCREMENTAL — silver window from {_lookback_str} "
-          f"(7-day look-back from {p_from_date})")
+          f"(7-day look-back from effective_from_date={effective_from_date})")
 
 # -----------------------------------------------------------------------------
 # Unit normalization (task-030 AC2)

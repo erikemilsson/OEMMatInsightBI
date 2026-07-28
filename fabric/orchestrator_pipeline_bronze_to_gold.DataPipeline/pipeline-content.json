@@ -312,6 +312,10 @@
             "p_epi_year": {
               "value": "@pipeline().parameters.p_epi_year",
               "type": "string"
+            },
+            "p_execution_id": {
+              "value": "@pipeline().RunId",
+              "type": "string"
             }
           }
         },
@@ -379,6 +383,10 @@
             "EPI_YEAR": {
               "value": "@int(pipeline().parameters.p_epi_year)",
               "type": "int"
+            },
+            "p_execution_id": {
+              "value": "@pipeline().RunId",
+              "type": "string"
             }
           }
         },
@@ -556,6 +564,10 @@
       "p_epi_year": {
         "type": "string",
         "defaultValue": "2024"
+      },
+      "p_execution_id": {
+        "type": "string",
+        "defaultValue": ""
       }
     }
   }

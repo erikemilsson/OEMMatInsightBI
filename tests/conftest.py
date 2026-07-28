@@ -24,6 +24,16 @@ def spark():
             .appName("OEMMatInsightBI-Tests")
             .config("spark.sql.shuffle.partitions", "2")  # Reduce partitions for tests
             .config("spark.default.parallelism", "2")
+            # Match Fabric's Spark runtime (task-029 / root CLAUDE.md gotcha): local
+            # pyspark 4.0.1 defaults ANSI mode ON; Fabric's Spark 3.4/3.5 defaults it
+            # OFF. Cast semantics diverge under exactly the conditions transformation
+            # code cares about (a malformed Year or unparseable amount silently becomes
+            # NULL in Fabric but raises SparkNumberFormatException locally). Tests left
+            # on the local default pass/fail for reasons the real runtime never
+            # reproduces, and in the dangerous direction (local raises where Fabric
+            # quietly nulls, so a "fix" targets a non-bug and misses the real null
+            # propagation). Set OFF so local behavior matches the target runtime.
+            .config("spark.sql.ansi.enabled", "false")
             .getOrCreate())
 
     # Set log level to WARN to reduce test output noise
