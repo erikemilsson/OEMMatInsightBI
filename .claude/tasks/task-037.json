@@ -2,7 +2,7 @@
   "id": "task-037",
   "title": "Test pipeline error handling and retry logic with simulated failures",
   "description": "Exercise the retry logic, execution logging, and email notifications built under task-011 by deliberately inducing pipeline failures in Fabric, confirming that retries fire, the error log table records the failure, and notifications are delivered. Originally tracked as inline subtask task-011-4 inside task-011, which was marked Finished while this item was still Pending — promoted to a standalone task by /health-check 2026-07-19 so it is visible to routing.",
-  "status": "Pending",
+  "status": "Finished",
   "priority": "P2",
   "difficulty": 3,
   "owner": "human",
@@ -30,13 +30,35 @@
     "RELATED to the open task-026 error-handler follow-up flagged on the dashboard (pipeline_error_handler wiring was deliberately deferred to a new dedicated task pending a failure-propagation topology + notification-sink decision). If that task gets filed, sequence this test after it so the test exercises the final topology rather than the interim one.",
     "STALENESS CHECK: authored 2026-01; task-026 changes how data-quality checks fail the pipeline, which may change what a realistic induced failure looks like.",
     "BLOCKED BY task-041 (recorded 2026-07-22): criteria 2 and 3 cannot pass as things stand. Criterion 2 asserts the failure is written to the execution/error log table, but gold_pipeline_execution_log is written by nothing — pipeline_error_handler is a complete implementation that no pipeline activity and no notebook invokes (verified with a positive control). Criterion 3 asserts a notification fires, but all three RefreshDataflow activities carry \"NoNotification\" and the pipeline JSON has no email/Teams/webhook configuration at all. Criterion 1 (retry policy fires the expected number of times) IS testable today and is already partly evidenced: data_quality_checks with retry=1 produced exactly 2 attempts on the 2026-07-22 failing runs. Do not route this task as ready until task-041 lands.",
-    "NOTIFICATION CRITERION DEFERRED 2026-07-27 via task-041 criterion 5 (Erik's decision). No notification sink is configured, so this task's notification criterion has nothing to exercise and must NOT be treated as a failure at test time. Reason: MailOnFailure now covers only 1 of 8 activities after the EPI/WGI repoint; schedule-attached notifications do not fire on on-demand runs (which is exactly this task's induced-failure test); the Outlook/Teams activity is inactive under CI/CD. Revisit when task-010 (Configure Pipeline Scheduling, On Hold) lands. The failure signal this task CAN and should verify is gold_pipeline_execution_log gaining rows plus the overall run reporting Failed via the new fail_orchestrator_run activity."
+    "NOTIFICATION CRITERION DEFERRED 2026-07-27 via task-041 criterion 5 (Erik's decision). No notification sink is configured, so this task's notification criterion has nothing to exercise and must NOT be treated as a failure at test time. Reason: MailOnFailure now covers only 1 of 8 activities after the EPI/WGI repoint; schedule-attached notifications do not fire on on-demand runs (which is exactly this task's induced-failure test); the Outlook/Teams activity is inactive under CI/CD. Revisit when task-010 (Configure Pipeline Scheduling, On Hold) lands. The failure signal this task CAN and should verify is gold_pipeline_execution_log gaining rows plus the overall run reporting Failed via the new fail_orchestrator_run activity.",
+    "COMPLETED 2026-07-28 (human-owned test tail; closed on existing live evidence per Erik's choice, glm-5.2 session). All 4 criteria satisfied. The substantive induced-failure testing was performed during task-041's deployment demo (2026-07-27) and recorded there — task-037 is the human-owned confirmation tail, and its criteria overlap heavily with that demo. CRITERION 1 (induced failure triggers retry policy expected times): MET. Induced a genuine non-notebook failure by setting bronzecopy_GlobalSupplyShares' Relative URL to 'does-not-exist.csv' (orchestrator run 2026-07-27 23:41-23:57 UTC, after the derive_retry_attempt ordinal fix, commit bdb66be). Copy retry=3, retryIntervalInSeconds=300. Observed: exactly 4 attempts (retry_attempt 0,1,2,3 ascending with start_ts 23:41:12 / 23:46:31 / 23:51:54 / 23:57:12) = 1 initial + 3 retries = the expected count. ~19 min end-to-end. CRITERION 2 (failure written to execution/error log with usable error message + timestamp): MET. gold_pipeline_execution_log gained 4 FAILED rows (one per Copy attempt) with error_category=Permanent, start_ts, pipeline_run_id, retry_attempt ordinals; plus 4 SUCCESS single-attempt activities (bronzecopy_EUSupplyShares, bronze_WGI, bronze_EPI, bronze_procurement) each retry_attempt=0. categorize_error() classified the real Fabric 404 text ('status code 404 NotFound' / '(404) Not Found') as Permanent. Clean run 1b76244b (2026-07-27) logged 8 SUCCESS rows on the Succeeded path. The failed run reported Failed via the handler's in-notebook re-raise. CRITERION 3 (notification fires + reaches recipient): DEFERRED WITH REASON (2026-07-27, Erik's call) — per this task's own 'NOTIFICATION CRITERION DEFERRED 2026-07-27' entry. No on-demand-firing notification sink is configured until task-010 (Configure Pipeline Scheduling, On Hold) lands: schedule-attached Failure notifications do not fire for on-demand runs (which IS this task's induced-failure test), MailOnFailure now covers only 1/8 activities after the EPI/WGI repoint, and Outlook/Teams is inactive under CI/CD. NOT treated as a failure at test time. CRITERION 4 (results recorded + documented-vs-observed retry gap): MET via this notes entry. The documented-vs-observed GAP: Fabric's queryactivityruns API returns retryAttempt: null even for a retried activity (documented behavior). The original harvest did activity.get('retryAttempt') or 0, coercing every row to retry_attempt=0 — making get_retry_effectiveness() (filters WHERE retry_attempt > 0) always return an empty frame, the exact 'reporting function over an empty table' problem this task exists to remove, relocated. FIX (task-041, commit bdb66be): derive_retry_attempt() ranks same-activity rows within a pipelineRunId by activityRunStart (first attempt=0, each retry +1), deliberately ignoring the API field. Live-confirmed: the four Copy attempts -> retry_attempt 0,1,2,3. Documented retry semantics (the retryAttempt field) do NOT match observed reality; the ordinal must be derived from start-time ranking. MINOR OPEN FOLLOW-UP (non-blocking, from task-041 verification): get_execution_summary() and get_retry_effectiveness() were not explicitly invoked against the populated log after the ordinal fix; data supports them (retry_attempt>0 rows present). Erik chose to close on existing evidence rather than run these two function calls live. Not a task-037 criterion — a documented follow-up only."
   ],
   "user_feedback": "",
   "created_date": "2026-07-19",
-  "updated_date": "2026-07-27",
-  "completion_date": null,
-  "verification_attempts": 0,
+  "updated_date": "2026-07-28",
+  "completion_date": "2026-07-28",
+  "verification_attempts": 1,
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-07-28T00:41:09Z",
+    "checks": {
+      "self_attested": "pass"
+    },
+    "notes": "Human task — completed by user. Live evidence from task-041's induced-failure demos (2026-07-27) confirms criteria 1, 2, 4; criterion 3 deferred with reason (Erik's call, 2026-07-27). Closed on existing evidence per user's choice. Induced Copy failure 2026-07-27 23:41-23:57 UTC -> 4 FAILED rows in gold_pipeline_execution_log with retry_attempt 0,1,2,3 + error_category Permanent (criterion 1: retry=3 -> 4 attempts; criterion 2: usable error message + timestamps); clean run 1b76244b -> 8 SUCCESS rows. Documented-vs-observed retry gap recorded in notes (retryAttempt API field always null; ordinal derived from start-time ranking).",
+    "issues": [],
+    "verified_by": "user (self-attested) + orchestrator"
+  },
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-07-28T00:41:09Z",
+      "checks": {
+        "self_attested": "pass"
+      },
+      "notes": "Human task — completed by user. Live evidence: induced Copy failure 2026-07-27 23:41-23:57 -> 4 FAILED rows retry_attempt 0,1,2,3 Permanent; clean run 1b76244b -> 8 SUCCESS rows; notification deferred w/ reason."
+    }
+  ],
   "out_of_spec": false,
   "absorbed_into": "",
   "interaction_hint": "dashboard"
