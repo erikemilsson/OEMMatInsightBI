@@ -1,0 +1,128 @@
+[
+  {
+    "heading_text": "Project Overview",
+    "section_id": "",
+    "line_start": 26,
+    "line_end": 71,
+    "fingerprint": "45e03cf4ec803411"
+  },
+  {
+    "heading_text": "Technical Architecture",
+    "section_id": "",
+    "line_start": 72,
+    "line_end": 117,
+    "fingerprint": "233161d344220b39"
+  },
+  {
+    "heading_text": "Data Architecture",
+    "section_id": "",
+    "line_start": 118,
+    "line_end": 335,
+    "fingerprint": "3aeee39ba8181548"
+  },
+  {
+    "heading_text": "Data Transformations",
+    "section_id": "",
+    "line_start": 336,
+    "line_end": 606,
+    "fingerprint": "98af5423b93ccd35"
+  },
+  {
+    "heading_text": "Orchestration",
+    "section_id": "",
+    "line_start": 607,
+    "line_end": 695,
+    "fingerprint": "2d7e005564aabe67"
+  },
+  {
+    "heading_text": "Semantic Model & Reporting",
+    "section_id": "",
+    "line_start": 696,
+    "line_end": 813,
+    "fingerprint": "99631aef100c5568"
+  },
+  {
+    "heading_text": "Current State Assessment",
+    "section_id": "",
+    "line_start": 814,
+    "line_end": 925,
+    "fingerprint": "06fb2f943bbaf043"
+  },
+  {
+    "heading_text": "Development Workflow",
+    "section_id": "",
+    "line_start": 926,
+    "line_end": 1002,
+    "fingerprint": "7b365f7094b5050e"
+  },
+  {
+    "heading_text": "Data Quality & Validation",
+    "section_id": "",
+    "line_start": 1003,
+    "line_end": 1116,
+    "fingerprint": "8a89145742b56c9b"
+  },
+  {
+    "heading_text": "Infrastructure & Deployment",
+    "section_id": "",
+    "line_start": 1117,
+    "line_end": 1233,
+    "fingerprint": "4f8df344d996ed42"
+  },
+  {
+    "heading_text": "Performance Optimization",
+    "section_id": "",
+    "line_start": 1234,
+    "line_end": 1255,
+    "fingerprint": "f37d0f01443ab475"
+  },
+  {
+    "heading_text": "Testing Strategy",
+    "section_id": "",
+    "line_start": 1256,
+    "line_end": 1281,
+    "fingerprint": "5da52ef547296060"
+  },
+  {
+    "heading_text": "Business Logic & Calculations",
+    "section_id": "",
+    "line_start": 1282,
+    "line_end": 1407,
+    "fingerprint": "4096ad3d89ecc969"
+  },
+  {
+    "heading_text": "Dependencies & External Systems",
+    "section_id": "",
+    "line_start": 1408,
+    "line_end": 1481,
+    "fingerprint": "87d97bc32e49e034"
+  },
+  {
+    "heading_text": "Open Questions & Decisions Needed",
+    "section_id": "",
+    "line_start": 1482,
+    "line_end": 1526,
+    "fingerprint": "0460ab1dc3877b30"
+  },
+  {
+    "heading_text": "Next Steps & Priorities",
+    "section_id": "",
+    "line_start": 1527,
+    "line_end": 1559,
+    "fingerprint": "2d018f1deb2d512e"
+  },
+  {
+    "heading_text": "Appendix: Sample Data Patterns",
+    "section_id": "",
+    "line_start": 1560,
+    "line_end": 1631,
+    "fingerprint": "cdca3e389cf8ed80"
+  },
+  {
+    "heading_text": "Contact & Ownership",
+    "section_id": "",
+    "line_start": 1632,
+    "line_end": 1637,
+    "fingerprint": "351adf5215761aea"
+  }
+]

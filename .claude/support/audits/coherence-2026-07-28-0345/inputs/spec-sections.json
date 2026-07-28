@@ -1,6 +1,6 @@
 {
   "spec_file": "spec_v1.md",
-  "spec_fingerprint": "sha256:7ee58b45261658b76936023192c5c1aa22b245200c416c5eb005566da302c01b",
+  "spec_fingerprint": "sha256:e28a9c5e8588c632849db2825fdce9923de029fbe0e43998290a384eec678e85",
   "section_count": 18,
   "sections": [
     {
@@ -23,16 +23,16 @@
       "heading": "## Data Architecture",
       "line_start": 118,
       "line_end": 335,
-      "char_count": 8055,
-      "fingerprint": "sha256:ddefa82f12ba389047119a27fe65b8de4202aa3c957260a1952b58a79e9606c0",
+      "char_count": 8058,
+      "fingerprint": "sha256:b3152dfb8d66c4a3a76e7e4e1576c0530a02c5a6f2f16a0470504ce11a4e520c",
       "synopsis": "```"
     },
     {
       "heading": "## Data Transformations",
       "line_start": 336,
       "line_end": 606,
-      "char_count": 13362,
-      "fingerprint": "sha256:722d0360bbf44ce0eb31e3c9dd2f76fc62c06d29dc96120ae242ccc0d7252fa4",
+      "char_count": 13358,
+      "fingerprint": "sha256:5cc18611da18189f6f379f9d1640edb8ceda9dd5a7e981eea7bae913a83d24ae",
       "synopsis": "**Notebook:** `bronze-to-silver.Notebook`"
     },
     {
@@ -46,103 +46,103 @@
     {
       "heading": "## Semantic Model & Reporting",
       "line_start": 696,
-      "line_end": 815,
-      "char_count": 4808,
-      "fingerprint": "sha256:74ebb2890af6134aeaebf26e8cfca46ba18b47cc29ed72b377b7e6c56c125e95",
+      "line_end": 813,
+      "char_count": 4740,
+      "fingerprint": "sha256:2a554d418d13e0aa597e4d52dff55648b4c600cd542a7fa1ffa7ce69e6eb22a8",
       "synopsis": "**Model Type:** Star Schema in **DirectLake** mode"
     },
     {
       "heading": "## Current State Assessment",
-      "line_start": 816,
-      "line_end": 927,
+      "line_start": 814,
+      "line_end": 925,
       "char_count": 3083,
       "fingerprint": "sha256:a6845a83478ccc9e2242ed811debfe29303c7105732a9c75546aab71d696e656",
       "synopsis": "**Bronze Layer:**"
     },
     {
       "heading": "## Development Workflow",
-      "line_start": 928,
-      "line_end": 1004,
+      "line_start": 926,
+      "line_end": 1002,
       "char_count": 2101,
       "fingerprint": "sha256:f6da1163cccb0993a600e3db80d26ef4def7ac4a77a98b97d14a9bf8b6491fbb",
       "synopsis": "**Repository Structure:**"
     },
     {
       "heading": "## Data Quality & Validation",
-      "line_start": 1005,
-      "line_end": 1118,
-      "char_count": 4802,
-      "fingerprint": "sha256:ab8feb951cd64aefdb8d8ecd1f5c7a4a64a7233e21ccd44a873422cc7735e0da",
+      "line_start": 1003,
+      "line_end": 1116,
+      "char_count": 4809,
+      "fingerprint": "sha256:01e08fbd004130b7ac62a4e7a3d2aab82d2662bf72e19f1169f9a7fea01c3110",
       "synopsis": "**Gold Layer Implementation:**"
     },
     {
       "heading": "## Infrastructure & Deployment",
-      "line_start": 1119,
-      "line_end": 1237,
+      "line_start": 1117,
+      "line_end": 1235,
       "char_count": 5727,
       "fingerprint": "sha256:06353ae6bb39d0f9b05e14323aa46eb3a2ae267aa82912ee664e824a8ec8471d",
       "synopsis": "**Workspace Name:** OEMMatInsightBI"
     },
     {
       "heading": "## Performance Optimization",
-      "line_start": 1238,
-      "line_end": 1259,
+      "line_start": 1236,
+      "line_end": 1257,
       "char_count": 620,
       "fingerprint": "sha256:9b9a89919570e0c3c541f98fc58e63858a1f598e7d2ef36d665faa48c75435e8",
       "synopsis": "**Pipeline Runtime:** Not benchmarked \u2014 manual pipeline runs at portfolio scale. No production load or SLA requirements."
     },
     {
       "heading": "## Testing Strategy",
-      "line_start": 1260,
-      "line_end": 1285,
+      "line_start": 1258,
+      "line_end": 1283,
       "char_count": 928,
       "fingerprint": "sha256:887963250c033ecb49b2b2eddd19092968107f72f1ad908725b662edd9266ab9",
       "synopsis": "**Unit Tests:** 94 tests for transformation logic in `tests/` (as of 2026-07-23; originally 33 from task-008, since exte"
     },
     {
       "heading": "## Business Logic & Calculations",
-      "line_start": 1286,
-      "line_end": 1411,
+      "line_start": 1284,
+      "line_end": 1409,
       "char_count": 4122,
       "fingerprint": "sha256:036df7eb05952e48b5c4e77e441c9553243e192ff7741a96fdbd41c358d6b051",
       "synopsis": "**Supply Risk (primary measure \u2014 DEC-001 Option B):**"
     },
     {
       "heading": "## Dependencies & External Systems",
-      "line_start": 1412,
-      "line_end": 1485,
+      "line_start": 1410,
+      "line_end": 1483,
       "char_count": 1945,
       "fingerprint": "sha256:d2a1edea94ff5be2398ee3efb8fdd7f7e314d8ef86baf8e65b987cae02cd88d8",
       "synopsis": "**Azure SQL Database:**"
     },
     {
       "heading": "## Open Questions & Decisions Needed",
-      "line_start": 1486,
-      "line_end": 1530,
+      "line_start": 1484,
+      "line_end": 1528,
       "char_count": 5764,
       "fingerprint": "sha256:fb354def3469651530522a19c2bbb108541ee26ac631152c61385c262f8f6bbd",
       "synopsis": "1.  **Incremental vs Full Load:**"
     },
     {
       "heading": "## Next Steps & Priorities",
-      "line_start": 1531,
-      "line_end": 1563,
+      "line_start": 1529,
+      "line_end": 1561,
       "char_count": 1917,
       "fingerprint": "sha256:f385418dec20aaeb316262e30bf910872c43310da06cd8655c8867f244a2eaee",
       "synopsis": "| Phase | Focus | Status | Acceptance Criteria |"
     },
     {
       "heading": "## Appendix: Sample Data Patterns",
-      "line_start": 1564,
-      "line_end": 1635,
+      "line_start": 1562,
+      "line_end": 1633,
       "char_count": 1395,
       "fingerprint": "sha256:e1fa4cfc097d9d4f9a28b0c7b6c4e5dcc00f046ac5ad02b3c5fed043f010a8ed",
       "synopsis": "**From azure/procurement.sql schema:**"
     },
     {
       "heading": "## Contact & Ownership",
-      "line_start": 1636,
-      "line_end": 1641,
+      "line_start": 1634,
+      "line_end": 1639,
       "char_count": 241,
       "fingerprint": "sha256:351adf5215761aea0c8541fc06439beb7b94d5691f9b4306f1863cbcacfc8ce6",
       "synopsis": "**Project Owner:** Personal Portfolio Project\\"

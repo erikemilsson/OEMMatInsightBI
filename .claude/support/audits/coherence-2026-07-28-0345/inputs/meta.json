@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-07-28T03:45:00Z",
+  "lenses_requested": [
+    "superseded-decisions",
+    "vocab-drift",
+    "path-drift",
+    "feedback-decay",
+    "retired-features",
+    "friction-register",
+    "acceptance-reconciliation"
+  ],
+  "since": null,
+  "warnings": [
+    "no verification-result.json (latest phase criteria absent)"
+  ]
+}

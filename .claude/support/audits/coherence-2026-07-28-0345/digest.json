@@ -1,0 +1,105 @@
+{
+  "audit": "coherence",
+  "ran_at": "2026-07-28T03:45:00Z",
+  "findings_count": {
+    "raw": 3,
+    "clustered": 3,
+    "bundle_eligible": 0,
+    "fix_eligible": 1,
+    "promote_eligible": 2,
+    "deduped_to_pending_work": 0
+  },
+  "items": [
+    {
+      "id": "C-01",
+      "title": "Stale silver_WB reference in data_quality_analysis notebook",
+      "description": "data_quality_analysis.Notebook line 421 still reads oem_lh.silver_WB, a table the retired World Bank ESG lineage produced — latent but will fail with AnalysisException if run.",
+      "kind": "fix-eligible",
+      "fix_one_liner": "Edit fabric/data_quality_analysis.Notebook/notebook-content.py:421 to drop or replace the silver_WB reference (redirect to silver_wgi OR remove the WB coverage leg) — closing FR-028.",
+      "source_anchors": [
+        "fabric/data_quality_analysis.Notebook/notebook-content.py:421",
+        "fabric/silver-to-gold2.Notebook/notebook-content.py:331",
+        ".claude/spec_v1.md:380",
+        ".claude/spec_v1.md:1602"
+      ],
+      "files_to_touch": [
+        "fabric/data_quality_analysis.Notebook/notebook-content.py"
+      ],
+      "evidence_path": ".claude/support/audits/coherence-2026-07-28-0345/findings.md#C-01",
+      "lenses": [
+        "path-drift",
+        "friction-register"
+      ],
+      "friction_refs": [
+        "FR-028"
+      ],
+      "status": "resolved",
+      "resolved_by": {
+        "kind": "code",
+        "ref": "fabric/data_quality_analysis.Notebook/notebook-content.py:421",
+        "at": "2026-07-28"
+      }
+    },
+    {
+      "id": "C-02",
+      "title": "WGI items drift across governance dimensions / WGI dimensions / indicators",
+      "description": "spec_v1.md refers to the same six WGI items as governance dimensions, WGI dimensions, and indicators across four sections (lines 256, 280, 376, 1101, 1302) with no cross-reference establishing equivalence.",
+      "kind": "decision",
+      "fix_one_liner": "Spec amendment via /iterate to standardize on WGI dimensions across lines 256, 280, 376, 1101; reserve indicators for EPI or qualify as WGI indicators.",
+      "source_anchors": [
+        ".claude/spec_v1.md § Data Architecture (line 256)",
+        ".claude/spec_v1.md § Data Architecture (line 280)",
+        ".claude/spec_v1.md § Data Transformations (line 376)",
+        ".claude/spec_v1.md § Data Quality & Validation (line 1101)",
+        ".claude/spec_v1.md § Business Logic & Calculations (line 1302)"
+      ],
+      "files_to_touch": [
+        ".claude/spec_v1.md"
+      ],
+      "evidence_path": ".claude/support/audits/coherence-2026-07-28-0345/findings.md#C-02",
+      "lenses": [
+        "vocab-drift"
+      ],
+      "iterate_routing": {
+        "reason": "spec/decision/vision file modification — read-only outside /iterate"
+      },
+      "status": "resolved",
+      "resolved_by": {
+        "kind": "spec_amendment",
+        "ref": ".claude/spec_v1.md",
+        "at": "2026-07-28",
+        "via": "/iterate C-02/C-03"
+      }
+    },
+    {
+      "id": "C-03",
+      "title": "fact table count: 3 vs 4 across sections",
+      "description": "spec_v1.md § Semantic Model (line 708) lists 4 fact tables including gold_supply_risk, but § Current State Assessment (line 844) counts only 3 — gold_supply_risk's classification as primary fact vs derived table is ambiguous.",
+      "kind": "decision",
+      "fix_one_liner": "Spec amendment via /iterate to standardize — update § Current State line 844 to 4 fact tables matching § Semantic Model, or relabel gold_supply_risk as a derived/calculated table.",
+      "source_anchors": [
+        ".claude/spec_v1.md § Semantic Model & Reporting (line 708)",
+        ".claude/spec_v1.md § Current State Assessment (line 844)",
+        ".claude/spec_v1.md § Business Logic & Calculations (line 1306)"
+      ],
+      "files_to_touch": [
+        ".claude/spec_v1.md"
+      ],
+      "evidence_path": ".claude/support/audits/coherence-2026-07-28-0345/findings.md#C-03",
+      "lenses": [
+        "vocab-drift"
+      ],
+      "iterate_routing": {
+        "reason": "spec/decision/vision file modification — read-only outside /iterate"
+      },
+      "status": "resolved",
+      "resolved_by": {
+        "kind": "spec_amendment",
+        "ref": ".claude/spec_v1.md",
+        "at": "2026-07-28",
+        "via": "/iterate C-02/C-03"
+      }
+    }
+  ],
+  "annotations": []
+}

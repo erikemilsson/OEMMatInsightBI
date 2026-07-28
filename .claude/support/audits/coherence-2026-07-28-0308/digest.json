@@ -1,0 +1,163 @@
+{
+  "audit": "coherence",
+  "ran_at": "2026-07-28T03:08:00",
+  "findings_count": {
+    "raw": 9,
+    "clustered": 7,
+    "bundle_eligible": 0,
+    "fix_eligible": 3,
+    "promote_eligible": 4,
+    "deduped_to_pending_work": 0
+  },
+  "items": [
+    {
+      "id": "C-01",
+      "title": "DQ analysis notebook reads retired silver_WB table",
+      "description": "data_quality_analysis.Notebook line 421 still reads oem_lh.silver_WB, a table the retired World Bank ESG lineage produced \u2014 will fail if run.",
+      "kind": "fix-eligible",
+      "fix_one_liner": "Remove or repoint the spark.table(silver_WB) read at line 421, or retire the notebook section if the analysis is obsolete.",
+      "source_anchors": [
+        "fabric/data_quality_analysis.Notebook/notebook-content.py:421",
+        "FR-028"
+      ],
+      "files_to_touch": [
+        "fabric/data_quality_analysis.Notebook/notebook-content.py"
+      ],
+      "evidence_path": ".claude/support/audits/coherence-2026-07-28-0308/findings.md#C-01",
+      "status": "pending"
+    },
+    {
+      "id": "C-02",
+      "title": "FB-007 untriaged 44 days",
+      "description": "FB-007 has sat in `new` status for 44 days without triage \u2014 past the 30-day decay threshold for the feedback loop.",
+      "kind": "fix-eligible",
+      "fix_one_liner": "Triage FB-007 via /feedback review (accept, decline, or merge).",
+      "source_anchors": [
+        ".claude/support/feedback/feedback.md (FB-007)"
+      ],
+      "files_to_touch": [
+        ".claude/support/feedback/feedback.md"
+      ],
+      "evidence_path": ".claude/support/audits/coherence-2026-07-28-0308/findings.md#C-02",
+      "status": "pending"
+    },
+    {
+      "id": "C-03",
+      "title": "Stale friction entries FR-025 & FR-029 \u2014 underlying issues already fixed",
+      "description": "FR-025 and FR-029 are still open in the friction register but their underlying code and doc issues are already fixed \u2014 close both entries.",
+      "kind": "fix-eligible",
+      "fix_one_liner": "Close FR-025 and FR-029 in .claude/support/friction.jsonl with status: closed and a resolution note referencing the fixing commits.",
+      "source_anchors": [
+        ".claude/support/friction.jsonl (FR-025, FR-029)",
+        "fabric/data_quality_checks.Notebook/notebook-content.py \u00a7 schema_checks",
+        "fabric_workspace.md \u00a7 Semantic Model"
+      ],
+      "files_to_touch": [
+        ".claude/support/friction.jsonl"
+      ],
+      "evidence_path": ".claude/support/audits/coherence-2026-07-28-0308/findings.md#C-03",
+      "status": "pending"
+    },
+    {
+      "id": "C-04",
+      "title": "Spec EPI ingestion drift \u2014 retired Dataflow named across 6 sections",
+      "description": "Spec still names retired EPI_file2table.Dataflow as the EPI ingestion method across 6 sections; live pipeline uses bronze_ingest_epi.Notebook.",
+      "kind": "decision",
+      "fix_one_liner": "/iterate: replace EPI_file2table.Dataflow with bronze_ingest_epi.Notebook across \u00a7\u00a7 Data Sources #2, Current State, Dependencies, Development Workflow, Orchestration.",
+      "source_anchors": [
+        "spec_v1.md \u00a7 Data Sources #2 (line 208)",
+        "spec_v1.md \u00a7 Data Sources #3 (line 254)",
+        "spec_v1.md \u00a7 Current State Assessment (lines 822, 824)",
+        "spec_v1.md \u00a7 Dependencies & External Systems (lines 1432, 1444)",
+        "spec_v1.md \u00a7 Development Workflow (line 985)",
+        "spec_v1.md \u00a7 Orchestration (lines 621, 623)",
+        "FR-027"
+      ],
+      "files_to_touch": [
+        ".claude/spec_v1.md"
+      ],
+      "evidence_path": ".claude/support/audits/coherence-2026-07-28-0308/findings.md#C-04",
+      "iterate_routing": {
+        "reason": "spec file modification \u2014 read-only outside /iterate"
+      },
+      "status": "escalated_to_iterate",
+      "resolved_by": {
+        "kind": "iterate_apply",
+        "ref": "spec_v1.md drift bundle (C-04/05/06/07)",
+        "at": "2026-07-28T03:30:00"
+      }
+    },
+    {
+      "id": "C-05",
+      "title": "Spec describes CI/CD files (parameter.yml, fabric-deploy.yml) that don't exist",
+      "description": "Spec \u00a7 Infrastructure & Deployment describes parameter.yml and .github/workflows/fabric-deploy.yml as if they exist, but neither file is on disk.",
+      "kind": "decision",
+      "fix_one_liner": "/iterate: reframe \u00a7 Infrastructure & Deployment CI/CD subsection as 'Planned' or move file paths to Phase 4 deliverables.",
+      "source_anchors": [
+        "spec_v1.md \u00a7 Infrastructure & Deployment (lines 1197, 1200, 1205, 1210)",
+        "spec_v1.md \u00a7 Next Steps & Priorities (line 1536)"
+      ],
+      "files_to_touch": [
+        ".claude/spec_v1.md"
+      ],
+      "evidence_path": ".claude/support/audits/coherence-2026-07-28-0308/findings.md#C-05",
+      "iterate_routing": {
+        "reason": "spec file modification \u2014 read-only outside /iterate"
+      },
+      "status": "escalated_to_iterate",
+      "resolved_by": {
+        "kind": "iterate_apply",
+        "ref": "spec_v1.md drift bundle (C-04/05/06/07)",
+        "at": "2026-07-28T03:30:00"
+      }
+    },
+    {
+      "id": "C-06",
+      "title": "Spec Appendix 'Sample WGI Record' uses retired silver_WB fields",
+      "description": "Spec \u00a7 Appendix 'Sample WGI Record' shows fields from the retired silver_WB (World Bank ESG) lineage, not the current silver_wgi schema.",
+      "kind": "decision",
+      "fix_one_liner": "/iterate: relabel Appendix section as 'Sample WB Record (retired lineage)' or replace with current silver_wgi schema fields.",
+      "source_anchors": [
+        "spec_v1.md \u00a7 Appendix: Sample Data Patterns (lines 1598-1610)",
+        "spec_v1.md \u00a7 Data Transformations (line 380)"
+      ],
+      "files_to_touch": [
+        ".claude/spec_v1.md"
+      ],
+      "evidence_path": ".claude/support/audits/coherence-2026-07-28-0308/findings.md#C-06",
+      "iterate_routing": {
+        "reason": "spec file modification \u2014 read-only outside /iterate"
+      },
+      "status": "escalated_to_iterate",
+      "resolved_by": {
+        "kind": "iterate_apply",
+        "ref": "spec_v1.md drift bundle (C-04/05/06/07)",
+        "at": "2026-07-28T03:30:00"
+      }
+    },
+    {
+      "id": "C-07",
+      "title": "Spec header references stale .claude/context/ and .claude/reference/ paths",
+      "description": "Spec \u00a7 Project Overview references .claude/context/ and .claude/reference/ paths that don't exist; canonical locations are under .claude/support/.",
+      "kind": "decision",
+      "fix_one_liner": "/iterate: replace .claude/context/ \u2192 .claude/support/documents/, .claude/reference/ \u2192 .claude/support/reference/ in \u00a7 Project Overview.",
+      "source_anchors": [
+        "spec_v1.md \u00a7 Project Overview (lines 18, 20, 22)"
+      ],
+      "files_to_touch": [
+        ".claude/spec_v1.md"
+      ],
+      "evidence_path": ".claude/support/audits/coherence-2026-07-28-0308/findings.md#C-07",
+      "iterate_routing": {
+        "reason": "spec file modification \u2014 read-only outside /iterate"
+      },
+      "status": "escalated_to_iterate",
+      "resolved_by": {
+        "kind": "iterate_apply",
+        "ref": "spec_v1.md drift bundle (C-04/05/06/07)",
+        "at": "2026-07-28T03:30:00"
+      }
+    }
+  ],
+  "annotations": []
+}

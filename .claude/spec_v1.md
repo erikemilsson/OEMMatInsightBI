@@ -2,7 +2,7 @@
 version: 1
 status: active
 created: 2025-11-14
-updated: 2026-07-23
+updated: 2026-07-28
 ---
 
 # OEMMatInsightBI - Project Definition for Claude Code
@@ -15,11 +15,11 @@ updated: 2026-07-23
 >
 > -   Command definitions (`.claude/commands/`)
 >
-> -   Context documentation (`.claude/context/`)
+> -   Context documentation (`.claude/support/documents/`)
 >
-> -   Reference files (`.claude/reference/`)
+> -   Reference files (`.claude/support/reference/`)
 >
-> -   Standards and conventions (`.claude/context/standards/`)
+> -   Standards and conventions (`.claude/support/documents/standards/`)
 
 ------------------------------------------------------------------------
 
@@ -205,7 +205,7 @@ Power BI Reports
 
 **Source:** EPI dataset (file-based ingestion)
 
-**Ingestion Method:** `EPI_file2table.Dataflow`
+**Ingestion Method:** `bronze_ingest_epi.Notebook` (PySpark, from manual CSV upload). Supersedes the retired `EPI_file2table.Dataflow` CSV lineage.
 
 **Content:** Country-level environmental performance scores across multiple indicators
 
@@ -253,7 +253,7 @@ Power BI Reports
 
 **Ingestion Method:** `bronze_ingest_wgi.Notebook` (PySpark, API-based). Supersedes the retired `WGI_file2table.Dataflow` CSV lineage.
 
-**Content:** Country-level governance quality metrics across 6 governance dimensions
+**Content:** Country-level governance quality metrics across 6 WGI dimensions
 
 **Grain:** Long format — one row per country per indicator per year
 
@@ -277,7 +277,7 @@ Power BI Reports
 
 -   `silver_wgi` **must preserve `Year` and `Value`.** They are the `WGIᶜ` input to the Supply Risk model; without them the governance weight cannot be computed downstream.
 
--   **Six** indicators are ingested, not five. Coverage rules must test against six.
+-   **Six** WGI dimensions are ingested, not five. Coverage rules must test against six.
 
 -   *(The pipeline currently selects only identity columns — `country_iso3`, `country_name`, `indicator_name` — discarding `Year`/`Value`. Corrected by task-031; made mandatory by DEC-001.)*
 
@@ -373,7 +373,7 @@ Power BI Reports
 
 -   **Must preserve `Year` and `Value`** — the governance scores are the `WGIᶜ` input to the Supply Risk model (§ Business Logic & Calculations). *Currently dropped by the pipeline; corrected by task-031.*
 
--   Coverage rules test against **six** indicators (not five)
+-   Coverage rules test against **six** WGI dimensions (not five)
 
 -   Write to: `silver_wgi`
 
@@ -618,9 +618,9 @@ Power BI Reports
 |---|----------|------|---------------|-------|
 | 1 | `bronzecopy_EUSupplyShares` | Copy (HTTP → Lakehouse) | `bronze_EUSupplyShares` | 3 |
 | 2 | `bronzecopy_GlobalSupplyShares` | Copy (HTTP → Lakehouse) | `bronze_GlobalSupplyShares` | 3 |
-| 3 | `bronze_WGI` | RefreshDataflow | `bronze_WGI` | 2 |
+| 3 | `bronze_WGI` | Notebook | `bronze_WGI` | 2 |
 | 4 | `bronze_procurement` | RefreshDataflow | `bronze_procurement_transactional`, `bronze_supplier_ref` | 3 |
-| 5 | `bronze_EPI` | RefreshDataflow | `bronze_epi2024results` and related tables | 2 |
+| 5 | `bronze_EPI` | Notebook | `bronze_epi2024results` and related tables | 2 |
 
 **Stage 2: Silver Transformation (Sequential)**
 
@@ -677,7 +677,7 @@ Power BI Reports
 
 **Schedule:** Not configured. The pipeline is run manually.
 
-**Error Handling:** Activity-level retry (1–3 attempts depending on activity, 30-second intervals) plus a single terminal handler activity (`pipeline_error_handler`) that runs on every outcome and logs each activity to `gold_pipeline_execution_log`, re-raising on any FAILED to keep the run red. Canonical description: § Open Questions & Decisions Needed → Technical Decisions #5 (DEC-004, amended 2026-07-27). *(Supersedes the earlier "fail-fast, 0 retries" description — stale since task-011 shipped retry logic — and the "Upon-Failure paths" wording — stale since the 2026-07-27 amendment moved the handler onto every outcome.)*
+**Error Handling:** Activity-level retry (1–3 retries depending on activity; retry intervals 30–300s depending on activity — see Technical Decisions #5 for per-activity values) plus a single terminal handler activity (`pipeline_error_handler`) that runs on every outcome and logs each activity to `gold_pipeline_execution_log`, re-raising on any FAILED to keep the run red. Canonical description: § Open Questions & Decisions Needed → Technical Decisions #5 (DEC-004, amended 2026-07-27). *(Supersedes the earlier "fail-fast, 0 retries" description — stale since task-011 shipped retry logic — and the "Upon-Failure paths" wording — stale since the 2026-07-27 amendment moved the handler onto every outcome.)*
 
 **Notifications:** No on-demand-firing sink configured. `notifyOption` remains `NoNotification`; the notification criterion (task-041 criterion 5) is deferred with reason until task-010 (scheduling) lands. See Technical Decisions #5.
 
@@ -713,7 +713,9 @@ Power BI Reports
 
 -   `fact_supply_share` - Global supply concentration by material/stage/country
 
--   `gold_supply_risk` - Governance- & trade-weighted supply risk by material/stage (`hhi_global`, `hhi_eu_sourcing`, contrast). Yearly grain, no date relationship (consistent with `fact_supply_share`). See § Business Logic & Calculations → Supply Risk.
+**Derived / Calculated Tables:**
+
+-   `gold_supply_risk` - derived from `fact_supply_share`; governance- & trade-weighted supply risk by material/stage (`hhi_global`, `hhi_eu_sourcing`, contrast). Yearly grain, no date relationship (consistent with `fact_supply_share`). See § Business Logic & Calculations → Supply Risk.
 
 **Dimension Tables:**
 
@@ -819,9 +821,9 @@ The report was redesigned and rebuilt from scratch after the semantic model was 
 
 -   [x] Azure SQL dataflow (`bronze_azureSQLdb2table.Dataflow`)
 
--   [x] EPI file ingestion (`EPI_file2table.Dataflow`)
+-   [x] EPI ingestion (`bronze_ingest_epi.Notebook`, manual CSV upload)
 
--   [x] WGI file ingestion (`WGI_file2table.Dataflow`)
+-   [x] WGI ingestion (`bronze_ingest_wgi.Notebook`, World Bank API)
 
 -   [x] HTTP copy job for EU supply shares (`bronzecopy_EUSupplyShares`)
 
@@ -982,7 +984,7 @@ No open issues. Previously identified gap (data quality visibility) addressed vi
 
 -   `[layer]_[source]_[method]2table.Dataflow`
 
--   Examples: `bronze_azureSQLdb2table`, `EPI_file2table`, `WGI_file2table`
+-   Examples: `bronze_azureSQLdb2table`
 
 **Pipelines:**
 
@@ -1098,7 +1100,7 @@ Synthetic dataset — exact counts depend on Azure SQL seed scripts in `/azure/`
 
 **EPI Scores:** ~180-200 countries, ~30-40 indicators (wide format in bronze), year 2024, score range 0-100
 
-**WGI Indicators:** ~200+ countries, 6 governance dimensions, years 1996-2023 (annual from 2002; biennial before), estimate scale approx. −2.5…+2.5. Grain in silver: one row per country per indicator per year.
+**WGI Indicators:** ~200+ countries, 6 WGI dimensions, years 1996-2023 (annual from 2002; biennial before), estimate scale approx. −2.5…+2.5. Grain in silver: one row per country per indicator per year.
 
 **Supply Shares:**
 
@@ -1184,6 +1186,8 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 -   Database ID: b1cb7506-8d2d-4e4a-97cc-2b580da8eda0
 
 ### CI/CD Deployment
+
+**Status: Planned (Phase 4) — not yet implemented.** The following describes the intended approach; `parameter.yml` and `.github/workflows/fabric-deploy.yml` do not exist on disk yet (only `.github/workflows/test.yml` is live). See § Next Steps → Phase 4 for deliverables.
 
 **Approach:** Git-based deployment using Microsoft's `fabric-cicd` Python library + GitHub Actions (Microsoft CI/CD Option 2 — trunk-based with build environments).
 
@@ -1429,7 +1433,7 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
 
 -   File location: Manual CSV upload to Fabric Lakehouse Files
 
--   Ingestion: Automated via dataflow after manual file upload
+-   Ingestion: `bronze_ingest_epi.Notebook` after manual CSV upload
 
 -   Current year: 2024
 
@@ -1439,9 +1443,9 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
 
 -   Update schedule: Annual (typically Q3-Q4)
 
--   File location: Manual CSV upload to Fabric Lakehouse Files
+-   File location: N/A — `bronze_ingest_wgi.Notebook` pulls directly from the World Bank API
 
--   Ingestion: Automated via dataflow after manual file upload
+-   Ingestion: `bronze_ingest_wgi.Notebook` (World Bank API, automated)
 
 -   Current year: 2020 (filtered in transformation)
 
@@ -1502,7 +1506,7 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
     -   **DECISION:** Not applicable — portfolio project with no retention policy needed. All layers kept indefinitely.
 5.  **Error Handling:**
     -   **DECISION (DEC-004, 2026-07-23, amended 2026-07-27):** Activity-level retry plus a single pipeline-level error-handler activity on the terminal node, logging every activity's outcome to `gold_pipeline_execution_log`.
-    -   **Pattern:** Each activity keeps its retry count (1–3) and interval (30s). One handler activity (`pipeline_error_handler`) depends on the terminal activity `data_quality_checks` via `['Succeeded','Failed','Skipped']` — so it runs on every outcome — and reads per-activity results via POST `queryactivityruns` (not `@activity('X').Error`, which has no `error` field on Skipped activities). It writes one log row per activity (Succeeded rows included), then **re-raises `RuntimeError` if any activity FAILED**, keeping a failing run red. Non-notebook activities (Copy, RefreshDataflow) are covered because the handler reads the run's activity-run records directly, not via in-notebook `try/except`.
+    -   **Pattern:** Each activity keeps its retry count (1–3 retries, i.e. 2–4 total attempts) and interval (30–300s: 30s for bronze_WGI/bronze_EPI, 120s for bronze-to-silver/silver-to-gold/data_quality_checks, 300s for the Copy and procurement RefreshDataflow activities). One handler activity (`pipeline_error_handler`) depends on the terminal activity `data_quality_checks` via `['Succeeded','Failed','Skipped']` — so it runs on every outcome — and reads per-activity results via POST `queryactivityruns` (not `@activity('X').Error`, which has no `error` field on Skipped activities). It writes one log row per activity (Succeeded rows included), then **re-raises `RuntimeError` if any activity FAILED**, keeping a failing run red. Non-notebook activities (Copy, RefreshDataflow) are covered because the handler reads the run's activity-run records directly, not via in-notebook `try/except`.
     -   **Why:** Fabric has no pipeline-level retry — only activity-level. A handler on `['Failed','Skipped']` only (the original 2-activity shape) never fires on a clean run and so cannot log successes; running on every outcome and re-raising on failure gives both coverage and the red-on-failure guard in one activity. The re-raise is the Try-Catch-trap defence: a bare on-failure branch that succeeds makes the whole run report Success and would silently undo the DQ gate.
     -   **Notification (criterion 5, deferred 2026-07-27 with reason):** no on-demand-firing sink exists until task-010 (scheduling) lands; `notifyOption='MailOnFailure'` would now cover only 1/8 activities after the EPI/WGI repoint. Revisit at task-010. The pipeline's failure signal is `gold_pipeline_execution_log` plus the run reporting Failed via the handler's re-raise.
 
@@ -1595,9 +1599,9 @@ year: 2024
 score: 51.2
 ```
 
-### Sample WGI Record
+### Sample WB Record (retired lineage — see § Data Transformations)
 
-**From silver_WB:**
+**From silver_WB (retired — no live artifact produces this table):**
 
 ```         
 country_code: "USA"

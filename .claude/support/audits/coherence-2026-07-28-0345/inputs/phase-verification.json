@@ -1,0 +1,99 @@
+[
+  {
+    "phase": "1",
+    "phase_name": "Core Infrastructure",
+    "task_count": 10,
+    "finished": 9,
+    "verified_pass": 9,
+    "phase_complete": false,
+    "task_ids": [
+      "task-034",
+      "task-002",
+      "task-014",
+      "task-015",
+      "task-003",
+      "task-004",
+      "task-008",
+      "task-009",
+      "task-013",
+      "task-001"
+    ]
+  },
+  {
+    "phase": "2",
+    "phase_name": "2",
+    "task_count": 31,
+    "finished": 26,
+    "verified_pass": 26,
+    "phase_complete": false,
+    "task_ids": [
+      "task-018",
+      "task-022",
+      "task-038",
+      "task-039",
+      "task-023",
+      "task-035",
+      "task-019",
+      "task-006_1c",
+      "task-028",
+      "task-032",
+      "task-024",
+      "task-025",
+      "task-033",
+      "task-029",
+      "task-006_1b",
+      "task-005",
+      "task-006_1a",
+      "task-006",
+      "task-006_3",
+      "task-026",
+      "task-030",
+      "task-031",
+      "task-027",
+      "task-006_2",
+      "task-007",
+      "task-020",
+      "task-036",
+      "task-016",
+      "task-041",
+      "task-040",
+      "task-017"
+    ]
+  },
+  {
+    "phase": 2,
+    "phase_name": "Silver/Gold transforms + DQ gate",
+    "task_count": 1,
+    "finished": 1,
+    "verified_pass": 1,
+    "phase_complete": true,
+    "task_ids": [
+      "task-042"
+    ]
+  },
+  {
+    "phase": "3",
+    "phase_name": "3",
+    "task_count": 15,
+    "finished": 8,
+    "verified_pass": 9,
+    "phase_complete": false,
+    "task_ids": [
+      "task-012_1",
+      "task-021_2",
+      "task-021_1d",
+      "task-012",
+      "task-021_1b",
+      "task-021_1c",
+      "task-010",
+      "task-012_5",
+      "task-012_4",
+      "task-021_1a",
+      "task-011",
+      "task-012_3",
+      "task-012_2",
+      "task-037",
+      "task-021"
+    ]
+  }
+]
