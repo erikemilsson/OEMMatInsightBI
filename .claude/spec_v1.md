@@ -677,9 +677,9 @@ Power BI Reports
 
 **Schedule:** Not configured. The pipeline is run manually.
 
-**Error Handling:** Activity-level retry (1-3 attempts depending on activity, 30-second intervals) with Upon-Failure paths to shared error logging. Canonical description: § Open Questions & Decisions Needed → Technical Decisions #5. *(Supersedes the earlier "fail-fast, 0 retries" description — stale since task-011 shipped retry logic.)*
+**Error Handling:** Activity-level retry (1–3 attempts depending on activity, 30-second intervals) plus a single terminal handler activity (`pipeline_error_handler`) that runs on every outcome and logs each activity to `gold_pipeline_execution_log`, re-raising on any FAILED to keep the run red. Canonical description: § Open Questions & Decisions Needed → Technical Decisions #5 (DEC-004, amended 2026-07-27). *(Supersedes the earlier "fail-fast, 0 retries" description — stale since task-011 shipped retry logic — and the "Upon-Failure paths" wording — stale since the 2026-07-27 amendment moved the handler onto every outcome.)*
 
-**Notifications:** NoNotification configured on dataflow refreshes
+**Notifications:** No on-demand-firing sink configured. `notifyOption` remains `NoNotification`; the notification criterion (task-041 criterion 5) is deferred with reason until task-010 (scheduling) lands. See Technical Decisions #5.
 
 **Dependencies:**
 
@@ -1501,10 +1501,10 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
 4.  **Data Retention:**
     -   **DECISION:** Not applicable — portfolio project with no retention policy needed. All layers kept indefinitely.
 5.  **Error Handling:**
-    -   **DECISION:** Activity-level retry with Try-Catch pattern and error logging.
-    -   **Pattern:** Each activity gets retry count (3) and interval (30s). Upon Failure paths route to a shared error-logging activity (writes to `pipeline_execution_log` table). Critical failures use the Fail activity with custom error codes. Non-critical failures (e.g., EPI refresh fails) allow the pipeline to continue via Try-Catch, logging the failure for review.
-    -   **Why:** Fabric has no pipeline-level retry — only activity-level. The Try-Catch pattern (Upon Failure path only) allows the pipeline to succeed even when non-critical activities fail, which is important for a multi-source pipeline where one external source being unavailable shouldn't block everything.
-    -   **Notification:** Pipeline failure alerts via Fabric monitoring (no custom notification system needed for a single-developer project).
+    -   **DECISION (DEC-004, 2026-07-23, amended 2026-07-27):** Activity-level retry plus a single pipeline-level error-handler activity on the terminal node, logging every activity's outcome to `gold_pipeline_execution_log`.
+    -   **Pattern:** Each activity keeps its retry count (1–3) and interval (30s). One handler activity (`pipeline_error_handler`) depends on the terminal activity `data_quality_checks` via `['Succeeded','Failed','Skipped']` — so it runs on every outcome — and reads per-activity results via POST `queryactivityruns` (not `@activity('X').Error`, which has no `error` field on Skipped activities). It writes one log row per activity (Succeeded rows included), then **re-raises `RuntimeError` if any activity FAILED**, keeping a failing run red. Non-notebook activities (Copy, RefreshDataflow) are covered because the handler reads the run's activity-run records directly, not via in-notebook `try/except`.
+    -   **Why:** Fabric has no pipeline-level retry — only activity-level. A handler on `['Failed','Skipped']` only (the original 2-activity shape) never fires on a clean run and so cannot log successes; running on every outcome and re-raising on failure gives both coverage and the red-on-failure guard in one activity. The re-raise is the Try-Catch-trap defence: a bare on-failure branch that succeeds makes the whole run report Success and would silently undo the DQ gate.
+    -   **Notification (criterion 5, deferred 2026-07-27 with reason):** no on-demand-firing sink exists until task-010 (scheduling) lands; `notifyOption='MailOnFailure'` would now cover only 1/8 activities after the EPI/WGI repoint. Revisit at task-010. The pipeline's failure signal is `gold_pipeline_execution_log` plus the run reporting Failed via the handler's re-raise.
 
 ### Business Decisions
 

@@ -5,6 +5,7 @@ status: approved
 category: architecture
 created: 2026-07-23
 decided: 2026-07-23
+amended: 2026-07-27
 decided_by: user
 related:
   tasks: [task-041, task-037, task-011]
@@ -13,8 +14,8 @@ implementation_anchors:
   - fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/pipeline-content.json
   - fabric/pipeline_error_handler.Notebook/notebook-content.py
 inflection_point: false
-spec_revised:
-spec_revised_date:
+spec_revised: true
+spec_revised_date: 2026-07-28
 blocks: [task-041]
 ---
 
@@ -24,7 +25,7 @@ blocks: [task-041]
 
 Mark your selection by checking one box:
 
-- [x] Option A: Pipeline-level on-failure activities using `dependencyConditions: ["Failed", "Skipped"]` — fan-in on the terminal activity + a trailing `Fail`, 2 activities total  *(recommended, contingent on one experiment)*
+- [x] Option A: Pipeline-level handler activity on the terminal node, reading per-activity outcomes via `queryactivityruns` — fan-in covers all 8 activities  *(selected 2026-07-23 in a 2-activity shape; **amended 2026-07-27** to 1 activity — see § Amendment)*
 - [ ] Option B: `%run` the handler from inside each transformation notebook  *(requires a recorded scope reduction — fails criterion 2 as written)*
 - [ ] Option C: Wrapper / parent pipeline invoking the current one, with centralized failure handling
 
@@ -33,6 +34,54 @@ Mark your selection by checking one box:
 > Option A's label was sharpened on 2026-07-23 after research: the original said `["Failed"]` alone,
 > which would miss the 7 upstream activities that go `Skipped` rather than `Failed` when something
 > earlier in the chain breaks. The `Skipped` condition is what makes the one-handler fan-in work.
+>
+> **Amended 2026-07-27 (Erik-approved).** The as-built guard mechanism differs from the 2026-07-23
+> recommendation. **Substance unchanged** — single handler on the terminal activity, `queryactivityruns`
+> for per-activity outcomes, an explicit guard against green-on-failure — but the guard MECHANISM changed
+> and the activity count dropped 2 → 1. The original 2-activity shape (handler on `["Failed","Skipped"]` +
+> a trailing native `Fail`) never fired on a clean run and so could not satisfy criterion 3 (successful
+> runs must also populate the log). The as-built is 1 activity — handler on `["Succeeded","Failed","Skipped"]`
+> (runs on every outcome) with an in-notebook `raise` after logging if any activity FAILED. The trailing
+> `Fail` activity was removed. Full detail in `## Amendment — 2026-07-27` below.
+
+## Amendment — 2026-07-27 (Erik-approved)
+
+The as-built guard mechanism differs from the 2026-07-23 recommendation above. **DEC-004's
+substance is unchanged** — single handler on the terminal activity, `queryactivityruns` for
+per-activity outcomes, an explicit guard against green-on-failure — but the guard MECHANISM
+changed, and with it the activity count.
+
+**Original shape (2026-07-23, 2 activities):** `pipeline_error_handler` (TridentNotebook, depends
+on `data_quality_checks` via `["Failed","Skipped"]`) + `fail_orchestrator_run` (native `Fail` on
+the handler's `Succeeded` path). The handler fires only when the terminal activity Failed or was
+Skipped.
+
+**Why it was amended:** the first deployed run (orchestrator `b5d799b1`, 8/8 Succeeded) wrote
+ZERO execution-log rows, because a handler on `["Failed","Skipped"]` never fires on a clean run.
+Criterion 3 requires a successful orchestrated run to also populate the log so
+`get_execution_summary` / `get_retry_effectiveness` have both outcomes to compare. The failure-only
+topology could not satisfy criterion 3.
+
+**As-built shape (2026-07-27, 1 activity):** `pipeline_error_handler` (TridentNotebook, depends on
+`data_quality_checks` via `["Succeeded","Failed","Skipped"]`, i.e. runs on every outcome). It logs
+one `gold_pipeline_execution_log` row per activity (Succeeded rows included), then **re-raises
+`RuntimeError` if any activity logged FAILED** — failing its own activity and keeping the run red.
+`fail_orchestrator_run` was **removed**: under the new shape it would sit on the handler's
+`Succeeded` path and wrongly mark a clean run Failed.
+
+**Live confirmation:** induced Copy failure (run `742ff1ff`, `bronzecopy_GlobalSupplyShares` →
+`does-not-exist.csv`) wrote 4 FAILED + 4 SUCCESS rows and the run reported Failed via the re-raise;
+clean run `1b76244b` wrote 8 SUCCESS rows and reported Succeeded.
+
+**The Try-Catch trap is still designed around** — by the re-raise rather than a trailing `Fail`.
+The documented Try-Catch shape (a handler on a failure branch that succeeds) makes the overall run
+report Success; the re-raise ensures the handler activity itself fails when any upstream failed,
+preserving task-026's DQ gate.
+
+**Net effect on the Options Comparison table below:** the "Activities added to the pipeline" row
+for Option A changes from `1 handler + 1 Fail` to `1 handler` (the re-raise replaces the `Fail`).
+Every other column for Option A is unchanged. The table is retained verbatim as the 2026-07-23
+research record; read it against this amendment.
 
 ## Background
 
@@ -323,17 +372,32 @@ documented Fabric REST API whose behaviour when self-querying an in-flight run i
 
 ## Decision
 
-**Selected:**
+**Selected:** Option A — a single pipeline-level handler activity on the terminal activity
+`data_quality_checks`, reading per-activity outcomes via `queryactivityruns`. See `## Select an
+Option` and `## Amendment — 2026-07-27` above.
 
-**Rationale:**
+**Rationale:** The singly-terminal convergent DAG makes the fan-in shape valid, so the handler costs
+1 activity (not 8) and does not multiply as the pipeline grows. One `queryactivityruns` call satisfies
+criteria 2, 3, and 4 simultaneously — non-notebook coverage (Copy/RefreshDataflow), success rows, and
+a real Fabric error string for `categorize_error()` — while touching zero transformation notebooks.
+The in-notebook re-raise (amendment 2026-07-27) preserves the run's `Failed` status without a second
+activity, and serves both clean-run logging (criterion 3) and red-on-failure in one shape.
+
+**Amended 2026-07-27 (Erik-approved):** guard mechanism changed from a trailing native `Fail`
+activity to an in-notebook re-raise; activity count 2 → 1. See `## Amendment — 2026-07-27`.
 
 
 ## Trade-offs
 
-**Gaining:**
+**Gaining:** Single-activity topology that logs both successes and failures (criterion 3) while
+keeping failing runs red — one shape serves both, no trailing `Fail` activity to keep in sync with
+the handler's path.
 
-**Giving Up:**
-
+**Giving Up:** The handler now runs on every orchestrated run (a per-run cost: one
+`queryactivityruns` POST + N row writes). The re-raise guard is in-notebook code rather than a
+declarative pipeline activity; a handler-notebook crash during logging could in principle leave a
+partial log without failing the run — mitigated by `retry: 0` on the handler so a partial write is
+never duplicated by a retry, and by the empty-activity-list `RuntimeError` guard.
 
 ## Impact
 
