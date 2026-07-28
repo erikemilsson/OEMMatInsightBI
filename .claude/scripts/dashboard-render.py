@@ -668,7 +668,7 @@ def _html_recent(active, now):
         rt_title = f' title="{_esc(full)}"' if full else ""
         rows.append(
             f'<div class="rr"><span class="rd">{d.isoformat()[5:]}</span>'
-            f'<span class="tid">T{_esc(t.get("id"))}</span>'
+            f'<span class="tid">{_esc(t.get("id"))}</span>'
             f'<span class="rt"{rt_title}>{_esc(disp)}</span></div>')
     return "".join(rows)
 
