@@ -1,8 +1,4 @@
 {
-  "timestamp": "2026-07-26T20:35:33Z",
-  "clean_exit": true,
-  "in_progress_tasks": [
-    "task-041"
-  ],
-  "note": "/work pause 2026-07-26. EPI single-source thread CLOSED: task-035 + task-042 Finished and verified. Repo<->Fabric drift cleared (Fabric commit 11bb463) -- the never-git-Update-the-pipeline guardrail no longer applies. Code pushed to 12e2b19; 3 task JSONs uncommitted pending Erik's call."
+  "last_clean_exit": "2026-07-28T00:12:09Z",
+  "in_progress_tasks": []
 }
