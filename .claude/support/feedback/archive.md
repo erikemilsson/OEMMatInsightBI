@@ -69,3 +69,23 @@ Canonicalized on "data quality" (dropping "DQ" entirely) across four lines: 980,
 **Source:** audit-coherence-2026-05-17-1436 C-06
 
 Line 898 updated to "Data quality observability tables added to semantic model" to match line 884. Line 947 deliberately left untouched — the shorter form flows naturally with the preceding "data quality visibility" phrase in the same sentence. Resolved as `[NEEDS APPROVAL] D4` during /iterate.
+
+---
+
+## FB-007: dashboard-render.py mermaid edge sources skip mermaid_id() sanitization
+
+**Status:** obsolete (superseded upstream)
+**Captured:** 2026-06-14
+**Archived:** 2026-07-28 — superseded by DEC-024 (template v5.0.0, 2026-06-24), which deleted the mermaid renderer entirely; the bug cannot exist at template 5.x. This project synced to 5.4.0 on 2026-07-22; the dashboard is now generated HTML with an inline-SVG dependency graph (no mermaid), so the hand-workaround is no longer needed and a `/work` regen no longer reintroduces broken edges. Template-side triage: `harvest-2026-07-19-triage.md` ("superseded — DEC-024/v5.0.0 deleted the mermaid renderer; the bug can't exist at 5.x; action: sync to 5.x; archive the bridge"). Note: the template's own FB-007 is an unrelated item (spec-edit guardrail, DEC-016) — this downstream item never landed as a template FB; the mermaid issue was tracked only via the interaction-logs bridge (`interaction-logs/processed/OEMMatInsightBI-feedback-FB-007-2026-06-14.json`).
+
+In `render_mermaid()`, `resolve_dep()` returned the raw `f"T{dep}"` without passing it through `mermaid_id()`, so task-dependency edge *sources* kept hyphens while node definitions and edge *targets* were underscore-sanitized — every dependency edge pointed from a phantom node and the Project Overview graph rendered disconnected. The 70-test script suite passed despite the bug. Code path no longer exists.
+
+---
+
+## FB-008: dashboard-render.py --html writes to stdout; docs omit the redirect step
+
+**Status:** addressed (template v5.4.1)
+**Captured:** 2026-07-22
+**Archived:** 2026-07-28 — addressed upstream in template v5.4.1 (2026-07-28). The reference doc `dashboard-regeneration.md § 3 "Generate Dashboard"` already stated the redirect ("run `dashboard-render.py --html ...` and `Write` its stdout to `.claude/dashboard.html`"); v5.4.1 sharpened the `rules/dashboard.md § Regeneration Strategy` summary to the explicit `python3 .claude/scripts/dashboard-render.py --html > .claude/dashboard.html` form with a note on the silent-stale failure mode (omitting the redirect leaves `dashboard.html` stale with no error). The suggested `--write`/`-o` flag was not added — the explicit-redirect doc clarification closes the gap at zero script change. Template-side bridge file moved from `interaction-logs/inbox/` to `processed/` (`OEMMatInsightBI-feedback-FB-008-2026-07-22.json`). Note: the template's own FB-008 is an unrelated item ("/work fails to restore context at session boundaries"); this downstream item was tracked only via the interaction-logs bridge.
+
+`dashboard-render.py --html` renders the full dashboard HTML to **stdout** (`print(render_full_html(...))`) — the on-disk `dashboard.html` only updates when the caller redirects. Observed here during `/health-check` 2026-07-22: a regen piped to `tail -15` for inspection left `dashboard.html` stale until a second pass with an explicit `> .claude/dashboard.html` redirect. The `--task-hash` mode is correctly stdout-only, so the asymmetry was easy to misread.
