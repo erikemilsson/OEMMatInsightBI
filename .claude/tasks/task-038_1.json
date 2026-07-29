@@ -1,5 +1,5 @@
 {
-  "status": "In Progress",
+  "status": "Finished",
   "priority": "P2",
   "phase": "2",
   "phase_name": "Silver / Gold Transformations & Data Quality",
@@ -15,10 +15,10 @@
   "out_of_spec": false,
   "absorbed_into": "",
   "created_date": "2026-07-29",
-  "updated_date": "2026-07-29",
+  "updated_date": "2026-07-30",
   "verification_attempts": 2,
   "interaction_hint": "cli_direct",
-  "user_review_pending": true,
+  "user_review_pending": false,
   "id": "task-038_1",
   "difficulty": 4,
   "owner": "both",
@@ -56,7 +56,10 @@
     "DOC DRIFT CORRECTED 2026-07-29: architecture/data_sources.md updated — EU row now reads 'consumed by bronze-to-silver', the stale '⚠ nothing reads it' callout removed, and the Transformation block rewritten to cover both files with `t` retained at silver and the censored-share conversion attributed to gold only. The spec-side equivalents (spec_v1.md:295/298/364/414) are DEC-016-protected and route through /iterate — logged as FR-032 (design_contradiction: line 364 still says 'Drop `t` column (unused)') and FR-033 (spec_implementation_gap).",
     "VERIFICATION ATTEMPT 2 (2026-07-29): PASS. Fix confirmed correct and complete; 26/26 re-executed against live-parsed cell source; downstream impact of the added column checked and clear (DQ checks target bronze only and use a subset check; all silver consumers use named projection; no silver supply-share table in the semantic model).",
     "OPEN FOR task-038_2 (raised by verify-agent, deliberately NOT fixed here to avoid invalidating a passed verification): the contract check at the EU cell compares column NAME SETS only, not types. The two bronze tables come from two independent Copy activities over different CSVs with independent schema inference, so a type divergence (e.g. `t` inferred string on one side, double on the other) would pass the guard and reach the union, where Spark silently coerces. task-038_2 should widen the guard to compare (name, dataType) pairs.",
-    "OPERATIONAL NOTE for Erik: the new EU block sits upstream of the procurement and WGI silver blocks, so an EU-source failure now aborts the whole bronze-to-silver notebook and would block the daily procurement incremental load. error_recovery_playbook classifies bronzecopy_EUSupplyShares as outage-prone (3 retries). Fail-fast is deliberate, but on a contract mismatch the run leaves partial state — global rewritten, EU absent, procurement and WGI not rebuilt."
+    "OPERATIONAL NOTE for Erik: the new EU block sits upstream of the procurement and WGI silver blocks, so an EU-source failure now aborts the whole bronze-to-silver notebook and would block the daily procurement incremental load. error_recovery_playbook classifies bronzecopy_EUSupplyShares as outage-prone (3 retries). Fail-fast is deliberate, but on a contract mismatch the run leaves partial state — global rewritten, EU absent, procurement and WGI not rebuilt.",
+    "ACCEPTANCE CRITERION 5 SATISFIED 2026-07-30 — Erik ran bronze-to-silver in Fabric; the notebook completed end to end. Measured: silver_globalsupplyshares has 5 columns [material, stage, country, share, t] with t populated (1.1-1.5) and share still raw strings ('43.4%'); silver_eusupplyshares exists with 907 rows, exactly the predicted count (2561 would have meant the Global CSV loaded into the EU table). No DELTA_FAILED_TO_MERGE_FIELDS, so the overwriteSchema fix held on the live 4->5 column widening. No contract-mismatch ValueError, so both silver tables carry the same column set.",
+    "EU DATA SANITY CONFIRMED: an initial read of the first 10 EU rows showed t=1 and share=2% uniformly, which looked like placeholder data. Ruled out — the table is sorted alphabetically by material and the head is genuinely uniform. Aggregate over all 907 rows: distinct_t=6 spanning min 0.8 to max 1.5 (0.8 = EU-sourced, exactly the spec's predicted value), distinct_share=69. The EU source is real.",
+    "HANDOFF TO task-038_2 / task-038_3 — `t` IS A STRING, NOT A DOUBLE. Confirmed from the Fabric SQL results grid type icons on both silver tables (ABC = varchar) and consistent with schemas/bronze_tables.md, which documents `t STRING`. spec_v1.md line 316 claims `t (DOUBLE)` — the spec is aspirational here, the pipeline is not. The Supply Risk model needs t numeric, so the gold fact build must cast it explicitly; do not assume a numeric type survives from silver. Note also that MIN/MAX over a string t sort lexicographically (they happened to agree with numeric order for these values, which will not generalise)."
   ],
   "verification_history": [
     {
@@ -151,5 +154,6 @@
         "type": "interactive"
       }
     ]
-  }
+  },
+  "completion_date": "2026-07-30"
 }
