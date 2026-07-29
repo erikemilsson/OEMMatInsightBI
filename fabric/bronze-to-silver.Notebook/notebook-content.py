@@ -306,7 +306,6 @@ df_newheaders.write.format("delta").mode("overwrite").option("overwriteSchema", 
 # produced worldwide) and EUSupplyShares (where the EU actually sources it from). Both are
 # required inputs to the Supply Risk model. Until task-038_1 the EU table was landed in
 # bronze on every run but had no silver consumer.
-#
 # This block applies the SAME rules as the Global block above — header normalisation and
 # nothing else — so both silver tables carry an identical column contract and the gold union
 # in task-038_2 needs no per-source special-casing.
