@@ -137,7 +137,7 @@ unchanged for every downstream layer.
 
 **Automation:** ✅ Automated (notebook in the pipeline)
 
-## 4. EU Critical Raw Materials - Global Supply Shares
+## 4. EU Critical Raw Materials - Supply Shares (Global + EU sourcing)
 
 **Source:** EU Commission Critical Raw Materials data (GitHub)
 **Format:** CSV file
@@ -156,26 +156,30 @@ unchanged for every downstream layer.
 - `Stage` (STRING) - Production stage ("E" or "P")
 - `Country` (STRING) - Supplier country
 - `Share` (STRING) - Supply percentage (e.g., "45%", "<1%")
+- `t` (DOUBLE) - Trade parameter from the EU CRM methodology: `0.8` EU-sourced, `1.0`
+  baseline non-EU, `>1` where export restrictions apply. **Load-bearing input to the Supply
+  Risk model — preserved through silver into `fact_supply_share`** (DEC-001, task-038_1).
 
 **Ingestion:** **two** Copy activities, one per scope — they are separate sources, not one:
 
 | Copy activity | Target table | Consumed downstream? |
 |---|---|---|
 | `bronzecopy_GlobalSupplyShares` | `bronze_GlobalSupplyShares` | ✅ Yes — `bronze-to-silver` builds `silver_globalsupplyshares` from it |
-| `bronzecopy_EUSupplyShares` | `bronze_EUSupplyShares` | ❌ No consumer yet |
+| `bronzecopy_EUSupplyShares` | `bronze_EUSupplyShares` | ✅ Yes — `bronze-to-silver` builds `silver_eusupplyshares` from it (task-038_1, 2026-07-29) |
 
 **Frequency:** (TBD - currently on-demand)
 **Load Type:** Full replacement (`OverwriteSchema` table action)
 
-> ⚠️ `bronze_EUSupplyShares` is landed on every pipeline run but **nothing reads it** — no
-> notebook in `fabric/` and nothing in `src/` references it. Either a silver transformation
-> is missing or the copy activity is dead weight; resolve before building against it.
-
-**Transformation** (global file only):
+**Transformation** (both files — the EU table is treated identically to the global one so the
+two silver tables carry the same column contract and the gold union needs no special-casing):
 - Bronze: String share values with % symbols; a `t` column carrying the source's trade
   parameter
-- Silver: Clean headers, drop the `t` column
-- Gold: Convert "<1%" to 0.5%, cast to numeric, assign year=2023
+- Silver: Clean headers only. `t` is **retained** — it is the EU CRM trade parameter and a
+  load-bearing input to the Supply Risk model (DEC-001). It was dropped here until
+  task-038_1 on the basis of stale documentation calling it an unused field.
+- Gold: Convert "<1%" to 0.5%, cast to numeric, assign year=2023. The censored-share
+  convention lives **only** in `silver-to-gold2`'s `fact_supply_share` build (task-028) —
+  `share` stays a raw string through silver; do not fork the conversion upstream.
 
 **Automation:** ✅ Already automated (HTTP source in pipeline)
 

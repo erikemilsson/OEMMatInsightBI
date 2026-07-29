@@ -262,8 +262,16 @@ df = spark.sql("SELECT * FROM oem_lh.`bronze_GlobalSupplyShares`")
 
 # rename column headers
 new_columns = [c.lower().replace(' ', '_') for c in df.columns] # create a list of new, clean column names
-df_newheaders = df.toDF(*new_columns).drop('t')
+# `t` is the EU CRM trade parameter (0.8 EU-sourced, 1.0 baseline non-EU, >1 under
+# export restrictions) and is a load-bearing input to the Supply Risk model — it is
+# carried through to silver rather than dropped (task-038_1; see spec_v1
+# § Data Architecture -> Supply Shares). It was previously dropped here on the basis
+# of stale documentation calling it "unknown field"; DEC-001 identified it.
+df_newheaders = df.toDF(*new_columns)
 
+# `share` deliberately stays a raw string ('45%', '<1%') at this layer. The censored-share
+# convention ('<1%' -> 0.5) is applied once, in silver-to-gold2's fact_supply_share build,
+# which is the single source of truth for it (task-028). Do not fork it into silver.
 
 display(df_newheaders)
 
@@ -276,7 +284,72 @@ display(df_newheaders)
 
 # CELL ********************
 
-df_newheaders.write.format("delta").mode("overwrite").saveAsTable('silver_globalsupplyshares')
+# overwriteSchema: task-038_1 stops dropping `t`, so this write goes from 4 columns to 5
+# against a silver_globalsupplyshares that already exists in the lakehouse with the old
+# 4-column shape. Delta enforces schema on overwrite, so a plain mode("overwrite") fails
+# with DELTA_FAILED_TO_MERGE_FIELDS. This is a full-snapshot replace, so replacing the
+# schema is correct — same reason silver_epi{year}results and silver_wgi carry it, the
+# latter for the identical case of restoring previously-dropped columns (task-031/035).
+df_newheaders.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable('silver_globalsupplyshares')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ## EUSupplyShares: bronze --> silver
+# The EU CRM study ships two complementary tables: GlobalSupplyShares (where a material is
+# produced worldwide) and EUSupplyShares (where the EU actually sources it from). Both are
+# required inputs to the Supply Risk model. Until task-038_1 the EU table was landed in
+# bronze on every run but had no silver consumer.
+#
+# This block applies the SAME rules as the Global block above — header normalisation and
+# nothing else — so both silver tables carry an identical column contract and the gold union
+# in task-038_2 needs no per-source special-casing.
+
+# CELL ********************
+
+df_eu = spark.sql("SELECT * FROM oem_lh.`bronze_EUSupplyShares`")
+
+# rename column headers — identical rule to the Global table above
+new_columns_eu = [c.lower().replace(' ', '_') for c in df_eu.columns]
+df_eu_newheaders = df_eu.toDF(*new_columns_eu)
+
+# Contract check: the gold union in task-038_2 assumes these two silver tables are
+# column-compatible. Assert it here, at the boundary where a mismatch is cheap to see,
+# rather than letting it surface as a confusing union error one layer downstream.
+global_cols = set(df_newheaders.columns)
+eu_cols = set(df_eu_newheaders.columns)
+if global_cols != eu_cols:
+    only_global = sorted(global_cols - eu_cols)
+    only_eu = sorted(eu_cols - global_cols)
+    raise ValueError(
+        "silver supply-share column contract mismatch — task-038_2's union will not work.\n"
+        f"  only in silver_globalsupplyshares: {only_global}\n"
+        f"  only in silver_eusupplyshares:     {only_eu}\n"
+        "Reconcile the two bronze sources (or widen the contract deliberately) before building gold."
+    )
+
+display(df_eu_newheaders)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# overwriteSchema for consistency with the other full-snapshot silver writes in this
+# notebook. silver_eusupplyshares is new so there is no pre-existing schema to conflict
+# with on the first run, but carrying the option keeps the table's shape free to follow
+# bronze on later runs rather than failing the pipeline.
+df_eu_newheaders.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable('silver_eusupplyshares')
 
 # METADATA ********************
 

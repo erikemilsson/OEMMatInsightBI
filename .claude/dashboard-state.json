@@ -13,7 +13,7 @@
   "phase_gates": {
     "1→2": {
       "status": "approved",
-      "content": "**Phase 1 → Phase 2 Transition** — approved 2026-04-29 (Phase 2 work complete except for one human-action task)\n\nConditions:\n- [x] All Phase 1 tasks finished (9/9)\n- [x] All verifications passed (9/9)\n- [x] Approve transition to Phase 2\n"
+      "content": "**Phase 1 → Phase 2 Transition** — approved 2026-04-29 (Phase 2 work complete except for one human-action task)\n\nConditions:\n- [x] All Phase 1 tasks finished (9/9)\n- [x] All verifications passed (9/9)\n- [x] Approve transition to Phase 2\n\n**Annotation (2026-07-29):** Phase 1 now reads 9/10 because task-034 (Data Gaps page in Power BI) was promoted out of task-001's inline subtasks into a standalone Phase 1 task on 2026-07-19 — after this gate was approved. The gate condition was true against the 9 tasks that existed at approval time. task-034 is tracked as a post-approval straggler and does NOT reopen this gate: Phase 1 stays closed and Phase 2 remains the active phase for routing. Confirmed by Erik 2026-07-29.\n"
     }
   },
   "inline_feedback": {},

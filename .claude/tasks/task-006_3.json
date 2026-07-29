@@ -2,7 +2,7 @@
   "id": "task-006_3",
   "title": "Test incremental load: full + incremental runs, verify no duplicates",
   "description": "Deploy changes to Fabric and run end-to-end validation: (1) full load with p_full_load=true, (2) incremental load with p_full_load=false and p_from_date set, (3) verify no duplicate records in silver_procurement and fact_procurement, (4) compare row counts and performance.",
-  "status": "Blocked",
+  "status": "Pending",
   "priority": "P2",
   "difficulty": 3,
   "owner": "both",
@@ -34,7 +34,8 @@
     "BLOCKED 2026-07-22: gated on a physical-world prerequisite — Erik must run the pipeline in Fabric before Claude has anything to review. Empty files_affected + 'Erik runs the pipeline, Claude reviews results' means Claude cannot act first, so per FB-100 this must not sit in Pending (it made the project read as Claude-actionable when it wasn't). Additionally gated behind the task-022..026 Fabric validation batch, which changes the very MERGE grain (task-024) this test measures — running it before that batch lands would test superseded logic. Return to Pending once 022-026 are validated.",
     "UNBLOCKED 2026-07-23: task-039 Finished (verify pass, attempt 2). This test is now the runtime proof for task-039's AC4 as well - a p_full_load=true run must print the FULL LOAD message, not the INCREMENTAL one.",
     "DEP-CORRECTION 2026-07-24 (/work): added task-024 to formal dependencies. Note 34's unblock was on task-039 grounds only and did not re-evaluate note 33's task-024 gating, which still stands (this test measures the incremental MERGE grain that task-024 fixes). Formal deps 006_2/039 were both Finished, so the task read as dispatchable and the routing algorithm would have mis-routed implement-agent to it despite 'Erik runs the pipeline, Claude reviews' (empty files_affected, Claude cannot act first) — the exact FB-100 foot-gun. Encoding the task-024 gate keeps it Pending-blocked alongside siblings 029/033/038 until the MERGE grain fix lands.",
-    "STATUS FLIP 2026-07-28 (/work): flipped Pending -> Blocked to match notes 34/36's documented intent. task-024 has since landed (Finished, verified) and task-039 before it, so the *formal* dependency gate is clear — but the physical-world prereq from note 34 still stands: Erik must run the pipeline in Fabric before Claude has anything to review (empty files_affected, Claude cannot act first). Leaving it Pending made the project read as Claude-actionable when it wasn't (the exact FB-100 foot-gun fired again during 2026-07-28 /work routing). Return to Pending once Erik is ready to run the full+incremental pair in Fabric."
+    "STATUS FLIP 2026-07-28 (/work): flipped Pending -> Blocked to match notes 34/36's documented intent. task-024 has since landed (Finished, verified) and task-039 before it, so the *formal* dependency gate is clear — but the physical-world prereq from note 34 still stands: Erik must run the pipeline in Fabric before Claude has anything to review (empty files_affected, Claude cannot act first). Leaving it Pending made the project read as Claude-actionable when it wasn't (the exact FB-100 foot-gun fired again during 2026-07-28 /work routing). Return to Pending once Erik is ready to run the full+incremental pair in Fabric.",
+    "UNBLOCKED 2026-07-29 (/work Step 0g): all three dependencies (task-006_2, task-039, task-024) are Finished. The hard prerequisite recorded above — 'do not run this test until task-039 lands' — was satisfied when task-039 completed 2026-07-23, so the parameters cells now exist and p_full_load / p_from_date reach the notebooks. Status corrected Blocked -> Pending; the test protocol is now valid against current behavior."
   ],
   "created_date": "2026-04-05",
   "updated_date": "2026-07-29",

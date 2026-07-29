@@ -84,14 +84,28 @@ Material                    STRING
 Stage                       STRING ("E" or "P")
 Country                     STRING
 Share                       STRING (percentage with % symbol)
-t                           STRING (the source's trade parameter; dropped in silver)
+t                           STRING (the EU CRM trade parameter; RETAINED through silver
+                            since task-038_1 — load-bearing input to the Supply Risk
+                            model per DEC-001. It was dropped until 2026-07-29 on the
+                            basis of this line, which used to read "dropped in silver".)
 ```
 
 ## bronze_EUSupplyShares
 Source: EU CRM CSV over HTTP — Copy activity `bronzecopy_EUSupplyShares`
 Grain: One row per material × stage × country (EU-scope companion to the global file)
 
-**Ingested but not yet consumed.** The pipeline lands this table on every run, but no
-notebook reads it — `bronze-to-silver` builds `silver_globalsupplyshares` from
-`bronze_GlobalSupplyShares` only. Columns are not documented here because no
-transformation has pinned them; check the live table before building against it.
+**Consumed since task-038_1 (2026-07-29):** `bronze-to-silver` builds `silver_eusupplyshares`
+from this table, applying the same header normalisation the global table gets and retaining
+`t`. The notebook asserts that both silver tables carry the same column set, so this table's
+schema is pinned to the global one:
+
+```
+Material                    STRING
+Stage                       STRING ("E" or "P")
+Country                     STRING
+Share                       STRING (percentage with % symbol)
+t                           STRING (trade parameter; ~0.8 for EU-sourced)
+```
+
+If the live table diverges from this shape, the bronze-to-silver run fails fast with a
+"silver supply-share column contract mismatch" error naming the differing columns.

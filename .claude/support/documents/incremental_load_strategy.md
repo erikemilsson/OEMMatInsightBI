@@ -38,11 +38,12 @@ This document defines the incremental load strategy for the OEMMatInsightBI data
 | **bronze_epi{year}results** | Bronze | N/A | 🔁 Full Refresh | Annual | Annual snapshot; a new vintage lands in its own table (`p_epi_year`) |
 | **bronze_WGI** | Bronze | N/A | 🔁 Full Refresh | Annual | Annual snapshot, World Bank API provides the full dataset |
 | **bronze_GlobalSupplyShares** | Bronze | N/A | 🔁 Full Refresh | Annual | Static material shares, rarely updated |
-| **bronze_EUSupplyShares** | Bronze | N/A | 🔁 Full Refresh | Annual | Ingested by the pipeline; no downstream consumer yet |
+| **bronze_EUSupplyShares** | Bronze | N/A | 🔁 Full Refresh | Annual | EU-scope companion to the global shares; consumed by `bronze-to-silver` since task-038_1 |
 | **silver_procurement** | Silver | `date` | 🔄 **Incremental** | Daily | Derived from bronze procurement (delete-insert) |
 | **silver_epi{year}results** | Silver | N/A | 🔁 Full Refresh | Annual | Cleaned EPI data |
 | **silver_wgi** | Silver | N/A | 🔁 Full Refresh | Annual | Cleaned WGI data (long format) |
-| **silver_globalsupplyshares** | Silver | N/A | 🔁 Full Refresh | Annual | Cleaned supply shares |
+| **silver_globalsupplyshares** | Silver | N/A | 🔁 Full Refresh | Annual | Cleaned global supply shares (`t` retained since task-038_1) |
+| **silver_eusupplyshares** | Silver | N/A | 🔁 Full Refresh | Annual | Cleaned EU-sourcing shares; same column contract as the global table (task-038_1) |
 | **fact_procurement** | Gold | `date_key` | 🔄 **Incremental** | Daily | Fact table with surrogate keys |
 | **fact_epi_score** | Gold | `year` | 🔁 Full Refresh | Annual | Low volume, full refresh acceptable |
 | **fact_supply_share** | Gold | N/A | 🔁 Full Refresh | Annual | Static shares, full refresh acceptable |
