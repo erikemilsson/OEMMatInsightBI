@@ -1,0 +1,51 @@
+{
+  "status": "Pending",
+  "priority": "P2",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "parent_task": "task-038",
+  "spec_section": "Business Logic & Calculations",
+  "spec_version": "1",
+  "spec_fingerprint": "sha256:b966f6b2eb73d586281f197f9f62a2772b2e67fff1d3def6847c905491290d6b",
+  "section_fingerprint": "sha256:cdc413cfe63b4ffda030173df9c623c2d3595e7d5c8ecdebeeecd42d70e6c217",
+  "section_snapshot_ref": "",
+  "decision_dependencies": [
+    "DEC-001"
+  ],
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "created_date": "2026-07-29",
+  "updated_date": "2026-07-29",
+  "verification_attempts": 0,
+  "interaction_hint": "dashboard",
+  "user_review_pending": false,
+  "id": "task-038_4",
+  "difficulty": 5,
+  "owner": "both",
+  "dependencies": [
+    "task-038_3"
+  ],
+  "title": "Build gold_supply_risk — dual HHI, contrast_ratio and is_bottleneck",
+  "files_affected": [
+    "fabric/silver-to-gold2.Notebook/notebook-content.py",
+    "src/transformations/supply_risk.py",
+    "tests/test_supply_risk.py"
+  ],
+  "description": "Compute HHI_WGI,t = Σ_c (Sᶜ)² · WGIᶜ · tᶜ over each supply mix and write gold_supply_risk at grain material × stage × year, with the contrast ratio and bottleneck flag per spec.",
+  "acceptanceCriteria": [
+    "gold_supply_risk grain is one row per material × stage × year — enforced, with a duplicate check that fails loudly.",
+    "hhi_global and hhi_eu_sourcing are each computed as Σ_c (Sᶜ)² · WGIᶜ · tᶜ over their respective supply_mix. Shares are used as fractions, not percentages — a test pins this, since share_pct is stored 0-100 and squaring the wrong scale is silent.",
+    "contrast_ratio = hhi_eu_sourcing / hhi_global, and is NULL (never 0) when hhi_global = 0.",
+    "is_bottleneck marks the stage with the higher hhi_global per material × year, driven by hhi_global and not by the EU index or the max of the two.",
+    "EU coverage gaps yield hhi_eu_sourcing = NULL and contrast_ratio = NULL, never 0 — a test covers a material present in global supply but absent from EU sourcing.",
+    "src/ mirror and parity tests extended to cover the HHI computation, the null rules and the bottleneck flag."
+  ],
+  "notes": [
+    "CREATED 2026-07-29 by /breakdown task-038 (parent difficulty 7). Seams follow the parent's proposed breakdown, re-cut against the spec as amended 2026-07-29 (§ Business Logic & Calculations → Supply Risk, and § Data Architecture → fact_supply_share). Parent ACs were written 2026-07-19 and predate that amendment — the criteria below supersede them where they differ.",
+    "SEAM (d). Every numeric rule here traces to spec § Business Logic & Calculations → Supply Risk as amended 2026-07-29.",
+    "The parent's AC4 said grain was 'material x stage' and named only 'their contrast'. The spec now specifies material × stage × YEAR plus contrast_ratio and is_bottleneck — these criteria supersede it.",
+    "The parent's AC5 asked the implementer to CHOOSE and document the WGI vintage/aggregation. That is now decided in spec (mean of six, latest year per country, fixed-bound clamp) — task-038_3 implements it and this task consumes it. Do not re-open the decision.",
+    "DEC-002 PARITY OBLIGATION: src/transformations is the reference implementation guarded by parity tests (tests/ loads the notebook's own functions via load_notebook_functions and pins them against the src/ version). Changing notebook logic without the mirror fails CI by design. The parent task's files_affected omitted src/ and tests/ entirely — that omission is corrected in these subtasks.",
+    "LOCAL TEST SETUP: build the SparkSession with .config('spark.sql.ansi.enabled','false') — local pyspark 4.0.1 defaults ANSI on, Fabric defaults it off, and cast semantics diverge in the dangerous direction (local raises where Fabric silently nulls). See root CLAUDE.md § Gotchas."
+  ]
+}

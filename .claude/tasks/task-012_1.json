@@ -9,9 +9,9 @@
   "parent_task": "task-012",
   "phase": "3",
   "spec_section": "Performance Optimization",
-  "spec_fingerprint": "",
+  "spec_fingerprint": "sha256:b966f6b2eb73d586281f197f9f62a2772b2e67fff1d3def6847c905491290d6b",
   "spec_version": "1",
-  "section_fingerprint": "",
+  "section_fingerprint": "sha256:52b023e9f000ef12ac20b44f4d0c5874b0bcf19f56963ed063ac9bcbb1d3c5f2",
   "section_snapshot_ref": "",
   "files_affected": [
     ".claude/support/documents/performance_baseline.md"
@@ -25,12 +25,12 @@
   "dependencies": [],
   "notes": [
     "Erik runs in Fabric UI; Claude prepares the baseline.md template if helpful.",
-    "Measure before optimizing \u2014 avoid premature optimization.",
+    "Measure before optimizing — avoid premature optimization.",
     "Each run should use a fresh cache state to avoid skew."
   ],
   "created_date": "2026-04-29",
   "completion_date": "",
-  "updated_date": "2026-04-29",
+  "updated_date": "2026-07-29",
   "task_verification": {},
   "verification_attempts": 0,
   "verification_history": [],

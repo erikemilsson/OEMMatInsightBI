@@ -8,10 +8,10 @@
   "owner": "human",
   "phase": "2",
   "phase_name": "Silver / Gold Transformations & Data Quality",
-  "spec_section": "",
-  "spec_fingerprint": "",
+  "spec_section": "Data Architecture",
+  "spec_fingerprint": "sha256:b966f6b2eb73d586281f197f9f62a2772b2e67fff1d3def6847c905491290d6b",
   "spec_version": "1",
-  "section_fingerprint": "",
+  "section_fingerprint": "sha256:ddefa82f12ba389047119a27fe65b8de4202aa3c957260a1952b58a79e9606c0",
   "section_snapshot_ref": "",
   "estimated_hours": 4,
   "files_affected": [],
@@ -20,16 +20,19 @@
     "bronze_EPI and bronze_WGI populate from the automated ingestion notebooks, and the corresponding silver/gold tables reflect the fresh data.",
     "Row counts and a spot-check of values are recorded in the task notes as the baseline for future runs."
   ],
-  "dependencies": ["task-035"],
+  "dependencies": [
+    "task-035"
+  ],
   "decision_dependencies": [],
   "notes": [
     "PROMOTED by /health-check 2026-07-19 from task-005's legacy inline subtask array (id was task-005-4). task-005 remains Finished — this was the human-owned verification tail.",
     "DEPENDS ON task-035 (pipeline repointed to TridentNotebook activities) — testing automated ingestion before the pipeline actually calls the notebooks would only re-confirm the manual path.",
-    "STALENESS CHECK: authored 2026-01; the WGI lineage in particular has changed (API-based bronze_WGI replaced the CSV/dataflow shape, and task-031 covers governance-score preservation). Verify the expected end state against current docs before treating a run as a pass."
+    "STALENESS CHECK: authored 2026-01; the WGI lineage in particular has changed (API-based bronze_WGI replaced the CSV/dataflow shape, and task-031 covers governance-score preservation). Verify the expected end state against current docs before treating a run as a pass.",
+    "SPEC ANCHOR 2026-07-29 (/work coherence audit): spec_section was empty; set to 'Data Architecture' (the EPI/WGI automated-ingestion lineage this task validates end to end)."
   ],
   "user_feedback": "",
   "created_date": "2026-07-19",
-  "updated_date": "2026-07-19",
+  "updated_date": "2026-07-29",
   "completion_date": null,
   "verification_attempts": 0,
   "out_of_spec": false,

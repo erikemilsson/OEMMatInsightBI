@@ -2,16 +2,16 @@
   "id": "task-038",
   "title": "Build gold_supply_risk — governance- & trade-weighted dual HHI (global + EU sourcing) per DEC-001 Option B",
   "description": "Implement the EU CRM methodology's core supply-risk metric HHI_WGI,t = SUM_c (S_c)^2 * WGI_c * t_c, computed twice — once over the global supply mix and once over the EU sourcing mix — and expose both plus their contrast as a new gold_supply_risk table with supporting DAX measures and semantic-model entries. Selected in DEC-001 (2026-07-19) as the best fidelity-per-effort option: it implements the methodology's distinctive, defensible core without requiring any new external data source. Deliberately does NOT blend the two HHIs by import reliance (Option C) and does NOT apply the recycling/substitution risk-reducing filters (Option D).",
-  "status": "Pending",
+  "status": "Broken Down",
   "priority": "P2",
   "difficulty": 7,
   "owner": "both",
   "phase": "2",
   "phase_name": "Silver / Gold Transformations & Data Quality",
   "spec_section": "Business Logic & Calculations",
-  "spec_fingerprint": "",
+  "spec_fingerprint": "sha256:b966f6b2eb73d586281f197f9f62a2772b2e67fff1d3def6847c905491290d6b",
   "spec_version": "1",
-  "section_fingerprint": "",
+  "section_fingerprint": "sha256:cdc413cfe63b4ffda030173df9c623c2d3595e7d5c8ecdebeeecd42d70e6c217",
   "section_snapshot_ref": "",
   "estimated_hours": 16,
   "files_affected": [
@@ -46,14 +46,23 @@
     "STALE COMMENT to fix while here: bronze-to-silver.Notebook:281 claims 'Score column not present in current dataflow' — false since the move to the API-based bronze_ingest_wgi, which fetches Value. task-031 or this task should correct it.",
     "METHODOLOGY ANCHOR: EU CRM Guidelines, EC 2017, doi:10.2873/769526. Formula and the t-value convention (0.8 EU, 1.0 baseline non-EU, >1 export-restricted) are quoted in decision-001-sr-gold-model.md.",
     "SPEC IMPACT: DEC-001 is an inflection point. The spec's Business Logic & Calculations and DAX Measures sections need updating via /iterate to describe the SR definition, the new gold measures, and the EU-vs-global lineage. Do that before or alongside implementation so the spec is not trailing the build.",
-    "EU TABLE CONFIRMED AVAILABLE 2026-07-22: task-022 crit 4 was decided as KEEP specifically because this task's criterion 3 needs bronze_EUSupplyShares. The table is orphaned today (nothing reads it) but bronzecopy_EUSupplyShares runs every pipeline and keeps it fresh via HttpServer connection 97124587. Do not let a future cleanup sweep retire it without checking here first."
+    "EU TABLE CONFIRMED AVAILABLE 2026-07-22: task-022 crit 4 was decided as KEEP specifically because this task's criterion 3 needs bronze_EUSupplyShares. The table is orphaned today (nothing reads it) but bronzecopy_EUSupplyShares runs every pipeline and keeps it fresh via HttpServer connection 97124587. Do not let a future cleanup sweep retire it without checking here first.",
+    "BROKEN DOWN 2026-07-29 into 6 subtasks (038_1 … 038_6), sequential by file and data dependency. The ACs on THIS parent were written 2026-07-19 and predate the 2026-07-29 spec amendment — subtask criteria supersede them. Specifically: AC1's line reference was wrong (`.drop('t')` is at line 265, not 139); AC4's grain omitted `year`, `contrast_ratio` and `is_bottleneck`; AC5 asked the implementer to choose the WGI vintage/aggregation, which the spec now decides. Also corrected: this parent's files_affected omitted src/transformations and tests/, so the DEC-002 parity obligation was invisible — 038_3 and 038_4 carry it."
   ],
   "user_feedback": "",
   "created_date": "2026-07-19",
-  "updated_date": "2026-07-22",
+  "updated_date": "2026-07-29",
   "completion_date": null,
   "verification_attempts": 0,
   "out_of_spec": false,
   "absorbed_into": "",
-  "interaction_hint": "dashboard"
+  "interaction_hint": "dashboard",
+  "subtasks": [
+    "task-038_1",
+    "task-038_2",
+    "task-038_3",
+    "task-038_4",
+    "task-038_5",
+    "task-038_6"
+  ]
 }

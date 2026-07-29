@@ -11,7 +11,7 @@ related:
 implementation_anchors: []
 inflection_point: true
 spec_revised: true
-spec_revised_date: 2026-07-20
+spec_revised_date: 2026-07-29
 blocks: []
 ---
 

@@ -1,0 +1,43 @@
+{
+  "priority": "P3",
+  "phase": "4",
+  "phase_name": "CI/CD Deployment",
+  "spec_section": "Next Steps & Priorities",
+  "spec_version": "1",
+  "spec_fingerprint": "sha256:b966f6b2eb73d586281f197f9f62a2772b2e67fff1d3def6847c905491290d6b",
+  "section_fingerprint": "sha256:40c80fa2e9c5df6de656440b224fd67d5f286f507cdf3172254a1da67eaf8b6e",
+  "section_snapshot_ref": "",
+  "created_date": "2026-07-29",
+  "updated_date": "2026-07-29",
+  "verification_attempts": 0,
+  "interaction_hint": "cli_direct",
+  "decision_dependencies": [],
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "status": "Pending",
+  "user_review_pending": false,
+  "id": "task-045",
+  "title": "Author the GitHub Actions workflow that deploys Fabric artifacts via fabric-cicd on merge to main",
+  "owner": "claude",
+  "difficulty": 5,
+  "dependencies": [
+    "task-044"
+  ],
+  "files_affected": [
+    ".github/workflows/deploy-fabric.yml"
+  ],
+  "description": "Write the GitHub Actions workflow that installs fabric-cicd, authenticates as the Service Principal from repository secrets, and publishes the fabric/ artifact definitions to the workspace on merge to main. Deployment logic only — secret configuration and the first live run are task-046.",
+  "acceptanceCriteria": [
+    "A workflow at .github/workflows/deploy-fabric.yml triggers on push to main and supports manual dispatch.",
+    "It authenticates via Service Principal using repository secrets, never inline credentials.",
+    "It invokes fabric-cicd against fabric/ using the parameter.yml from task-044.",
+    "The workflow is inspectable as a dry run — a mode that resolves and reports what would deploy without publishing.",
+    "Workflow YAML is syntactically valid (verified locally, e.g. via actionlint or an equivalent parse check)."
+  ],
+  "notes": [
+    "CREATED 2026-07-29 by /work task-spec coherence audit. Spec § Next Steps & Priorities defines Phase 4 (CI/CD Deployment) with concrete deliverables, but the project had zero Phase 4 tasks — verified by a grep probe with a positive control. This task is part of the 4-task set that closes that coverage gap.",
+    "Spec anchor: § Next Steps & Priorities → Phase 4 deliverable 1, 'Deployment triggered on merge to main'.",
+    "SEQUENCING: authored before task-043 completes is fine — this task writes the workflow; task-046 supplies the secrets and proves it runs.",
+    "HAZARD: this deploys INTO the live workspace Erik works in via the Fabric UI. The dry-run mode in criterion 4 exists so the first execution cannot clobber in-flight UI work. Confirm commit ordering (Fabric -> local -> Update) still holds under an automated pusher before the first real deploy."
+  ]
+}

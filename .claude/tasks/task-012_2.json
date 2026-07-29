@@ -2,16 +2,16 @@
   "id": "task-012_2",
   "title": "Implement partitioning on fact tables",
   "description": "Add partition columns (year/month) to fact_procurement, fact_epi_score, fact_supply_share. Update Delta write statements and rewrite existing tables.",
-  "status": "Pending",
+  "status": "Absorbed",
   "priority": "P3",
   "difficulty": 5,
   "owner": "claude",
   "parent_task": "task-012",
   "phase": "3",
   "spec_section": "Performance Optimization",
-  "spec_fingerprint": "",
+  "spec_fingerprint": "sha256:b966f6b2eb73d586281f197f9f62a2772b2e67fff1d3def6847c905491290d6b",
   "spec_version": "1",
-  "section_fingerprint": "",
+  "section_fingerprint": "sha256:52b023e9f000ef12ac20b44f4d0c5874b0bcf19f56963ed063ac9bcbb1d3c5f2",
   "section_snapshot_ref": "",
   "files_affected": [
     "fabric/silver-to-gold2.Notebook/",
@@ -27,11 +27,12 @@
     "task-012_1"
   ],
   "notes": [
-    "Touches silver-to-gold2 \u2014 coordinate with task-012_3 (file overlap, run sequentially)."
+    "Touches silver-to-gold2 — coordinate with task-012_3 (file overlap, run sequentially).",
+    "RETIRED 2026-07-29 (/work task-spec coherence audit): invalidated by spec § Open Questions & Decisions Needed → Technical Decisions 2, which states \"Partitioning Strategy: DECISION: Not applicable at portfolio scale — default Fabric behavior sufficient. No custom partitioning needed.\" This task was created 2026-04-29, before that decision landed; building it would ship an optimization the spec says is unnecessary and then fail verification against the spec. Status set to Absorbed rather than archived so parent task-012's subtasks[] reference stays intact. Downstream: task-012_3 re-pointed to task-012_1; task-012_5 dependency dropped. Restore path if the decision is ever reversed: flip status to Pending and re-add to both dependency lists."
   ],
   "created_date": "2026-04-29",
   "completion_date": "",
-  "updated_date": "2026-04-29",
+  "updated_date": "2026-07-29",
   "task_verification": {},
   "verification_attempts": 0,
   "verification_history": [],
@@ -41,5 +42,5 @@
   "decision_dependencies": [],
   "recovery_state": "",
   "out_of_spec": false,
-  "absorbed_into": ""
+  "absorbed_into": "spec_v1 § Open Questions & Decisions Needed → Technical Decisions 2 (Partitioning Strategy)"
 }

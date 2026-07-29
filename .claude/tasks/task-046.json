@@ -1,0 +1,42 @@
+{
+  "priority": "P3",
+  "phase": "4",
+  "phase_name": "CI/CD Deployment",
+  "spec_section": "Next Steps & Priorities",
+  "spec_version": "1",
+  "spec_fingerprint": "sha256:b966f6b2eb73d586281f197f9f62a2772b2e67fff1d3def6847c905491290d6b",
+  "section_fingerprint": "sha256:40c80fa2e9c5df6de656440b224fd67d5f286f507cdf3172254a1da67eaf8b6e",
+  "section_snapshot_ref": "",
+  "created_date": "2026-07-29",
+  "updated_date": "2026-07-29",
+  "verification_attempts": 0,
+  "interaction_hint": "cli_direct",
+  "decision_dependencies": [],
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "status": "Pending",
+  "user_review_pending": false,
+  "id": "task-046",
+  "title": "Configure GitHub repository secrets and validate the first automated Fabric deployment end to end",
+  "owner": "both",
+  "difficulty": 4,
+  "dependencies": [
+    "task-043",
+    "task-045"
+  ],
+  "files_affected": [],
+  "description": "Load the Service Principal credentials from task-043 into GitHub repository secrets, run the task-045 workflow in dry-run mode, then perform a real deployment and confirm the workspace reflects the committed artifact definitions. Closes Phase 4.",
+  "acceptanceCriteria": [
+    "Repository secrets for tenant ID, client ID and client secret exist and are referenced by the workflow.",
+    "A dry-run execution completes and its reported plan matches what is actually in fabric/.",
+    "A real deployment run completes green and the workspace shows the deployed definitions.",
+    "Dataflow connection bindings are verified live after deployment — deployment success alone does not prove they survived (see task-044 notes).",
+    "A full pipeline run after the automated deploy completes successfully, proving the deploy did not break the runtime path."
+  ],
+  "notes": [
+    "CREATED 2026-07-29 by /work task-spec coherence audit. Spec § Next Steps & Priorities defines Phase 4 (CI/CD Deployment) with concrete deliverables, but the project had zero Phase 4 tasks — verified by a grep probe with a positive control. This task is part of the 4-task set that closes that coverage gap.",
+    "OWNER both: Erik sets the GitHub secrets and triggers the runs; Claude reviews workflow output and diagnoses failures.",
+    "This is the Phase 4 acceptance gate — spec § Next Steps calls CI/CD 'the one production-readiness pattern not covered by the companion NordGrid project', so this is the task that actually earns that claim.",
+    "Spec § Next Steps → Phase 4 deliverable 2 (SQL Warehouse Analytics Layer) is explicitly already implemented — 4 views + 2 stored procedures in oem_wh. No task needed; do not re-scope it into this one."
+  ]
+}

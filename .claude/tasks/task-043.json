@@ -1,0 +1,38 @@
+{
+  "priority": "P3",
+  "phase": "4",
+  "phase_name": "CI/CD Deployment",
+  "spec_section": "Next Steps & Priorities",
+  "spec_version": "1",
+  "spec_fingerprint": "sha256:b966f6b2eb73d586281f197f9f62a2772b2e67fff1d3def6847c905491290d6b",
+  "section_fingerprint": "sha256:40c80fa2e9c5df6de656440b224fd67d5f286f507cdf3172254a1da67eaf8b6e",
+  "section_snapshot_ref": "",
+  "created_date": "2026-07-29",
+  "updated_date": "2026-07-29",
+  "verification_attempts": 0,
+  "interaction_hint": "cli_direct",
+  "decision_dependencies": [],
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "status": "Pending",
+  "user_review_pending": false,
+  "id": "task-043",
+  "title": "Register Azure AD app and grant the Service Principal Fabric workspace access",
+  "owner": "human",
+  "difficulty": 3,
+  "dependencies": [],
+  "files_affected": [],
+  "description": "Register an Azure AD application, create a client secret, and grant its Service Principal Contributor access to the OEMMatInsightBI Fabric workspace. Record the tenant ID, client ID and secret for use as GitHub repository secrets in task-046. Prerequisite for any automated deployment — fabric-cicd authenticates as this principal, not as a user.",
+  "acceptanceCriteria": [
+    "An Azure AD app registration exists with a client secret whose expiry date is recorded.",
+    "Its Service Principal has at least Contributor access on Fabric workspace 99e4cc6d-6ec3-49a7-aed9-b69b04a97aa9.",
+    "Tenant ID, client ID and secret are captured somewhere outside the repo (never committed — see rules/archiving.md § Credentials).",
+    "Fabric tenant setting 'Service principals can use Fabric APIs' is confirmed enabled for the relevant security group."
+  ],
+  "notes": [
+    "CREATED 2026-07-29 by /work task-spec coherence audit. Spec § Next Steps & Priorities defines Phase 4 (CI/CD Deployment) with concrete deliverables, but the project had zero Phase 4 tasks — verified by a grep probe with a positive control. This task is part of the 4-task set that closes that coverage gap.",
+    "HUMAN-ONLY: requires Azure portal and Fabric admin-portal access Claude does not have.",
+    "GOTCHA: a Fabric trial capacity has no Azure subscription, so the app registration is created at tenant level. This is the same constraint behind the existing `az login --allow-no-subscriptions` note in memory.",
+    "NEVER commit the client secret. It belongs in GitHub Actions secrets (task-046), not in parameter.yml."
+  ]
+}

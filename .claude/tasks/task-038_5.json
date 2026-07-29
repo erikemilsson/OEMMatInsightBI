@@ -1,0 +1,46 @@
+{
+  "status": "Pending",
+  "priority": "P2",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "parent_task": "task-038",
+  "spec_section": "Business Logic & Calculations",
+  "spec_version": "1",
+  "spec_fingerprint": "sha256:b966f6b2eb73d586281f197f9f62a2772b2e67fff1d3def6847c905491290d6b",
+  "section_fingerprint": "sha256:cdc413cfe63b4ffda030173df9c623c2d3595e7d5c8ecdebeeecd42d70e6c217",
+  "section_snapshot_ref": "",
+  "decision_dependencies": [
+    "DEC-001"
+  ],
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "created_date": "2026-07-29",
+  "updated_date": "2026-07-29",
+  "verification_attempts": 0,
+  "interaction_hint": "dashboard",
+  "user_review_pending": false,
+  "id": "task-038_5",
+  "difficulty": 4,
+  "owner": "both",
+  "dependencies": [
+    "task-038_4"
+  ],
+  "title": "Expose the SR measures in the semantic model and rewrite dax_measure_library.md §6.1",
+  "files_affected": [
+    "fabric/OEMInsightBI_v2.SemanticModel/",
+    ".claude/support/documents/dax_measure_library.md"
+  ],
+  "description": "Add gold_supply_risk to the TMDL semantic model with its relationships, define the three Supply Risk measures, and update the DAX measure library from plain concentration to the SR measures.",
+  "acceptanceCriteria": [
+    "gold_supply_risk is in the TMDL model with relationships consistent with fact_supply_share (yearly grain, no date relationship).",
+    "Measures defined: Supply Risk (Global), Supply Risk (EU Sourcing), and Supply Risk Contrast = DIVIDE([Supply Risk (EU Sourcing)], [Supply Risk (Global)]) — blank when the global index is 0.",
+    "MIGRATION — the existing Supply Concentration measure is filtered to supply_mix = 'global' (spec § Semantic Model and § Business Logic both now specify this).",
+    "dax_measure_library.md §6.1 is rewritten from plain concentration to the SR measures, and documents the WGI vintage/aggregation rule as spec'd.",
+    "Erik refreshes the DirectLake model and confirms the measures resolve without errors."
+  ],
+  "notes": [
+    "CREATED 2026-07-29 by /breakdown task-038 (parent difficulty 7). Seams follow the parent's proposed breakdown, re-cut against the spec as amended 2026-07-29 (§ Business Logic & Calculations → Supply Risk, and § Data Architecture → fact_supply_share). Parent ACs were written 2026-07-19 and predate that amendment — the criteria below supersede them where they differ.",
+    "SEAM (e), model half. No notebook files touched — the only subtask with no overlap against 038_1..038_4, but it depends on the table existing so it cannot start early.",
+    "Criterion 3 is the semantic-model half of the same double-count migration as task-038_2 criterion 3. Both must land or the concentration figures silently include EU rows."
+  ]
+}

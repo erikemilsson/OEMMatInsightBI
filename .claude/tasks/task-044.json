@@ -1,0 +1,40 @@
+{
+  "priority": "P3",
+  "phase": "4",
+  "phase_name": "CI/CD Deployment",
+  "spec_section": "Next Steps & Priorities",
+  "spec_version": "1",
+  "spec_fingerprint": "sha256:b966f6b2eb73d586281f197f9f62a2772b2e67fff1d3def6847c905491290d6b",
+  "section_fingerprint": "sha256:40c80fa2e9c5df6de656440b224fd67d5f286f507cdf3172254a1da67eaf8b6e",
+  "section_snapshot_ref": "",
+  "created_date": "2026-07-29",
+  "updated_date": "2026-07-29",
+  "verification_attempts": 0,
+  "interaction_hint": "cli_direct",
+  "decision_dependencies": [],
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "status": "Pending",
+  "user_review_pending": false,
+  "id": "task-044",
+  "title": "Author parameter.yml for fabric-cicd environment-specific configuration",
+  "owner": "claude",
+  "difficulty": 4,
+  "dependencies": [],
+  "files_affected": [
+    "fabric/parameter.yml"
+  ],
+  "description": "Write the fabric-cicd parameter.yml that maps environment-specific values — lakehouse IDs, workspace IDs, connection GUIDs — so the same artifact definitions deploy across environments without hand-editing. Independent of the Service Principal, so it can proceed in parallel with task-043.",
+  "acceptanceCriteria": [
+    "fabric/parameter.yml exists and validates against the fabric-cicd parameter schema.",
+    "Every hardcoded workspace/lakehouse GUID currently embedded in the notebook and pipeline definitions is represented as a parameterised value — the audit of which GUIDs those are is part of this task.",
+    "The HttpServer connection IDs used by the bronze copy activities are parameterised (they are environment-bound).",
+    "No credentials or secrets appear in the file.",
+    "A short comment block at the top states which values must change per environment and where they come from."
+  ],
+  "notes": [
+    "CREATED 2026-07-29 by /work task-spec coherence audit. Spec § Next Steps & Priorities defines Phase 4 (CI/CD Deployment) with concrete deliverables, but the project had zero Phase 4 tasks — verified by a grep probe with a positive control. This task is part of the 4-task set that closes that coverage gap.",
+    "Spec anchor: § Next Steps & Priorities → Phase 4 deliverable 1, 'parameter.yml for environment-specific configuration (lakehouse IDs, connection strings)'.",
+    "PRIOR ART: memory records that Fabric dataflow connection bindings live outside the git definition and a workspace update from git silently unbinds every dataflow. Parameterising connection IDs does not fix that — call the re-bind step out explicitly so a CI deploy does not appear to succeed while leaving dataflows dead."
+  ]
+}

@@ -9,33 +9,32 @@
   "parent_task": "task-012",
   "phase": "3",
   "spec_section": "Performance Optimization",
-  "spec_fingerprint": "",
+  "spec_fingerprint": "sha256:b966f6b2eb73d586281f197f9f62a2772b2e67fff1d3def6847c905491290d6b",
   "spec_version": "1",
-  "section_fingerprint": "",
+  "section_fingerprint": "sha256:52b023e9f000ef12ac20b44f4d0c5874b0bcf19f56963ed063ac9bcbb1d3c5f2",
   "section_snapshot_ref": "",
   "files_affected": [
     ".claude/support/documents/performance_optimized.md"
   ],
   "acceptanceCriteria": [
-    "Pipeline retest run 3 times (matching baseline methodology)",
-    "Activity-level improvement documented vs baseline",
-    "Total end-to-end runtime <20 minutes",
-    "Power BI query times <3 seconds on representative reports",
-    "Overall improvement >30% vs baseline",
-    "performance_optimized.md committed with comparison table"
+    "Pipeline retest run 3 times, matching the methodology used for the task-012_1 baseline.",
+    "Activity-level durations recorded and compared against the baseline, bronze/silver/gold broken out.",
+    "Power BI query response times recorded for representative report pages.",
+    "A before/after comparison table is committed to .claude/support/documents/performance_optimized.md, stating the measured deltas whatever they are — including null or negative results.",
+    "Any optimization that measurably made things worse is called out explicitly rather than omitted."
   ],
   "dependencies": [
-    "task-012_2",
     "task-012_3",
     "task-012_4"
   ],
   "notes": [
     "Erik runs in Fabric; Claude can prepare the comparison template.",
-    "If <30% improvement, document findings and adjust strategy before closing."
+    "If <30% improvement, document findings and adjust strategy before closing.",
+    "AC REWRITE 2026-07-29 (/work coherence audit): the previous criteria carried three SLA thresholds (total runtime <20 min, Power BI queries <3s, overall improvement >30%) with no source in the spec, contradicting spec § Performance Optimization: \"Not benchmarked — manual pipeline runs at portfolio scale. No production load or SLA requirements.\" Phase 3's own acceptance criterion asks only for \"basic performance review done\". Criteria are now measure-and-record: the comparison table is the deliverable and the numbers are whatever they are. A portfolio-scale pipeline that is already fast may legitimately show no meaningful improvement — that is a valid result, not a failed task."
   ],
   "created_date": "2026-04-29",
   "completion_date": "",
-  "updated_date": "2026-04-29",
+  "updated_date": "2026-07-29",
   "task_verification": {},
   "verification_attempts": 0,
   "verification_history": [],

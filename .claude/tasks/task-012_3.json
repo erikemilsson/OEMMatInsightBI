@@ -9,9 +9,9 @@
   "parent_task": "task-012",
   "phase": "3",
   "spec_section": "Performance Optimization",
-  "spec_fingerprint": "",
+  "spec_fingerprint": "sha256:b966f6b2eb73d586281f197f9f62a2772b2e67fff1d3def6847c905491290d6b",
   "spec_version": "1",
-  "section_fingerprint": "",
+  "section_fingerprint": "sha256:52b023e9f000ef12ac20b44f4d0c5874b0bcf19f56963ed063ac9bcbb1d3c5f2",
   "section_snapshot_ref": "",
   "files_affected": [
     "fabric/silver-to-gold2.Notebook/",
@@ -24,15 +24,16 @@
     "DataFrame caching used for reusable intermediates"
   ],
   "dependencies": [
-    "task-012_2"
+    "task-012_1"
   ],
   "notes": [
-    "Touches silver-to-gold2 \u2014 runs after task-012_2 (file overlap).",
-    "V-Order is Fabric-specific; document for portfolio."
+    "Touches silver-to-gold2 — runs after task-012_2 (file overlap).",
+    "V-Order is Fabric-specific; document for portfolio.",
+    "DEP-CORRECTION 2026-07-29 (/work coherence audit): dependency task-012_2 -> task-012_1. task-012_2 was retired as spec-contradicted; V-Order, broadcast hints and caching are all independently listed in spec § Performance Optimization → Optimization Opportunities and need only the baseline from task-012_1."
   ],
   "created_date": "2026-04-29",
   "completion_date": "",
-  "updated_date": "2026-05-17",
+  "updated_date": "2026-07-29",
   "task_verification": {},
   "verification_attempts": 0,
   "verification_history": [],

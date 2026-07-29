@@ -1,0 +1,47 @@
+{
+  "status": "Pending",
+  "priority": "P2",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "parent_task": "task-038",
+  "spec_section": "Business Logic & Calculations",
+  "spec_version": "1",
+  "spec_fingerprint": "sha256:b966f6b2eb73d586281f197f9f62a2772b2e67fff1d3def6847c905491290d6b",
+  "section_fingerprint": "sha256:cdc413cfe63b4ffda030173df9c623c2d3595e7d5c8ecdebeeecd42d70e6c217",
+  "section_snapshot_ref": "",
+  "decision_dependencies": [
+    "DEC-001"
+  ],
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "created_date": "2026-07-29",
+  "updated_date": "2026-07-29",
+  "verification_attempts": 0,
+  "interaction_hint": "dashboard",
+  "user_review_pending": false,
+  "id": "task-038_2",
+  "difficulty": 5,
+  "owner": "both",
+  "dependencies": [
+    "task-038_1"
+  ],
+  "title": "Gold fact: add `supply_mix` + `t` to fact_supply_share and migrate the global-only consumers",
+  "files_affected": [
+    "fabric/silver-to-gold2.Notebook/notebook-content.py"
+  ],
+  "description": "Union both silver supply tables into fact_supply_share with a supply_mix discriminator ('global' | 'eu_sourcing') and carry `t` through, per spec § Data Architecture → Gold Layer item 2. Then migrate every existing consumer that assumed the fact was global-only.",
+  "acceptanceCriteria": [
+    "fact_supply_share grain is material × stage × country × year × supply_mix, with `supply_mix` and `t` present as spec'd.",
+    "Rows are unioned from silver_globalsupplyshares and silver_eusupplyshares with supply_mix stamped at read time; the two mixes are never summed together.",
+    "MIGRATION — v_supply_concentration_risk filters supply_mix = 'global', preserving its pre-DEC-001 meaning. Without this it silently double-counts once EU rows land.",
+    "The existing quality-scoring, unmapped-audit (gold_unmapped_supply_audit) and both v_fact_supply_share_* views work correctly across both mixes.",
+    "A row-count check confirms global-mix row counts are unchanged from before this task — the EU rows are additive, not a re-partition of existing data."
+  ],
+  "notes": [
+    "CREATED 2026-07-29 by /breakdown task-038 (parent difficulty 7). Seams follow the parent's proposed breakdown, re-cut against the spec as amended 2026-07-29 (§ Business Logic & Calculations → Supply Risk, and § Data Architecture → fact_supply_share). Parent ACs were written 2026-07-19 and predate that amendment — the criteria below supersede them where they differ.",
+    "This is the change with the widest blast radius: fact_supply_share already has 3 views, an audit table and live DAX measures pointed at it. Criterion 3 is the one most likely to be missed and the one that silently corrupts existing numbers.",
+    "Spec anchor for the exact field contract: § Data Architecture → Gold Layer item 2 (fact_supply_share).",
+    "DEC-002 PARITY OBLIGATION: src/transformations is the reference implementation guarded by parity tests (tests/ loads the notebook's own functions via load_notebook_functions and pins them against the src/ version). Changing notebook logic without the mirror fails CI by design. The parent task's files_affected omitted src/ and tests/ entirely — that omission is corrected in these subtasks.",
+    "LOCAL TEST SETUP: build the SparkSession with .config('spark.sql.ansi.enabled','false') — local pyspark 4.0.1 defaults ANSI on, Fabric defaults it off, and cast semantics diverge in the dangerous direction (local raises where Fabric silently nulls). See root CLAUDE.md § Gotchas."
+  ]
+}

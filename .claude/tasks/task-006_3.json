@@ -9,9 +9,9 @@
   "parent_task": "task-006",
   "phase": "2",
   "spec_section": "Orchestration",
-  "spec_fingerprint": "",
+  "spec_fingerprint": "sha256:b966f6b2eb73d586281f197f9f62a2772b2e67fff1d3def6847c905491290d6b",
   "spec_version": "1",
-  "section_fingerprint": "",
+  "section_fingerprint": "sha256:14923ee96fe7a0954d378cca905df86036427e457a70b867bdf45fcdbd2cfc61",
   "section_snapshot_ref": "",
   "files_affected": [],
   "acceptanceCriteria": [
@@ -37,7 +37,7 @@
     "STATUS FLIP 2026-07-28 (/work): flipped Pending -> Blocked to match notes 34/36's documented intent. task-024 has since landed (Finished, verified) and task-039 before it, so the *formal* dependency gate is clear — but the physical-world prereq from note 34 still stands: Erik must run the pipeline in Fabric before Claude has anything to review (empty files_affected, Claude cannot act first). Leaving it Pending made the project read as Claude-actionable when it wasn't (the exact FB-100 foot-gun fired again during 2026-07-28 /work routing). Return to Pending once Erik is ready to run the full+incremental pair in Fabric."
   ],
   "created_date": "2026-04-05",
-  "updated_date": "2026-07-28",
+  "updated_date": "2026-07-29",
   "task_verification": {},
   "verification_attempts": 0,
   "verification_history": [],

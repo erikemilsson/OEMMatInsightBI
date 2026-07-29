@@ -1,0 +1,50 @@
+{
+  "status": "Pending",
+  "priority": "P2",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "parent_task": "task-038",
+  "spec_section": "Business Logic & Calculations",
+  "spec_version": "1",
+  "spec_fingerprint": "sha256:b966f6b2eb73d586281f197f9f62a2772b2e67fff1d3def6847c905491290d6b",
+  "section_fingerprint": "sha256:cdc413cfe63b4ffda030173df9c623c2d3595e7d5c8ecdebeeecd42d70e6c217",
+  "section_snapshot_ref": "",
+  "decision_dependencies": [
+    "DEC-001"
+  ],
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "created_date": "2026-07-29",
+  "updated_date": "2026-07-29",
+  "verification_attempts": 0,
+  "interaction_hint": "dashboard",
+  "user_review_pending": false,
+  "id": "task-038_3",
+  "difficulty": 5,
+  "owner": "both",
+  "dependencies": [
+    "task-038_2"
+  ],
+  "title": "Join the WGI governance weight onto the supply fact with the spec'd clamp formula",
+  "files_affected": [
+    "fabric/silver-to-gold2.Notebook/notebook-content.py",
+    "src/transformations/supply_risk.py",
+    "tests/test_supply_risk.py"
+  ],
+  "description": "Compute WGIᶜ per country from silver_wgi using the spec'd formula and join it onto the supply fact, measuring and surfacing country coverage rather than dropping unmatched countries.",
+  "acceptanceCriteria": [
+    "WGIᶜ = clamp((2.5 − mean₆(WGI estimates for c, latest year available)) / 5, 0, 1), exactly as spec'd in § Business Logic & Calculations → Supply Risk.",
+    "Rescaling uses the FIXED −2.5..+2.5 bounds, never the observed min/max of the loaded set — a test asserts that adding a new country does not change any existing country's weight.",
+    "The inversion is verified directionally: a well-governed country produces a weight near 0 and a poorly-governed one near 1. A test pins this, because an un-inverted index still computes and still looks plausible while ranking every material backwards.",
+    "The mean is over all six WGI dimensions; a country with fewer than six available dimensions is handled explicitly (documented rule, not an accidental partial mean).",
+    "Join coverage is measured and unmapped countries surfaced via the existing check_unmapped mechanism, not silently dropped.",
+    "src/transformations/supply_risk.py holds the reference implementation and tests/test_supply_risk.py pins notebook-vs-src parity, per DEC-002."
+  ],
+  "notes": [
+    "CREATED 2026-07-29 by /breakdown task-038 (parent difficulty 7). Seams follow the parent's proposed breakdown, re-cut against the spec as amended 2026-07-29 (§ Business Logic & Calculations → Supply Risk, and § Data Architecture → fact_supply_share). Parent ACs were written 2026-07-19 and predate that amendment — the criteria below supersede them where they differ.",
+    "SEAM (c). This subtask creates the src/ mirror the whole supply-risk path will share — 038_4 extends it.",
+    "The clamp and the fixed bounds were decided in the 2026-07-29 spec amendment specifically for reproducibility; criterion 2 is the regression test for that decision, not a nicety.",
+    "DEC-002 PARITY OBLIGATION: src/transformations is the reference implementation guarded by parity tests (tests/ loads the notebook's own functions via load_notebook_functions and pins them against the src/ version). Changing notebook logic without the mirror fails CI by design. The parent task's files_affected omitted src/ and tests/ entirely — that omission is corrected in these subtasks.",
+    "LOCAL TEST SETUP: build the SparkSession with .config('spark.sql.ansi.enabled','false') — local pyspark 4.0.1 defaults ANSI on, Fabric defaults it off, and cast semantics diverge in the dangerous direction (local raises where Fabric silently nulls). See root CLAUDE.md § Gotchas."
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "status": "Pending",
+  "priority": "P2",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "parent_task": "task-038",
+  "spec_section": "Business Logic & Calculations",
+  "spec_version": "1",
+  "spec_fingerprint": "sha256:b966f6b2eb73d586281f197f9f62a2772b2e67fff1d3def6847c905491290d6b",
+  "section_fingerprint": "sha256:cdc413cfe63b4ffda030173df9c623c2d3595e7d5c8ecdebeeecd42d70e6c217",
+  "section_snapshot_ref": "",
+  "decision_dependencies": [
+    "DEC-001"
+  ],
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "created_date": "2026-07-29",
+  "updated_date": "2026-07-29",
+  "verification_attempts": 0,
+  "interaction_hint": "dashboard",
+  "user_review_pending": false,
+  "id": "task-038_1",
+  "difficulty": 4,
+  "owner": "both",
+  "dependencies": [],
+  "title": "Silver: stop dropping `t` and wire the EU sourcing table into silver",
+  "files_affected": [
+    "fabric/bronze-to-silver.Notebook/notebook-content.py"
+  ],
+  "description": "Remove the `.drop('t')` that discards the trade parameter, and add a silver read for bronze_EUSupplyShares producing silver_eusupplyshares with the same cleaning rules already applied to the global table (share cleaning, header normalisation, `t` carried through).",
+  "acceptanceCriteria": [
+    "The `.drop('t')` at fabric/bronze-to-silver.Notebook/notebook-content.py:265 is removed and `t` survives into silver_globalsupplyshares. NOTE: the parent task cited line 139; the actual location is line 265 — verify before editing.",
+    "silver_eusupplyshares is built from bronze_EUSupplyShares, applying the same transformations the global table gets: '<1%' → 0.5, '%' stripped, headers lowercased/underscored, `t` retained.",
+    "Both silver tables carry an identical column contract so the gold union in task-038_2 needs no per-source special-casing.",
+    "Spec § Data Transformations → Output Tables already lists silver_eusupplyshares as planned — confirm the built table matches that name exactly (lowercase).",
+    "Erik runs bronze-to-silver in Fabric and confirms both tables populate with non-zero rows and a populated `t` column."
+  ],
+  "notes": [
+    "CREATED 2026-07-29 by /breakdown task-038 (parent difficulty 7). Seams follow the parent's proposed breakdown, re-cut against the spec as amended 2026-07-29 (§ Business Logic & Calculations → Supply Risk, and § Data Architecture → fact_supply_share). Parent ACs were written 2026-07-19 and predate that amendment — the criteria below supersede them where they differ.",
+    "SEAM (a)+(b) from the parent's proposed breakdown.",
+    "The parent's note about a stale 'Score column not present in current dataflow' comment is itself now stale — task-031 already removed that comment. Nothing to fix.",
+    "FILE CONFLICT: this is the only subtask touching bronze-to-silver; every other subtask works in silver-to-gold2 or the semantic model. Not parallel-safe against task-006_3's Fabric runs, though — coordinate pipeline runs with Erik.",
+    "LOCAL TEST SETUP: build the SparkSession with .config('spark.sql.ansi.enabled','false') — local pyspark 4.0.1 defaults ANSI on, Fabric defaults it off, and cast semantics diverge in the dangerous direction (local raises where Fabric silently nulls). See root CLAUDE.md § Gotchas."
+  ]
+}

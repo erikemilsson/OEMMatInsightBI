@@ -2,7 +2,7 @@
 version: 1
 status: active
 created: 2025-11-14
-updated: 2026-07-28
+updated: 2026-07-29
 ---
 
 # OEMMatInsightBI - Project Definition for Claude Code
@@ -411,6 +411,8 @@ Power BI Reports
 
 -   `silver_globalsupplyshares`
 
+-   `silver_eusupplyshares` *(planned — task-038; see § Data Architecture → Supply Shares)*
+
 -   `silver_wgi`
 
 -   `silver_procurement`
@@ -472,7 +474,10 @@ Power BI Reports
     -   **Audit Tables:** `gold_unmapped_procurement_audit`
     -   **Views:** `v_fact_procurement_high_confidence` (quality \>= 0.9), `v_fact_procurement_all` (with dimension names)
 2.  **`fact_supply_share`**
-    -   **Grain:** One row per material × stage × country × year
+    -   **Grain:** One row per material × stage × country × year × supply_mix
+    -   **Attributes:**
+        -   `supply_mix` (STRING) - `'global'` \| `'eu_sourcing'`. Discriminates the two complementary EU CRM tables (§ Data Architecture → Supply Shares). Rows are unioned from `silver_globalsupplyshares` and `silver_eusupplyshares`, with `supply_mix` stamped at read time.
+        -   `t` (DOUBLE) - Trade parameter carried unchanged from silver; the `tᶜ` input to the Supply Risk model.
     -   **Measures:**
         -   `share_pct` (DOUBLE) - Supply percentage (0-100)
         -   `data_quality_score` (DOUBLE) - Average match confidence (0-1)
@@ -491,11 +496,12 @@ Power BI Reports
         -   Unmapped materials/countries assigned to "Unknown" placeholders
         -   Stage must be valid (E or P) - records with invalid stage dropped
         -   Impact scoring: unmapped records weighted by share percentage
+        -   The two `supply_mix` values are **never summed together** — every consumer either filters to one mix or pivots on it. They are complementary measures from the same EU CRM study, not partitions of one population.
     -   **Audit Tables:** `gold_unmapped_supply_audit`
     -   **Views:**
         -   `v_fact_supply_share_high_confidence` (quality \>= 0.9, no unknowns)
         -   `v_fact_supply_share_complete` (all data with quality flags and warnings)
-        -   `v_supply_concentration_risk` (risk analysis by material/stage)
+        -   `v_supply_concentration_risk` (risk analysis by material/stage; filters `supply_mix = 'global'`, preserving its pre-DEC-001 meaning)
 3.  **`fact_epi_score`**
     -   **Grain:** One row per country × indicator × year
     -   **Measures:**
@@ -711,11 +717,11 @@ Power BI Reports
 
 -   `fact_procurement` - Procurement transactions with spend and quantity
 
--   `fact_supply_share` - Global supply concentration by material/stage/country
+-   `fact_supply_share` - Supply concentration by material/stage/country for **both** the global production mix and the EU sourcing mix (`supply_mix` discriminator)
 
 **Derived / Calculated Tables:**
 
--   `gold_supply_risk` - derived from `fact_supply_share`; governance- & trade-weighted supply risk by material/stage (`hhi_global`, `hhi_eu_sourcing`, contrast). Yearly grain, no date relationship (consistent with `fact_supply_share`). See § Business Logic & Calculations → Supply Risk.
+-   `gold_supply_risk` - derived from `fact_supply_share`; governance- & trade-weighted supply risk. **Grain: one row per material × stage × year.** Columns: `hhi_global`, `hhi_eu_sourcing`, `contrast_ratio`, `is_bottleneck`. Yearly grain, no date relationship (consistent with `fact_supply_share`). See § Business Logic & Calculations → Supply Risk.
 
 **Dimension Tables:**
 
@@ -781,13 +787,13 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
     -   Avg EPI Score = AVERAGE(fact_epi_score\[score\])
 
-    -   Supply Concentration Index = MAX(fact_supply_share\[share_pct\])
+    -   Supply Concentration Index = MAX(fact_supply_share\[share_pct\]) filtered to `supply_mix = 'global'`
 
     -   Supply Risk (Global) = governance- & trade-weighted HHI, global supply mix
 
     -   Supply Risk (EU Sourcing) = the same index over the EU sourcing mix
 
-    -   Supply Risk Contrast = EU-sourcing vs global (EU-specific exposure)
+    -   Supply Risk Contrast = DIVIDE(\[Supply Risk (EU Sourcing)\], \[Supply Risk (Global)\]) — blank when the global index is 0
 
     -   YoY Growth = \[Calculate current vs previous year\]
 
@@ -1243,17 +1249,17 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 
 **Optimization Opportunities:**
 
--   [ ] Partitioning strategy implementation
+-   [x] ~~Partitioning strategy implementation~~ — **not applicable**, see § Open Questions & Decisions Needed → Technical Decisions 2. Task-012_2 was retired on this basis (2026-07-29).
 
 -   [ ] Predicate pushdown in notebooks (some already implemented with filters)
 
--   [ ] Incremental load activation (parameters exist, logic not implemented)
+-   [x] Incremental load activation — **built** (task-024, date-partition delete-insert; task-029, `bronze_load_metadata` high-water-mark). See § Open Questions & Decisions Needed → Technical Decisions 1.
 
--   [ ] Caching strategies
+-   [ ] Caching strategies *(task-012_3)*
 
--   [ ] Index creation in warehouse
+-   [ ] Index creation in warehouse *(task-012_4)*
 
--   [ ] DirectLake optimization (V-Order columnar format)
+-   [ ] DirectLake optimization (V-Order columnar format) *(task-012_3)*
 
 ------------------------------------------------------------------------
 
@@ -1289,7 +1295,7 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 
 **Supply Risk (primary measure — DEC-001 Option B):**
 
-Governance- and trade-weighted Herfindahl index, computed at the bottleneck stage (E/P):
+Governance- and trade-weighted Herfindahl index, computed **per stage** (E/P) with the bottleneck stage flagged (see Bottleneck handling below):
 
 ```
 HHI_WGI,t = Σ_c (Sᶜ)² · WGIᶜ · tᶜ
@@ -1301,17 +1307,29 @@ Per country `c`:
 
 -   `tᶜ` — trade parameter from source data (0.8 EU, 1.0 baseline non-EU, \>1 export-restricted)
 
--   `WGIᶜ` — governance risk weight in `0..1` where **1 = worst governance**, derived as the rescaled **inverse** of the mean of all six WGI dimensions for the latest year available per country
+-   `WGIᶜ` — governance risk weight in `0..1` where **1 = worst governance**, derived as the rescaled **inverse** of the mean of all six WGI dimensions for the latest year available per country:
+
+```
+WGIᶜ = clamp( (2.5 − mean₆(WGI estimates for c, latest year available)) / 5 , 0, 1 )
+```
+
+Rescaling uses the **fixed theoretical bounds of the World Bank estimate scale (−2.5..+2.5), not the observed min/max of the loaded set.** This is a reproducibility requirement: with observed bounds, adding a country or a new WGI vintage silently re-ranks every material, and the before/after comparison the model is validated against would not be stable between runs. The clamp handles the rare country whose mean estimate falls outside ±2.5.
 
 **The inversion is mandatory.** Raw WGI runs ≈ −2.5..+2.5 with *higher = better* governance. Used unmodified as a multiplier it would *reward* poorly-governed sourcing — the index would still compute and still look plausible, but every risk ranking would be backwards. The spec requires the inverted, rescaled form.
 
-Computed over two supply mixes and exposed in `gold_supply_risk`:
+Computed over two supply mixes and exposed in `gold_supply_risk` (**grain: one row per material × stage × year**):
 
--   `hhi_global` — global production mix
+-   `hhi_global` — global production mix (`supply_mix = 'global'`)
 
--   `hhi_eu_sourcing` — EU sourcing mix
+-   `hhi_eu_sourcing` — EU sourcing mix (`supply_mix = 'eu_sourcing'`)
 
--   contrast between the two — the EU-specific exposure signal
+-   `contrast_ratio` = `hhi_eu_sourcing / hhi_global` — EU sourcing concentration relative to global (`1.4` = EU sourcing is 40% more concentrated than the world). **NULL when `hhi_global` = 0.**
+
+-   `is_bottleneck` (BOOLEAN) — marks the stage with the higher `hhi_global` per material × year
+
+**Bottleneck handling.** The methodology reports SR at the bottleneck stage (E/P). Gold retains **both** stages and flags the bottleneck rather than collapsing to one row, so the extraction-vs-processing comparison stays available to the report while the headline figure needs no DAX ranking pattern. The flag is driven by `hhi_global`, not by `hhi_eu_sourcing` or the max of the two, so it stays defined when EU coverage is missing.
+
+**EU coverage gaps.** A material × stage with global supply data but no EU sourcing rows yields `hhi_eu_sourcing = NULL` and `contrast_ratio = NULL` — **never 0**, which would misread as "no EU concentration risk" (0 is a legitimate index value meaning perfectly diffuse supply). Coverage is measured and surfaced via the existing `check_unmapped` mechanism (§ Data Quality & Validation), not silently dropped.
 
 **Scope boundary (DEC-001):** no import-reliance blend of the two indices into a single SR (Option C); no recycling (`EoL_RIR`) or substitution (`SI_SR`) filters (Option D). These figures are therefore **gross** supply risk and **must be labelled as such in the report** — they are not official EU CRM SR values.
 
@@ -1331,7 +1349,7 @@ Computed over two supply mixes and exposed in `gold_supply_risk`:
 
     -   Low: ≤20%
 
--   Source: Implemented in v_supply_concentration_risk view
+-   Source: Implemented in v_supply_concentration_risk view, filtered to `supply_mix = 'global'`
 
 -   Retained alongside the weighted model as a simple, intuitive concentration view; the report presents the two side by side.
 
@@ -1393,13 +1411,13 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
 
 -   Avg EPI Score = AVERAGE(fact_epi_score\[score\])
 
--   Supply Concentration = MAX(fact_supply_share\[share_pct\]) *(secondary lens)*
+-   Supply Concentration = MAX(fact_supply_share\[share_pct\]) filtered to `supply_mix = 'global'` *(secondary lens)*
 
 -   Supply Risk (Global) = governance- & trade-weighted HHI over the global supply mix
 
 -   Supply Risk (EU Sourcing) = the same index over the EU sourcing mix
 
--   Supply Risk Contrast = EU-sourcing index vs global index (EU-specific exposure)
+-   Supply Risk Contrast = DIVIDE(\[Supply Risk (EU Sourcing)\], \[Supply Risk (Global)\]) — EU-specific exposure; blank when the global index is 0
 
 -   YoY Spend Growth = \[Calculate vs previous year\]
 
@@ -1491,7 +1509,7 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
     -   **DECISION:** Incremental load for `fact_procurement` (the only table with ongoing transactional data). External data tables (EPI, WGI, Supply Shares) remain full-load on their annual refresh cycle.
     -   **Pattern (BUILT — task-024, 2026-07-14):** transaction-grain **date-partition delete-insert** over a 7-day look-back window, with the window driven by the `p_from_date` pipeline parameter. Deliberately *not* a natural-key MERGE: two same-day purchases of the same material from the same supplier are legitimate distinct transactions, and a natural-key merge either crashed on multiple source matches or silently collapsed them.
     -   **Incremental key:** `Date` field from `dbo.Procurement` (transaction date)
-    -   **Planned (task-029):** the `bronze_load_metadata` high-water-mark table and its parameter flow are documented but **not implemented**. Task-029 will implement or formally descope it.
+    -   **High-water mark (BUILT — task-029, 2026-07-28):** the `bronze_load_metadata` table and its parameter flow are implemented notebook-side and verified end to end in Fabric. Gold coordination uses `exclude_execution_id` per DEC-006.
     -   **Separate artifact:** `usp_merge_fact_procurement` (T-SQL MERGE) remains as a skill demonstration of the Delta MERGE pattern in T-SQL — it is **not** the live load path.
     -   **Why:** `mode("overwrite")` erases the Delta log and forces a full DirectLake semantic model reload. Delete-insert preserves the VertiPaq column store while keeping transaction grain.
     -   **Post-load maintenance:** Run `OPTIMIZE` on gold tables after each incremental load. V-Order enabled by default in Warehouse.
@@ -1534,10 +1552,10 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
 
 | Phase | Focus | Status | Acceptance Criteria |
 |-------|-------|--------|-------------------|
-| Phase 1 | Core Data Model & Reports | Complete (9/9) | Gold tables populated, semantic model connected, Power BI report built |
-| Phase 2 | Automation & Quality | Active (10/11) — only task-006_3 (incremental-load testing in Fabric) remains | Incremental load works for fact_procurement, data quality checks run in pipeline, external data ingestion scripted |
-| Phase 3 | Operations & Performance | Active (1/7) — task-011 done; task-010 (scheduling) + task-012_1–012_5 (performance) pending | Error handling with Try-Catch in pipeline, pipeline scheduling configured, basic performance review done |
-| Phase 4 | CI/CD Deployment | Planned | GitHub Actions workflow deploys Fabric artifacts on merge to main via `fabric-cicd` |
+| Phase 1 | Core Data Model & Reports | Active (9/10) — task-034 (Data Gaps report page) outstanding | Gold tables populated, semantic model connected, Power BI report built |
+| Phase 2 | Automation & Quality | Active (28/32) — task-006_3, task-036, task-038 remain | Incremental load works for fact_procurement, data quality checks run in pipeline, external data ingestion scripted |
+| Phase 3 | Operations & Performance | Active (8/15) — task-010 (scheduling, On Hold) + task-012_1/_3/_4/_5 (performance) | Error handling with Try-Catch in pipeline, pipeline scheduling configured, basic performance review done |
+| Phase 4 | CI/CD Deployment | Active (0/4) — task-043 … task-046 | GitHub Actions workflow deploys Fabric artifacts on merge to main via `fabric-cicd` |
 
 ### Phase 4 — CI/CD Deployment
 
@@ -1555,9 +1573,10 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
 ### Priority Order
 
 Complete in sequence:
-1. Phase 2 remaining: task-006_3 (test incremental load in Fabric) — the last Phase 2 item
-2. Phase 3: task-010 (scheduling) + task-012_1–012_5 (performance) — task-011 (error handling) is done
-3. Phase 4 — CI/CD builds on the completed pipeline
+1. **Phase 2 remaining:** task-038 (build `gold_supply_risk` — needs `/breakdown`, difficulty 7), task-036 (external-data ingestion test), task-006_3 (incremental-load test in Fabric)
+2. **Phase 1 remainder:** task-034 (Data Gaps report page) — carried over; can proceed in parallel
+3. **Phase 3:** task-010 (scheduling) + task-012_1/_3/_4/_5 (performance) — task-011 (error handling) is done; task-012_2 (partitioning) retired per Technical Decisions 2
+4. **Phase 4:** CI/CD — task-043 (Service Principal) and task-044 (`parameter.yml`) have no dependencies and can start early
 
 ------------------------------------------------------------------------
 

@@ -1,0 +1,43 @@
+{
+  "status": "Pending",
+  "priority": "P2",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "parent_task": "task-038",
+  "spec_section": "Business Logic & Calculations",
+  "spec_version": "1",
+  "spec_fingerprint": "sha256:b966f6b2eb73d586281f197f9f62a2772b2e67fff1d3def6847c905491290d6b",
+  "section_fingerprint": "sha256:cdc413cfe63b4ffda030173df9c623c2d3595e7d5c8ecdebeeecd42d70e6c217",
+  "section_snapshot_ref": "",
+  "decision_dependencies": [
+    "DEC-001"
+  ],
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "created_date": "2026-07-29",
+  "updated_date": "2026-07-29",
+  "verification_attempts": 0,
+  "interaction_hint": "dashboard",
+  "user_review_pending": false,
+  "id": "task-038_6",
+  "difficulty": 3,
+  "owner": "both",
+  "dependencies": [
+    "task-038_5"
+  ],
+  "title": "Report framing as gross supply risk, plus the before/after weighting comparison",
+  "files_affected": [],
+  "description": "Surface the dual HHI on the report with an explicit gross-not-net caveat, and record the before/after comparison demonstrating that governance and trade weighting actually changes material rankings versus plain HHI.",
+  "acceptanceCriteria": [
+    "The report page states plainly that these are GROSS supply-risk figures — recycling (EoL_RIR) and substitution (SI_SR) filters are out of scope per DEC-001 — so they are not misread as official EU CRM SR values.",
+    "The page shows hhi_global and hhi_eu_sourcing side by side with their contrast, which is the DEC-001 dashboard narrative.",
+    "A before/after comparison for at least 5 materials is recorded in the task notes: plain HHI ranking versus governance- and trade-weighted ranking.",
+    "The comparison explicitly states whether the weighting changed the ranking. A null result — weighting barely moves the order — is a valid and reportable outcome, not a failure."
+  ],
+  "notes": [
+    "CREATED 2026-07-29 by /breakdown task-038 (parent difficulty 7). Seams follow the parent's proposed breakdown, re-cut against the spec as amended 2026-07-29 (§ Business Logic & Calculations → Supply Risk, and § Data Architecture → fact_supply_share). Parent ACs were written 2026-07-19 and predate that amendment — the criteria below supersede them where they differ.",
+    "SEAM (e), report half. Covers parent AC7 and AC8.",
+    "Erik builds the Power BI page (same pattern as task-034); Claude supplies the comparison queries and reads the results.",
+    "AC4 guards against motivated reporting: DEC-001 justified Option B partly on the weighting being meaningful. If it turns out not to be, that is worth knowing and recording, not burying."
+  ]
+}
