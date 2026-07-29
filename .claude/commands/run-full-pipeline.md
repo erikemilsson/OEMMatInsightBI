@@ -44,14 +44,52 @@ This command runs `orchestrator_pipeline_bronze_to_gold` with all 4 stages:
 28:00 - Complete ✓
 ```
 
-### Option 2: Run via API/CLI (For automation)
+### Option 2: Run via the Fabric REST API (For automation)
+
+Drives the pipeline over authenticated REST instead of the UI — no browser, no
+Playwright. Uses the Fabric REST API at `api.fabric.microsoft.com`, **not** the
+Azure Data Factory ARM management API (Fabric Data Pipelines are not exposed via
+`management.azure.com/...Microsoft.DataFactory` — that path 404s, and a Fabric
+trial capacity has no Azure subscription to target anyway).
+
+**Prerequisite — authenticate once per session:**
 
 ```bash
-# Using Azure Data Factory REST API (Fabric uses same API)
-az rest --method post \
-  --url "https://management.azure.com/subscriptions/{subscription-id}/resourceGroups/{rg}/providers/Microsoft.DataFactory/factories/{workspace}/pipelines/orchestrator_pipeline_bronze_to_gold/createRun?api-version=2018-06-01" \
-  --body '{"p_full_load": true, "p_from_date": "1900-01-01"}'
+az login --allow-no-subscriptions
+# --allow-no-subscriptions is required: Fabric trial capacities have no Azure
+# subscription, so plain `az login` errors with "No subscriptions found".
+# This logs in at the tenant level, which is all the Fabric API needs.
+az account get-access-token --resource https://api.fabric.microsoft.com --query accessToken -o tsv
+# A long JWT printed = authenticated (~85 min token lifetime).
 ```
+
+**Run via the project's REST driver:**
+
+```bash
+python3 -u .claude/support/workspace/run_orchestrator.py
+# -u = unbuffered, so progress (itemId → trigger 202 → per-poll status →
+# activity-run table) streams live instead of block-buffering.
+```
+
+What it does, end to end:
+1. Lists workspace items to resolve the pipeline's REST itemId (the `.platform`
+   `logicalId` ≠ REST itemId — they're byte-reversed renderings of the same GUID).
+2. `POST /v1/workspaces/{ws}/dataPipelines/{itemId}/jobs/execute/instances` →
+   `202` with a `Location` header whose trailing GUID is the job instance id.
+3. Polls `GET /v1/workspaces/{ws}/items/{itemId}/jobs/instances/{jobId}` until
+   terminal (Completed/Failed/Cancelled).
+4. `POST .../datapipelines/pipelineruns/{runId}/queryactivityruns` (mandatory
+   wide `lastUpdatedAfter`/`Before` window) → prints the activity-run table
+   with per-activity status and duration.
+
+Verified 2026-07-28 against the live workspace — full Bronze→Gold run, all 9
+activities Succeeded. Operational contracts pinned in memory:
+`az-login-fabric-trial-no-subscription`, `fabric-datapipeline-trigger-endpoint`,
+`fabric-queryactivityruns-api`.
+
+**Note — this fires the real pipeline.** No dry-run. To validate the plumbing
+without a full run, stop after the item-id lookup (add a `--dry-run` flag, or
+comment out the trigger POST) and print the resolved itemId + trigger payload.
 
 ### Option 3: Scheduled Execution
 
