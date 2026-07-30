@@ -310,11 +310,17 @@
               "type": "string"
             },
             "p_epi_year": {
-              "value": "@pipeline().parameters.p_epi_year",
+              "value": {
+                "value": "@pipeline().parameters.p_epi_year",
+                "type": "Expression"
+              },
               "type": "string"
             },
             "p_execution_id": {
-              "value": "@pipeline().RunId",
+              "value": {
+                "value": "@pipeline().RunId",
+                "type": "Expression"
+              },
               "type": "string"
             }
           }
@@ -381,11 +387,17 @@
               "type": "string"
             },
             "EPI_YEAR": {
-              "value": "@int(pipeline().parameters.p_epi_year)",
+              "value": {
+                "value": "@int(pipeline().parameters.p_epi_year)",
+                "type": "Expression"
+              },
               "type": "int"
             },
             "p_execution_id": {
-              "value": "@pipeline().RunId",
+              "value": {
+                "value": "@pipeline().RunId",
+                "type": "Expression"
+              },
               "type": "string"
             }
           }
@@ -414,7 +426,10 @@
           "workspaceId": "00000000-0000-0000-0000-000000000000",
           "parameters": {
             "EPI_YEAR": {
-              "value": "@int(pipeline().parameters.p_epi_year)",
+              "value": {
+                "value": "@int(pipeline().parameters.p_epi_year)",
+                "type": "Expression"
+              },
               "type": "int"
             }
           }
@@ -460,7 +475,10 @@
           "workspaceId": "00000000-0000-0000-0000-000000000000",
           "parameters": {
             "p_epi_year": {
-              "value": "@pipeline().parameters.p_epi_year",
+              "value": {
+                "value": "@pipeline().parameters.p_epi_year",
+                "type": "Expression"
+              },
               "type": "string"
             }
           }
@@ -482,7 +500,10 @@
           "workspaceId": "00000000-0000-0000-0000-000000000000",
           "parameters": {
             "p_run_id": {
-              "value": "@pipeline().RunId",
+              "value": {
+                "value": "@pipeline().RunId",
+                "type": "Expression"
+              },
               "type": "string"
             }
           }
@@ -566,8 +587,7 @@
         "defaultValue": "2024"
       },
       "p_execution_id": {
-        "type": "string",
-        "defaultValue": ""
+        "type": "string"
       }
     }
   }
