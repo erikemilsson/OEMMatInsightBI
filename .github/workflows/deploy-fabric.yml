@@ -1,0 +1,215 @@
+name: Deploy Fabric Artifacts
+
+# =============================================================================
+# Deploy Fabric artifact definitions (fabric/) to the OEMMatInsightBI workspace
+# via Microsoft's fabric-cicd Python library.
+#
+# Trigger model (read before flipping push-to-main to real publish):
+#   * push to main        -> ALWAYS dry-run. Resolves parameter.yml, enumerates
+#                            repository + deployed items, and reports. Does NOT
+#                            publish. This is the safety gate: it deploys INTO
+#                            the live workspace Erik edits via the Fabric UI,
+#                            so an automated pusher must not race in-flight UI
+#                            work. The commit-ordering convention that holds
+#                            under manual edits is Fabric -> local -> Update
+#                            (commit here only after the UI change is saved);
+#                            an automated push-to-main publish would invert that
+#                            ordering and MUST be validated by task-046 before
+#                            it is enabled.
+#   * workflow_dispatch   -> manual. `publish: true` does the real
+#                            fabric-cicd publish; otherwise dry-run.
+#
+# Flipping push-to-main to real publish is a ONE-LINE change in the
+# `EFFECTIVE_DRY_RUN` expression below, deferred until task-046 (owner: both)
+# validates end-to-end. Do NOT enable it here.
+#
+# Auth: Azure AD Service Principal (registered in task-043) via GitHub repo
+# secrets. The workflow exports the secrets to the env vars azure-identity's
+# ClientSecretCredential reads. No credentials appear inline.
+#
+# fabric-cicd API reference: v1.2.0 (installed locally; signatures verified
+# against the installed package, not memory). Construction of FabricWorkspace
+# validates parameter.yml and authenticates; publish_all_items performs the
+# real publish. Dry-run = construct + read-only refresh, skip publish.
+# Docs: https://github.com/microsoft/fabric-cicd/blob/main/docs/how_to/parameterization.md
+# =============================================================================
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry-run (resolve + report, no publish). Ignored when publish is true.'
+        type: boolean
+        default: true
+      publish:
+        description: 'Publish to the live workspace (overrides dry_run).'
+        type: boolean
+        default: false
+
+# Default secrets-based auth has nothing to write back to the repo; the GITHUB
+# token is not used for deployment. Keep permissions minimal.
+permissions:
+  contents: read
+
+env:
+  FABRIC_WORKSPACE_ID: ${{ secrets.FABRIC_WORKSPACE_ID }}
+  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+  AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  # Push to main is always dry-run. workflow_dispatch publishes only when the
+  # caller explicitly sets `publish: true`. See the header comment before
+  # changing this.
+  EFFECTIVE_DRY_RUN: ${{ (github.event_name == 'workflow_dispatch' && inputs.publish == true) && 'false' || 'true' }}
+
+jobs:
+  deploy:
+    name: fabric-cicd deploy
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: pip
+
+    - name: Install fabric-cicd
+      run: |
+        python -m pip install --upgrade pip
+        pip install "fabric-cicd==1.2.0" azure-identity
+
+    - name: Report run mode
+      run: |
+        echo "::notice::Event=${{ github.event_name }}  dry_run=${EFFECTIVE_DRY_RUN}"
+        if [ "${EFFECTIVE_DRY_RUN}" = "true" ]; then
+          echo "MODE: DRY-RUN (resolve parameter.yml + enumerate items, no publish)"
+        else
+          echo "MODE: PUBLISH (fabric-cicd publish_all_items will run against the live workspace)"
+        fi
+
+    - name: Deploy (fabric-cicd)
+      env:
+        DRY_RUN: ${{ env.EFFECTIVE_DRY_RUN }}
+      run: |
+        python - <<'PY'
+        import os
+        import sys
+        import pathlib
+        import json
+
+        from azure.identity import ClientSecretCredential
+        from fabric_cicd import FabricWorkspace, publish_all_items
+
+        workspace_id   = os.environ["FABRIC_WORKSPACE_ID"]
+        client_id      = os.environ["AZURE_CLIENT_ID"]
+        client_secret  = os.environ["AZURE_CLIENT_SECRET"]
+        tenant_id      = os.environ["AZURE_TENANT_ID"]
+        repository_dir = str(pathlib.Path("fabric").resolve())
+        environment    = "DEV"
+        dry_run        = os.environ.get("DRY_RUN", "true").lower() == "true"
+
+        # Item types in scope for this workspace. Matches fabric/parameter.yml
+        # (task-044) and the spec's Phase 4 deliverable list. Names must match
+        # fabric_cicd.ItemType enum values exactly.
+        item_type_in_scope = [
+            "Notebook",
+            "DataPipeline",
+            "Dataflow",
+            "SemanticModel",
+            "Lakehouse",
+            "Report",
+            "Warehouse",
+        ]
+
+        print(f"workspace_id        = {workspace_id}")
+        print(f"repository_directory= {repository_dir}")
+        print(f"environment         = {environment}")
+        print(f"item_type_in_scope  = {item_type_in_scope}")
+        print(f"dry_run             = {dry_run}")
+
+        # Authenticate as the Service Principal. ClientSecretCredential is the
+        # token_credential fabric-cicd's FabricWorkspace expects (verified
+        # against the installed 1.2.0 __init__ signature).
+        token_credential = ClientSecretCredential(
+            client_id=client_id,
+            client_secret=client_secret,
+            tenant_id=tenant_id,
+        )
+
+        # Construction authenticates, resolves/validates the workspace, and
+        # loads + validates fabric/parameter.yml (raises ParameterFileError on
+        # an invalid file). It does NOT publish or modify the workspace.
+        workspace = FabricWorkspace(
+            workspace_id=workspace_id,
+            repository_directory=repository_dir,
+            item_type_in_scope=item_type_in_scope,
+            environment=environment,
+            token_credential=token_credential,
+        )
+
+        # Read-only enumeration of what would be published (repo) and what is
+        # already in the workspace (deployed). These are private helpers but
+        # they perform only filesystem reads + a GET to the items API; they do
+        # not mutate the workspace.
+        try:
+            workspace._refresh_repository_items()
+            workspace._refresh_deployed_items()
+        except Exception as exc:  # noqa: BLE001 - dry-run must still report
+            print(f"::warning::Read-only refresh failed; dry-run enumeration incomplete: {exc}")
+
+        def _summarize(label, items):
+            print(f"::group::{label}")
+            count = 0
+            for item_type in sorted(items):
+                names = sorted(items[item_type])
+                for name in names:
+                    print(f"  {item_type}/{name}")
+                    count += 1
+            print(f"  total: {count}")
+            print("::endgroup::")
+            return count
+
+        repo_count     = _summarize("Repository items (would be published)", workspace.repository_items)
+        deployed_count = _summarize("Currently deployed items in workspace",  workspace.deployed_items)
+
+        if dry_run:
+            print(
+                "::notice::DRY-RUN complete. parameter.yml validated, "
+                f"{repo_count} repository items resolved, "
+                f"{deployed_count} items currently deployed. No publish performed."
+            )
+            sys.exit(0)
+
+        print("::notice::PUBLISH mode: invoking fabric_cicd.publish_all_items against the live workspace.")
+        publish_all_items(workspace)
+        print("::notice::publish_all_items completed.")
+
+        # Persist a small deploy summary as a step output artifact for audit.
+        summary_path = pathlib.Path(os.environ.get("GITHUB_WORKSPACE", ".")) / "fabric-deploy-summary.json"
+        summary_path.write_text(
+            json.dumps(
+                {
+                    "mode": "publish",
+                    "workspace_id": workspace_id,
+                    "environment": environment,
+                    "repository_items": repo_count,
+                    "pre_deploy_deployed_items": deployed_count,
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        print(f"::notice::Wrote deploy summary to {summary_path}")
+        PY
+
+    - name: Upload deploy summary
+      if: ${{ env.EFFECTIVE_DRY_RUN == 'false' && always() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: fabric-deploy-summary
+        path: fabric-deploy-summary.json
+        if-no-files-found: ignore

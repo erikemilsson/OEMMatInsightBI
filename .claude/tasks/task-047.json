@@ -1,0 +1,39 @@
+{
+  "priority": "P4",
+  "phase": "4",
+  "phase_name": "CI/CD Deployment",
+  "spec_section": "Next Steps & Priorities",
+  "spec_version": "1",
+  "spec_fingerprint": "sha256:b966f6b2eb73d586281f197f9f62a2772b2e67fff1d3def6847c905491290d6b",
+  "section_fingerprint": "sha256:40c80fa2e9c5df6de656440b224fd67d5f286f507cdf3172254a1da67eaf8b6e",
+  "section_snapshot_ref": "",
+  "created_date": "2026-07-30",
+  "updated_date": "2026-07-30",
+  "verification_attempts": 0,
+  "interaction_hint": "",
+  "decision_dependencies": [],
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "status": "Pending",
+  "user_review_pending": false,
+  "id": "task-047",
+  "title": "Harden deploy-fabric.yml dry-run against fabric-cicd private-API churn once a public resolve-only API exists",
+  "owner": "claude",
+  "difficulty": 3,
+  "dependencies": [
+    "task-046"
+  ],
+  "files_affected": [
+    ".github/workflows/deploy-fabric.yml"
+  ],
+  "description": "task-045's dry-run mode enumerates items via fabric-cicd 1.2.0's private _refresh_repository_items/_refresh_deployed_items helpers because the library exposes no public dry-run/resolve-only method. These private entry points may break on a future fabric-cicd upgrade. Track fabric-cicd releases; when a public dry-run or resolve-only API lands, replace the private-helper calls with it and re-validate the workflow's dry-run path. Non-blocking durability hardening, deferred until after task-046 validates the deploy end-to-end.",
+  "acceptanceCriteria": [
+    "Dry-run mode uses only public fabric-cicd API surface (no underscore-prefixed helpers).",
+    "Dry-run still resolves and reports what would deploy without publishing.",
+    "Workflow YAML remains syntactically valid (actionlint or equivalent)."
+  ],
+  "notes": [
+    "CREATED 2026-07-30 by /work orchestrator from task-045 implement-agent issues_discovered (non_blocking, suggested_action: create new task).",
+    "Depends on task-046 so the hardening happens after the deploy path is proven end-to-end."
+  ]
+}

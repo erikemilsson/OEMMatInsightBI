@@ -1,0 +1,148 @@
+# =============================================================================
+# fabric/parameter.yml — environment-specific configuration for fabric-cicd
+# =============================================================================
+#
+# This file is consumed by Microsoft's `fabric-cicd` Python library at deploy
+# time. The same Fabric artifact definitions (notebooks + orchestrator pipeline)
+# deploy to every environment unchanged; fabric-cicd applies the find/replace
+# and key/value replacements below to swap environment-bound values per target.
+#
+# Schema: fabric-cicd parameterization schema (top-level keys: find_replace,
+# key_value_replace, spark_pool, semantic_model_binding). Authored against
+# fabric-cicd v1.2.0 (installed locally; validated via
+# `fabric_cicd._parameter._utils.validate_parameter_file`) and cross-checked
+# against the official parameterization docs:
+#   https://github.com/microsoft/fabric-cicd/blob/main/docs/how_to/parameterization.md
+#
+# ----------------------------------------------------------------------------
+# VALUES THAT MUST CHANGE PER ENVIRONMENT (and where they come from)
+# ----------------------------------------------------------------------------
+# Each entry below has a `DEV` value (the current single portfolio workspace)
+# and a commented `# PROD:` placeholder. To add a second environment:
+#   1. Uncomment the `PROD:` line and fill in the prod value; OR add a new
+#      environment key (e.g. `PPE:`) alongside `DEV:`.
+#   2. Set the same environment string on the `FabricWorkspace` object in the
+#      deploy workflow (`.github/workflows/deploy-fabric.yml`, task-045).
+#
+# Value sources (per environment):
+#   * Workspace ID  — Fabric workspace URL: app.fabric.microsoft.com/groups/<id>
+#                     or Workspace → Settings → Information.
+#   * Lakehouse ID  — Lakehouse item settings (or workspace URL when the
+#                     lakehouse is open). The notebook META blocks embed it as
+#                     `default_lakehouse` / `default_lakehouse_workspace_id` /
+#                     lakehouse `id`. The orchestrator pipeline stores the SAME
+#                     lakehouse under a reordered byte-group form in
+#                     `linkedService.artifactId` — that form is parameterised
+#                     separately below.
+#   * Connection IDs — Fabric workspace → Manage connections → open the
+#                     connection; the GUID is in the URL. HttpServer connections
+#                     are environment-bound (each workspace owns its own).
+#   * Notebook / Dataflow IDs — NOT listed here. They are resolved automatically
+#                     by fabric-cicd via the `$items.<Type>.<displayName>.$id`
+#                     dynamic variable in `key_value_replace` below, so a second
+#                     environment needs no extra entry — fabric-cicd looks up
+#                     the target workspace's item ID by display name.
+#
+# ----------------------------------------------------------------------------
+# KNOWN LIMITATION — DATAFLOW CONNECTION RE-BINDING IS A SEPARATE POST-DEPLOY STEP
+# ----------------------------------------------------------------------------
+# `fabric-cicd` deploys item DEFINITIONS only. Fabric stores dataflow connection
+# bindings OUTSIDE the git definition, so a workspace update from git silently
+# UNBINDS every dataflow. Parameterising connection IDs in this file does NOT
+# fix this — the three dataflows (`bronze_azureSQLdb2table`, `EPI_file2table`,
+# `WGI_file2table`) will land deployed-but-unbound and fail at runtime.
+#
+# After every deploy, re-bind each dataflow's connections in the Fabric UI
+# (Dataflow → Settings → Data source credentials → Edit) or via the Fabric
+# REST API before running the orchestrator pipeline. This step is NOT
+# handled by parameter.yml and must be documented in the deploy runbook.
+# Reference: project memory — "Fabric dataflow connection bindings".
+#
+# =============================================================================
+# No secrets or credentials appear in this file. Connection IDs are GUIDs, not
+# secrets. Service Principal credentials (client ID / secret / tenant ID) live
+# in GitHub repository secrets, never in this file.
+# =============================================================================
+
+find_replace:
+    # ----- Workspace ID (every notebook META block + pipeline_error_handler.WORKSPACE_ID) -----
+    - find_value: "99e4cc6d-6ec3-49a7-aed9-b69b04a97aa9"
+      replace_value:
+          DEV: "99e4cc6d-6ec3-49a7-aed9-b69b04a97aa9"
+          # PROD: "<prod-workspace-id>"   # TODO: prod workspace GUID
+
+    # ----- Lakehouse ID (oem_lh) — canonical form in notebook META blocks -----
+    - find_value: "488fb9f8-e635-4683-90c4-ba4fee9dfadb"
+      replace_value:
+          DEV: "488fb9f8-e635-4683-90c4-ba4fee9dfadb"
+          # PROD: "<prod-lakehouse-id>"   # TODO: prod oem_lh lakehouse GUID
+
+    # ----- Lakehouse artifactId — reordered byte-group form used in pipeline linkedService -----
+    # Fabric stores the lakehouse GUID in a different byte-group order inside
+    # DataPipeline `linkedService.typeProperties.artifactId`. This is the SAME
+    # lakehouse as above, so in prod the two forms must both be filled in
+    # (derive the artifactId form from the prod lakehouse ID, or read it from
+    # the deployed pipeline's linkedService JSON).
+    - find_value: "ee9dfadb-ba4f-90c4-4683-e635488fb9f8"
+      replace_value:
+          DEV: "ee9dfadb-ba4f-90c4-4683-e635488fb9f8"
+          # PROD: "<prod-lakehouse-artifactId>"   # TODO: reordered form of prod lakehouse ID
+
+    # ----- HttpServer connection — EU Supply CSV source (bronze_EUSupplyShares copy activity) -----
+    - find_value: "97124587-4fe9-43ee-bd6c-6a0fe3bc5664"
+      replace_value:
+          DEV: "97124587-4fe9-43ee-bd6c-6a0fe3bc5664"
+          # PROD: "<prod-eu-httpserver-connection-id>"   # TODO
+
+    # ----- HttpServer connection — Global Supply CSV source (bronze_GlobalSupplyShares copy activity) -----
+    - find_value: "172b089e-bb4a-4615-94fb-beef5019fca7"
+      replace_value:
+          DEV: "172b089e-bb4a-4615-94fb-beef5019fca7"
+          # PROD: "<prod-global-httpserver-connection-id>"   # TODO
+
+key_value_replace:
+    # Notebook / dataflow IDs referenced by the orchestrator pipeline. The
+    # `$items.<Type>.<displayName>.$id` dynamic variable resolves to the
+    # target environment's item ID automatically, so `_ALL_` covers every
+    # environment and no per-env entry is needed.
+    - find_key: $.properties.activities[?(@.name=="bronze-to-silver data cleaning")].typeProperties.notebookId
+      replace_value:
+          _ALL_: "$items.Notebook.bronze-to-silver.$id"
+      item_type: "DataPipeline"
+      item_name: "orchestrator_pipeline_bronze_to_gold"
+
+    - find_key: $.properties.activities[?(@.name=="silver-to-gold")].typeProperties.notebookId
+      replace_value:
+          _ALL_: "$items.Notebook.silver-to-gold2.$id"
+      item_type: "DataPipeline"
+      item_name: "orchestrator_pipeline_bronze_to_gold"
+
+    - find_key: $.properties.activities[?(@.name=="bronze_EPI")].typeProperties.notebookId
+      replace_value:
+          _ALL_: "$items.Notebook.bronze_ingest_epi.$id"
+      item_type: "DataPipeline"
+      item_name: "orchestrator_pipeline_bronze_to_gold"
+
+    - find_key: $.properties.activities[?(@.name=="bronze_WGI")].typeProperties.notebookId
+      replace_value:
+          _ALL_: "$items.Notebook.bronze_ingest_wgi.$id"
+      item_type: "DataPipeline"
+      item_name: "orchestrator_pipeline_bronze_to_gold"
+
+    - find_key: $.properties.activities[?(@.name=="data_quality_checks")].typeProperties.notebookId
+      replace_value:
+          _ALL_: "$items.Notebook.data_quality_checks.$id"
+      item_type: "DataPipeline"
+      item_name: "orchestrator_pipeline_bronze_to_gold"
+
+    - find_key: $.properties.activities[?(@.name=="pipeline_error_handler")].typeProperties.notebookId
+      replace_value:
+          _ALL_: "$items.Notebook.pipeline_error_handler.$id"
+      item_type: "DataPipeline"
+      item_name: "orchestrator_pipeline_bronze_to_gold"
+
+    - find_key: $.properties.activities[?(@.name=="bronze_procurement")].typeProperties.dataflowId
+      replace_value:
+          _ALL_: "$items.Dataflow.bronze_azureSQLdb2table.$id"
+      item_type: "DataPipeline"
+      item_name: "orchestrator_pipeline_bronze_to_gold"
