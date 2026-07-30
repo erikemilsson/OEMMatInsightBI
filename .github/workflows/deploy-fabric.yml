@@ -130,6 +130,16 @@ jobs:
             "Warehouse",
         ]
 
+        # fabric/archive/ holds retired items (the old `report` and
+        # `semantic_model_oeminsightbi`) that Fabric's git sync committed when
+        # they were archived in the UI. fabric-cicd's repository scan (os.walk)
+        # recurses into archive/, so without an exclude a publish would RE-DEPLOY
+        # those retired artifacts to the live workspace. publish_all_items
+        # honors publish_folder_path_exclude_regex (ancestor walk), so this
+        # makes the real publish skip them. The regex matches the item's
+        # folder_path, which for an item directly under archive/ is "/archive".
+        folder_exclude_regex = r"^/archive$"
+
         print(f"workspace_id        = {workspace_id}")
         print(f"repository_directory= {repository_dir}")
         print(f"environment         = {environment}")
@@ -145,16 +155,6 @@ jobs:
             client_secret=client_secret,
             tenant_id=tenant_id,
         )
-
-        # fabric/archive/ holds retired items (the old `report` and
-        # `semantic_model_oeminsightbi`) that Fabric's git sync committed when
-        # they were archived in the UI. fabric-cicd's repository scan (os.walk)
-        # recurses into archive/, so without an exclude a publish would RE-DEPLOY
-        # those retired artifacts to the live workspace. publish_all_items
-        # honors publish_folder_path_exclude_regex (ancestor walk), so this
-        # makes the real publish skip them. The regex matches the item's
-        # folder_path, which for an item directly under archive/ is "/archive".
-        folder_exclude_regex = r"^/archive$"
 
         # Construction authenticates, resolves/validates the workspace, and
         # loads + validates fabric/parameter.yml (raises ParameterFileError on
