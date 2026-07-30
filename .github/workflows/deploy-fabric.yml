@@ -134,6 +134,7 @@ jobs:
         print(f"repository_directory= {repository_dir}")
         print(f"environment         = {environment}")
         print(f"item_type_in_scope  = {item_type_in_scope}")
+        print(f"folder_exclude_regex = {folder_exclude_regex}")
         print(f"dry_run             = {dry_run}")
 
         # Authenticate as the Service Principal. ClientSecretCredential is the
@@ -145,6 +146,16 @@ jobs:
             tenant_id=tenant_id,
         )
 
+        # fabric/archive/ holds retired items (the old `report` and
+        # `semantic_model_oeminsightbi`) that Fabric's git sync committed when
+        # they were archived in the UI. fabric-cicd's repository scan (os.walk)
+        # recurses into archive/, so without an exclude a publish would RE-DEPLOY
+        # those retired artifacts to the live workspace. publish_all_items
+        # honors publish_folder_path_exclude_regex (ancestor walk), so this
+        # makes the real publish skip them. The regex matches the item's
+        # folder_path, which for an item directly under archive/ is "/archive".
+        folder_exclude_regex = r"^/archive$"
+
         # Construction authenticates, resolves/validates the workspace, and
         # loads + validates fabric/parameter.yml (raises ParameterFileError on
         # an invalid file). It does NOT publish or modify the workspace.
@@ -155,30 +166,49 @@ jobs:
             environment=environment,
             token_credential=token_credential,
         )
+        # Exclude retired items under fabric/archive/ from publish (see comment
+        # above). Set after construction; __init__ defaults it to None.
+        workspace.publish_folder_path_exclude_regex = folder_exclude_regex
 
         # Read-only enumeration of what would be published (repo) and what is
         # already in the workspace (deployed). These are private helpers but
         # they perform only filesystem reads + a GET to the items API; they do
         # not mutate the workspace.
+        #
+        # NOTE: _refresh_repository_items does NOT honor the folder-exclude
+        # regex (it walks every .platform under repository_directory), so the
+        # raw repository_items still contains the 2 archived items. The dry-run
+        # preview below filters them with the same regex so the reported plan
+        # matches what publish_all_items would actually deploy.
         try:
             workspace._refresh_repository_items()
             workspace._refresh_deployed_items()
         except Exception as exc:  # noqa: BLE001 - dry-run must still report
             print(f"::warning::Read-only refresh failed; dry-run enumeration incomplete: {exc}")
 
-        def _summarize(label, items):
+        import re as _re
+
+        def _summarize(label, items, exclude_regex=None):
             print(f"::group::{label}")
             count = 0
             for item_type in sorted(items):
                 names = sorted(items[item_type])
                 for name in names:
+                    item = items[item_type][name]
+                    if exclude_regex and getattr(item, "folder_path", ""):
+                        if _re.search(exclude_regex, item.folder_path):
+                            continue
                     print(f"  {item_type}/{name}")
                     count += 1
             print(f"  total: {count}")
             print("::endgroup::")
             return count
 
-        repo_count     = _summarize("Repository items (would be published)", workspace.repository_items)
+        repo_count     = _summarize(
+            "Repository items (would be published)",
+            workspace.repository_items,
+            exclude_regex=folder_exclude_regex,
+        )
         deployed_count = _summarize("Currently deployed items in workspace",  workspace.deployed_items)
 
         if dry_run:
