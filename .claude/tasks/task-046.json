@@ -8,13 +8,13 @@
   "section_fingerprint": "sha256:40c80fa2e9c5df6de656440b224fd67d5f286f507cdf3172254a1da67eaf8b6e",
   "section_snapshot_ref": "",
   "created_date": "2026-07-29",
-  "updated_date": "2026-07-29",
+  "updated_date": "2026-07-30",
   "verification_attempts": 0,
   "interaction_hint": "cli_direct",
   "decision_dependencies": [],
   "out_of_spec": false,
   "absorbed_into": "",
-  "status": "Pending",
+  "status": "In Progress",
   "user_review_pending": false,
   "id": "task-046",
   "title": "Configure GitHub repository secrets and validate the first automated Fabric deployment end to end",
@@ -37,6 +37,7 @@
     "CREATED 2026-07-29 by /work task-spec coherence audit. Spec § Next Steps & Priorities defines Phase 4 (CI/CD Deployment) with concrete deliverables, but the project had zero Phase 4 tasks — verified by a grep probe with a positive control. This task is part of the 4-task set that closes that coverage gap.",
     "OWNER both: Erik sets the GitHub secrets and triggers the runs; Claude reviews workflow output and diagnoses failures.",
     "This is the Phase 4 acceptance gate — spec § Next Steps calls CI/CD 'the one production-readiness pattern not covered by the companion NordGrid project', so this is the task that actually earns that claim.",
-    "Spec § Next Steps → Phase 4 deliverable 2 (SQL Warehouse Analytics Layer) is explicitly already implemented — 4 views + 2 stored procedures in oem_wh. No task needed; do not re-scope it into this one."
+    "Spec § Next Steps → Phase 4 deliverable 2 (SQL Warehouse Analytics Layer) is explicitly already implemented — 4 views + 2 stored procedures in oem_wh. No task needed; do not re-scope it into this one.",
+    "IN PROGRESS IN A CONCURRENT CONVERSATION (Erik, 2026-07-30). Being worked in a separate session in parallel with the task-038 chain in this one. DO NOT DISPATCH from this session or the next /work — status is In Progress precisely to keep routing off it. Its dependencies (task-043 Service Principal, task-045 deploy workflow) are both Finished and committed at e48040e. Note DEC-007: push-to-main is dry-run by default, so a real publish needs a deliberate workflow_dispatch."
   ]
 }
