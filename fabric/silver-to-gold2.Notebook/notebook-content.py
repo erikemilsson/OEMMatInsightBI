@@ -789,6 +789,11 @@ def create_country_coverage_matrix():
     sources = [
         ("has_epi", spark.table(f"{DB}.{EPI_SILVER_TBL}")
             .select(F.col("country").alias("src_country"))),
+        # task-038_2 decided to leave this GLOBAL-ONLY. has_supply is a flag on a different
+        # gold table (gold_country_coverage_matrix) whose published meaning is "this country
+        # appears as a worldwide producer". Adding silver_eusupplyshares would flip existing
+        # countries from 0 to 1 and raise their coverage_score with no acceptance criterion
+        # covering the change. Broadening it is a deliberate follow-up, not a side effect.
         ("has_supply", spark.table(f"{DB}.silver_globalsupplyshares")
             .select(F.col("country").alias("src_country"))),
         ("has_proc_hq", spark.table(f"{DB}.silver_procurement")
@@ -872,9 +877,18 @@ proc = spark.table(f"{DB}.silver_procurement").select(
 sup = spark.table(f"{DB}.silver_globalsupplyshares").select(
     F.initcap(F.trim("material")).alias("material")
 )
+# task-038_2: silver_eusupplyshares now also feeds fact_supply_share, so its materials MUST
+# be gathered here too. Without this, any material that appears only in the EU sourcing
+# table would find no dim row, land on the 'Unknown Material' placeholder, and be reported
+# as an unmapped-material quality failure — a false signal manufactured by the union rather
+# than a real gap in the data. Additive to gold_dim_material: it can only add material rows,
+# never change an existing one (the dim is keyed on the standardised name).
+sup_eu = spark.table(f"{DB}.silver_eusupplyshares").select(
+    F.initcap(F.trim("material")).alias("material")
+)
 
 materials_raw = (
-    proc.union(sup)
+    proc.union(sup).union(sup_eu)
     .dropna()
     .dropDuplicates()
 )
@@ -1787,7 +1801,48 @@ write_tbl(unmapped_audit, "gold_unmapped_procurement_audit")
 
 ## gold.fact_supply_share (with enhanced quality tracking and unknown handling)
 
-sup = spark.table(f"{DB}.silver_globalsupplyshares")
+# task-038_2 / DEC-001 Option B: the fact is the UNION of the two complementary EU CRM
+# supply tables, discriminated by `supply_mix`:
+#   'global'      — silver_globalsupplyshares: where a material is produced worldwide
+#   'eu_sourcing' — silver_eusupplyshares:     where the EU actually sources it from
+# They are NOT partitions of one population. spec_v1 § Data Architecture -> Gold Layer
+# item 2: "The two supply_mix values are never summed together" — every consumer either
+# filters to one mix or pivots on it. The grain therefore gains supply_mix:
+# material x stage x country x year x supply_mix.
+#
+# The union happens HERE, at read time, before any cleaning. That way the '<1%' -> 0.5
+# convention, the dimension joins, the quality scoring and the territory rollup below are
+# each expressed exactly once and apply identically to both mixes — no per-source special
+# casing, and task-028's single-source-of-truth rule for censored shares survives intact.
+#
+# unionByName is deliberately STRICT (no allowMissingColumns): bronze-to-silver already
+# asserts the two silver tables share a column contract, so a divergence here is a real
+# upstream defect and should fail loudly rather than be papered over with NULLs.
+SUPPLY_SOURCES = [
+    ("global", "silver_globalsupplyshares"),
+    ("eu_sourcing", "silver_eusupplyshares"),
+]
+
+sup = None
+for _mix_name, _mix_tbl in SUPPLY_SOURCES:
+    _mix_df = (
+        spark.table(f"{DB}.{_mix_tbl}")
+        .withColumn("supply_mix", F.lit(_mix_name))
+        .withColumn("source_file", F.lit(_mix_tbl))
+    )
+    sup = _mix_df if sup is None else sup.unionByName(_mix_df)
+
+# `t` arrives from silver as a STRING on BOTH tables (verified against the live lakehouse
+# and documented in schemas/bronze_tables.md); spec_v1 item 2 calls it DOUBLE, which is the
+# target shape of the gold column, not the shape silver delivers. It is cast explicitly
+# below. Fabric runs with spark.sql.ansi.enabled=false, so a non-numeric value casts to
+# NULL instead of raising — this counter is what stops that from passing silently. It is
+# observability, not suppression: a non-zero count is a real upstream data defect.
+_t_cast_lost = sup.filter(F.col("t").isNotNull() & F.col("t").cast("double").isNull()).count()
+if _t_cast_lost > 0:
+    print(f"\n⚠️  WARNING: {_t_cast_lost} supply-share row(s) carry a non-numeric `t` that "
+          f"cast to NULL. Their trade weighting is undefined and DEC-001's HHI_WGI,t will "
+          f"skip them — investigate the source before trusting the supply-risk output.")
 
 # Prepare supply share data with row tracking for audit
 supply_prep = (
@@ -1803,14 +1858,18 @@ supply_prep = (
         # deleted, so this is now the only place the convention is expressed. It matches
         # spec_v1 § Data Sources / Supply Shares ("'<1%' converted to 0.5%"). Any change
         # here changes every downstream supply-share measure — do not fork it.
+        # task-038_2: this now runs over the unioned rows, so both mixes are cleaned by
+        # this one expression.
         F.when(F.col("share").contains("<"), F.lit(0.5))
          .otherwise(
                F.regexp_replace("share", "[<%]", "").cast("double")
          ).alias("share_pct"),
+        F.col("t").cast("double").alias("t"),
+        F.col("supply_mix"),
+        # Source metadata for audit purposes, stamped per-source at read time above
+        F.col("source_file"),
         F.monotonically_increasing_id().alias("row_id")  # Add for tracking
     )
-    # Add source metadata for audit purposes
-    .withColumn("source_file", F.lit("silver_globalsupplyshares"))
     .withColumn("processing_timestamp", F.current_timestamp())
 )
 
@@ -1942,7 +2001,10 @@ fact_supply_share_complete = (
         F.col("stage_key_final").alias("stage_key"),
         F.col("country_key_final").alias("country_key"),
         "year",
+        # task-038_2: supply_mix is part of the grain, t is the DEC-001 tᶜ input
+        F.col("s.supply_mix").alias("supply_mix"),
         "share_pct",
+        F.col("s.t").alias("t"),
         "data_quality_score",
         "quality_category",
         "has_unmapped_material",
@@ -1989,18 +2051,58 @@ if dropped_stage_records > 0:
 #   source_row_id       MIN  — deterministic representative; the per-row audit trail is
 #                              built separately from fact_supply_share_raw, so nothing is lost
 #
-# task-038 DEPENDENCY: the trade parameter t is currently dropped at
-# bronze-to-silver:127, so there is no t to reconcile here. When task-038 carries t
-# through, this aggregation MUST define how t combines — the colliding rows differ
-# (China t=1.1 export-restricted vs Hong Kong t=1.0 baseline), and that is a
-# methodology decision for DEC-001's trade-weighted HHI, not an implementation detail.
+# task-038_2 — supply_mix JOINS THE GROUPING KEY. The two mixes are complementary
+# measurements, never partitions of one population, so a global row and an eu_sourcing row
+# on the same (material, stage, country, year) must NOT be merged. Omitting supply_mix here
+# would SUM their shares together and silently corrupt both.
+#
+# task-038_2 — HOW `t` COMBINES (resolved 2026-07-30; the methodology question the
+# task-024/028 note below used to defer to DEC-001). DEC-001 fixes the formula
+# HHI_WGI,t = Σ_c (Sᶜ)²·WGIᶜ·tᶜ but is silent on rollup aggregation.
+#   RULE: SHARE-WEIGHTED MEAN — t_merged = Σ(shareᵢ·tᵢ) / Σ(shareᵢ)
+#   Live case: Antimony/P China 51.8% t=1.1 + Hong Kong 0.3% t=1.0 -> China 52.1% t=1.0994.
+#   WHY: t is a per-flow multiplier, so a merged flow's effective t is the share-weighted
+#   average of its constituents. It is the only rule that preserves the trade-weighted
+#   supply quantity Σ(S·t) exactly across the rollup (57.28 before and after), and it is an
+#   exact no-op on the ~2560 non-colliding grains — matching how every other aggregation
+#   here behaves on a single-row group.
+#   REJECTED: MAX (overstates, 57.31); dominant-constituent (discards the minor row, and is
+#   unstable at near-equal shares); MIN (understates by ~9% — MIN is right for
+#   data_quality_score because that is a trust score, but t is a risk multiplier).
 _pre_rollup_rows = fact_supply_share_final.count()
+
+# CRITERION-5 BASELINE (task-038_2). The expectation MUST come from outside the frame it
+# checks. An earlier version of this derived it from fact_supply_share_final itself, which
+# made the assertion a tautology — both sides moved in lockstep and it was mathematically
+# incapable of failing (caught in verification). The real baseline is the fact table as it
+# exists in the lakehouse BEFORE this run overwrites it:
+#   - table predates task-038_2 (no supply_mix column) -> its TOTAL count is the old
+#     global-only row count, which is exactly what criterion 5 wants to compare against
+#   - table already migrated -> compare against its 'global' slice
+#   - table absent (first ever run) -> no baseline exists; report and skip
+# Read before write_tbl() below, or the overwrite destroys the thing being compared.
+_baseline_global_rows = None
+_baseline_source = "unavailable (fact_supply_share not present — first run)"
+if spark.catalog.tableExists(f"{DB}.fact_supply_share"):
+    _prev_fact = spark.table(f"{DB}.fact_supply_share")
+    if "supply_mix" in _prev_fact.columns:
+        _baseline_global_rows = _prev_fact.filter(F.col("supply_mix") == "global").count()
+        _baseline_source = "previous run's global slice"
+    else:
+        _baseline_global_rows = _prev_fact.count()
+        _baseline_source = "pre-task global-only table (total row count)"
 
 fact_supply_share_final = (
     fact_supply_share_final
-    .groupBy("material_key", "stage_key", "country_key", "year")
+    .groupBy("material_key", "stage_key", "country_key", "year", "supply_mix")
     .agg(
         F.sum("share_pct").alias("share_pct"),
+        # Share-weighted mean of t. Rows with a NULL t are excluded from BOTH the numerator
+        # and the denominator, so a missing t cannot bias the mean downward; if every
+        # constituent t is NULL the result is NULL — nothing is invented.
+        F.sum(F.when(F.col("t").isNotNull(), F.col("share_pct") * F.col("t"))).alias("_t_num"),
+        F.sum(F.when(F.col("t").isNotNull(), F.col("share_pct"))).alias("_t_den"),
+        F.avg("t").alias("_t_unweighted"),
         F.min(F.struct("data_quality_score", "quality_category")).alias("_worst"),
         F.max("has_unmapped_material").alias("has_unmapped_material"),
         F.max("has_unmapped_country").alias("has_unmapped_country"),
@@ -2008,7 +2110,12 @@ fact_supply_share_final = (
         F.min("source_row_id").alias("source_row_id"),
     )
     .select(
-        "material_key", "stage_key", "country_key", "year", "share_pct",
+        "material_key", "stage_key", "country_key", "year", "supply_mix", "share_pct",
+        # Zero-denominator guard: an all-zero (or all-NULL) share group makes the weighted
+        # mean undefined, so fall back to the unweighted mean — which is still an exact
+        # no-op on a single-row grain, the case that actually occurs.
+        F.when(F.col("_t_den") > 0, F.col("_t_num") / F.col("_t_den"))
+         .otherwise(F.col("_t_unweighted")).alias("t"),
         F.col("_worst.data_quality_score").alias("data_quality_score"),
         F.col("_worst.quality_category").alias("quality_category"),
         "has_unmapped_material", "has_unmapped_country",
@@ -2022,15 +2129,62 @@ if _pre_rollup_rows != _post_rollup_rows:
           f"into their parent country ({_pre_rollup_rows} -> {_post_rollup_rows})")
 
 # GUARD: the grain must now be unique, or grain_uniqueness will fail the pipeline
-# downstream with a far less informative message than this assert.
+# downstream with a far less informative message than this assert. task-038_2 added
+# supply_mix — it must match grain_checks@data_quality_checks, which declares the same
+# five-column key list.
 _dup_grain = (fact_supply_share_final
-              .groupBy("material_key", "stage_key", "country_key", "year")
+              .groupBy("material_key", "stage_key", "country_key", "year", "supply_mix")
               .count().filter(F.col("count") > 1))
 _dup_grain_n = _dup_grain.count()
 assert _dup_grain_n == 0, (
     f"fact_supply_share still has {_dup_grain_n} duplicate grain(s) after the territory "
     f"rollup: {[r.asDict() for r in _dup_grain.limit(5).collect()]}"
 )
+
+# ADDITIVITY CHECK (task-038_2, acceptance criterion 5). The EU rows must be ADDITIVE — a
+# second, complementary population landing alongside the existing one — not a re-partition
+# that moves rows out of the global mix. Two assertions:
+#   1. every row carries one of the two known discriminator values (catches a NULL or a
+#      stray mix introduced by a future source), and
+#   2. the global-mix row count still equals what the global-only build produced.
+# The count alias is deliberately `n`, not `count`: pyspark Row subclasses tuple, so a
+# column named `count` shadows tuple.count and breaks attribute access.
+_mix_counts = {
+    r["supply_mix"]: r["n"]
+    for r in fact_supply_share_final.groupBy("supply_mix")
+                                    .agg(F.count(F.lit(1)).alias("n")).collect()
+}
+_global_rows = _mix_counts.get("global", 0)
+_eu_rows = _mix_counts.get("eu_sourcing", 0)
+
+print(f"\nfact_supply_share rows by supply_mix: global={_global_rows:,}  "
+      f"eu_sourcing={_eu_rows:,}  total={_global_rows + _eu_rows:,}")
+
+# STRUCTURAL INVARIANT — hard assert. Locally testable, and true on every future run.
+assert set(_mix_counts.keys()) <= {"global", "eu_sourcing"}, (
+    f"fact_supply_share carries unexpected supply_mix value(s): "
+    f"{sorted(k for k in _mix_counts if k not in ('global', 'eu_sourcing'))}. "
+    f"spec_v1 § Data Architecture -> Gold Layer item 2 defines exactly two."
+)
+
+# ADDITIVITY vs the EXTERNAL baseline captured above (criterion 5). Deliberately a REPORT,
+# not an assert: criterion 5 is a one-time migration check ("unchanged from before this
+# task"), whereas a hard assert here would fail every future legitimate source refresh —
+# the annual EU CRM vintage changes the global row count on purpose. A divergence on the
+# FIRST post-task run means the EU rows displaced or merged into the global population and
+# the task must be reopened; a divergence later is expected whenever the source changes.
+if _baseline_global_rows is None:
+    print(f"  [criterion 5] no baseline — {_baseline_source}. "
+          f"Compare global={_global_rows:,} against the ~2,561 lineage figure by hand.")
+elif _global_rows == _baseline_global_rows:
+    print(f"  [criterion 5] PASS — global mix unchanged at {_global_rows:,} rows "
+          f"vs baseline from {_baseline_source}. EU rows are additive ({_eu_rows:,} added).")
+else:
+    print(f"  [criterion 5] ⚠️  DIVERGENCE — global mix is {_global_rows:,} rows but the "
+          f"baseline ({_baseline_source}) held {_baseline_global_rows:,}. On the first run "
+          f"after task-038_2 this means the EU rows displaced or merged into the global "
+          f"population — reopen the task. On a later run, confirm the supply-share source "
+          f"genuinely changed before accepting it.")
 
 write_tbl(fact_supply_share_final, "fact_supply_share")
 
@@ -2046,10 +2200,17 @@ write_tbl(fact_supply_share_final, "fact_supply_share")
 # unmapped_dimension is renamed to unmapped_type so both audit tables expose the same
 # contract (unmapped_type + gap_dimension + unmapped_value); share_pct and impact_level
 # are kept because gap prioritisation for supply is share-weighted.
+#
+# task-038_2: this audit stays MIX-INCLUSIVE and gains a supply_mix column. It is a
+# per-source-row gap worklist, not an aggregate — an unmapped material or country in the EU
+# sourcing table is a genuine gap that now affects real fact rows, so suppressing it would
+# hide work rather than protect a number. Nothing here sums across mixes, so including both
+# cannot double-count; supply_mix simply tells the remediator which source the gap came from.
 unmapped_supply_audit = (
     fact_supply_share_raw
     .select(
         F.col("s.row_id").alias("row_id"),
+        F.col("s.supply_mix").alias("supply_mix"),
         F.col("s.share_pct").alias("share_pct"),
         F.array(
             unmapped_gap(F.col("m.material_key").isNull(),
@@ -2060,10 +2221,11 @@ unmapped_supply_audit = (
                          "stage", "stage", F.col("s.stage")),
         ).alias("gap_candidates"),
     )
-    .select("row_id", "share_pct", F.explode("gap_candidates").alias("gap"))
+    .select("row_id", "supply_mix", "share_pct", F.explode("gap_candidates").alias("gap"))
     .filter(F.col("gap").isNotNull())
     .select(
         "row_id",
+        "supply_mix",
         F.col("gap.unmapped_type").alias("unmapped_type"),
         F.col("gap.gap_dimension").alias("gap_dimension"),
         F.col("gap.unmapped_value").alias("unmapped_value"),
@@ -2080,9 +2242,13 @@ write_tbl(unmapped_supply_audit, "gold_unmapped_supply_audit")
 
 # NEW: Create aggregated quality metrics for supply shares
 # This helps identify which materials/countries have poor data quality
+# task-038_2: grouped BY supply_mix, not across it. total_share_pct is a SUM of share_pct,
+# and spec_v1 item 2 forbids summing the two mixes together — a material's global shares sum
+# to ~100 and its EU sourcing shares sum to ~100, so a blended total would read ~200 and mean
+# nothing. Reporting them side by side is DEC-001 Option B's stated presentation.
 quality_by_material = (
     fact_supply_share_final
-    .groupBy("material_key")
+    .groupBy("material_key", "supply_mix")
     .agg(
         F.count("*").alias("record_count"),
         F.avg("data_quality_score").alias("avg_quality_score"),
@@ -2098,7 +2264,18 @@ print("SUPPLY SHARE QUALITY BY MATERIAL")
 print("="*60)
 quality_by_material.show(20, truncate=False)
 
-# Create visualization-ready views with quality filters
+# Create visualization-ready views with quality filters.
+#
+# task-038_2 MIGRATION — per-view decision on whether each consumer stays global-only or
+# becomes mix-aware. The dividing line is AGGREGATION: a view that only filters/decorates
+# rows cannot double-count, so it stays mix-inclusive and simply exposes supply_mix for the
+# consumer to pivot on. A view that AGGREGATES over the fact would blend the two mixes and
+# silently change its own pre-DEC-001 meaning, so it is pinned to the global mix.
+#   v_fact_supply_share_high_confidence  MIX-INCLUSIVE — pure quality filter, no aggregation
+#   v_fact_supply_share_complete         MIX-INCLUSIVE — pure decoration, no aggregation
+#   v_supply_concentration_risk          GLOBAL-ONLY   — aggregates (MAX/COUNT/SUM/AVG)
+# Both mix-inclusive views select fs.*, so supply_mix and t flow through automatically and
+# every downstream consumer can filter or pivot on the discriminator.
 spark.sql(f"""
     CREATE OR REPLACE VIEW {DB}.v_fact_supply_share_high_confidence AS
     SELECT 
@@ -2142,10 +2319,25 @@ spark.sql(f"""
     JOIN {DB}.gold_dim_stage ds ON fs.stage_key = ds.stage_key
 """)
 
-# Create summary statistics for supply concentration risk
+# Create summary statistics for supply concentration risk.
+#
+# task-038_2 MIGRATION (acceptance criterion 3) — THE supply_mix = 'global' FILTER IS
+# LOAD-BEARING. This view existed before DEC-001 and meant "concentration of WORLDWIDE
+# PRODUCTION per material/stage". Every aggregate below would silently change meaning the
+# moment EU rows landed in the fact:
+#   MAX(share_pct)              -> would take the max across BOTH mixes, so an EU sourcing
+#                                  share could set the concentration_risk_level of a
+#                                  material whose global production is well diversified
+#   COUNT(DISTINCT country_key) -> would union the global producer set with the EU supplier
+#                                  set, inflating the apparent supplier count
+#   SUM(... share_pct > 30)     -> counts rows, so it would roughly double
+#   AVG(data_quality_score)     -> would be diluted by the other mix
+# spec_v1 § Data Architecture -> Gold Layer item 2 pins this view to the global mix for
+# exactly that reason. The EU-sourcing counterpart is a separate deliverable (DEC-001
+# Option B reports the two side by side); it must NOT be produced by relaxing this filter.
 spark.sql(f"""
     CREATE OR REPLACE VIEW {DB}.v_supply_concentration_risk AS
-    SELECT 
+    SELECT
         material_name_std,
         commodity_group,
         stage_name,
@@ -2161,6 +2353,7 @@ spark.sql(f"""
             ELSE 'Low'
         END as concentration_risk_level
     FROM {DB}.v_fact_supply_share_complete
+    WHERE supply_mix = 'global'
     GROUP BY material_name_std, commodity_group, stage_name
 """)
 
@@ -2171,11 +2364,13 @@ print(f"Total records processed: {total_supply_records:,}")
 print(f"Records written to fact: {fact_supply_share_final.count():,}")
 print(f"Records in audit trail: {unmapped_supply_audit.count():,}")
 print(f"\nViews created:")
-print("  - v_fact_supply_share_high_confidence: Verified data only")
-print("  - v_fact_supply_share_complete: All data with quality flags")
-print("  - v_supply_concentration_risk: Risk analysis view")
-print(f"\nData Quality Distribution:")
-fact_supply_share_final.groupBy("quality_category").count().orderBy("quality_category").show()
+print("  - v_fact_supply_share_high_confidence: Verified data only (both supply mixes)")
+print("  - v_fact_supply_share_complete: All data with quality flags (both supply mixes)")
+print("  - v_supply_concentration_risk: Risk analysis view (global mix only — task-038_2)")
+print(f"\nData Quality Distribution (by supply mix — never blended):")
+(fact_supply_share_final
+ .groupBy("supply_mix", "quality_category").count()
+ .orderBy("supply_mix", "quality_category").show())
 
 # METADATA ********************
 
@@ -3267,7 +3462,13 @@ def populate_low_confidence_audit():
         WHERE source_value IS NOT NULL
     """)
 
-    # Get low confidence matches from supply shares
+    # Get low confidence matches from supply shares.
+    #
+    # task-038_2 decided to leave this GLOBAL-ONLY. gold_low_confidence_audit groups on
+    # (source_value, matched_to, confidence) with no mix discriminator in its contract, so
+    # unioning silver_eusupplyshares in would ADD its occurrences to the `frequency` of rows
+    # that already exist — silently changing published numbers rather than adding new ones.
+    # Widening it needs a supply_mix column on the audit table first; tracked as follow-up.
     low_conf_supply = spark.sql(f"""
         SELECT
             s.material as source_value,

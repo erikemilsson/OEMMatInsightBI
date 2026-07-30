@@ -1569,7 +1569,14 @@ for table, keys in lookup_uniqueness_checks:
 print("\n--- Gold Check 14: Duplicate-Grain on Gold Facts ---")
 
 grain_checks = [
-    ("oem_lh.fact_supply_share", ["material_key", "stage_key", "country_key", "year"]),
+    # task-038_2: supply_mix is part of fact_supply_share's grain. The fact is the union of
+    # silver_globalsupplyshares and silver_eusupplyshares — two complementary EU CRM
+    # measurements, not partitions of one population — so the same (material, stage, country,
+    # year) legitimately carries one row per mix. Without supply_mix in this key list every
+    # EU row reads as a duplicate grain and fails the pipeline at 0% tolerance. Must stay in
+    # step with the _dup_grain guard in silver-to-gold2's fact_supply_share build.
+    ("oem_lh.fact_supply_share",
+     ["material_key", "stage_key", "country_key", "year", "supply_mix"]),
     ("oem_lh.fact_epi_score", ["country_key", "indicator_key", "year"]),
     ("oem_lh.fact_procurement",
      ["date_key", "material_key", "supplier_hq_country_key",

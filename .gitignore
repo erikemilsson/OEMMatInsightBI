@@ -89,3 +89,8 @@ Desktop.ini
 
 # Spec merge queue (re-entry transport) — DEC-023
 .claude/support/.spec-merge-queue.jsonl
+
+# local pyspark verification artifacts
+spark-warehouse/
+derby.log
+metastore_db/

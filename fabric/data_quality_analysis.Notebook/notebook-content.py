@@ -157,16 +157,22 @@ print(f"\n{'='*70}")
 print("QUALITY DISTRIBUTION - FACT SUPPLY SHARE")
 print(f"{'='*70}\n")
 
+# task-038_2: grouped BY supply_mix, not across it. total_share_pct is a SUM of share_pct,
+# and spec_v1 § Data Architecture -> Gold Layer item 2 forbids summing the two mixes
+# together — a material's global shares sum to ~100 and its EU sourcing shares sum to ~100,
+# so a blended total reads ~200 and means nothing. Same migration rule applied to
+# quality_by_material in silver-to-gold2: a consumer that AGGREGATES over the fact must
+# either group by the discriminator or pin to one mix.
 supply_quality_dist = (
     fact_supply
-    .groupBy("quality_category")
+    .groupBy("supply_mix", "quality_category")
     .agg(
         F.count("*").alias("record_count"),
         F.sum("share_pct").alias("total_share_pct")
     )
     .withColumn("pct_of_records",
                 F.col("record_count") / F.lit(total_supply_records) * 100)
-    .orderBy(F.desc("record_count"))
+    .orderBy("supply_mix", F.desc("record_count"))
 )
 
 supply_quality_dist.show(truncate=False)
