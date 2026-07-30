@@ -1,5 +1,5 @@
 {
-  "status": "In Progress",
+  "status": "Finished",
   "priority": "P2",
   "phase": "2",
   "phase_name": "Silver / Gold Transformations & Data Quality",
@@ -18,7 +18,7 @@
   "updated_date": "2026-07-30",
   "verification_attempts": 2,
   "interaction_hint": "cli_direct",
-  "user_review_pending": true,
+  "user_review_pending": false,
   "id": "task-038_2",
   "difficulty": 5,
   "owner": "both",
@@ -69,7 +69,9 @@
     "CRITERION-3 BASELINE (partial) CAPTURED 2026-07-30 pre-pipeline-run, via NOTEBOOK (Spark view, invisible to the SQL endpoint). Top-10 by max_country_share: Europium, Ytterbium, Holmium, Lutetium, Gadolinium, Erbium, Yttrium, Dysprosium, Terbium, Thulium — ALL stage=Processing, max_country_share=100.0, supplier_country_count=1, concentration_risk_level=Critical. Confirms the pre-task view means 'worldwide production concentration' and that the heavy rare earths are single-source at processing.",
     "⚠️ TOP-10 IS NOT A VALID BEFORE/AFTER DIFF for criterion 3: every row ties at max_country_share=100.0 and the ORDER BY carries no tiebreaker, so the post-run query can legitimately return a different arbitrary 10 through non-deterministic ordering — indistinguishable from real corruption. Replaced with an order-independent whole-view fingerprint (GROUP BY concentration_risk_level with COUNT, SUM/AVG of max_country_share, SUM of supplier_country_count, plus total row count). Any EU rows leaking past the supply_mix='global' filter move those aggregates. General lesson for future test protocols: never diff a LIMIT/TOP-N sample when the sort key has ties.",
     "CONFIRMED 2026-07-30: clicking Update in the Fabric git panel replaced the notebook DEFINITIONS only and left lakehouse state untouched — the pre-task views and the 2560-row fact were still queryable afterwards. The destructive boundary is the pipeline RUN (CREATE OR REPLACE VIEW and write_tbl execute then), not the Update. Useful for future one-shot-baseline sequencing.",
-    "CRITERION-3 BASELINE (authoritative, order-independent) CAPTURED 2026-07-30 pre-pipeline-run via notebook. v_supply_concentration_risk whole-view fingerprint, GROUP BY concentration_risk_level (n_materials | sum_max_share | avg_max_share | sum_supplier_countries): Critical 69 | 5141.7 | 74.517391 | 892 ;; High 34 | 1347.4 | 39.629412 | 825 ;; Low 5 | 79.8 | 15.96 | 297 ;; Medium 14 | 366.2 | 26.157143 | 546. TOTAL ROWS = 122 (69+34+5+14 checks out; the view groups on material x commodity_group x stage). After the run these must be IDENTICAL — any EU rows leaking past the supply_mix='global' filter would move n_materials, sum_max_share or sum_supplier_countries. This supersedes the top-10 sample, which is unusable as a diff because every row ties at max_country_share=100.0."
+    "CRITERION-3 BASELINE (authoritative, order-independent) CAPTURED 2026-07-30 pre-pipeline-run via notebook. v_supply_concentration_risk whole-view fingerprint, GROUP BY concentration_risk_level (n_materials | sum_max_share | avg_max_share | sum_supplier_countries): Critical 69 | 5141.7 | 74.517391 | 892 ;; High 34 | 1347.4 | 39.629412 | 825 ;; Low 5 | 79.8 | 15.96 | 297 ;; Medium 14 | 366.2 | 26.157143 | 546. TOTAL ROWS = 122 (69+34+5+14 checks out; the view groups on material x commodity_group x stage). After the run these must be IDENTICAL — any EU rows leaking past the supply_mix='global' filter would move n_materials, sum_max_share or sum_supplier_countries. This supersedes the top-10 sample, which is unusable as a diff because every row ties at max_country_share=100.0.",
+    "ALL ACCEPTANCE CRITERIA MET 2026-07-30. Live-verified after the Fabric run: global=2560 (unchanged, criterion 5), eu_sourcing=903 additive, t populated and typed double with zero cast losses, grain unique on all five columns, and the concentration-risk fingerprint byte-identical to baseline (criterion 3). Task closed.",
+    "⚠️ GOTCHA THAT COST A DIAGNOSTIC DETOUR — the SQL analytics endpoint returned 'Invalid column name supply_mix / t' for HOURS after the write succeeded. The endpoint is a separate T-SQL engine over a CACHED copy of the lakehouse schema and lags badly on SCHEMA CHANGES to a table it has already cached (observed ~7h stale, not the 'minute or two' assumed). Spark read the correct schema immediately. Rule: after any column addition, verify in a NOTEBOOK, not the SQL endpoint — an 'Invalid column name' there is not evidence the write failed. Diagnosed by pulling the pipeline job instances and the live notebook definition via the Fabric REST API rather than trusting either surface."
   ],
   "verification_history": [
     {
@@ -133,7 +135,33 @@
         "type": "inspection",
         "detail": "Fabric cell markers byte-identical to HEAD across all three notebooks",
         "result": "pass"
+      },
+      {
+        "type": "live_run",
+        "detail": "Fabric pipeline run 2026-07-30 12:03-12:34 CEST (silver-to-gold2 executed 12:22-12:29), status Completed. Code landed at 11:55:30 (4fb1f65), workspace Updated before the run — confirmed via Fabric REST getDefinition that the live notebook carries the SUPPLY_SOURCES union.",
+        "result": "pass"
+      },
+      {
+        "type": "live_query",
+        "detail": "CRITERION 5 MET: fact_supply_share global=2560 rows, exactly the pre-run baseline. eu_sourcing=903 additive (silver_eusupplyshares holds 907; ~4 collapse via the territory rollup or invalid-stage drop). Total 3463.",
+        "result": "pass"
+      },
+      {
+        "type": "live_query",
+        "detail": "t cast clean on both mixes: t_not_null == n (2560/2560 and 903/903), zero non-numeric losses. t range 0.8-1.5 on both — 0.8 on the global mix is expected, the global table lists EU producing countries which carry the EU-sourced trade parameter.",
+        "result": "pass"
+      },
+      {
+        "type": "live_query",
+        "detail": "Five-column grain holds: dup_grains = 0 over (material_key, stage_key, country_key, year, supply_mix).",
+        "result": "pass"
+      },
+      {
+        "type": "live_query",
+        "detail": "CRITERION 3 MET: v_supply_concentration_risk whole-view fingerprint IDENTICAL to the pre-run baseline — Critical 69/5141.7/74.517391/892, High 34/1347.4/39.629412/825, Low 5/79.8/15.96/297, Medium 14/366.2/26.157143/546. The supply_mix='global' filter preserved the view's pre-DEC-001 meaning; no EU rows leaked into it.",
+        "result": "pass"
       }
     ]
-  }
+  },
+  "completion_date": "2026-07-30"
 }
