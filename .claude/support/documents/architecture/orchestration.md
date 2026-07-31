@@ -5,7 +5,16 @@
 **Pipeline Name:** `orchestrator_pipeline_bronze_to_gold.DataPipeline`
 **Purpose:** End-to-end data orchestration from source ingestion to warehouse sync
 **Execution:** Currently manual (scheduled execution planned in Task 10)
-**Runtime:** ~20-30 minutes (estimated)
+**Runtime:** ~18-19 minutes (measured 2026-07-31, run `b56a43b9`)
+
+> **Accuracy note (2026-07-31).** This document had drifted badly: it described 4
+> bronze activities (there are 6), called `bronze_WGI` / `bronze_EPI`
+> RefreshDataflows (task-035 made them notebooks), claimed 0 retries everywhere
+> (task-011 set real policies), omitted `data_quality_checks` and
+> `pipeline_error_handler` (task-022 / task-026), and documented a Stage 4
+> `InvokeCopyJob` that is not in the pipeline. Every activity/type/policy figure
+> below is now read from the live definition, and runtimes are measured from run
+> `b56a43b9` rather than estimated.
 
 ## Pipeline Architecture
 
@@ -14,154 +23,206 @@ START
   │
   ├──[STAGE 1: Bronze Ingestion - PARALLEL]──────────────┐
   │   │                                                    │
-  │   ├─ bronzecopy_EUSupplyShares (Copy Activity)        │
-  │   ├─ bronze_WGI (RefreshDataflow)                     │
-  │   ├─ bronze_procurement (RefreshDataflow)             │
-  │   └─ bronze_EPI (RefreshDataflow)                     │
+  │   ├─ bronzecopy_EUSupplyShares            (Copy)      │
+  │   ├─ bronzecopy_GlobalSupplyShares        (Copy)      │
+  │   ├─ bronzecopy_procurement_transactional (Copy)      │
+  │   ├─ bronzecopy_supplier_ref              (Copy)      │
+  │   ├─ bronze_WGI                           (Notebook)  │
+  │   └─ bronze_EPI                           (Notebook)  │
   │                                                        │
-  │   [All 4 activities complete]                         │
+  │   [All 6 activities complete]                         │
   │                      ▼                                 │
   ├──[STAGE 2: Silver Transformation - SEQUENTIAL]────────┤
   │   │                                                    │
-  │   └─ bronze-to-silver data cleaning (Notebook)        │
+  │   └─ bronze-to-silver data cleaning       (Notebook)  │
   │                      ▼                                 │
   ├──[STAGE 3: Gold Transformation - SEQUENTIAL]──────────┤
   │   │                                                    │
-  │   └─ silver-to-gold (Notebook)                        │
+  │   └─ silver-to-gold                       (Notebook)  │
   │                      ▼                                 │
-  └──[STAGE 4: Warehouse Sync - SEQUENTIAL]───────────────┘
+  ├──[STAGE 4: Data Quality - SEQUENTIAL]─────────────────┤
+  │   │                                                    │
+  │   └─ data_quality_checks                  (Notebook)  │
+  │                      ▼                                 │
+  └──[STAGE 5: Error Handling - SEQUENTIAL]───────────────┘
       │
-      └─ Copy job1 (InvokeCopyJob)
+      └─ pipeline_error_handler               (Notebook)
                       ▼
                     END
 ```
+
+**No RefreshDataflow activities remain.** This is deliberate and load-bearing for
+CI/CD: a service principal cannot refresh a Dataflow Gen2
+(`SPNBasedRefreshNotAllowed`), and every `fabric-cicd` publish strips a Gen2's
+stored credentials. task-035 converted WGI/EPI to notebooks; task-048 replaced the
+last one (`bronze_procurement`) with two Copy activities and retired
+`bronze_azureSQLdb2table`. The pipeline is therefore SPN-safe end to end.
 
 ## Activity Details
 
 ### Stage 1: Bronze Ingestion (Parallel)
 
-**Execution:** All 4 activities run simultaneously
+**Execution:** All 6 activities run simultaneously (each has an empty `dependsOn`)
 
-#### 1. bronzecopy_EUSupplyShares
-- **Type:** Copy Activity
-- **Source:** HTTP (GitHub CSV)
-- **Destination:** bronze_GlobalSupplyShares (oem_lh)
-- **Timeout:** 12 hours
-- **Retry:** 0 attempts (planned improvement in Task 11)
-- **Runtime:** ~2-5 minutes
+All activities carry a 12-hour timeout. Retry columns are the live values set by
+task-011; runtimes are measured from run `b56a43b9` (2026-07-31).
 
-#### 2. bronze_WGI
-- **Type:** RefreshDataflow Activity
-- **Dataflow:** WGI_file2table.Dataflow
-- **Output:** bronze_WB_ESGCSV, bronze_WB_ESGSeries
-- **Timeout:** 12 hours
-- **Retry:** 0 attempts
-- **Runtime:** ~3-5 minutes
+| # | Activity | Type | Source → Output | Retry | Runtime |
+|---|----------|------|-----------------|-------|---------|
+| 1 | `bronzecopy_EUSupplyShares` | Copy | HTTP (GitHub CSV) → `bronze_EUSupplyShares` | 3 / 300s | 28s |
+| 2 | `bronzecopy_GlobalSupplyShares` | Copy | HTTP (GitHub CSV) → `bronze_GlobalSupplyShares` | 3 / 300s | 25s |
+| 3 | `bronzecopy_procurement_transactional` | Copy | Azure SQL `dbo.procurement_transactional` → `bronze_procurement_transactional` | 3 / 300s | 27s |
+| 4 | `bronzecopy_supplier_ref` | Copy | Azure SQL `dbo.supplier_ref` → `bronze_supplier_ref` | 3 / 300s | 25s |
+| 5 | `bronze_WGI` | Notebook | World Bank API → `bronze_WGI` | 2 / 30s | 119s |
+| 6 | `bronze_EPI` | Notebook | Yale EPI CSV → `bronze_epi2024results` + related | 2 / 30s | 104s |
 
-#### 3. bronze_procurement
-- **Type:** RefreshDataflow Activity
-- **Dataflow:** bronze_azureSQLdb2table.Dataflow
-- **Output:** bronze_procurement_transactional, bronze_supplier_ref
-- **Timeout:** 12 hours
-- **Retry:** 0 attempts
-- **Runtime:** ~5-10 minutes
+**Stage 1 Total:** ~2 minutes (parallel; bounded by `bronze_WGI`)
 
-#### 4. bronze_EPI
-- **Type:** RefreshDataflow Activity
-- **Dataflow:** EPI_file2table.Dataflow
-- **Output:** bronze_epi2024results, related tables
-- **Timeout:** 12 hours
-- **Retry:** 0 attempts
-- **Runtime:** ~3-5 minutes
+#### Azure SQL ingestion notes (activities 3 and 4)
 
-**Stage 1 Total:** ~5-10 minutes (parallel execution)
+Both bind to the Fabric connection `oem_azuresql_procurement`
+(`da9667d6-9df0-492e-83e0-de4a55fc388e`, path
+`procurement-supplier.database.windows.net;procurement-supplier-db`, Basic auth).
+The connection must be shared with the `Fabric-SPN-Access` security group or an
+SPN-driven publish fails with *"User does not have access to the connection used
+in the Pipeline"*.
+
+**Bronze is deliberately raw here.** The retired dataflow corrected the source's
+day/year-transposed dates during ingestion; a Copy activity cannot transform, so
+that correction now lives in `bronze-to-silver` as `correct_procurement_date`, and
+bronze holds the source's malformed dates verbatim. This is better medallion
+practice, but it means **bronze `Date` values are not directly usable** — read
+silver instead.
+
+**The database is Azure SQL serverless** (`GP_S_Gen5`, `autoPauseDelay: 60`). A run
+starting after 60 minutes of database idleness hits the resume window and the first
+Copy attempt fails with *"Database ... is not currently available"* — which is a
+pause, not a credential problem. The 300-second retry interval comfortably exceeds
+the observed ~41s resume, so attempt 2 succeeds. **Do not set these two activities
+to retry 0.**
 
 ### Stage 2: Silver Transformation (Sequential)
 
-**Depends On:** All 4 bronze activities (Succeeded)
+**Depends On:** All **6** bronze activities (Succeeded)
 
-#### 5. bronze-to-silver data cleaning
+#### 7. bronze-to-silver data cleaning
 - **Type:** Notebook Activity
-- **Notebook:** bronze-to-silver.Notebook
-- **Output:** silver_epi2024results, silver_globalsupplyshares, silver_WB, silver_procurement
-- **Timeout:** 12 hours
-- **Retry:** 0 attempts
-- **Runtime:** ~3-5 minutes
+- **Notebook:** `bronze-to-silver.Notebook`
+- **Output:** `silver_epi2024results`, `silver_globalsupplyshares`, `silver_wgi`, `silver_procurement`
+- **Timeout:** 12 hours — **Retry:** 2 / 120s — **Runtime:** 141s (measured)
+- **Owns the procurement date correction** (task-048): `correct_procurement_date`
+  undoes the source's day/year transposition —
+  `make_date(day + 2000, month, year - 2000)` — and is applied **at the bronze read,
+  before the incremental look-back window**. That ordering is load-bearing: the
+  watermark (`bronze_load_metadata.last_load_date`) and the delete-insert boundary
+  (`window_min_date`) are both expressed in corrected-date space, so windowing raw
+  dates would delete a range the append never restores. Rows whose corrected
+  components are not a real calendar date become NULL rather than failing the run.
 
 ### Stage 3: Gold Transformation (Sequential)
 
 **Depends On:** bronze-to-silver data cleaning (Succeeded)
 
-#### 6. silver-to-gold
+#### 8. silver-to-gold
 - **Type:** Notebook Activity
-- **Notebook:** silver-to-gold2.Notebook
+- **Notebook:** `silver-to-gold2.Notebook`
 - **Output:** Gold fact and dimension tables (8 tables + supporting tables)
-- **Timeout:** 12 hours
-- **Retry:** 0 attempts
-- **Runtime:** ~10-15 minutes
+- **Timeout:** 12 hours — **Retry:** 2 / 120s — **Runtime:** 488s (measured; the slowest activity)
 
-### Stage 4: Warehouse Sync (Sequential)
+### Stage 4: Data Quality (Sequential)
 
 **Depends On:** silver-to-gold (Succeeded)
 
-#### 7. Copy job1
-- **Type:** InvokeCopyJob Activity
-- **Purpose:** Sync gold tables from lakehouse to warehouse
-- **Output:** Tables in oem_wh warehouse
-- **Timeout:** 12 hours
-- **Retry:** 0 attempts
-- **Runtime:** ~2-5 minutes
+#### 9. data_quality_checks
+- **Type:** Notebook Activity
+- **Notebook:** `data_quality_checks.Notebook`
+- **Output:** Quality observability tables
+- **Timeout:** 12 hours — **Retry:** 1 / 120s — **Runtime:** 263s (measured)
+
+### Stage 5: Error Handling (Sequential)
+
+**Depends On:** data_quality_checks (Succeeded)
+
+#### 10. pipeline_error_handler
+- **Type:** Notebook Activity
+- **Notebook:** `pipeline_error_handler.Notebook`
+- **Purpose:** Harvest per-activity outcomes into `gold_pipeline_execution_log`
+- **Timeout:** 12 hours — **Retry:** 0 / 30s — **Runtime:** 82s (measured)
+- **Note:** this runs on the *Succeeded* path as the pipeline's final step — it is a
+  logging/harvest stage, not a failure branch.
+
+> **There is no Warehouse Sync stage.** Earlier revisions of this document
+> described a Stage 4 `Copy job1` (`InvokeCopyJob`) syncing gold to `oem_wh`. No
+> such activity exists in the pipeline. The warehouse analytics layer (4 views +
+> 2 stored procedures in `oem_wh`) is maintained separately.
 
 ## Pipeline Parameters
 
 ### p_full_load (Boolean)
 - **Default:** false
-- **Purpose:** Control full vs incremental load
-- **Usage:** Currently not implemented (Task 06)
-- **Future:** When true, truncate and reload all data; when false, use incremental logic
+- **Purpose:** Force a full reload rather than the incremental path
+- **Usage:** Read by `bronze-to-silver`; when true, silver reads all of bronze
 
 ### p_from_date (String)
 - **Default:** "1900-01-01"
-- **Purpose:** Start date for incremental load
-- **Usage:** Currently not implemented (Task 06)
-- **Future:** Filter bronze ingestion to Date >= p_from_date
+- **Purpose:** Start date driving the incremental look-back
+- **Usage:** Read by `bronze-to-silver`, which applies a **7-day look-back** window
+  (`Date >= p_from_date − 7 days`) against the **corrected** silver dates. The
+  default `1900-01-01` yields a look-back of 1899-12-25, i.e. effectively a full
+  load.
+- **Scope:** this parameter has **never** reached bronze ingestion. The retired
+  `bronze_procurement` RefreshDataflow activity passed no parameters, so the
+  dataflow's own `p_from_date` always sat at its `"1900-01-01"` default and bronze
+  always full-loaded (independently confirmed by task-029). The replacing Copy
+  activities are likewise full-table copies. **Incrementality lives in silver, not
+  in bronze** — the parameter contract is unchanged, only its documented location.
 
 ### procurement_array (Array)
-- **Purpose:** Configuration for procurement source-to-sink mappings
-- **Usage:** (TBD - verify usage in dataflow)
+- **Purpose:** Source-to-sink mappings (`dbo.Suppliers`→`bronze_suppliers`,
+  `dbo.Materials`→`bronze_materials`, `dbo.Purchases`→`bronze_purchases`)
+- **Usage:** **Not consumed by any current activity.** The sink names do not match
+  the tables the pipeline actually produces. Treat as vestigial pending an audit.
 
 ## Error Handling
 
-**Current Strategy:** Fail-fast (0 retries on all activities)
-- **Pros:** Immediate failure detection, no cascading issues
-- **Cons:** No resilience to transient failures
+**Current Strategy:** Retry-then-fail, with policies set per activity by task-011.
+Copy activities retry 3× at 300s; bronze notebooks 2× at 30s; silver/gold 2× at
+120s; `data_quality_checks` 1× at 120s; `pipeline_error_handler` 0×.
 
-**Notifications:** NoNotification configured on dataflow refreshes
+The 300s Copy interval is sized for the Azure SQL serverless resume window (see
+Stage 1 notes) — it is not arbitrary.
 
-**Planned Improvements (Task 11):**
-- Add retry logic (2-3 retries with 3-5 minute intervals)
-- Implement error categorization (transient vs permanent)
-- Configure email alerts on failure
-- Add error logging table
+**Error logging:** `pipeline_error_handler` harvests per-activity outcomes into
+`gold_pipeline_execution_log`, deriving the retry ordinal by ranking same-activity
+rows on `activityRunStart`. This is deliberate: Fabric's `queryactivityruns` API
+returns `retryAttempt: null` even for activities that did retry, so the field
+cannot be trusted (task-037 / task-041).
+
+**Notifications:** deferred — schedule-attached failure notifications do not fire
+for on-demand runs, so no sink is configured until task-010 (Configure Pipeline
+Scheduling) lands.
 
 ## Dependencies
 
 **Execution Order:**
 ```
-Bronze Activities (parallel, no dependencies)
-    ↓ (wait for all)
+6 Bronze Activities (parallel, no dependencies)
+    ↓ (wait for all 6)
 Silver Transformation
     ↓ (wait for completion)
 Gold Transformation
     ↓ (wait for completion)
-Warehouse Sync
+Data Quality Checks
+    ↓ (wait for completion)
+Error-Log Harvest
 ```
+
+Every edge uses `dependencyConditions: ["Succeeded"]`.
 
 **Data Dependencies:**
 - Silver requires bronze tables
 - Gold requires silver tables
-- Warehouse requires gold tables
-- Report requires warehouse (DirectLake)
+- Report requires gold (DirectLake)
 
 ## Monitoring
 

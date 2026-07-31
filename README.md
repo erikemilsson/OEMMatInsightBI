@@ -28,8 +28,10 @@ fabric/                 # All Fabric artifacts
 ├── oem_wh.Warehouse/                    # Dimensional model (facts + dims)
 │   └── oem_wh.sqlproj                   # Microsoft.Build.Sql project
 ├── orchestrator_pipeline_bronze_to_gold.DataPipeline  # Main orchestration
-├── *_azureSQLdb2table.Dataflow          # Bronze ingestion from Azure SQL
-├── *_file2table.Dataflow                # Bronze ingestion from files
+│                                        # Azure SQL ingestion is Copy activities in
+│                                        # the pipeline (task-048 retired the dataflow)
+├── *_file2table.Dataflow                # Legacy file ingestion — superseded by
+│                                        # notebooks (task-035); items still exist
 ├── bronze-to-silver.Notebook            # Bronze → Silver transformation
 ├── silver-to-gold2.Notebook             # Silver → Gold transformation
 ├── OEMInsightBI_v2.SemanticModel
