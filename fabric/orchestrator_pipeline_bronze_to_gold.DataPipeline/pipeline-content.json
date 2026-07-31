@@ -272,24 +272,6 @@
         "dependsOn": []
       },
       {
-        "type": "RefreshDataflow",
-        "typeProperties": {
-          "dataflowId": "d55b25e4-1f6b-8171-4275-2b6947f7a4ab",
-          "workspaceId": "00000000-0000-0000-0000-000000000000",
-          "notifyOption": "NoNotification",
-          "dataflowType": "DataflowFabric"
-        },
-        "policy": {
-          "timeout": "0.12:00:00",
-          "retry": 3,
-          "retryIntervalInSeconds": 300,
-          "secureInput": false,
-          "secureOutput": false
-        },
-        "name": "bronze_procurement",
-        "dependsOn": []
-      },
-      {
         "type": "TridentNotebook",
         "typeProperties": {
           "notebookId": "0e960e19-4e8b-a31b-468d-9a08d577abe0",
@@ -347,12 +329,6 @@
             ]
           },
           {
-            "activity": "bronze_procurement",
-            "dependencyConditions": [
-              "Succeeded"
-            ]
-          },
-          {
             "activity": "bronze_WGI",
             "dependencyConditions": [
               "Succeeded"
@@ -360,6 +336,18 @@
           },
           {
             "activity": "bronze_EPI",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          },
+          {
+            "activity": "bronzecopy_procurement_transactional",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          },
+          {
+            "activity": "bronzecopy_supplier_ref",
             "dependencyConditions": [
               "Succeeded"
             ]
@@ -527,6 +515,140 @@
             ]
           }
         ]
+      },
+      {
+        "type": "Copy",
+        "typeProperties": {
+          "source": {
+            "type": "SqlServerSource",
+            "partitionOption": "None",
+            "queryTimeout": "02:00:00",
+            "datasetSettings": {
+              "type": "SqlServerTable",
+              "typeProperties": {
+                "schema": "dbo",
+                "table": "procurement_transactional",
+                "database": "procurement-supplier-db"
+              },
+              "schema": [],
+              "externalReferences": {
+                "connection": "da9667d6-9df0-492e-83e0-de4a55fc388e"
+              },
+              "annotations": []
+            }
+          },
+          "sink": {
+            "type": "LakehouseTableSink",
+            "tableActionOption": "OverwriteSchema",
+            "applyVOrder": false,
+            "partitionOption": "None",
+            "datasetSettings": {
+              "type": "LakehouseTable",
+              "typeProperties": {
+                "table": "bronze_procurement_transactional"
+              },
+              "schema": [],
+              "linkedService": {
+                "name": "oem_lh",
+                "properties": {
+                  "type": "Lakehouse",
+                  "typeProperties": {
+                    "artifactId": "ee9dfadb-ba4f-90c4-4683-e635488fb9f8",
+                    "workspaceId": "00000000-0000-0000-0000-000000000000",
+                    "rootFolder": "Tables"
+                  },
+                  "annotations": []
+                }
+              },
+              "annotations": []
+            }
+          },
+          "translator": {
+            "type": "TabularTranslator",
+            "typeConversion": true,
+            "typeConversionSettings": {
+              "allowDataTruncation": true,
+              "treatBooleanAsNumber": false
+            }
+          },
+          "enableStaging": false
+        },
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 3,
+          "retryIntervalInSeconds": 300,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "bronzecopy_procurement_transactional",
+        "dependsOn": []
+      },
+      {
+        "type": "Copy",
+        "typeProperties": {
+          "source": {
+            "type": "SqlServerSource",
+            "partitionOption": "None",
+            "queryTimeout": "02:00:00",
+            "datasetSettings": {
+              "type": "SqlServerTable",
+              "typeProperties": {
+                "schema": "dbo",
+                "table": "supplier_ref",
+                "database": "procurement-supplier-db"
+              },
+              "schema": [],
+              "externalReferences": {
+                "connection": "da9667d6-9df0-492e-83e0-de4a55fc388e"
+              },
+              "annotations": []
+            }
+          },
+          "sink": {
+            "type": "LakehouseTableSink",
+            "tableActionOption": "OverwriteSchema",
+            "applyVOrder": false,
+            "partitionOption": "None",
+            "datasetSettings": {
+              "type": "LakehouseTable",
+              "typeProperties": {
+                "table": "bronze_supplier_ref"
+              },
+              "schema": [],
+              "linkedService": {
+                "name": "oem_lh",
+                "properties": {
+                  "type": "Lakehouse",
+                  "typeProperties": {
+                    "artifactId": "ee9dfadb-ba4f-90c4-4683-e635488fb9f8",
+                    "workspaceId": "00000000-0000-0000-0000-000000000000",
+                    "rootFolder": "Tables"
+                  },
+                  "annotations": []
+                }
+              },
+              "annotations": []
+            }
+          },
+          "translator": {
+            "type": "TabularTranslator",
+            "typeConversion": true,
+            "typeConversionSettings": {
+              "allowDataTruncation": true,
+              "treatBooleanAsNumber": false
+            }
+          },
+          "enableStaging": false
+        },
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 3,
+          "retryIntervalInSeconds": 300,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "bronzecopy_supplier_ref",
+        "dependsOn": []
       }
     ],
     "parameters": {
