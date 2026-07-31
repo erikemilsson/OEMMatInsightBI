@@ -33,19 +33,49 @@ computed for every row** as `quantity × unitprice` (per_row_unit, task-030 AC3)
 `gold_unmapped_unit_audit`. See `calculations.md § Spend EUR`.
 
 ### fact_supply_share
-Grain: One row per material × stage × country × year
+Grain: One row per material × stage × country × year × **supply_mix**
 ```
 material_key                BIGINT
 stage_key                   BIGINT
 country_key                 BIGINT
 year                        INTEGER (2023)
+supply_mix                  STRING ('global' | 'eu_sourcing')
 share_pct                   DOUBLE (0-100)
+t                           DOUBLE (nullable)
 data_quality_score          DOUBLE
 quality_category            STRING
 has_unmapped_material       BOOLEAN
 has_unmapped_country        BOOLEAN
 unmapped_impact_score       DOUBLE
+source_row_id               BIGINT
+wgi_year                    INTEGER (nullable)
+wgi_weight                  DOUBLE (nullable, 0-1)
 ```
+
+**`supply_mix` is part of the grain** (task-038_2). The two mixes are complementary
+measurements, never partitions of one population — a `global` row and an `eu_sourcing`
+row on the same (material, stage, country, year) are both real and must not be summed
+together. `grain_checks@data_quality_checks` declares the same five-column key.
+
+**`t` is the DEC-001 trade parameter** `tᶜ` (0.8 EU, 1.0 baseline non-EU, >1
+export-restricted). Nullable: NULL where the source carries no trade parameter. On a
+territory rollup it combines as a **share-weighted mean**, which preserves Σ(S·t)
+exactly across the merge.
+
+**`wgi_weight` is the DEC-001 governance weight** `WGIᶜ` (task-038_3), in `0..1` where
+**1 = worst governance** — the rescaled *inverse* of the mean of all six WGI dimensions,
+clamped against the FIXED −2.5..+2.5 theoretical bounds of the World Bank estimate scale
+(never the observed min/max of the loaded set; see `calculations.md` / spec_v1 § Business
+Logic & Calculations → Supply Risk). `wgi_year` records which vintage each country landed
+on — the latest year in which that country carries all six dimensions.
+
+**Both WGI columns are nullable, and NULL means "no usable governance vintage", not
+zero.** A country with fewer than six dimensions in every year, or absent from
+`silver_wgi` entirely (including the `Unknown - Global` placeholder), keeps its supply
+rows with `wgi_weight IS NULL`. The gap is measured by `check_unmapped` at build time
+rather than dropped. Anything multiplying by `wgi_weight` must decide explicitly how to
+treat NULL — 0.0 is a legitimate weight meaning *best governance*, so coercing NULL to 0
+would read as a perfectly-governed country.
 
 ### fact_epi_score
 Grain: One row per country × indicator × year

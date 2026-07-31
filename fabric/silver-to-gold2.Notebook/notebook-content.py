@@ -109,11 +109,15 @@ def merge_tbl(df, tbl_name, merge_condition):
 def check_unmapped(df, join_col, name, fail=False):
     """Check for unmapped values after a join.
 
-    Retained with no callsite in this notebook: task-028 deleted the duplicate
-    fact_supply_share build that was its only caller (the surviving build reports the
-    same three dimensions in more detail). This definition is the production half of the
-    parity contract asserted by tests/test_data_quality.py::test_check_unmapped_*_parity
-    against src/transformations/data_quality.py — do not delete it without updating both.
+    Callsite history: task-028 deleted the duplicate fact_supply_share build that was
+    this function's only caller (the surviving build reports the same three dimensions in
+    more detail), leaving it definition-only for a time. task-038_3 gave it a live callsite
+    again — the WGIᶜ join coverage check, in the fact_supply_share cell — so it is no
+    longer retained-for-parity-only.
+
+    This definition is also the production half of the parity contract asserted by
+    tests/test_data_quality.py::test_check_unmapped_*_parity against
+    src/transformations/data_quality.py — do not delete it without updating both.
     """
     unmapped = df.filter(F.col(join_col).isNull())
     count = unmapped.count()
@@ -2186,6 +2190,277 @@ else:
           f"population — reopen the task. On a later run, confirm the supply-share source "
           f"genuinely changed before accepting it.")
 
+# =============================================================================
+# GOVERNANCE WEIGHT WGIᶜ (task-038_3)
+# spec_v1 § Business Logic & Calculations -> Supply Risk (DEC-001 Option B)
+# =============================================================================
+#   HHI_WGI,t = Σ_c (Sᶜ)² · WGIᶜ · tᶜ
+#   WGIᶜ = clamp( (2.5 − mean₆(WGI estimates for c, latest year available)) / 5 , 0, 1 )
+#
+# This block owns WGIᶜ only — the per-country weight and its join onto the fact.
+# The HHI aggregation (gold_supply_risk, contrast_ratio, is_bottleneck) is task-038_4.
+#
+# MIRRORED IN src/transformations/supply_risk.py (DEC-002). tests/test_supply_risk.py
+# loads THESE FunctionDefs out of this file and pins them against the src/ versions —
+# editing one side without the other fails CI by design.
+#
+# THE FIXED BOUNDS ARE THE WHOLE POINT. estimate_min/estimate_max default to the
+# theoretical −2.5..+2.5 of the World Bank estimate scale and are NEVER F.min/F.max over
+# the loaded set. Spec: "Rescaling uses the fixed theoretical bounds ... not the observed
+# min/max of the loaded set. This is a reproducibility requirement: with observed bounds,
+# adding a country or a new WGI vintage silently re-ranks every material." They live as
+# function DEFAULTS rather than module constants so the values travel inside the
+# FunctionDef — the parity harness compiles these nodes in a fresh namespace, so a
+# constant read from the enclosing scope would be supplied by the test and a drifted
+# notebook value would go undetected.
+#
+# THE INVERSION IS MANDATORY. Raw WGI is higher = better governance; WGIᶜ must be
+# 1 = worst. An un-inverted index still computes and still looks plausible while ranking
+# every material backwards, so the direction is pinned by test, not by reading.
+
+
+def wgi_weight_expr(mean_estimate, estimate_min=-2.5, estimate_max=2.5):
+    """clamp((estimate_max − mean₆) / (estimate_max − estimate_min), 0, 1).
+
+    NULL HANDLING IS NOT COSMETIC: F.greatest / F.least IGNORE nulls and return the
+    greatest/least NON-NULL argument, so a bare least(greatest(raw, 0), 1) maps a NULL
+    mean to 0.0 — "perfect governance" for a country with no data. The F.when(isNotNull)
+    wrapper (no .otherwise, so the else branch is NULL) keeps unknown countries unknown.
+    """
+    mean_col = F.col(mean_estimate) if isinstance(mean_estimate, str) else mean_estimate
+    span = estimate_max - estimate_min  # 5.0 for the spec'd bounds
+    raw = (F.lit(estimate_max) - mean_col) / F.lit(span)
+    clamped = F.least(F.greatest(raw, F.lit(0.0)), F.lit(1.0))
+    return F.when(mean_col.isNotNull(), clamped)
+
+
+def compute_wgi_weight(silver_wgi, required_dimensions=6,
+                       estimate_min=-2.5, estimate_max=2.5):
+    """WGIᶜ per country from the long-format silver_wgi (task-031/task-035 shape).
+
+    COMPLETENESS RULE (acceptance criterion 4) — the mean is over ALL SIX dimensions,
+    never a partial mean. `wgi_year` is the LATEST year in which the country carries the
+    full set of `required_dimensions` distinct indicators; a country whose most recent
+    year is incomplete falls back to its most recent COMPLETE year rather than averaging
+    whatever subset that year happens to hold. A country with no complete year in any
+    vintage gets wgi_year / wgi_mean_estimate / wgi_weight = NULL and is reported as a
+    coverage gap — NOT given an averaged-over-four-dimensions number that would be
+    indistinguishable from a real one downstream.
+
+    `wgi_dimensions_available` is diagnostic: the count at wgi_year when a complete year
+    exists, else the best count the country reaches in ANY single year, so "5 of 6" is
+    distinguishable from "absent from WGI entirely".
+
+    DELIBERATE DIVERGENCE FROM create_data_gaps_table's COVERAGE FLAG (defined further
+    down this notebook, at the `WGI_REQUIRED_INDICATORS = 6` rule — searched by name
+    rather than line number, which shifts on every edit). See DEC-009.
+    That flag counts a country as governance-covered on
+    COUNT(DISTINCT indicator_name) >= WGI_REQUIRED_INDICATORS across ALL years — it is
+    vintage-agnostic by design because it answers "do we hold governance data for this
+    country at all?". WGIᶜ needs the six dimensions in ONE year, because a mean mixing
+    2019's rule-of-law with 2023's voice-and-accountability is not a measurement of any
+    year. The two rules therefore differ on purpose: a country with six dimensions spread
+    across years counts as covered there and as a gap here. That divergence is documented
+    rather than resolved by weakening either rule, and the coverage flag is deliberately
+    NOT modified by task-038_3 (the note at its definition anticipated exactly this).
+    """
+    observed = (
+        silver_wgi
+        # Silver already drops NULL-valued rows; defensive so this is correct standalone.
+        .filter(F.col("value").isNotNull())
+        # No-op today (silver dedupes on (country_iso3, indicator_code, year) and asserts
+        # name<->code is 1:1). Present so F.avg is provably a mean over DISTINCT
+        # dimensions rather than over rows — an undetected fan-out would otherwise
+        # silently re-weight one dimension.
+        .dropDuplicates(["country_iso3", "indicator_name", "year"])
+        .groupBy("country_iso3", "year")
+        .agg(
+            F.countDistinct("indicator_name").alias("dimensions_available"),
+            F.avg("value").alias("mean_estimate"),
+        )
+    )
+
+    # Latest COMPLETE year per country in one pass. F.max over a struct orders
+    # lexicographically by its first field (year) and ignores NULLs, so the F.when
+    # yields the newest year that reached the required dimension count, or NULL when the
+    # country never does. `year` is unique within a country group here, so the remaining
+    # struct fields never act as tie-breaks — they ride along to avoid a self-join.
+    latest_complete = F.max(
+        F.when(
+            F.col("dimensions_available") >= F.lit(required_dimensions),
+            F.struct(
+                F.col("year").alias("year"),
+                F.col("dimensions_available").alias("dimensions_available"),
+                F.col("mean_estimate").alias("mean_estimate"),
+            ),
+        )
+    ).alias("_latest")
+
+    return (
+        observed
+        .groupBy("country_iso3")
+        .agg(latest_complete, F.max("dimensions_available").alias("_best_dimensions"))
+        .select(
+            F.col("country_iso3"),
+            F.col("_latest.year").alias("wgi_year"),
+            F.coalesce(
+                F.col("_latest.dimensions_available"), F.col("_best_dimensions")
+            ).alias("wgi_dimensions_available"),
+            F.col("_latest.mean_estimate").alias("wgi_mean_estimate"),
+            wgi_weight_expr(
+                F.col("_latest.mean_estimate"), estimate_min, estimate_max
+            ).alias("wgi_weight"),
+        )
+    )
+
+
+def map_wgi_weight_to_country_key(wgi_weight, dim_country):
+    """Re-key the per-ISO3 weight onto country_key, the fact tables' country grain.
+
+    The predicate mirrors the WGI coverage rule's join below (sw.country_iso3 =
+    UPPER(dc.iso3)) so the two cannot drift. silver_wgi.country_iso3 is already
+    UPPER+TRIM'd at silver, so only the dimension side needs normalising.
+
+    INNER on purpose: a WGI country with no gold_dim_country row has no fact rows either.
+    The gap that matters — a dim country with no WGI weight — is created by the LEFT join
+    in attach_wgi_weight and measured there. Uniqueness on country_key is asserted at the
+    call site rather than forced here, so a violation can name the offending keys.
+    """
+    return (
+        wgi_weight.alias("w")
+        .join(
+            dim_country.alias("dc"),
+            F.col("w.country_iso3") == F.upper(F.col("dc.iso3")),
+            "inner",
+        )
+        .select(
+            F.col("dc.country_key").alias("country_key"),
+            F.col("w.wgi_year").alias("wgi_year"),
+            F.col("w.wgi_weight").alias("wgi_weight"),
+        )
+    )
+
+
+def attach_wgi_weight(fact_df, wgi_by_country_key):
+    """LEFT-join the governance weight onto a fact keyed by country_key.
+
+    LEFT, never INNER: a country with no usable WGI vintage keeps its supply rows and
+    surfaces as a measured coverage gap (wgi_weight IS NULL, counted by check_unmapped).
+    Dropping it would silently shrink the supply base the HHI is computed over and make a
+    material look LESS concentrated than it is.
+
+    Original column order is preserved and the new columns appended — a join on a column
+    name list would otherwise promote country_key to position 0.
+    """
+    original_columns = fact_df.columns
+    joined = fact_df.join(wgi_by_country_key, "country_key", "left")
+    return joined.select(*original_columns, "wgi_year", "wgi_weight")
+
+
+# --- PRECONDITION: silver_wgi must carry the estimates -----------------------------
+# The long-format silver_wgi (country_iso3, indicator_name, year, value) is the shape
+# task-031 declared and task-035 put into the pipeline; both are Finished, so this branch
+# is dead in the deployed pipeline and exists only for a gold run against a stale table.
+# HARD STOP rather than a NULL-filled fallback: an all-NULL WGIᶜ would let task-038_4
+# publish a supply-risk model that computes, looks plausible and means nothing — the same
+# class of invisible error the spec's inversion warning is about. Mirrors bronze-to-silver's
+# treatment of the identical incompatibility.
+_wgi_src_cols = {c.lower() for c in spark.table(f"{DB}.silver_wgi").columns}
+_wgi_missing = [c for c in ("country_iso3", "indicator_name", "year", "value")
+                if c not in _wgi_src_cols]
+if _wgi_missing:
+    raise RuntimeError(
+        f"silver_wgi is missing {_wgi_missing} — cannot compute WGIᶜ.\n"
+        f"  Columns present: {sorted(_wgi_src_cols)}\n"
+        "  CAUSE: silver_wgi is still the retired 3-column identity shape, i.e. "
+        "bronze-to-silver has not re-run since task-031/task-035.\n"
+        "  FIX: run bronze-to-silver (or the full pipeline) so silver_wgi is rebuilt from "
+        "the long-format bronze_WGI written by bronze_ingest_wgi."
+    )
+
+wgi_weight_by_iso3 = compute_wgi_weight(spark.table(f"{DB}.silver_wgi"))
+wgi_weight_by_country_key = map_wgi_weight_to_country_key(
+    wgi_weight_by_iso3, spark.table(f"{DB}.gold_dim_country")
+)
+
+# GUARD: one weight per country_key, or the LEFT join fans out every supply row for that
+# country and every downstream SUM(share_pct) doubles. country_key is a function of iso3
+# alone and gold_dim_country is deduped on country_key, so this should be structurally
+# impossible — assert it anyway, because the failure is silent and the fix is upstream.
+_dup_wgi = (wgi_weight_by_country_key
+            .groupBy("country_key")
+            .agg(F.count(F.lit(1)).alias("n"))
+            .filter(F.col("n") > 1))
+_dup_wgi_n = _dup_wgi.count()
+assert _dup_wgi_n == 0, (
+    f"WGI weight is not unique on country_key ({_dup_wgi_n} duplicate key(s)): "
+    f"{[r.asDict() for r in _dup_wgi.limit(5).collect()]}. Joining it onto "
+    f"fact_supply_share would fan out the fact — fix gold_dim_country's iso3 uniqueness."
+)
+
+# Row count is captured BEFORE the join, off the pre-join frame, so the assert below
+# compares two genuinely different frames and is able to fail (a fan-out changes only the
+# post-join side). Same discipline as the criterion-5 baseline above.
+_pre_wgi_rows = fact_supply_share_final.count()
+fact_supply_share_final = attach_wgi_weight(fact_supply_share_final, wgi_weight_by_country_key)
+_post_wgi_rows = fact_supply_share_final.count()
+assert _pre_wgi_rows == _post_wgi_rows, (
+    f"WGI join changed fact_supply_share row count: {_pre_wgi_rows:,} -> "
+    f"{_post_wgi_rows:,}. A LEFT join must be row-preserving; a change means the weight "
+    f"frame is not unique on country_key."
+)
+
+# --- COVERAGE (acceptance criterion 5) --------------------------------------------
+# Measured and surfaced through the EXISTING check_unmapped mechanism, not a bespoke
+# path and not a silent drop. check_unmapped counts rows whose joined column is NULL —
+# here that is exactly "supply rows with no usable WGI vintage".
+wgi_unmapped_rows = check_unmapped(fact_supply_share_final, "wgi_weight",
+                                   "WGI governance weight")
+
+# check_unmapped's own log prints the distinct values of the checked column, which for a
+# null-check is just [null]. The breakdown below is what makes the number actionable —
+# it names the countries and splits the fixable gaps from the unfixable ones. Placeholder
+# countries (iso3 UNK_*) can never carry a WGI weight by construction, so counting them
+# against coverage would set a floor no alias work could ever clear.
+if wgi_unmapped_rows > 0:
+    _wgi_gap_detail = (
+        fact_supply_share_final
+        .filter(F.col("wgi_weight").isNull())
+        .join(spark.table(f"{DB}.gold_dim_country")
+                   .select("country_key", "iso3", "country_name_std", "is_placeholder"),
+              "country_key", "left")
+        .groupBy("iso3", "country_name_std", "is_placeholder")
+        .agg(F.count(F.lit(1)).alias("n"),          # NOT `count`: Row subclasses tuple
+             F.sum("share_pct").alias("total_share_pct"))
+        .orderBy(F.desc("total_share_pct"))
+    )
+    _placeholder_rows = (fact_supply_share_final
+                         .filter(F.col("wgi_weight").isNull())
+                         .join(spark.table(f"{DB}.gold_dim_country")
+                                    .select("country_key", "is_placeholder"),
+                               "country_key", "left")
+                         .filter(F.coalesce(F.col("is_placeholder"), F.lit(False)))
+                         .count())
+    print(f"\n  WGI coverage gap: {wgi_unmapped_rows:,} of {_post_wgi_rows:,} supply rows "
+          f"have no governance weight "
+          f"({_placeholder_rows:,} on placeholder countries — not remediable by aliasing; "
+          f"{wgi_unmapped_rows - _placeholder_rows:,} on real countries).")
+    print("  Countries with no usable WGI vintage (by supply share at risk):")
+    _wgi_gap_detail.show(20, truncate=False)
+else:
+    print(f"\n  WGI coverage: all {_post_wgi_rows:,} supply rows carry a governance weight.")
+
+# Vintage provenance — the spec's reproducibility requirement is about the WEIGHTS being
+# stable, so which vintage each country landed on is worth stating once per run.
+print("\n  WGIᶜ vintages in use (countries per latest complete year):")
+(wgi_weight_by_iso3
+ .groupBy("wgi_year")
+ .agg(F.count(F.lit(1)).alias("countries"),
+      F.min("wgi_weight").alias("min_weight"),
+      F.max("wgi_weight").alias("max_weight"))
+ .orderBy(F.col("wgi_year").desc_nulls_last())
+ ).show(truncate=False)
+
 write_tbl(fact_supply_share_final, "fact_supply_share")
 
 # Detailed audit trail for unmapped supply shares — ONE ROW PER (source row x failed
@@ -2683,10 +2958,15 @@ def create_data_gaps_table():
     # (which self-corrects once the real values land). Coverage semantics for the target
     # (post-migration) state are unchanged.
     #
-    # NOTE for task-038: this is a COVERAGE flag, deliberately vintage-agnostic — six
-    # indicators in any year qualify. The supply-risk model needs a specific vintage
-    # for WGIᶜ; picking one there does not have to change the rule here, but the two
-    # should be reconciled deliberately rather than by accident.
+    # NOTE — RESOLVED by task-038_3, see DEC-009 § "Deliberate divergence from the Data
+    # Gaps coverage rule". This is a COVERAGE flag, deliberately vintage-agnostic: six
+    # indicators in ANY year qualify, because it answers "do we hold governance data for
+    # this country at all?". WGIᶜ deliberately uses a DIFFERENT rule — the latest year
+    # carrying all six dimensions — because a mean mixing 2019's rule-of-law with 2023's
+    # voice-and-accountability is not a measurement of any year.
+    #
+    # The two rules are divergent BY DECISION, not by accident. Do NOT "reconcile" them by
+    # weakening either one; this rule stays as-is deliberately.
     _wgi_cols = [c.lower() for c in spark.table(f"{DB}.silver_wgi").columns]
     _wgi_value_filter = "WHERE sw.value IS NOT NULL" if "value" in _wgi_cols else ""
     if not _wgi_value_filter:
