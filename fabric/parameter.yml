@@ -144,6 +144,20 @@ find_replace:
           DEV: "172b089e-bb4a-4615-94fb-beef5019fca7"
           # PROD: "<prod-global-httpserver-connection-id>"   # TODO
 
+    # ----- SQL connection — Azure SQL procurement source -----
+    # Used by BOTH bronzecopy_procurement_transactional and bronzecopy_supplier_ref.
+    # Added by task-048, which retired the bronze_azureSQLdb2table dataflow; this
+    # connection is what replaced it. Display name: oem_azuresql_procurement,
+    # path procurement-supplier.database.windows.net;procurement-supplier-db.
+    # A PROD value must be a connection that ALREADY EXISTS in the target tenant
+    # AND is shared with that environment's deploy SPN group — fabric-cicd does
+    # not create connections, and an unshared connection fails the publish with
+    # "User does not have access to the connection used in the Pipeline".
+    - find_value: "da9667d6-9df0-492e-83e0-de4a55fc388e"
+      replace_value:
+          DEV: "da9667d6-9df0-492e-83e0-de4a55fc388e"
+          # PROD: "<prod-azuresql-connection-id>"   # TODO
+
 key_value_replace:
     # Notebook / dataflow IDs referenced by the orchestrator pipeline. The
     # `$items.<Type>.<displayName>.$id` dynamic variable resolves to the
@@ -185,8 +199,10 @@ key_value_replace:
       item_type: "DataPipeline"
       item_name: "orchestrator_pipeline_bronze_to_gold"
 
-    - find_key: $.properties.activities[?(@.name=="bronze_procurement")].typeProperties.dataflowId
-      replace_value:
-          _ALL_: "$items.Dataflow.bronze_azureSQLdb2table.$id"
-      item_type: "DataPipeline"
-      item_name: "orchestrator_pipeline_bronze_to_gold"
+    # NOTE: there is deliberately no entry here for the procurement bronze load.
+    # It used to be a RefreshDataflow activity (`bronze_procurement`) whose
+    # dataflowId was resolved via $items.Dataflow.bronze_azureSQLdb2table.$id.
+    # task-048 retired that dataflow and replaced it with two Copy activities,
+    # so the JSONPath no longer matches anything. A Copy activity binds to a
+    # CONNECTION, not to a workspace item, and connections are parameterised by
+    # GUID under `find_replace` above — see the oem_azuresql_procurement entry.
