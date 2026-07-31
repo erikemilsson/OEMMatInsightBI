@@ -365,6 +365,61 @@ df_eu_newheaders.write.format("delta").mode("overwrite").option("overwriteSchema
 # purchases of the same material/supplier are legitimate distinct transactions, so no
 # merge key or dedupe is applied (see task-024, 2026-07-14). A 7-day look-back window
 # handles late-arriving data during incremental loads.
+# task-048: bronze now lands the source's RAW transaction date (the retired
+# `bronze_azureSQLdb2table` dataflow used to correct it during ingestion; its Copy-activity
+# replacement cannot transform). `correct_procurement_date` below undoes the source's
+# day/year transposition, and runs BEFORE the look-back window.
+
+# CELL ********************
+
+# --- Source date correction (task-048; mirrored in src/transformations/procurement_dates.py) ---
+# `dbo.procurement_transactional` stores each transaction date with its DAY and YEAR
+# components transposed: the calendar year sits in the day position and the day-of-month
+# sits in the year position as an offset from 2000. Raw `2015-01-24` means `2024-01-15`.
+#
+# This used to be fixed during ingestion by the `bronze_azureSQLdb2table` Dataflow Gen2,
+# which built  CorrectedDate = #date(Day([Date])+2000, Month([Date]), Year([Date])-2000),
+# dropped `Date` and renamed `CorrectedDate` to `Date`. That dataflow is retired: an SPN
+# cannot refresh a Dataflow Gen2 and every fabric-cicd publish strips its credentials. Its
+# replacement is a Copy activity, and a Copy activity cannot transform — so the correction
+# moves here. Bronze now holds the source's raw (malformed) `Date`; silver corrects it,
+# which also keeps bronze byte-faithful to the source (better medallion practice than
+# folding the fix into the Copy activity's source query).
+#
+# NULL semantics: Power Query's #date() raised on an out-of-range component; Spark's
+# make_date returns NULL instead when spark.sql.ansi.enabled=false (Fabric's default).
+# A malformed row that would once have failed the whole dataflow refresh now lands as a
+# NULL date and is visible to the data-quality checks.
+DATE_SWAP_EPOCH = 2000
+
+
+def correct_procurement_date(df, column="Date"):
+    """Undo the source system's day/year transposition on a procurement date column.
+
+    Replaces `column` in place (preserving position, matching the retired mashup's
+    add/drop/rename sequence) with make_date(day+2000, month, year-2000). Rows whose
+    corrected components are not a real calendar date — and rows with a NULL raw date —
+    yield NULL rather than raising.
+
+    `to_date` is applied first so this is indifferent to whether the Copy activity landed
+    bronze `Date` as a date or as a string; both produce identical output.
+    """
+    raw = F.to_date(F.col(column))
+    return df.withColumn(
+        column,
+        F.make_date(
+            F.dayofmonth(raw) + F.lit(DATE_SWAP_EPOCH),
+            F.month(raw),
+            F.year(raw) - F.lit(DATE_SWAP_EPOCH),
+        ),
+    )
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # CELL ********************
 
@@ -374,17 +429,31 @@ df_eu_newheaders.write.format("delta").mode("overwrite").option("overwriteSchema
 # the raw p_from_date widget value. A p_full_load=true run still reads all bronze.
 is_full_load = p_full_load.strip().lower() == "true"
 
+# task-048: correct the transposed source date FIRST, then window. The ordering is
+# load-bearing — everything downstream is expressed in CORRECTED-date space:
+#   * the watermark: bronze_load_metadata.last_load_date is written from
+#     silver_df.agg(F.max("date")), a corrected date. Filtering raw bronze dates
+#     against a corrected-space watermark compares two different calendars.
+#   * the delete-insert boundary: `window_min_date` below is the window's minimum
+#     date. A window selected on raw dates with a boundary computed on corrected
+#     ones would DELETE a range the append does not restore — silent data loss.
+# This is the SILVER look-back only. The SOURCE-side p_from_date window (the
+# `WHERE Date >= '<lookback>'` pushdown the retired mashup ran via Value.NativeQuery,
+# inherited by the replacing Copy activity) deliberately runs against the RAW column —
+# the correction was always applied after it. That contract is unchanged.
+df1_all = correct_procurement_date(
+    spark.sql("SELECT * FROM oem_lh.bronze_procurement_transactional")
+)
+
 if is_full_load:
-    df1 = spark.sql("SELECT * FROM oem_lh.bronze_procurement_transactional")
+    df1 = df1_all
     print("Procurement: FULL LOAD — reading all bronze records")
 else:
     # Apply 7-day look-back window for late-arriving data
     watermark_date = datetime.strptime(effective_from_date, "%Y-%m-%d")
     lookback_date = watermark_date - timedelta(days=7)
     lookback_str = lookback_date.strftime("%Y-%m-%d")
-    df1 = spark.sql(
-        f"SELECT * FROM oem_lh.bronze_procurement_transactional WHERE Date >= '{lookback_str}'"
-    )
+    df1 = df1_all.filter(F.col("Date") >= F.to_date(F.lit(lookback_str)))
     print(f"Procurement: INCREMENTAL LOAD — reading records from {lookback_str} "
           f"(7-day look-back from effective_from_date={effective_from_date})")
 

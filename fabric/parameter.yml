@@ -34,9 +34,23 @@
 #                     lakehouse under a reordered byte-group form in
 #                     `linkedService.artifactId` — that form is parameterised
 #                     separately below.
-#   * Connection IDs — Fabric workspace → Manage connections → open the
-#                     connection; the GUID is in the URL. HttpServer connections
-#                     are environment-bound (each workspace owns its own).
+#   * Connection IDs — list them via the Fabric REST API; the GUID is NOT shown
+#                     in the portal URL and the connection's Settings pane does
+#                     not surface it either (verified 2026-07-31 — the older
+#                     "it's in the URL" note here was wrong and cost a round):
+#                       az account set --subscription "N/A(tenant level account)"
+#                       TOK=$(az account get-access-token \
+#                         --resource https://api.fabric.microsoft.com \
+#                         --query accessToken -o tsv)
+#                       curl -s -H "Authorization: Bearer $TOK" \
+#                         https://api.fabric.microsoft.com/v1/connections
+#                     Match on displayName. The `az account set` line matters:
+#                     this tenant has two accounts and only the tenant-level
+#                     `fabricuser@…onmicrosoft.com` one has Fabric access.
+#                     Do NOT pass --allow-no-subscriptions to get-access-token;
+#                     it is a valid flag for `az login` only and errors here.
+#                     Connections are environment-bound (each workspace owns
+#                     its own), so every entry below needs a per-env value.
 #   * Notebook / Dataflow IDs — NOT listed here. They are resolved automatically
 #                     by fabric-cicd via the `$items.<Type>.<displayName>.$id`
 #                     dynamic variable in `key_value_replace` below, so a second
@@ -44,19 +58,49 @@
 #                     the target workspace's item ID by display name.
 #
 # ----------------------------------------------------------------------------
-# KNOWN LIMITATION — DATAFLOW CONNECTION RE-BINDING IS A SEPARATE POST-DEPLOY STEP
+# KNOWN LIMITATION — DATAFLOW GEN2 CREDENTIALS DO NOT SURVIVE A PUBLISH
 # ----------------------------------------------------------------------------
-# `fabric-cicd` deploys item DEFINITIONS only. Fabric stores dataflow connection
-# bindings OUTSIDE the git definition, so a workspace update from git silently
-# UNBINDS every dataflow. Parameterising connection IDs in this file does NOT
-# fix this — the three dataflows (`bronze_azureSQLdb2table`, `EPI_file2table`,
-# `WGI_file2table`) will land deployed-but-unbound and fail at runtime.
+# `fabric-cicd` deploys item DEFINITIONS only. A Dataflow Gen2 stores its source
+# credential INSIDE the dataflow definition, and the publish strips it — so every
+# automated deploy leaves the dataflow deployed-but-unbound, and it fails at
+# runtime. Parameterising connection IDs in this file does NOT fix it.
 #
-# After every deploy, re-bind each dataflow's connections in the Fabric UI
-# (Dataflow → Settings → Data source credentials → Edit) or via the Fabric
-# REST API before running the orchestrator pipeline. This step is NOT
-# handled by parameter.yml and must be documented in the deploy runbook.
-# Reference: project memory — "Fabric dataflow connection bindings".
+# WHERE THE GEN2 CREDENTIAL ACTUALLY LIVES (verified 2026-07-31 — two earlier
+# guesses in this file were wrong and each cost a diagnostic round):
+#   * NOT tenant Settings → Manage connections and gateways → Data sources.
+#     Editing credentials there does not attach to the dataflow.
+#   * NOT the source step's gear dialog. That dialog is "SQL Server database"
+#     with Server/Database/Advanced only — no connection picker, no credentials.
+#   * It is bound inside the DATAFLOW EDITOR itself, which is precisely what the
+#     publish strips.
+#
+# Applies to `EPI_file2table` and `WGI_file2table`, which are still Dataflow Gen2
+# items. Re-bind them in the dataflow editor after any deploy that touches them.
+# (task-035 moved the pipeline's EPI/WGI ingestion to notebooks, so these two no
+# longer sit on the orchestrator's critical path — but the items still exist and
+# the gotcha still applies if they are refreshed.)
+#
+# `bronze_azureSQLdb2table` was RETIRED for exactly this reason (task-048): on top
+# of the credential stripping, an SPN cannot refresh a Dataflow Gen2 at all
+# (`SPNBasedRefreshNotAllowed`). Both failure modes recurred on EVERY automated
+# deploy. Snapshot: .claude/support/retired/bronze-azuresqldb2table-dataflow/
+#
+# THE REPLACEMENT PATTERN — COPY ACTIVITY, NOT DATAFLOW
+# ----------------------------------------------------------------------------
+# A Copy activity keeps its credential in Fabric's own CONNECTION STORE, outside
+# the item definition, so a publish does not strip it and an SPN can run it. This
+# is the pattern already proven green under the SPN by bronzecopy_EUSupplyShares
+# and bronzecopy_GlobalSupplyShares.
+#
+# The one manual prerequisite: the connection must be SHARED with the SPN's
+# security group, or the publish fails with "User does not have access to the
+# connection used in the Pipeline" (this took the first real publish to 15/16).
+# Share via the portal (Manage connections and gateways → Connections → … →
+# Manage users → add `Fabric-SPN-Access` as User) or via REST:
+#   POST /v1/connections/{connectionId}/roleAssignments
+#   {"principal":{"id":"<group-object-id>","type":"Group"},"role":"User"}
+# Verify with GET on the same path — expect the group alongside the Owner entry.
+# Reference: project memory — "fabric-cicd pipeline connection sharing".
 #
 # =============================================================================
 # No secrets or credentials appear in this file. Connection IDs are GUIDs, not
