@@ -118,7 +118,7 @@ key at either layer — see § 3.
 
 **Current Behavior:**
 ```powerquery
-// In bronze_azureSQLdb2table.Dataflow
+// HISTORICAL — bronze_azureSQLdb2table.Dataflow, retired 2026-07-31
 Source = Sql.Database("server", "db"),
 Procurement = Source{[Schema="dbo",Item="Procurement"]}[Data]
 // Loads ALL rows every time
@@ -738,9 +738,12 @@ silver/gold MERGE window, **not** the bronze extract.
 
 **Decision (task-029, 2026-07-28):** dataflow-side pushdown of `p_from_date` into the
 bronze Power Query dataflows is **deferred**. At demo volume the bronze tables are small
-enough that full-refresh extraction is acceptable, and the `bronze_azureSQLdb2table.Dataflow`
-definition would need a `p_from_date` parameter plus a `Table.SelectRows` filter step to
-honor it. The honest trade-off: incremental *efficiency* is realised at the silver/gold
+enough that full-refresh extraction is acceptable. **Superseded 2026-07-31 (task-048):**
+that dataflow is now retired and procurement ingestion is two Copy activities, which are
+plain full-table copies with no source query — so bronze-side pushdown is no longer merely
+deferred, it is designed out. Note the dataflow's look-back was always dead code anyway:
+the pipeline never passed `p_from_date` to the RefreshDataflow activity, so the branch
+guarded by `if p_from_date = "1900-01-01"` always took the full-table path. The honest trade-off: incremental *efficiency* is realised at the silver/gold
 layers (the delete-insert window); bronze remains a full extract.
 
 The earlier version of this section claimed bronze dataflows received `p_from_date` and
@@ -1035,9 +1038,11 @@ load_all_layers()
 ## 9. Implementation Checklist
 
 ### Phase 1: Bronze Layer (0.5 days)
-- [ ] Modify `bronze_azureSQLdb2table.Dataflow` to support `p_from_date` parameter
-- [ ] Add SQL WHERE clause with date filter
-- [ ] Test dataflow with parameter values
+- [x] ~~Modify `bronze_azureSQLdb2table.Dataflow` to support `p_from_date` parameter~~ —
+      **obsolete 2026-07-31:** the dataflow is retired (task-048). Bronze is a full load by
+      design; incrementality lives in the silver delete-insert window.
+- [x] ~~Add SQL WHERE clause with date filter~~ — obsolete, same reason
+- [x] ~~Test dataflow with parameter values~~ — obsolete, same reason
 - [ ] Create `bronze_load_metadata` table
 - [ ] Implement `get_last_load_date()` and `update_load_metadata()` functions
 

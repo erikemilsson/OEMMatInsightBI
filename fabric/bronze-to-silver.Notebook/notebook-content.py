@@ -437,10 +437,16 @@ is_full_load = p_full_load.strip().lower() == "true"
 #   * the delete-insert boundary: `window_min_date` below is the window's minimum
 #     date. A window selected on raw dates with a boundary computed on corrected
 #     ones would DELETE a range the append does not restore — silent data loss.
-# This is the SILVER look-back only. The SOURCE-side p_from_date window (the
-# `WHERE Date >= '<lookback>'` pushdown the retired mashup ran via Value.NativeQuery,
-# inherited by the replacing Copy activity) deliberately runs against the RAW column —
-# the correction was always applied after it. That contract is unchanged.
+# This is the SILVER look-back, and it is now the ONLY one. There is no bronze-side
+# incremental filter: both replacing Copy activities are plain full-table copies with
+# no source query, so do not go looking for one. The retired mashup did contain a
+# `WHERE Date >= '<lookback>'` pushdown via Value.NativeQuery, but it sat behind
+# `if p_from_date = "1900-01-01" then <full table> else <native query>`, and the
+# pipeline never passed p_from_date to the RefreshDataflow activity — so that branch
+# was unreachable and bronze always full-loaded. The Copy activities therefore
+# reproduce actual pre-migration runtime behaviour exactly; nothing was lost.
+# See spec_v1.md § Data Architecture (Incremental vs Full Load) and
+# .claude/support/documents/architecture/orchestration.md § p_from_date.
 df1_all = correct_procurement_date(
     spark.sql("SELECT * FROM oem_lh.bronze_procurement_transactional")
 )

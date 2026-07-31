@@ -10,7 +10,7 @@
 ### 📥 Data Flows (Bronze Layer)
 | Artifact | Type | Purpose | Status |
 |----------|------|---------|--------|
-| `bronze_azureSQLdb2table` | Dataflow | Ingests procurement data from Azure SQL | ✅ Active |
+| ~~`bronze_azureSQLdb2table`~~ | Dataflow | Ingested procurement data from Azure SQL | ❌ Retired 2026-07-31 — replaced by Copy activities `bronzecopy_procurement_transactional` + `bronzecopy_supplier_ref` ([manifest](../../.claude/support/retired/bronze-azuresqldb2table-dataflow/manifest.json)) |
 | `EPI_file2table` | Dataflow | Ingests Environmental Performance Index data | ✅ Active |
 | `WGI_file2table` | Dataflow | Ingests World Governance Indicators | ✅ Active |
 
@@ -57,7 +57,7 @@
 ### ✅ Good Naming (Current)
 - `OEMInsightBI_v2` - Clear purpose and project name
 - `orchestrator_pipeline_bronze_to_gold` - Descriptive flow
-- `bronze_azureSQLdb2table` - Layer + source + operation
+- `bronze_azureSQLdb2table` - Layer + source + operation *(artifact retired 2026-07-31; kept here as a naming example)*
 
 ### ⚠️ Areas for Improvement
 - `silver-to-gold2` → Consider renaming to `transform_silver_to_gold`
@@ -71,7 +71,7 @@
 graph TD
     Pipeline[orchestrator_pipeline_bronze_to_gold]
 
-    Bronze1[bronze_azureSQLdb2table]
+    Bronze1[bronzecopy_procurement_transactional<br/>+ bronzecopy_supplier_ref]
     Bronze2[EPI_file2table]
     Bronze3[WGI_file2table]
 

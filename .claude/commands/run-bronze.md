@@ -46,9 +46,16 @@ az datafactory pipeline create-run \
 ### Option 3: Run Individual Bronze Activities (For debugging)
 
 **Bronze Procurement (Azure SQL):**
-1. Open dataflow: `bronze_azureSQLdb2table`
-2. Click "Refresh" button
-3. Outputs: `bronze_procurement_transactional`, `bronze_supplier_ref`
+1. Open the pipeline `orchestrator_pipeline_bronze_to_gold`
+2. Run the Copy activities `bronzecopy_procurement_transactional` and
+   `bronzecopy_supplier_ref` (connection `oem_azuresql_procurement`)
+3. Outputs: `bronze_procurement_transactional`, `bronze_supplier_ref` — with the
+   source's RAW day/year-transposed dates; the correction runs in `bronze-to-silver`
+
+> The `bronze_azureSQLdb2table` dataflow was retired and deleted 2026-07-31 (task-048).
+> **Also stale below:** the EPI/WGI steps still say "open dataflow → Refresh", but
+> task-035 moved both to notebooks (`bronze_ingest_epi`, `bronze_ingest_wgi`). That is
+> task-035 drift, left for a separate pass rather than widened into this one.
 
 **Bronze EPI:**
 1. Open dataflow: `EPI_file2table`
@@ -122,6 +129,5 @@ After bronze ingestion succeeds:
 ## Related Files
 
 - `/fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/`
-- `/fabric/bronze_azureSQLdb2table.Dataflow/`
 - `/fabric/EPI_file2table.Dataflow/`
 - `/fabric/WGI_file2table.Dataflow/`

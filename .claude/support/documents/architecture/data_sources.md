@@ -33,7 +33,11 @@ This project integrates data from 4 primary sources: 1 transactional database + 
   - `ProductionCountry` (NVARCHAR(100)) - Production location
   - `Region` (NVARCHAR(100)) - Geographic region
 
-**Ingestion:** Dataflow `bronze_azureSQLdb2table.Dataflow` (pipeline activity `bronze_procurement`)
+**Ingestion:** Copy activities `bronzecopy_procurement_transactional` and
+`bronzecopy_supplier_ref`, via Fabric connection `oem_azuresql_procurement`.
+(Was `bronze_azureSQLdb2table.Dataflow` / activity `bronze_procurement` — retired 2026-07-31.)
+**Note:** bronze holds the source's RAW day/year-transposed dates; the correction runs in
+`bronze-to-silver`. Read silver for usable dates.
 **Frequency:** (TBD - currently manual/on-demand)
 **Load Type:** Full refresh at bronze. **Incremental starts at silver** — `silver_procurement`
 and `fact_procurement` load via delete-insert over a 7-day look-back window driven by
@@ -277,7 +281,8 @@ EU CRM HTTP ───────────> bronze_GlobalSupplyShares        
 ## Related Files
 
 - `/azure/` - Azure SQL setup scripts
-- `/fabric/bronze_azureSQLdb2table.Dataflow/` - SQL ingestion (live)
+- SQL ingestion — Copy activities in the orchestrator pipeline (the
+  `bronze_azureSQLdb2table.Dataflow` directory was removed 2026-07-31)
 - `/fabric/bronze_ingest_epi.Notebook/` - EPI ingestion (live)
 - `/fabric/bronze_ingest_wgi.Notebook/` - WGI ingestion (live)
 - `/fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/` - Orchestration + the two supply-share copy activities

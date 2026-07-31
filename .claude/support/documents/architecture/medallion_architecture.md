@@ -121,8 +121,8 @@ The project implements a **medallion architecture** (bronze → silver → gold)
 
 | Table | Contents | Ingested by |
 |---|---|---|
-| `bronze_procurement_transactional` | Procurement transactions | `bronze_azureSQLdb2table.Dataflow` (pipeline activity `bronze_procurement`) |
-| `bronze_supplier_ref` | Supplier reference data | same dataflow |
+| `bronze_procurement_transactional` | Procurement transactions (RAW dates — see note) | Copy activity `bronzecopy_procurement_transactional` |
+| `bronze_supplier_ref` | Supplier reference data | Copy activity `bronzecopy_supplier_ref` |
 | `bronze_epi{year}results` | Environmental Performance Index (e.g. `bronze_epi2024results`) | `bronze_ingest_epi.Notebook`, parameterised on `p_epi_year` |
 | `bronze_WGI` | World Bank governance indicators, long format | `bronze_ingest_wgi.Notebook` (World Bank API v2) |
 | `bronze_GlobalSupplyShares` | Global supply concentration | Copy activity `bronzecopy_GlobalSupplyShares` (HTTP) |

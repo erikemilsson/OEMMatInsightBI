@@ -76,7 +76,10 @@ Errors that do not match known patterns. Treated conservatively (1 retry, then f
 
 **Resolution:**
 1. Open Azure Portal > SQL Server > check server status
-2. Verify the connection string in the Fabric dataflow (`bronze_azureSQLdb2table`)
+2. Verify the Fabric connection `oem_azuresql_procurement` (Manage connections and
+   gateways → Connections). The `bronze_azureSQLdb2table` dataflow was retired
+   2026-07-31 — procurement ingestion is now the Copy activities
+   `bronzecopy_procurement_transactional` and `bronzecopy_supplier_ref`.
 3. Check if the SQL Server firewall allows Fabric IPs
 4. If credentials expired: update the connection in Fabric workspace > Manage connections
 5. Re-run pipeline after fixing

@@ -6,7 +6,7 @@
 - **Table prefixes:** Mix of bronze_/silver_/gold_dim_
 - **Notebook names:** Mix of underscores and hyphens (`data_quality_checks` vs `silver-to-gold2`)
 - **Column names:** Inconsistent (Date vs date, MaterialName vs materialname)
-- **Artifact names:** Mix of camelCase and underscores (`bronze_azureSQLdb2table` vs `orchestrator_pipeline_bronze_to_gold`)
+- **Artifact names:** Mix of camelCase and underscores (`bronze_azureSQLdb2table` vs `orchestrator_pipeline_bronze_to_gold`) — *`bronze_azureSQLdb2table` was retired 2026-07-31; kept here as a naming example only*
 
 ## Recommended Standards
 

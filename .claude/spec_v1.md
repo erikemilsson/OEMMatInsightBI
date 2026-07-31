@@ -698,7 +698,7 @@ Bronze now holds the source's raw day/year-transposed dates — a Copy activity 
 
 -   Stage 1 activities run in parallel (no dependencies)
 
--   Stage 2 waits for all 5 Stage 1 activities to succeed
+-   Stage 2 waits for all 6 Stage 1 activities to succeed
 
 -   Stage 3 waits for Stage 2 to succeed
 

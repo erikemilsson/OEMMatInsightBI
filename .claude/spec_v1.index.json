@@ -1,6 +1,6 @@
 {
   "spec_file": "spec_v1.md",
-  "spec_fingerprint": "sha256:addf5ced10751abc2e84e75318194ce12dceeb4d79f3dcce41f76c21e88c780c",
+  "spec_fingerprint": "sha256:9a61964ebddab8e46802765a79d2439a9839e292ef06bc67a7d5069ef5ccaac2",
   "section_count": 18,
   "sections": [
     {
@@ -40,7 +40,7 @@
       "line_start": 615,
       "line_end": 708,
       "char_count": 4498,
-      "fingerprint": "sha256:bb2bf982a5c23013a5ce8640e9b60a3f9f344d78e362de89eb02728e03f82b9d",
+      "fingerprint": "sha256:4c8f129026ece9aa63322eb69654d7dd1727021e0c6d910ec543b1baaee9a552",
       "synopsis": "**Purpose:** End-to-end orchestration from ingestion to gold layer"
     },
     {

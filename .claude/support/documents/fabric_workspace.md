@@ -103,12 +103,13 @@ All PySpark, all attached to the `oem_lh` lakehouse.
 7. **data_quality_analysis.Notebook** — ad-hoc quality analysis
 8. **sample-quality-data.Notebook** — seeds sample rows into the observability tables
 
-### Dataflows (1 live, 2 retired)
-1. **bronze_azureSQLdb2table.Dataflow** — ✅ live
-   - Source: Azure SQL Database
-   - Destination: bronze_procurement_transactional, bronze_supplier_ref
-   - Language: Power Query M
-   - Driven by the pipeline's `bronze_procurement` RefreshDataflow activity
+### Dataflows (0 live, 3 retired)
+1. **bronze_azureSQLdb2table.Dataflow** — ❌ RETIRED 2026-07-31 (deleted from the workspace)
+   - Replaced by Copy activities `bronzecopy_procurement_transactional` +
+     `bronzecopy_supplier_ref`, reading Azure SQL via connection `oem_azuresql_procurement`
+   - Retired because an SPN cannot refresh a Dataflow Gen2 (`SPNBasedRefreshNotAllowed`)
+     and every `fabric-cicd` publish strips its credentials
+   - Snapshot: `.claude/support/retired/bronze-azuresqldb2table-dataflow/manifest.json`
 
 2. **EPI_file2table.Dataflow** — ⚠️ retired
    - Superseded by `bronze_ingest_epi.Notebook`. The artifact is still on disk but no
