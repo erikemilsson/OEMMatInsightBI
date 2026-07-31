@@ -2,7 +2,7 @@
 version: 1
 status: active
 created: 2025-11-14
-updated: 2026-07-29
+updated: 2026-07-31
 ---
 
 # OEMMatInsightBI - Project Definition for Claude Code
@@ -111,7 +111,7 @@ updated: 2026-07-29
 
 -   Authentication method: SQL authentication (see `secure/user_creation.sql` — `secure/` is gitignored; credentials kept locally per project convention)
 
--   Connection strings: Managed via Fabric dataflow connections
+-   Connection strings: Managed via Fabric connections (`oem_azuresql_procurement`), shared with the `Fabric-SPN-Access` security group so SPN-driven deploys can use them
 
 ------------------------------------------------------------------------
 
@@ -147,11 +147,13 @@ Power BI Reports
 
 **Ingestion Method:**
 
--   Fabric Dataflow: `bronze_azureSQLdb2table.Dataflow`
+**Retired (2026-07-31)** — the dataflow below was replaced by Copy activities; see `.claude/support/retired/bronze-azuresqldb2table-dataflow/manifest.json`.
+
+-   ~~Fabric Dataflow: `bronze_azureSQLdb2table.Dataflow`~~ — retired. Ingestion is now two Copy activities in the orchestrator pipeline (`bronzecopy_procurement_transactional`, `bronzecopy_supplier_ref`) reading `dbo.procurement_transactional` and `dbo.supplier_ref` via the Fabric connection `oem_azuresql_procurement`.
 
 -   Frequency: Manual — pipeline triggered on demand
 
--   Incremental vs Full Load: Parameters exist (`p_full_load`, `p_from_date`); incremental logic implementation is task-006
+-   Incremental vs Full Load: Parameters exist (`p_full_load`, `p_from_date`); **bronze is a full load.** `p_from_date` never reached the retired dataflow and does not reach the Copy activities; it drives a 7-day look-back in `bronze-to-silver` against corrected dates. Incrementality lives in silver, not bronze.
 
 **Setup Scripts:**
 
@@ -625,13 +627,18 @@ Power BI Reports
 | 1 | `bronzecopy_EUSupplyShares` | Copy (HTTP → Lakehouse) | `bronze_EUSupplyShares` | 3 |
 | 2 | `bronzecopy_GlobalSupplyShares` | Copy (HTTP → Lakehouse) | `bronze_GlobalSupplyShares` | 3 |
 | 3 | `bronze_WGI` | Notebook | `bronze_WGI` | 2 |
-| 4 | `bronze_procurement` | RefreshDataflow | `bronze_procurement_transactional`, `bronze_supplier_ref` | 3 |
-| 5 | `bronze_EPI` | Notebook | `bronze_epi2024results` and related tables | 2 |
+| 4 | `bronzecopy_procurement_transactional` | Copy (Azure SQL → Lakehouse) | `bronze_procurement_transactional` | 3 |
+| 5 | `bronzecopy_supplier_ref` | Copy (Azure SQL → Lakehouse) | `bronze_supplier_ref` | 3 |
+| 6 | `bronze_EPI` | Notebook | `bronze_epi2024results` and related tables | 2 |
+
+**Retired (2026-07-31)** — row 4 was previously `bronze_procurement` / RefreshDataflow / `bronze_azureSQLdb2table`, producing both tables in one activity. It was replaced because a service principal cannot refresh a Dataflow Gen2 (`SPNBasedRefreshNotAllowed`) and every `fabric-cicd` publish strips its credentials. **No RefreshDataflow activities remain; the pipeline is SPN-safe end to end.** See `.claude/support/retired/bronze-azuresqldb2table-dataflow/manifest.json`.
+
+Bronze now holds the source's raw day/year-transposed dates — a Copy activity cannot transform, so the correction moved to `bronze-to-silver`. Read silver, not bronze, for usable dates.
 
 **Stage 2: Silver Transformation (Sequential)**
 
 6.  `bronze-to-silver data cleaning` (Notebook Activity)
-    -   Depends on: **all 5** bronze activities (Succeeded)
+    -   Depends on: **all 6** bronze activities (Succeeded)
 
     -   Notebook: `bronze-to-silver.Notebook`
 
@@ -825,7 +832,7 @@ The report was redesigned and rebuilt from scratch after the semantic model was 
 
 **Bronze Layer:**
 
--   [x] Azure SQL dataflow (`bronze_azureSQLdb2table.Dataflow`)
+-   [x] Azure SQL ingestion — **Retired (2026-07-31)**: was `bronze_azureSQLdb2table.Dataflow`, now Copy activities `bronzecopy_procurement_transactional` + `bronzecopy_supplier_ref`. See `.claude/support/retired/bronze-azuresqldb2table-dataflow/manifest.json`.
 
 -   [x] EPI ingestion (`bronze_ingest_epi.Notebook`, manual CSV upload)
 
@@ -988,9 +995,11 @@ No open issues. Previously identified gap (data quality visibility) addressed vi
 
 **Dataflows:**
 
+**Retired (2026-07-31)** — the example below no longer exists. The convention itself still stands for `EPI_file2table` / `WGI_file2table`, which remain as items.
+
 -   `[layer]_[source]_[method]2table.Dataflow`
 
--   Examples: `bronze_azureSQLdb2table`
+-   Examples: ~~`bronze_azureSQLdb2table`~~ (retired), `EPI_file2table`, `WGI_file2table`
 
 **Pipelines:**
 
@@ -1439,7 +1448,7 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
 
 -   **Tables:** dbo.Procurement, dbo.SupplierInfo
 
--   Connection string/endpoint: Managed via Fabric dataflow connection
+-   Connection string/endpoint: Managed via the Fabric connection `oem_azuresql_procurement` (credential in Fabric's connection store, never in a tracked file)
 
 -   Refresh schedule: Manual — pipeline triggered on demand
 
@@ -1524,7 +1533,7 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
     -   **DECISION:** Not applicable — portfolio project with no retention policy needed. All layers kept indefinitely.
 5.  **Error Handling:**
     -   **DECISION (DEC-004, 2026-07-23, amended 2026-07-27):** Activity-level retry plus a single pipeline-level error-handler activity on the terminal node, logging every activity's outcome to `gold_pipeline_execution_log`.
-    -   **Pattern:** Each activity keeps its retry count (1–3 retries, i.e. 2–4 total attempts) and interval (30–300s: 30s for bronze_WGI/bronze_EPI, 120s for bronze-to-silver/silver-to-gold/data_quality_checks, 300s for the Copy and procurement RefreshDataflow activities). One handler activity (`pipeline_error_handler`) depends on the terminal activity `data_quality_checks` via `['Succeeded','Failed','Skipped']` — so it runs on every outcome — and reads per-activity results via POST `queryactivityruns` (not `@activity('X').Error`, which has no `error` field on Skipped activities). It writes one log row per activity (Succeeded rows included), then **re-raises `RuntimeError` if any activity FAILED**, keeping a failing run red. Non-notebook activities (Copy, RefreshDataflow) are covered because the handler reads the run's activity-run records directly, not via in-notebook `try/except`.
+    -   **Pattern:** Each activity keeps its retry count (1–3 retries, i.e. 2–4 total attempts) and interval (30–300s: 30s for bronze_WGI/bronze_EPI, 120s for bronze-to-silver/silver-to-gold/data_quality_checks, 300s for the four Copy activities). One handler activity (`pipeline_error_handler`) depends on the terminal activity `data_quality_checks` via `['Succeeded','Failed','Skipped']` — so it runs on every outcome — and reads per-activity results via POST `queryactivityruns` (not `@activity('X').Error`, which has no `error` field on Skipped activities). It writes one log row per activity (Succeeded rows included), then **re-raises `RuntimeError` if any activity FAILED**, keeping a failing run red. Non-notebook activities (Copy) are covered because the handler reads the run's activity-run records directly, not via in-notebook `try/except`.
     -   **Why:** Fabric has no pipeline-level retry — only activity-level. A handler on `['Failed','Skipped']` only (the original 2-activity shape) never fires on a clean run and so cannot log successes; running on every outcome and re-raising on failure gives both coverage and the red-on-failure guard in one activity. The re-raise is the Try-Catch-trap defence: a bare on-failure branch that succeeds makes the whole run report Success and would silently undo the DQ gate.
     -   **Notification (criterion 5, deferred 2026-07-27 with reason):** no on-demand-firing sink exists until task-010 (scheduling) lands; `notifyOption='MailOnFailure'` would now cover only 1/8 activities after the EPI/WGI repoint. Revisit at task-010. The pipeline's failure signal is `gold_pipeline_execution_log` plus the run reporting Failed via the handler's re-raise.
 
