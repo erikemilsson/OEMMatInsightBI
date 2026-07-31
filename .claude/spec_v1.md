@@ -637,7 +637,7 @@ Bronze now holds the source's raw day/year-transposed dates — a Copy activity 
 
 **Stage 2: Silver Transformation (Sequential)**
 
-6.  `bronze-to-silver data cleaning` (Notebook Activity)
+7.  `bronze-to-silver data cleaning` (Notebook Activity)
     -   Depends on: **all 6** bronze activities (Succeeded)
 
     -   Notebook: `bronze-to-silver.Notebook`
@@ -650,7 +650,7 @@ Bronze now holds the source's raw day/year-transposed dates — a Copy activity 
 
 **Stage 3: Gold Transformation (Sequential)**
 
-7.  `silver-to-gold` (Notebook Activity)
+8.  `silver-to-gold` (Notebook Activity)
     -   Depends on: bronze-to-silver data cleaning (Succeeded)
 
     -   Notebook: `silver-to-gold2.Notebook` — Output: Gold fact and dimension tables
@@ -661,7 +661,7 @@ Bronze now holds the source's raw day/year-transposed dates — a Copy activity 
 
 **Stage 4: Data Quality (Sequential)**
 
-8.  `data_quality_checks` (Notebook Activity)
+9.  `data_quality_checks` (Notebook Activity)
     -   Depends on: silver-to-gold (Succeeded)
 
     -   Notebook: `data_quality_checks.Notebook`

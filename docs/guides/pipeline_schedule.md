@@ -10,7 +10,7 @@ The `orchestrator_pipeline_bronze_to_gold` pipeline (`fabric/orchestrator_pipeli
 
 1. **Bronze ingestion** (four activities, run in parallel):
    - `bronzecopy_EUSupplyShares` — Copy activity pulling the EU CRM supply-shares CSV over HTTP into `bronze_EUSupplyShares`.
-   - `bronze_procurement`, `bronze_WGI`, `bronze_EPI` — `RefreshDataflow` activities loading the Azure SQL procurement data, WGI indicators, and EPI scores.
+   - `bronzecopy_procurement_transactional`, `bronzecopy_supplier_ref` — `Copy` activities loading the Azure SQL procurement data (task-048 replaced the `bronze_procurement` RefreshDataflow); `bronze_WGI`, `bronze_EPI` — `Notebook` activities loading WGI indicators and EPI scores (task-035). No RefreshDataflow activities remain.
 2. **`bronze-to-silver data cleaning`** — notebook; runs after all four Bronze activities succeed.
 3. **`silver-to-gold`** — notebook; runs after Silver succeeds. Produces the Gold dimensions, facts, and data-quality tables.
 

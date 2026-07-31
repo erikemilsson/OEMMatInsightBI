@@ -100,7 +100,7 @@ flowchart TB
     end
 
     subgraph Bronze["Bronze Ingestion"]
-        B1[Azure SQL Dataflow]
+        B1[Azure SQL Copy Activities]
         B2[EPI File Dataflow]
         B3[WGI File Dataflow]
     end

@@ -87,17 +87,33 @@ Error: Missing required field 'difficulty'
 
 ### Issue: Bronze ingestion fails - Azure SQL connection timeout
 
-**Symptoms:** `bronze_procurement` dataflow fails with timeout error
+**Symptoms:** `bronzecopy_procurement_transactional` or `bronzecopy_supplier_ref`
+fails. (Before 2026-07-31 this was a `bronze_procurement` dataflow refresh; that
+dataflow is retired and deleted.)
+
+**Read the error text before diagnosing — the four cases are distinct:**
+
+| Error | Meaning |
+|---|---|
+| `Database ... is not currently available` | **Most likely.** Serverless auto-pause; the DB is resuming. Says nothing about credentials. |
+| `Login failed for user X` | A credential IS bound and is wrong |
+| `Credentials are required to connect` | NO credential bound |
+| `Login timeout expired` / `TCP Provider` | Never reached the server — firewall/port |
 
 **Diagnosis:**
-1. Check Azure SQL firewall: Is Fabric IP whitelisted?
-2. Check Azure SQL service health
-3. Verify connection string in dataflow
+1. `az sql db show -g RG1 -s procurement-supplier -n procurement-supplier-db --query '{status:status,autoPause:autoPauseDelay,resumed:resumedDate}'`
+   — the DB is serverless (`GP_S_Gen5`, `autoPauseDelay: 60`), so a run after 60 min
+   idle hits a ~40s resume window and the first attempt fails
+2. Check the Fabric connection `oem_azuresql_procurement` is still shared with
+   `Fabric-SPN-Access` (needed for SPN-driven deploys)
+3. Only if the error is a genuine timeout: check the Azure SQL firewall
 
 **Solution:**
-- Add Fabric service tag to SQL firewall rules
-- Increase dataflow timeout (currently 12 hours)
-- Check network connectivity from Fabric
+- Auto-pause resume: **no action needed** — `retry 3 / 300s` on both Copy activities
+  covers it. A cold run may show one failed attempt then succeed. Do NOT set these
+  activities to retry 0.
+- Credential problems: re-enter it on the connection, username `erikdatabase`
+  (NOT `erikdatabase2`, a stale contained-DB user)
 
 **Related Task:** Task 011 (Error Handling) - designed retry logic for transient failures
 

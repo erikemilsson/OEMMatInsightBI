@@ -124,7 +124,7 @@ All PySpark, all attached to the `oem_lh` lakehouse.
 ### Pipelines (1)
 1. **orchestrator_pipeline_bronze_to_gold.DataPipeline**
    - Purpose: End-to-end orchestration
-   - Activities: **8** — 5 bronze (2 Copy, 1 RefreshDataflow, 2 TridentNotebook),
+   - Activities: **10** — 6 bronze (4 Copy, 2 TridentNotebook; 0 RefreshDataflow after task-035 + task-048),
      1 silver, 1 gold, 1 data-quality. **No warehouse-sync activity.**
    - Parameters: `p_full_load`, `p_from_date`, `p_epi_year`
    - Schedule: Manual (pending Task 10)

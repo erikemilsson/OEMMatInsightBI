@@ -249,7 +249,7 @@ The project implements a **medallion architecture** (bronze → silver → gold)
 
 1. **Bronze (Parallel):** 5 activities with no interdependencies —
    `bronzecopy_GlobalSupplyShares` and `bronzecopy_EUSupplyShares` (Copy),
-   `bronze_procurement` (RefreshDataflow), `bronze_WGI` and `bronze_EPI`
+   `bronzecopy_procurement_transactional` + `bronzecopy_supplier_ref` (Copy), `bronze_WGI` and `bronze_EPI`
    (TridentNotebook).
 2. **Silver (Sequential):** `bronze-to-silver data cleaning` — depends on all five
    bronze activities succeeding.

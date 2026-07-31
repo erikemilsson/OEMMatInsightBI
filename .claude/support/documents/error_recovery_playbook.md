@@ -12,7 +12,8 @@
 
 | Activity | Retries | Interval | Total Wait |
 |----------|---------|----------|------------|
-| bronze_procurement | 3 | 5 min | 15 min |
+| bronzecopy_procurement_transactional | 3 | 5 min | 15 min |
+| bronzecopy_supplier_ref | 3 | 5 min | 15 min |
 | bronzecopy_EUSupplyShares | 3 | 5 min | 15 min |
 | bronze_WGI | 2 | 3 min | 6 min |
 | bronze_EPI | 2 | 3 min | 6 min |
@@ -70,7 +71,7 @@ Errors that do not match known patterns. Treated conservatively (1 retry, then f
 
 ## Resolution Steps by Scenario
 
-### 1. Azure SQL Connection Failure (bronze_procurement)
+### 1. Azure SQL Connection Failure (bronzecopy_procurement_transactional / bronzecopy_supplier_ref)
 
 **Symptoms:** Timeout, connection refused, or authentication error on the procurement dataflow.
 
@@ -186,7 +187,7 @@ cannot be set via the pipeline JSON. **Activity-level** notifications *can*: see
 
 ### Activity-level `notifyOption` (JSON-settable)
 
-The three `RefreshDataflow` activities in `orchestrator_pipeline_bronze_to_gold` each
+**Obsolete since task-048 (2026-07-31): there are no RefreshDataflow activities left in the pipeline, so this `notifyOption` route no longer exists.** Historically, the three `RefreshDataflow` activities in `orchestrator_pipeline_bronze_to_gold` each
 carry a `notifyOption` property, currently `"NoNotification"`. Setting it to
 `"MailOnFailure"` in `pipeline-content.json` gives per-activity mail without touching
 the UI — and, unlike the schedule-attached pipeline notification above, it is version

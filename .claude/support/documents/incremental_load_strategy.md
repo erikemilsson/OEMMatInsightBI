@@ -732,7 +732,7 @@ Pipeline Parameters
 
 ### Bronze dataflows — full refresh (criterion 6, deferred)
 
-The bronze Power Query dataflows (`bronze_procurement`, `bronze_WGI`, `bronze_EPI`) take
+Historically the bronze Power Query dataflows (`bronze_procurement`, `bronze_WGI`, `bronze_EPI`) took
 **no parameters** and run as full refresh on every pipeline run. The watermark gates the
 silver/gold MERGE window, **not** the bronze extract.
 

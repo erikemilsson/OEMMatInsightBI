@@ -103,20 +103,29 @@ If pipeline scheduling is configured (see Task 10):
 ```
 orchestrator_pipeline_bronze_to_gold
 │
-├─[1] Bronze Layer (Parallel)
-│   ├── bronzecopy_EUSupplyShares (Copy Activity) ──┐
-│   ├── bronze_WGI (RefreshDataflow) ───────────────┤
-│   ├── bronze_procurement (RefreshDataflow) ───────┤
-│   └── bronze_EPI (RefreshDataflow) ───────────────┤
+├─[1] Bronze Layer (Parallel — 6 activities)
+│   ├── bronzecopy_EUSupplyShares (Copy) ───────────┐
+│   ├── bronzecopy_GlobalSupplyShares (Copy) ───────┤
+│   ├── bronzecopy_procurement_transactional (Copy) ┤
+│   ├── bronzecopy_supplier_ref (Copy) ─────────────┤
+│   ├── bronze_WGI (Notebook) ─────────────────────┤
+│   └── bronze_EPI (Notebook) ─────────────────────┤
 │                                                     ▼
-├─[2] Silver Layer (Sequential) ────────────────── [Wait for all Bronze]
+├─[2] Silver Layer (Sequential) ────────────── [Wait for all 6 Bronze]
 │   └── bronze-to-silver data cleaning (Notebook)
 │                                                     │
 ├─[3] Gold Layer (Sequential) ───────────────────────┤
 │   └── silver-to-gold (Notebook)                    │
 │                                                     │
-└─[4] Warehouse Sync (Sequential) ────────────────────┘
-    └── Copy job1 (InvokeCopyJob)
+├─[4] Data Quality (Sequential) ─────────────────────┤
+│   └── data_quality_checks (Notebook)               │
+│                                                     │
+└─[5] Error-Log Harvest (Sequential) ─────────────────┘
+    └── pipeline_error_handler (Notebook)
+
+No RefreshDataflow activities remain (task-035, task-048) — the pipeline is
+SPN-safe. There is no Warehouse Sync stage; earlier revisions of this file
+showed a "Copy job1 (InvokeCopyJob)" that does not exist in the pipeline.
 ```
 
 ## Monitoring
