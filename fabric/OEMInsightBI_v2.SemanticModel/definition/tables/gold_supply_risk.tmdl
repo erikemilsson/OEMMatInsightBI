@@ -1,0 +1,114 @@
+table gold_supply_risk
+	lineageTag: 3ca53af0-9904-4e34-8eea-794d941025bc
+	sourceLineageTag: [dbo].[gold_supply_risk]
+
+	measure 'Supply Risk (Global)' = MAX(gold_supply_risk[hhi_global])
+		lineageTag: 7bb45e32-b0e2-4543-ae5f-7d7e9c736d64
+
+		changedProperty = Name
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Supply Risk (EU Sourcing)' = MAX(gold_supply_risk[hhi_eu_sourcing])
+		lineageTag: e7aae444-3ecc-45ae-8c48-b354f43df44e
+
+		changedProperty = Name
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Supply Risk Contrast' = DIVIDE([Supply Risk (EU Sourcing)], [Supply Risk (Global)])
+		lineageTag: 1fadb2da-4d5c-4c53-b409-aa7d67ae5ece
+
+		changedProperty = Name
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column material_key
+		dataType: int64
+		formatString: 0
+		lineageTag: 35b34c9a-427e-43ff-b386-7b10c8838b80
+		sourceLineageTag: material_key
+		summarizeBy: none
+		sourceColumn: material_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column stage_key
+		dataType: int64
+		formatString: 0
+		lineageTag: ccdf5a63-6eb6-4185-b8c3-dedfd5b3d42a
+		sourceLineageTag: stage_key
+		summarizeBy: none
+		sourceColumn: stage_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column year
+		dataType: int64
+		formatString: 0
+		lineageTag: 15cbb075-5508-4f90-9137-b67c18eacd88
+		sourceLineageTag: year
+		summarizeBy: sum
+		sourceColumn: year
+
+		annotation SummarizationSetBy = Automatic
+
+	column hhi_global
+		dataType: double
+		lineageTag: 0047bced-df3c-4c4d-8598-ccfd2a878511
+		sourceLineageTag: hhi_global
+		summarizeBy: sum
+		sourceColumn: hhi_global
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column hhi_eu_sourcing
+		dataType: double
+		lineageTag: e1aad72f-33c5-46b8-8fff-2071ae3fcb53
+		sourceLineageTag: hhi_eu_sourcing
+		summarizeBy: sum
+		sourceColumn: hhi_eu_sourcing
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column contrast_ratio
+		dataType: double
+		lineageTag: 1ba816cb-a92a-4691-9c47-5c113d744c69
+		sourceLineageTag: contrast_ratio
+		summarizeBy: sum
+		sourceColumn: contrast_ratio
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column is_bottleneck
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 459ca67c-f927-451a-8238-87e7b3c24adf
+		sourceLineageTag: is_bottleneck
+		summarizeBy: none
+		sourceColumn: is_bottleneck
+
+		annotation SummarizationSetBy = Automatic
+
+	column incomplete_wgi_coverage
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: e4796fd2-ca4f-461b-8a53-a69d0d21ff81
+		sourceLineageTag: incomplete_wgi_coverage
+		summarizeBy: none
+		sourceColumn: incomplete_wgi_coverage
+
+		annotation SummarizationSetBy = Automatic
+
+	partition gold_supply_risk = entity
+		mode: directLake
+		source
+			entityName: gold_supply_risk
+			expressionSource: 'DirectLake - oem_lh'
+

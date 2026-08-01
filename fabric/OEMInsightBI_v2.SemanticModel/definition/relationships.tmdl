@@ -6,6 +6,14 @@ relationship 4f8a22a2-03cb-a17f-ec73-4b9c61e8679f
 	fromColumn: fact_supply_share.material_key
 	toColumn: gold_dim_material.material_key
 
+relationship cec812b3-6667-4c77-8e53-f27ca046b473
+	fromColumn: gold_supply_risk.material_key
+	toColumn: gold_dim_material.material_key
+
+relationship 555349da-9463-48a2-9e6f-37ea15bb0f7e
+	fromColumn: gold_supply_risk.stage_key
+	toColumn: gold_dim_stage.stage_key
+
 relationship 6fb6f1e4-174f-1424-963c-958530197768
 	fromColumn: fact_procurement.production_country_key
 	toColumn: gold_dim_country.country_key

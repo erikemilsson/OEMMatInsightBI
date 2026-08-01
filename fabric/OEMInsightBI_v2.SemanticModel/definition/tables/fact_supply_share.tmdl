@@ -2,6 +2,13 @@ table fact_supply_share
 	lineageTag: f7ded50c-6645-4cbf-8a65-7f79dd7c9cba
 	sourceLineageTag: [dbo].[fact_supply_share]
 
+	measure 'Supply Concentration Index' = CALCULATE(MAX(fact_supply_share[share_pct]), fact_supply_share[supply_mix] = "global")
+		lineageTag: 7e5144f6-153a-445d-8bc8-56929477151e
+
+		changedProperty = Name
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
 	column material_key
 		dataType: int64
 		formatString: 0
@@ -111,6 +118,15 @@ table fact_supply_share
 		sourceLineageTag: source_row_id
 		summarizeBy: sum
 		sourceColumn: source_row_id
+
+		annotation SummarizationSetBy = Automatic
+
+	column supply_mix
+		dataType: string
+		lineageTag: 1101a9fd-a837-471d-920e-819ad4214799
+		sourceLineageTag: supply_mix
+		summarizeBy: none
+		sourceColumn: supply_mix
 
 		annotation SummarizationSetBy = Automatic
 

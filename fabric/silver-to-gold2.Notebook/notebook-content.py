@@ -2656,6 +2656,287 @@ print(f"\nData Quality Distribution (by supply mix — never blended):")
 
 # MARKDOWN ********************
 
+# # gold_supply_risk — governance- & trade-weighted HHI (task-038_4)
+# spec_v1 § Business Logic & Calculations -> Supply Risk (DEC-001 Option B)
+# Grain: one row per material × stage × year. Both stages (E/P) retained and the
+# bottleneck FLAGGED rather than collapsed, so the extraction-vs-processing
+# comparison stays available to the report while the headline figure needs no
+# DAX ranking pattern.
+
+# CELL ********************
+
+# =============================================================================
+# HHI aggregation — gold_supply_risk (task-038_4)
+#   HHI_WGI,t = Σ_c (Sᶜ)² · WGIᶜ · tᶜ
+#
+# This block owns the AGGREGATION half of the supply-risk model — the per-mix
+# HHI, the contrast_ratio, the bottleneck flag and the WGI-coverage flag. The
+# per-country weight WGIᶜ is task-038_3 (the cell directly above); this consumes
+# it from fact_supply_share and never recomputes it.
+#
+# MIRRORED IN src/transformations/supply_risk.py (DEC-002). tests/test_supply_risk.py
+# loads THESE FunctionDefs out of this file and pins them against the src/
+# versions — editing one side without the other fails CI by design.
+#
+# THE SHARE FRACTION IS THE WHOLE POINT. share_pct is stored 0-100 on
+# fact_supply_share; squaring the 0-100 scale silently inflates the index by 10^4
+# and produces a plausible-looking but wrong number. The division by 100 in
+# supply_risk_contribution is pinned by a parity test.
+#
+# THE GRAIN IS material × stage × year (spec § Data Architecture →
+# gold_supply_risk, § Business Logic & Calculations → Supply Risk).
+#
+# NULL RULES (each pinned by a test):
+#   1. NULL wgi_weight rows are EXCLUDED from the Σ_c sum — never coerced to 0.
+#      0.0 is a legitimate weight meaning *best governance*, so coercing NULL
+#      to 0 would read as a perfectly-governed country and silently re-rank
+#      every material. F.greatest/F.least IGNORE nulls and would swallow them
+#      the way task-038_3 found; the .filter(wgi_weight.isNotNull()) guard is
+#      explicit.
+#   2. Placeholder countries (gold_dim_country.is_placeholder = TRUE, e.g.
+#      UNK_GLOB) are excluded from the country-level HHI sum regardless of
+#      their weight — a placeholder is a bucket, not a country. The weight is
+#      NULL by construction but the guard is defensive.
+#   3. EU coverage gap (global rows exist, no eu_sourcing rows) →
+#      hhi_eu_sourcing = NULL, contrast_ratio = NULL — never 0.
+#   4. hhi_global = 0 → contrast_ratio = NULL, never 0.
+#
+# THE TAIWAN / NULL-WGI TRADEOFF (DEC-009 + user decision, task-038_4). A country
+# can have wgi_weight = NULL — TWN (World Bank publishes no WGI for Taiwan, ever;
+# ~14 rows / ~19.4 share-points on the live fact) and UNK_GLOB (placeholder).
+# Erik's decision: EXCLUDE + FLAG COVERAGE. Rows with NULL wgi_weight are dropped
+# from the Σ_c sum, so the HHI is computed over the governance-known subset only.
+# This UNDERSTATES risk for Taiwan-heavy materials — it is an accepted, visible
+# tradeoff, not a bug. The incomplete_wgi_coverage column makes the gap visible
+# rather than silent.
+
+
+def supply_risk_contribution(share_pct, wgi_weight, t):
+    """The per-country contribution (Sᶜ)² · WGIᶜ · tᶜ as a Spark Column.
+
+    Sᶜ = share_pct / 100 — the FRACTION, not the 0-100 percentage. share_pct is
+    stored 0-100 on fact_supply_share, so squaring the wrong scale silently
+    inflates the index by 10^4 and produces a plausible-looking but wrong number;
+    a parity test pins the division by 100 explicitly. `t` is the DEC-001 trade
+    parameter (0.8 EU, 1.0 baseline non-EU, >1 export-restricted) and is nullable
+    on the fact — a NULL t yields a NULL contribution, which F.sum skips, so a
+    row with no trade parameter is excluded from the sum rather than zeroed.
+
+    Accepts column names (str) or Column expressions for all three arguments.
+    """
+    def _col(x):
+        return F.col(x) if isinstance(x, str) else x
+
+    share_frac = _col(share_pct) / F.lit(100.0)
+    return (share_frac * share_frac) * _col(wgi_weight) * _col(t)
+
+
+def compute_gold_supply_risk(fact_supply_share, dim_country):
+    """Build the gold_supply_risk table content from fact_supply_share.
+
+    Spec: § Business Logic & Calculations → Supply Risk (DEC-001 Option B) +
+    § Data Architecture → gold_supply_risk. Grain: one row per
+    (material_key, stage_key, year). Both stages (E/P) retained; the bottleneck
+    is FLAGGED (is_bottleneck) rather than collapsed.
+
+    Output columns:
+      hhi_global              Σ_c (Sᶜ)²·WGIᶜ·tᶜ over supply_mix='global'
+      hhi_eu_sourcing         same over supply_mix='eu_sourcing'; NULL when the
+                              material × stage × year has no EU sourcing rows
+                              (the EU coverage gap — never 0)
+      contrast_ratio          hhi_eu_sourcing / hhi_global; NULL when
+                              hhi_global is 0 or NULL, or when hhi_eu_sourcing
+                              is NULL (never 0 — 0 is a legitimate "perfectly
+                              diffuse" index value, not "no EU data")
+      is_bottleneck           BOOLEAN — the stage with the HIGHER hhi_global per
+                              material × year. Driven by hhi_global ONLY (not
+                              hhi_eu_sourcing, not max of the two) so it stays
+                              defined when EU coverage is missing. Strict: a tie
+                              flags neither stage. NULL hhi_global never wins.
+      incomplete_wgi_coverage BOOLEAN — TRUE when any supplier row for this
+                              material × stage × year was excluded due to NULL
+                              wgi_weight (TWN; or a placeholder bucket). The HHI
+                              is then computed over the governance-known subset
+                              only, which UNDERSTATES risk for Taiwan-heavy
+                              materials — an accepted, visible tradeoff, not a
+                              bug. The flag makes the gap visible rather than
+                              silent.
+
+    Implemented without a Window so the parity harness (which compiles only these
+    FunctionDefs in a namespace holding `F` alone) needs no extra imports.
+    """
+    # Bring is_placeholder onto the fact — it is not carried on fact_supply_share,
+    # only on gold_dim_country. LEFT so a fact row whose country_key is missing
+    # from the dim keeps its supply row and is excluded by the wgi_weight filter
+    # rather than dropped here.
+    fs = fact_supply_share.join(
+        dim_country.select("country_key", "is_placeholder"),
+        "country_key", "left",
+    )
+
+    contribution = supply_risk_contribution("share_pct", "wgi_weight", "t")
+
+    # HHI per (material × stage × year × supply_mix), summed over the
+    # governance-known, non-placeholder subset only. NULL wgi_weight rows are
+    # excluded, NOT zeroed (rule 1). Placeholders excluded by rule 2.
+    per_mix = (
+        fs
+        .filter(F.col("wgi_weight").isNotNull())
+        .filter(~F.coalesce(F.col("is_placeholder"), F.lit(False)))
+        .groupBy("material_key", "stage_key", "year", "supply_mix")
+        .agg(F.sum(contribution).alias("hhi"))
+    )
+
+    hhi_global = (
+        per_mix.filter(F.col("supply_mix") == "global")
+        .select("material_key", "stage_key", "year", F.col("hhi").alias("hhi_global"))
+    )
+    hhi_eu = (
+        per_mix.filter(F.col("supply_mix") == "eu_sourcing")
+        .select("material_key", "stage_key", "year", F.col("hhi").alias("hhi_eu_sourcing"))
+    )
+
+    # The grain is every (material × stage × year) appearing in EITHER mix. A
+    # material present in global but absent from eu_sourcing (the EU coverage
+    # gap) still gets a row, with hhi_eu_sourcing = NULL (rule 3). The reverse
+    # is symmetric. Starting from `fs` (pre-filter) rather than `per_mix`
+    # (post-filter) means a key whose only rows were all-NULL-wgi still appears,
+    # with both HHIs NULL and incomplete_wgi_coverage = TRUE.
+    grain_keys = (
+        fs.select("material_key", "stage_key", "year").distinct()
+    )
+
+    result = (
+        grain_keys
+        .join(hhi_global, ["material_key", "stage_key", "year"], "left")
+        .join(hhi_eu, ["material_key", "stage_key", "year"], "left")
+    )
+
+    # contrast_ratio (rules 3 + 4): NULL when hhi_global is NULL or 0, or when
+    # hhi_eu_sourcing is NULL. The F.when guard is what keeps 0/0 from returning a
+    # sentinel; in ANSI-off mode 0/0 is NULL anyway, but the explicit guard is
+    # readable and survives an ANSI-on regression.
+    result = result.withColumn(
+        "contrast_ratio",
+        F.when(
+            (F.col("hhi_global").isNotNull())
+            & (F.col("hhi_global") != F.lit(0.0))
+            & (F.col("hhi_eu_sourcing").isNotNull()),
+            F.col("hhi_eu_sourcing") / F.col("hhi_global"),
+        ),
+    )
+
+    # incomplete_wgi_coverage (rule 1 visibility): TRUE when any supplier row for
+    # this material × stage × year was excluded due to NULL wgi_weight. Computed
+    # across BOTH mixes — wgi_weight is a country property, not a mix property.
+    # A placeholder bucket (UNK_GLOB) also carries NULL wgi_weight and is flagged
+    # here; that is correct — the index for that key IS computed over an
+    # incomplete governance subset.
+    excluded = (
+        fs
+        .filter(F.col("wgi_weight").isNull())
+        .groupBy("material_key", "stage_key", "year")
+        .agg(F.count(F.lit(1)).alias("_n_excluded"))
+    )
+    result = (
+        result
+        .join(excluded, ["material_key", "stage_key", "year"], "left")
+        .withColumn(
+            "incomplete_wgi_coverage",
+            F.col("_n_excluded").isNotNull() & (F.col("_n_excluded") > 0),
+        )
+        .drop("_n_excluded")
+    )
+
+    # is_bottleneck: the stage with the HIGHER hhi_global per material × year.
+    # Driven by hhi_global ONLY (spec: "not by hhi_eu_sourcing or the max of the
+    # two") so it stays defined when EU coverage is missing. Strict comparison —
+    # a tie flags NEITHER stage; NULL hhi_global never wins.
+    maxes = (
+        result
+        .filter(F.col("hhi_global").isNotNull())
+        .groupBy("material_key", "year")
+        .agg(F.max("hhi_global").alias("_max_hhi"))
+    )
+    at_max = (
+        result
+        .filter(F.col("hhi_global").isNotNull())
+        .join(maxes, ["material_key", "year"], "inner")
+        .filter(F.col("hhi_global") == F.col("_max_hhi"))
+        .groupBy("material_key", "year")
+        .agg(F.count(F.lit(1)).alias("_n_at_max"))
+    )
+    result = (
+        result
+        .join(maxes, ["material_key", "year"], "left")
+        .join(at_max, ["material_key", "year"], "left")
+        .withColumn(
+            "is_bottleneck",
+            (F.col("hhi_global").isNotNull())
+            & (F.col("hhi_global") == F.col("_max_hhi"))
+            & (F.col("_n_at_max") == F.lit(1)),
+        )
+        .drop("_max_hhi", "_n_at_max")
+    )
+
+    return result.select(
+        "material_key", "stage_key", "year",
+        "hhi_global", "hhi_eu_sourcing", "contrast_ratio",
+        "is_bottleneck", "incomplete_wgi_coverage",
+    )
+
+
+gold_supply_risk = compute_gold_supply_risk(
+    fact_supply_share_final, spark.table(f"{DB}.gold_dim_country")
+)
+
+# GRAIN GUARD (acceptance criterion 1): one row per (material_key, stage_key,
+# year) — enforced, fails loudly. A duplicate here means either fact_supply_share
+# carries a grain collision (the territory rollup upstream should have collapsed
+# it) or compute_gold_supply_risk dropped supply_mix from the grouping key.
+_dup_supply_risk = (gold_supply_risk
+                    .groupBy("material_key", "stage_key", "year")
+                    .agg(F.count(F.lit(1)).alias("n"))
+                    .filter(F.col("n") > 1))
+_dup_supply_risk_n = _dup_supply_risk.count()
+assert _dup_supply_risk_n == 0, (
+    f"gold_supply_risk grain is not unique on (material_key, stage_key, year) — "
+    f"{_dup_supply_risk_n} duplicate grain(s): "
+    f"{[r.asDict() for r in _dup_supply_risk.limit(5).collect()]}. Either "
+    f"fact_supply_share has a grain collision the territory rollup missed, or "
+    f"compute_gold_supply_risk dropped supply_mix from the HHI grouping key."
+)
+
+# COVERAGE SUMMARY — make the Taiwan/placeholder exclusion visible per run, not
+# just per row. The incomplete_wgi_coverage flag is the durable surface; this
+# print is the operational view so a degraded run is obvious in the notebook log.
+_coverage_summary = (
+    gold_supply_risk
+    .groupBy("incomplete_wgi_coverage")
+    .agg(F.count(F.lit(1)).alias("rows"))
+)
+print("\n" + "="*60)
+print("gold_supply_risk — WGI coverage summary")
+print("="*60)
+(_coverage_summary.orderBy(F.col("incomplete_wgi_coverage").desc()).show())
+
+_bottleneck_n = gold_supply_risk.filter(F.col("is_bottleneck")).count()
+_total_rows = gold_supply_risk.count()
+_eu_gap_n = gold_supply_risk.filter(F.col("hhi_eu_sourcing").isNull()).count()
+print(f"gold_supply_risk: {_total_rows:,} rows ({_bottleneck_n:,} flagged bottleneck, "
+      f"{_eu_gap_n:,} with EU coverage gap / hhi_eu_sourcing NULL)")
+
+write_tbl(gold_supply_risk, "gold_supply_risk")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
 # # Data quality dashboard table
 
 # CELL ********************
