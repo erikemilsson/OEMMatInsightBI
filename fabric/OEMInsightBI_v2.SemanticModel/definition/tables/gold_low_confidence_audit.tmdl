@@ -2,26 +2,22 @@ table gold_low_confidence_audit
 	lineageTag: a1b2c3d4-0019-0003-0001-000000000001
 	sourceLineageTag: [dbo].[gold_low_confidence_audit]
 
-	measure 'Low Confidence Matches Count' =
-			COUNTROWS(gold_low_confidence_audit)
+	measure 'Low Confidence Matches Count' = COUNTROWS(gold_low_confidence_audit)
 		formatString: #,##0
 		displayFolder: Quality Observability
 		lineageTag: a1b2c3d4-0019-0003-0001-000000000101
 
-	measure 'Avg Match Confidence' =
-			AVERAGE(gold_low_confidence_audit[confidence])
+	measure 'Avg Match Confidence' = AVERAGE(gold_low_confidence_audit[confidence])
 		formatString: 0.00
 		displayFolder: Quality Observability
 		lineageTag: a1b2c3d4-0019-0003-0001-000000000102
 
-	measure 'Low Confidence Spend Impact' =
-			SUM(gold_low_confidence_audit[spend_impact])
+	measure 'Low Confidence Spend Impact' = SUM(gold_low_confidence_audit[spend_impact])
 		formatString: €#,##0
 		displayFolder: Quality Observability
 		lineageTag: a1b2c3d4-0019-0003-0001-000000000103
 
-	measure 'Low Confidence Frequency' =
-			SUM(gold_low_confidence_audit[frequency])
+	measure 'Low Confidence Frequency' = SUM(gold_low_confidence_audit[frequency])
 		formatString: #,##0
 		displayFolder: Quality Observability
 		lineageTag: a1b2c3d4-0019-0003-0001-000000000104

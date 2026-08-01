@@ -1,0 +1,196 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.11.0/schema.json",
+  "name": "47d13637dd6cc7a41b48",
+  "position": {
+    "x": 9.74933428541676,
+    "y": 0,
+    "z": 0,
+    "height": 720.232070335163,
+    "width": 1269.8507906755328,
+    "tabOrder": 0
+  },
+  "visual": {
+    "visualType": "tableEx",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "gold_dim_material"
+                    }
+                  },
+                  "Property": "material_name_std"
+                }
+              },
+              "queryRef": "gold_dim_material.material_name_std",
+              "nativeQueryRef": "material_name_std"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "gold_supply_risk"
+                    }
+                  },
+                  "Property": "Supply Risk (Global)"
+                }
+              },
+              "queryRef": "gold_supply_risk.Supply Risk (Global)",
+              "nativeQueryRef": "Supply Risk (Global)"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "gold_supply_risk"
+                    }
+                  },
+                  "Property": "Supply Risk (EU Sourcing)"
+                }
+              },
+              "queryRef": "gold_supply_risk.Supply Risk (EU Sourcing)",
+              "nativeQueryRef": "Supply Risk (EU Sourcing)"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "gold_supply_risk"
+                    }
+                  },
+                  "Property": "Supply Risk Contrast"
+                }
+              },
+              "queryRef": "gold_supply_risk.Supply Risk Contrast",
+              "nativeQueryRef": "Supply Risk Contrast"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_supply_share"
+                    }
+                  },
+                  "Property": "Supply Concentration Index"
+                }
+              },
+              "queryRef": "fact_supply_share.Supply Concentration Index",
+              "nativeQueryRef": "Supply Concentration Index"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "gold_dim_stage"
+                    }
+                  },
+                  "Property": "stage_name"
+                }
+              },
+              "queryRef": "gold_dim_stage.stage_name",
+              "nativeQueryRef": "stage_name"
+            }
+          ]
+        }
+      }
+    },
+    "drillFilterOtherVisuals": true
+  },
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "b54ecb14e62e016359a1",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "gold_supply_risk"
+              }
+            },
+            "Property": "Supply Risk (Global)"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "de00fa5a6ce334d1ba20",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "gold_supply_risk"
+              }
+            },
+            "Property": "Supply Risk Contrast"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "5100ea60d49ebb000d0a",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "gold_supply_risk"
+              }
+            },
+            "Property": "Supply Risk (EU Sourcing)"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "abc6ebb20d8701cd8ab4",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "fact_supply_share"
+              }
+            },
+            "Property": "Supply Concentration Index"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "26f4c913837edce2db7c",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "gold_dim_material"
+              }
+            },
+            "Property": "material_name_std"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "7e538a57b55a3521757e",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "gold_dim_stage"
+              }
+            },
+            "Property": "stage_name"
+          }
+        },
+        "type": "Categorical"
+      }
+    ]
+  }
+}

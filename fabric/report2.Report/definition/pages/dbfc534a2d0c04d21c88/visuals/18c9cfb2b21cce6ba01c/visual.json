@@ -1,0 +1,75 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.11.0/schema.json",
+  "name": "18c9cfb2b21cce6ba01c",
+  "position": {
+    "x": 0,
+    "y": 172.97297297297297,
+    "z": 0,
+    "height": 546.92406692406689,
+    "width": 630.93951093951091,
+    "tabOrder": 0
+  },
+  "visual": {
+    "visualType": "clusteredColumnChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "gold_dim_material"
+                    }
+                  },
+                  "Property": "material_name_std"
+                }
+              },
+              "queryRef": "gold_dim_material.material_name_std",
+              "nativeQueryRef": "material_name_std",
+              "active": true
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_procurement"
+                    }
+                  },
+                  "Property": "Total Spend EUR"
+                }
+              },
+              "queryRef": "fact_procurement.Total Spend EUR",
+              "nativeQueryRef": "Total Spend EUR"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Measure": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "fact_procurement"
+                  }
+                },
+                "Property": "Total Spend EUR"
+              }
+            },
+            "direction": "Descending"
+          }
+        ],
+        "isDefaultSort": true
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

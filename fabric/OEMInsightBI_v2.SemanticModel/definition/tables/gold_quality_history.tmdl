@@ -26,8 +26,7 @@ table gold_quality_history
 		displayFolder: Quality Observability
 		lineageTag: a1b2c3d4-0019-0001-0001-000000000102
 
-	measure 'Pipeline Runs Count' =
-			DISTINCTCOUNT(gold_quality_history[refresh_timestamp])
+	measure 'Pipeline Runs Count' = DISTINCTCOUNT(gold_quality_history[refresh_timestamp])
 		formatString: #,##0
 		displayFolder: Quality Observability
 		lineageTag: a1b2c3d4-0019-0001-0001-000000000103
@@ -41,8 +40,7 @@ table gold_quality_history
 		displayFolder: Quality Observability
 		lineageTag: a1b2c3d4-0019-0001-0001-000000000104
 
-	measure 'Quality Metrics Count' =
-			COUNTROWS(gold_quality_history)
+	measure 'Quality Metrics Count' = COUNTROWS(gold_quality_history)
 		formatString: #,##0
 		displayFolder: Quality Observability
 		lineageTag: a1b2c3d4-0019-0001-0001-000000000105
@@ -112,6 +110,24 @@ table gold_quality_history
 		sourceLineageTag: breach_flag
 		summarizeBy: none
 		sourceColumn: breach_flag
+
+		annotation SummarizationSetBy = Automatic
+
+	column status
+		dataType: string
+		lineageTag: c5f7849a-adaf-4c60-a86a-34162b96983a
+		sourceLineageTag: status
+		summarizeBy: none
+		sourceColumn: status
+
+		annotation SummarizationSetBy = Automatic
+
+	column producer
+		dataType: string
+		lineageTag: 2b788fc7-4697-4d25-aa61-9f3512cbafcb
+		sourceLineageTag: producer
+		summarizeBy: none
+		sourceColumn: producer
 
 		annotation SummarizationSetBy = Automatic
 

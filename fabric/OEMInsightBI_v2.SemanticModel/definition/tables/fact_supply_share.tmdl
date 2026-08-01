@@ -130,6 +130,38 @@ table fact_supply_share
 
 		annotation SummarizationSetBy = Automatic
 
+	column t
+		dataType: double
+		lineageTag: 661d8822-b475-4be3-ad38-4f2065830f19
+		sourceLineageTag: t
+		summarizeBy: sum
+		sourceColumn: t
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column wgi_year
+		dataType: int64
+		formatString: 0
+		lineageTag: 852c8611-987a-4b5c-b136-61507c906192
+		sourceLineageTag: wgi_year
+		summarizeBy: sum
+		sourceColumn: wgi_year
+
+		annotation SummarizationSetBy = Automatic
+
+	column wgi_weight
+		dataType: double
+		lineageTag: bdc290ba-eed7-4a02-b678-370c662c4be5
+		sourceLineageTag: wgi_weight
+		summarizeBy: sum
+		sourceColumn: wgi_weight
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
 	partition fact_supply_share = entity
 		mode: directLake
 		source

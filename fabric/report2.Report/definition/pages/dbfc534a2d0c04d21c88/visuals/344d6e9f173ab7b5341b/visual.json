@@ -1,0 +1,75 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.11.0/schema.json",
+  "name": "344d6e9f173ab7b5341b",
+  "position": {
+    "x": 640.82368082368077,
+    "y": 172.97297297297297,
+    "z": 1000,
+    "height": 546.92406692406689,
+    "width": 639.17631917631911,
+    "tabOrder": 1000
+  },
+  "visual": {
+    "visualType": "donutChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "gold_dim_material"
+                    }
+                  },
+                  "Property": "commodity_group"
+                }
+              },
+              "queryRef": "gold_dim_material.commodity_group",
+              "nativeQueryRef": "commodity_group",
+              "active": true
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_procurement"
+                    }
+                  },
+                  "Property": "Total Spend EUR"
+                }
+              },
+              "queryRef": "fact_procurement.Total Spend EUR",
+              "nativeQueryRef": "Total Spend EUR"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Measure": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "fact_procurement"
+                  }
+                },
+                "Property": "Total Spend EUR"
+              }
+            },
+            "direction": "Descending"
+          }
+        ],
+        "isDefaultSort": true
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

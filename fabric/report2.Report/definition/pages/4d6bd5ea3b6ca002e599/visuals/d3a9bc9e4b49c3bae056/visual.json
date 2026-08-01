@@ -1,0 +1,74 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.11.0/schema.json",
+  "name": "d3a9bc9e4b49c3bae056",
+  "position": {
+    "x": 641.05436573311363,
+    "y": 0,
+    "z": 1000,
+    "height": 153.93739703459636,
+    "width": 280.46128500823721,
+    "tabOrder": 1000
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_epi_score"
+                    }
+                  },
+                  "Property": "Countries with EPI Data"
+                }
+              },
+              "queryRef": "fact_epi_score.Countries with EPI Data",
+              "nativeQueryRef": "Countries with EPI Data"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Measure": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "fact_epi_score"
+                  }
+                },
+                "Property": "Countries with EPI Data"
+              }
+            },
+            "direction": "Descending"
+          }
+        ],
+        "isDefaultSort": true
+      }
+    },
+    "drillFilterOtherVisuals": true
+  },
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "e74f247cd68787a43ecb",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "fact_epi_score"
+              }
+            },
+            "Property": "Countries with EPI Data"
+          }
+        },
+        "type": "Advanced"
+      }
+    ]
+  }
+}

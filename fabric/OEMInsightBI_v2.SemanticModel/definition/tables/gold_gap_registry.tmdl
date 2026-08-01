@@ -20,8 +20,7 @@ table gold_gap_registry
 		displayFolder: Quality Observability
 		lineageTag: a1b2c3d4-0019-0002-0001-000000000102
 
-	measure 'Total Gaps Count' =
-			COUNTROWS(gold_gap_registry)
+	measure 'Total Gaps Count' = COUNTROWS(gold_gap_registry)
 		formatString: #,##0
 		displayFolder: Quality Observability
 		lineageTag: a1b2c3d4-0019-0002-0001-000000000103
@@ -44,14 +43,12 @@ table gold_gap_registry
 		displayFolder: Quality Observability
 		lineageTag: a1b2c3d4-0019-0002-0001-000000000105
 
-	measure 'Total Gap Occurrences' =
-			SUM(gold_gap_registry[total_occurrences])
+	measure 'Total Gap Occurrences' = SUM(gold_gap_registry[total_occurrences])
 		formatString: #,##0
 		displayFolder: Quality Observability
 		lineageTag: a1b2c3d4-0019-0002-0001-000000000106
 
-	measure 'Estimated Gap Impact' =
-			SUM(gold_gap_registry[estimated_impact])
+	measure 'Estimated Gap Impact' = SUM(gold_gap_registry[estimated_impact])
 		formatString: €#,##0
 		displayFolder: Quality Observability
 		lineageTag: a1b2c3d4-0019-0002-0001-000000000107

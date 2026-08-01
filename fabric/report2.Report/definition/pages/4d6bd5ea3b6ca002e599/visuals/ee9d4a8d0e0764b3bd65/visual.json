@@ -1,0 +1,75 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.11.0/schema.json",
+  "name": "ee9d4a8d0e0764b3bd65",
+  "position": {
+    "x": 10.543657331136737,
+    "y": 217.19934102141679,
+    "z": 2000,
+    "height": 501.87808896210873,
+    "width": 630.5107084019769,
+    "tabOrder": 2000
+  },
+  "visual": {
+    "visualType": "clusteredBarChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "gold_dim_country"
+                    }
+                  },
+                  "Property": "country_name_std"
+                }
+              },
+              "queryRef": "gold_dim_country.country_name_std",
+              "nativeQueryRef": "country_name_std",
+              "active": true
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_epi_score"
+                    }
+                  },
+                  "Property": "Avg EPI Score"
+                }
+              },
+              "queryRef": "fact_epi_score.Avg EPI Score",
+              "nativeQueryRef": "Avg EPI Score"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Measure": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "fact_epi_score"
+                  }
+                },
+                "Property": "Avg EPI Score"
+              }
+            },
+            "direction": "Descending"
+          }
+        ],
+        "isDefaultSort": true
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

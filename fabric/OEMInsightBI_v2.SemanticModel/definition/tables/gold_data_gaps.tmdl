@@ -57,8 +57,7 @@ table gold_data_gaps
 		displayFolder: Data Gaps
 		lineageTag: f1a2b3c4-0001-0001-0001-000000000006
 
-	measure 'Total Procurement Countries' =
-			DISTINCTCOUNT(gold_data_gaps[country_key])
+	measure 'Total Procurement Countries' = DISTINCTCOUNT(gold_data_gaps[country_key])
 		formatString: #,##0
 		displayFolder: Data Gaps
 		lineageTag: f1a2b3c4-0001-0001-0001-000000000007
@@ -199,15 +198,6 @@ table gold_data_gaps
 
 		annotation SummarizationSetBy = Automatic
 
-	column has_wgi_score
-		dataType: boolean
-		lineageTag: d1a2b3c4-0001-0001-0001-000000000011
-		sourceLineageTag: has_wgi_score
-		summarizeBy: none
-		sourceColumn: has_wgi_score
-
-		annotation SummarizationSetBy = Automatic
-
 	column spend_eur
 		dataType: double
 		lineageTag: d1a2b3c4-0001-0001-0001-000000000007
@@ -245,6 +235,15 @@ table gold_data_gaps
 		sourceLineageTag: calculated_at
 		summarizeBy: none
 		sourceColumn: calculated_at
+
+		annotation SummarizationSetBy = Automatic
+
+	column has_wgi_score
+		dataType: boolean
+		lineageTag: d1a2b3c4-0001-0001-0001-000000000011
+		sourceLineageTag: has_wgi_score
+		summarizeBy: none
+		sourceColumn: has_wgi_score
 
 		annotation SummarizationSetBy = Automatic
 

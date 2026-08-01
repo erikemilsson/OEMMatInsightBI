@@ -1,0 +1,56 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.11.0/schema.json",
+  "name": "106460a036b92b104a0e",
+  "position": {
+    "x": 630.93951093951091,
+    "y": 0,
+    "z": 3000,
+    "height": 172.97297297297297,
+    "width": 314.64607464607462,
+    "tabOrder": 3000
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_procurement"
+                    }
+                  },
+                  "Property": "Materials Count"
+                }
+              },
+              "queryRef": "fact_procurement.Materials Count",
+              "nativeQueryRef": "Materials Count"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Measure": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "fact_procurement"
+                  }
+                },
+                "Property": "Materials Count"
+              }
+            },
+            "direction": "Descending"
+          }
+        ],
+        "isDefaultSort": true
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.11.0/schema.json",
+  "name": "9f2a4cb710830681d0c6",
+  "position": {
+    "x": 641.05436573311363,
+    "y": 217.19934102141679,
+    "z": 3000,
+    "height": 501.87808896210873,
+    "width": 638.94563426688626,
+    "tabOrder": 3000
+  },
+  "visual": {
+    "visualType": "clusteredColumnChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "gold_dim_country"
+                    }
+                  },
+                  "Property": "country_name_std"
+                }
+              },
+              "queryRef": "gold_dim_country.country_name_std",
+              "nativeQueryRef": "country_name_std",
+              "active": true
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_procurement"
+                    }
+                  },
+                  "Property": "Total Spend by Country"
+                }
+              },
+              "queryRef": "fact_procurement.Total Spend by Country",
+              "nativeQueryRef": "Total Spend by Country"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Measure": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "fact_procurement"
+                  }
+                },
+                "Property": "Total Spend by Country"
+              }
+            },
+            "direction": "Descending"
+          }
+        ],
+        "isDefaultSort": true
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}
