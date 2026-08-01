@@ -81,8 +81,8 @@ _Measures (hidden table)
   │   ├─ Weighted EPI Score
   │   └─ ...
   ├─ ⚠️ Risk
-  │   ├─ Concentration Risk %
-  │   ├─ HHI Index
+  │   ├─ Supply Risk (Global)
+  │   ├─ Supply Concentration Index
   │   └─ ...
   └─ 🔬 Advanced
       ├─ Spend-Weighted EPI
@@ -487,71 +487,65 @@ RETURN
 
 ## 6. Supply Chain Risk Measures
 
-### 6.1 Concentration Risk
+### 6.1 Supply Risk (Primary) & Supply Concentration (Secondary Lens)
 
-**Max Supply Concentration %**
+Per **DEC-001 Option B** and § Business Logic → Supply Risk. The primary supply-chain risk measure is a governance- & trade-weighted Herfindahl index (HHI), computed per stage (Extraction/Processing) with the bottleneck stage flagged. A simpler single-country concentration view is retained alongside as a secondary lens.
+
+**Scope boundary (DEC-001):** the SR measures are **gross** supply risk — no import-reliance blend of the two indices into a single SR (Option C), and no recycling (`EoL_RIR`) or substitution (`SI_SR`) filters (Option D). They are not official EU CRM SR values; the report must label them as gross.
+
+#### Supply Risk (Global)
+
 ```dax
-Max Supply Concentration % =
-VAR MaxShare = MAX(fact_supply_share[share_pct])
-RETURN
-    MaxShare / 100
+Supply Risk (Global) =
+MAX ( gold_supply_risk[hhi_global] )
 ```
-**Business Logic:** Highest supply share for any single country (e.g., 0.65 = 65% from one country).
 
----
+**Business Logic:** Governance- & trade-weighted HHI over the global production mix (`supply_mix = 'global'`), precomputed in `gold_supply_risk` at grain one row per material × stage × year (DEC-001 Option B; formula `HHI_WGI,t = Σ_c (Sᶜ)² · WGIᶜ · tᶜ`). Reads the precomputed `hhi_global` column.
 
-**Top 3 Supply Concentration %**
+**Aggregation choice — `MAX`:** the grain is unique on (material × stage × year), so `SUM`, `MAX`, and `AVERAGE` all collapse to the same value at the grain. `MAX` is chosen to match the precedent set by the existing `Supply Concentration Index` measure on `fact_supply_share` (which also uses `MAX` on a single-row-per-grain column) and to make the "return the single row's value" intent explicit; `SUM` would silently double-count across stages/years when the filter context is coarser than the grain, and the report is expected to filter to `is_bottleneck = TRUE` for the headline figure rather than rely on the measure's default aggregation.
+
+#### Supply Risk (EU Sourcing)
+
 ```dax
-Top 3 Supply Concentration % =
-VAR Top3Shares =
-    CALCULATE(
-        SUM(fact_supply_share[share_pct]),
-        TOPN(3, fact_supply_share, fact_supply_share[share_pct], DESC)
-    )
-RETURN
-    Top3Shares / 100
+Supply Risk (EU Sourcing) =
+MAX ( gold_supply_risk[hhi_eu_sourcing] )
 ```
-**Business Logic:** Combined supply share of top 3 countries. Used to identify oligopolistic supply chains.
 
----
+**Business Logic:** The same index over the EU sourcing mix (`supply_mix = 'eu_sourcing'`), precomputed in `gold_supply_risk`. Returns `BLANK` when the EU coverage gap leaves `hhi_eu_sourcing = NULL` (a material × stage with global supply data but no EU sourcing rows) — **never 0**, which would misread as "no EU concentration risk" (0 is a legitimate index value meaning perfectly diffuse supply; `MAX` of a `NULL` column yields `BLANK`).
 
-**HHI Index (Herfindahl-Hirschman)**
+#### Supply Risk Contrast
+
 ```dax
-HHI Index =
-SUMX(
-    fact_supply_share,
-    (fact_supply_share[share_pct] / 100) ^ 2
+Supply Risk Contrast =
+DIVIDE ( [Supply Risk (EU Sourcing)], [Supply Risk (Global)] )
+```
+
+**Business Logic:** EU-specific exposure relative to global concentration. `1.4` = EU sourcing is 40% more concentrated than the world. `DIVIDE` returns `BLANK` on divide-by-zero by default, so the contrast is **blank when the global index is 0** (a perfectly diffuse global supply) — matching the `NULL`-not-0 rule on `gold_supply_risk.contrast_ratio` (precomputed as `NULL` when `hhi_global` is 0 or when `hhi_eu_sourcing` is `NULL`). Also blank when `[Supply Risk (EU Sourcing)]` is `BLANK` (EU coverage gap), since `DIVIDE` propagates `BLANK` operands to `BLANK`.
+
+#### WGI vintage & aggregation rule
+
+The `WGIᶜ` governance risk weight in `0..1` (1 = worst governance) is derived as the rescaled **inverse** of the mean of all six WGI dimensions for the latest year available per country:
+
+```
+WGIᶜ = clamp( (2.5 − mean₆(WGI estimates for c, latest year available)) / 5 , 0, 1 )
+```
+
+- **Mean of six** — all six WGI dimensions (Voice & Accountability, Political Stability, Government Effectiveness, Regulatory Quality, Rule of Law, Control of Corruption) are averaged per country.
+- **Latest year per country with all six** — the vintage is the most recent year for which the country has all six estimates; a partial vintage is not substituted forward.
+- **Fixed-bound clamp** — rescaling uses the **fixed theoretical bounds of the World Bank estimate scale (−2.5..+2.5), not the observed min/max of the loaded set.** This is a reproducibility requirement: with observed bounds, adding a country or a new WGI vintage silently re-ranks every material, and the before/after comparison the model is validated against would not be stable between runs. The clamp handles the rare country whose mean estimate falls outside ±2.5.
+- **Inversion is mandatory** — raw WGI runs ≈ −2.5..+2.5 with *higher = better* governance. Used unmodified as a multiplier it would *reward* poorly-governed sourcing — the index would still compute and still look plausible, but every risk ranking would be backwards. The spec requires the inverted, rescaled form.
+
+#### Supply Concentration (Secondary Lens — Retained)
+
+```dax
+Supply Concentration Index =
+CALCULATE (
+    MAX ( fact_supply_share[share_pct] ),
+    fact_supply_share[supply_mix] = "global"
 )
 ```
-**Business Logic:** Market concentration index. Range: 0-1 (or 0-10,000 if not divided by 100).
-- HHI < 0.15: Competitive market
-- HHI 0.15-0.25: Moderate concentration
-- HHI > 0.25: High concentration
 
-**Interpretation:**
-```dax
-HHI Category =
-VAR HHI = [HHI Index]
-RETURN
-    SWITCH(
-        TRUE(),
-        HHI < 0.15, "Low Concentration",
-        HHI < 0.25, "Moderate Concentration",
-        "High Concentration"
-    )
-```
-
----
-
-**High Risk Material Count**
-```dax
-High Risk Material Count =
-CALCULATE(
-    DISTINCTCOUNT(fact_supply_share[material_key]),
-    fact_supply_share[share_pct] > 50
-)
-```
-**Business Logic:** Number of materials with >50% supply from single country.
+**Business Logic:** Percentage of global supply from a single country (the `MAX` share per material/stage). Retained alongside the weighted model as a simple, intuitive concentration view; the report presents the two side by side. **Filtered to `supply_mix = 'global'`** per spec § Semantic Model and § Business Logic — without this filter the measure silently double-counts once EU sourcing rows land in `fact_supply_share` (task-038_2 unioned the two mixes with a `supply_mix` discriminator; the same migration was applied to `v_supply_concentration_risk` in that task). Thresholds (per § Business Logic → Supplier Concentration Risk): Critical >50%, High >30%, Medium >20%, Low ≤20%.
 
 ---
 
@@ -592,7 +586,7 @@ SUMX(
 **Composite Risk Score**
 ```dax
 Composite Risk Score =
-VAR ConcentrationRisk = [HHI Index]
+VAR ConcentrationRisk = [Supply Risk (Global)]
 VAR SustainabilityRisk = 1 - ([Spend-Weighted EPI Score] / 100)
 VAR GovernanceRisk = ([Spend-Weighted WGI Score] + 2.5) / 5  // Normalize -2.5 to +2.5 → 0 to 1
 RETURN
@@ -1056,17 +1050,17 @@ Validation:
 - [ ] Validate score ranges (EPI: 0-100, WGI: -2.5 to +2.5)
 
 ### Phase 5: Risk Measures (0.5 days)
-- [ ] **Concentration Measures (4):**
-  - [ ] Max Supply Concentration %
-  - [ ] Top 3 Supply Concentration %
-  - [ ] HHI Index
-  - [ ] HHI Category
+- [ ] **Supply Risk (3):**
+  - [ ] Supply Risk (Global)
+  - [ ] Supply Risk (EU Sourcing)
+  - [ ] Supply Risk Contrast
+- [ ] **Supply Concentration (1):**
+  - [ ] Supply Concentration Index (filtered to supply_mix = "global")
 - [ ] **Advanced Risk (2):**
-  - [ ] High Risk Material Count
   - [ ] Procurement Alignment Score
   - [ ] Composite Risk Score
 - [ ] Test with material filters
-- [ ] Validate HHI calculation
+- [ ] Validate Supply Risk Contrast blanks when global index is 0
 
 ### Phase 6: Advanced Measures (0.5 days)
 - [ ] **Ranking (2):**
@@ -1145,10 +1139,10 @@ Validation:
 
 ### Supply Chain Risk
 9. ✅ **What is our exposure to concentrated supply chains?**
-   - Use: `HHI Index`, `Top 3 Supply Concentration %`
+   - Use: `Supply Risk (Global)`, `Supply Risk Contrast`
 
 10. ✅ **Which critical materials have >50% supply from one country?**
-    - Use: `High Risk Material Count`, `Max Supply Concentration %`
+    - Use: `Supply Concentration Index`, `Supply Risk (Global)`
 
 11. ✅ **How does our procurement align with global supply patterns?**
     - Use: `Procurement Alignment Score`
@@ -1213,7 +1207,7 @@ RETURN
 
 **Sustainability (8):** Avg EPI Score, Weighted EPI Score, Spend-Weighted EPI, % Spend by EPI Category, Avg WGI Score, WGI indicators, Spend-Weighted WGI
 
-**Risk (7):** Max/Top3 Concentration %, HHI Index, HHI Category, High Risk Material Count, Procurement Alignment, Composite Risk Score
+**Risk (6):** Supply Risk (Global), Supply Risk (EU Sourcing), Supply Risk Contrast, Supply Concentration Index, Procurement Alignment, Composite Risk Score
 
 **Advanced (6):** Material Rank, Top 10 %, Unit Price Volatility, CV, Cumulative Spend %, Is Top 80%
 

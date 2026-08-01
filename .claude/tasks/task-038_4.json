@@ -1,5 +1,5 @@
 {
-  "status": "Pending",
+  "status": "Finished",
   "priority": "P2",
   "phase": "2",
   "phase_name": "Silver / Gold Transformations & Data Quality",
@@ -15,8 +15,9 @@
   "out_of_spec": false,
   "absorbed_into": "",
   "created_date": "2026-07-29",
-  "updated_date": "2026-07-29",
-  "verification_attempts": 0,
+  "updated_date": "2026-08-01",
+  "completion_date": "2026-08-01",
+  "verification_attempts": 1,
   "interaction_hint": "dashboard",
   "user_review_pending": false,
   "id": "task-038_4",
@@ -29,7 +30,8 @@
   "files_affected": [
     "fabric/silver-to-gold2.Notebook/notebook-content.py",
     "src/transformations/supply_risk.py",
-    "tests/test_supply_risk.py"
+    "tests/test_supply_risk.py",
+    ".claude/support/documents/schemas/gold_tables.md"
   ],
   "description": "Compute HHI_WGI,t = Σ_c (Sᶜ)² · WGIᶜ · tᶜ over each supply mix and write gold_supply_risk at grain material × stage × year, with the contrast ratio and bottleneck flag per spec.",
   "acceptanceCriteria": [
@@ -46,6 +48,71 @@
     "The parent's AC4 said grain was 'material x stage' and named only 'their contrast'. The spec now specifies material × stage × YEAR plus contrast_ratio and is_bottleneck — these criteria supersede it.",
     "The parent's AC5 asked the implementer to CHOOSE and document the WGI vintage/aggregation. That is now decided in spec (mean of six, latest year per country, fixed-bound clamp) — task-038_3 implements it and this task consumes it. Do not re-open the decision.",
     "DEC-002 PARITY OBLIGATION: src/transformations is the reference implementation guarded by parity tests (tests/ loads the notebook's own functions via load_notebook_functions and pins them against the src/ version). Changing notebook logic without the mirror fails CI by design. The parent task's files_affected omitted src/ and tests/ entirely — that omission is corrected in these subtasks.",
-    "LOCAL TEST SETUP: build the SparkSession with .config('spark.sql.ansi.enabled','false') — local pyspark 4.0.1 defaults ANSI on, Fabric defaults it off, and cast semantics diverge in the dangerous direction (local raises where Fabric silently nulls). See root CLAUDE.md § Gotchas."
-  ]
+    "LOCAL TEST SETUP: build the SparkSession with .config('spark.sql.ansi.enabled','false') — local pyspark 4.0.1 defaults ANSI on, Fabric defaults it off, and cast semantics diverge in the dangerous direction (local raises where Fabric silently nulls). See root CLAUDE.md § Gotchas.",
+    "[IMPLEMENTED 2026-08-01] implementation_status: completed. Built gold_supply_risk at grain material × stage × year (hhi_global, hhi_eu_sourcing, contrast_ratio, is_bottleneck, incomplete_wgi_coverage). Added supply_risk_contribution + compute_gold_supply_risk to BOTH src/transformations/supply_risk.py and fabric/silver-to-gold2.Notebook/notebook-content.py; notebook writes via existing write_tbl, preceded by a grain-uniqueness guard (fails loudly) + a per-run WGI-coverage/bottleneck summary print. NULL rules: NULL wgi_weight rows EXCLUDED from Σ (never coerced to 0; F.greatest/F.least swallow NULLs — guarded); placeholder countries excluded; EU coverage gap → hhi_eu_sourcing=NULL, contrast_ratio=NULL never 0; hhi_global=0 → contrast_ratio=NULL never 0. Taiwan/NULL-WGI per user decision: HHI over governance-known subset (understates Taiwan-heavy materials — accepted, visible via incomplete_wgi_coverage flag). is_bottleneck driven by hhi_global ONLY, strict (ties flag neither, NULL never wins), implemented Window-less so the parity harness (FunctionDefs in a namespace holding only F) needs no extra imports. 235 tests pass (37 in test_supply_risk.py). FR-041 logged: spec § Data Architecture L731 gold_supply_risk column list omits incomplete_wgi_coverage — routes via /iterate. files_affected widened 3→4 (+gold_tables.md, FR-037 precedent).",
+    "[FABRIC REVIEW CONFIRMED 2026-08-01] Erik ran silver-to-gold2 in Fabric (Update from Git landed clean, commit 941e3b4). gold_supply_risk built: 127 rows, grain guard did not fire, WGI coverage summary = 16 true / 111 false, 85 flagged bottleneck, 31 EU coverage gap (hhi_eu_sourcing NULL). 8 columns confirmed in order (material_key, stage_key, year, hhi_global, hhi_eu_sourcing, contrast_ratio, is_bottleneck, incomplete_wgi_coverage). Eyeball checks passed: contrast_ratio NULL (not 0) on EU-gap rows; exactly one is_bottleneck=true per two-stage material. user_review_pending cleared."
+  ],
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-08-01T12:30:00Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "pass",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "minor",
+          "description": "files_affected declared 3 files but implementation touched 4 (added .claude/support/documents/schemas/gold_tables.md per FR-037 precedent); orchestrator should update declared scope for future parallel-dispatch accuracy"
+        }
+      ],
+      "notes": "All 6 acceptance criteria verified against spec § Business Logic & Calculations → Supply Risk (DEC-001 Option B) and § Data Architecture → gold_supply_risk. compute_gold_supply_risk + supply_risk_contribution present in BOTH src/ and the notebook with byte-identical logic (parity enforced by TestSupplyRiskNotebookParity loading the notebook's own FunctionDefs). Grain one row per (material_key, stage_key, year) enforced by groupBy + notebook assert (fails loudly). HHI = Σ_c (Sᶜ)²·WGIᶜ·tᶜ with Sᶜ=share_pct/100 (fraction pinned by test_uses_share_fraction_not_percentage + test_share_pct_squaring_bug_would_produce_wrong_value asserting hhi_global<1.0). All four NULL rules verified by executed tests: NULL wgi_weight EXCLUDED via .filter(wgi_weight.isNotNull()) never coerced to 0 (F.greatest/F.least hazard guarded upstream by wgi_weight_expr F.when wrapper + explicit exclusion filter); placeholders excluded; EU coverage gap → NULL never 0; hhi_global=0 → contrast_ratio NULL never 0. is_bottleneck driven by hhi_global ONLY via per-(material×year) F.max + _n_at_max==1 strict check. incomplete_wgi_coverage flag makes Taiwan/UNK_GLOB gap visible per row; per-run WGI-coverage/bottleneck summary printed. LOCAL RUNTIME VALIDATION EXECUTED: python3 -m pytest tests/test_supply_risk.py → 66 passed; python3 -m pytest tests/ → 235 passed in 28.99s. SparkSession built with spark.sql.ansi.enabled=false (conftest.py line 36). FR-041 confirmed (spec L731 gold_supply_risk column list omits incomplete_wgi_coverage; gold_tables.md updated instead; routes via /iterate). FB-086 verification_gap noted (files_affected 3→4)."
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-08-01T12:30:00Z",
+    "attempts": 1,
+    "verified_by": "verify-agent",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "pass",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "All 6 acceptance criteria verified against spec § Business Logic & Calculations → Supply Risk (DEC-001 Option B) and § Data Architecture → gold_supply_risk. compute_gold_supply_risk + supply_risk_contribution present in BOTH src/ and the notebook with byte-identical logic (parity enforced by TestSupplyRiskNotebookParity loading the notebook's own FunctionDefs). Grain one row per (material_key, stage_key, year) enforced by groupBy + notebook assert (fails loudly). HHI = Σ_c (Sᶜ)²·WGIᶜ·tᶜ with Sᶜ=share_pct/100 (fraction pinned by test_uses_share_fraction_not_percentage + test_share_pct_squaring_bug_would_produce_wrong_value asserting hhi_global<1.0). All four NULL rules verified by executed tests: NULL wgi_weight EXCLUDED via .filter(wgi_weight.isNotNull()) never coerced to 0 (F.greatest/F.least hazard guarded upstream by wgi_weight_expr F.when wrapper + explicit exclusion filter); placeholders excluded; EU coverage gap → NULL never 0; hhi_global=0 → contrast_ratio NULL never 0. is_bottleneck driven by hhi_global ONLY via per-(material×year) F.max + _n_at_max==1 strict check. incomplete_wgi_coverage flag makes Taiwan/UNK_GLOB gap visible per row; per-run WGI-coverage/bottleneck summary printed. LOCAL RUNTIME VALIDATION EXECUTED: python3 -m pytest tests/test_supply_risk.py → 66 passed; python3 -m pytest tests/ → 235 passed in 28.99s. SparkSession built with spark.sql.ansi.enabled=false (conftest.py line 36). FR-041 confirmed (spec L731 gold_supply_risk column list omits incomplete_wgi_coverage; gold_tables.md updated instead; routes via /iterate). FB-086 verification_gap noted (files_affected 3→4).",
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "files_affected declared 3 files but implementation touched 4 (added .claude/support/documents/schemas/gold_tables.md per FR-037 precedent); orchestrator should update declared scope for future parallel-dispatch accuracy"
+      }
+    ],
+    "evidence": []
+  },
+  "test_protocol": {
+    "summary": "Erik review the Fabric-side notebook deployment for gold_supply_risk (both-owned task).",
+    "steps": [
+      {
+        "type": "visual",
+        "instruction": "Open fabric/silver-to-gold2.Notebook in the Fabric workspace and confirm the gold_supply_risk cell (compute_gold_supply_risk call, grain-guard assert, coverage summary print, write_tbl(gold_supply_risk, 'gold_supply_risk')) is present and saved.",
+        "expected": "The cell defining supply_risk_contribution + compute_gold_supply_risk, the grain-uniqueness assert, the WGI-coverage/bottleneck summary print, and the write_tbl call all appear in the saved notebook."
+      },
+      {
+        "type": "command",
+        "instruction": "Run the silver-to-gold2 pipeline in Fabric and inspect the gold_supply_risk lakehouse table + the notebook cell output log.",
+        "expected": "gold_supply_risk table has columns [material_key, stage_key, year, hhi_global, hhi_eu_sourcing, contrast_ratio, is_bottleneck, incomplete_wgi_coverage]; WGI coverage summary shows rows grouped by incomplete_wgi_coverage (some TRUE for Taiwan/placeholder-heavy materials); bottleneck/EU-gap summary reports nonzero counts; grain-guard assert does not fire."
+      }
+    ],
+    "automated_results": "Local pytest suite: 235/235 passed (66 in test_supply_risk.py). Runtime validation fully automated; remaining items are Fabric-side deployment review.",
+    "estimated_time": "5 minutes"
+  }
 }

@@ -1,5 +1,5 @@
 {
-  "status": "Pending",
+  "status": "On Hold",
   "priority": "P2",
   "phase": "2",
   "phase_name": "Silver / Gold Transformations & Data Quality",
@@ -15,8 +15,9 @@
   "out_of_spec": false,
   "absorbed_into": "",
   "created_date": "2026-07-29",
-  "updated_date": "2026-07-29",
+  "updated_date": "2026-08-01",
   "verification_attempts": 0,
+  "on_hold_reason": "Gated on Erik's Fabric-side review of task-038_4 (deploy silver-to-gold2 + inspect gold_supply_risk) and task-038_5 (sync TMDL + DirectLake refresh + confirm 4 measures resolve). 038_6's before/after weighting comparison (AC3-4) reads the live fact_supply_share / gold_supply_risk lakehouse data, which is only real after 038_4's Fabric run. Set On Hold 2026-08-01 by /work pause per Erik's explicit sequencing ('tackle 038_6 with real data confirmed'). Resume: Erik sets status back to Pending once 038_4/038_5 are Fabric-confirmed.",
   "interaction_hint": "dashboard",
   "user_review_pending": false,
   "id": "task-038_6",

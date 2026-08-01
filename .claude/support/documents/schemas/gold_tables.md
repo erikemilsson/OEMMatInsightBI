@@ -86,6 +86,61 @@ year                        INTEGER (2024)
 score                       DOUBLE
 ```
 
+## Derived / Calculated Tables
+
+### gold_supply_risk
+Grain: One row per material × stage × year
+```
+material_key                BIGINT
+stage_key                   BIGINT
+year                        INTEGER
+hhi_global                  DOUBLE (nullable; Σ_c (Sᶜ)²·WGIᶜ·tᶜ over supply_mix='global')
+hhi_eu_sourcing             DOUBLE (nullable; same over supply_mix='eu_sourcing'; NULL when the key has no EU sourcing rows — the EU coverage gap, never 0)
+contrast_ratio              DOUBLE (nullable; hhi_eu_sourcing / hhi_global; NULL when hhi_global is 0 or NULL, or when hhi_eu_sourcing is NULL — never 0)
+is_bottleneck               BOOLEAN (the stage with the HIGHER hhi_global per material × year; strict — a tie flags neither stage; NULL hhi_global never wins)
+incomplete_wgi_coverage      BOOLEAN (TRUE when any supplier row for this key was excluded due to NULL wgi_weight)
+```
+
+Built by `compute_gold_supply_risk` in `silver-to-gold2.Notebook` (task-038_4),
+mirrored in `src/transformations/supply_risk.py` (DEC-002). Consumes
+`fact_supply_share` (with its `wgi_weight` and `t` columns) and joins
+`gold_dim_country` for `is_placeholder`.
+
+**Shares are fractions, not percentages.** `Sᶜ = share_pct / 100` — `share_pct`
+is stored 0-100 on `fact_supply_share`, and squaring the 0-100 scale silently
+inflates the index by 10^4. A parity test pins the division by 100.
+
+**NULL handling (DEC-009 + user decision, task-038_4):**
+
+- Rows with `wgi_weight IS NULL` are **excluded** from the Σ_c sum — never
+  coerced to 0 (0.0 is a legitimate weight meaning *best governance*; coercing
+  NULL to 0 would read as a perfectly-governed country and silently re-rank every
+  material). The HHI is computed over the governance-known subset only, which
+  **understates risk for Taiwan-heavy materials** (TWN — World Bank publishes no
+  WGI for Taiwan, ever). This is an accepted, visible tradeoff, not a bug.
+- Placeholder countries (`gold_dim_country.is_placeholder = TRUE`, e.g.
+  `UNK_GLOB`) are excluded from the country-level HHI sum regardless of their
+  weight — a placeholder is a bucket, not a country.
+- `incomplete_wgi_coverage` makes the NULL-wgi exclusion **visible per row**
+  rather than silent. A material × stage × year flagged TRUE has an HHI computed
+  over a partial governance subset.
+- EU coverage gap (global rows exist, no eu_sourcing rows) →
+  `hhi_eu_sourcing = NULL` and `contrast_ratio = NULL` — **never 0**, which
+  would misread as "no EU concentration risk" (0 is a legitimate index value
+  meaning perfectly diffuse supply).
+- `hhi_global = 0` → `contrast_ratio = NULL`, never 0.
+
+**`is_bottleneck` is driven by `hhi_global` ONLY** (not `hhi_eu_sourcing`, not
+the max of the two), so it stays defined when EU coverage is missing. The
+methodology reports SR at the bottleneck stage (E/P); gold retains both stages
+and flags the bottleneck rather than collapsing to one row, so the
+extraction-vs-processing comparison stays available to the report.
+
+See `spec_v1 § Business Logic & Calculations → Supply Risk` (DEC-001 Option B)
+for the formula and the scope boundary (gross supply risk — no import-reliance
+blend, no recycling/substitution filters; the "gross" labelling is the report
+job, not this table).
+
 ## Dimension Tables
 
 ### gold_dim_country
