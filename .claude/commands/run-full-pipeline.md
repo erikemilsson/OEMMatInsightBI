@@ -210,7 +210,9 @@ print(f"\nUnmapped procurement records: {unmapped_count} (lower is better)")
 
 **Pipeline Fails at Bronze Stage:**
 - Check source system connectivity (Azure SQL, HTTP endpoints)
-- Verify dataflow connections are configured correctly
+- Verify the Fabric connection `oem_azuresql_procurement` is bound (Manage connections
+  and gateways → Connections) — bronze ingestion is via Copy activities (Azure SQL) and
+  TridentNotebook activities (EPI/WGI), not dataflow refreshes (task-035, task-048)
 - Review activity error message in "Output" tab
 - See `/run-bronze` command for detailed troubleshooting
 

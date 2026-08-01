@@ -53,19 +53,20 @@ az datafactory pipeline create-run \
    source's RAW day/year-transposed dates; the correction runs in `bronze-to-silver`
 
 > The `bronze_azureSQLdb2table` dataflow was retired and deleted 2026-07-31 (task-048).
-> **Also stale below:** the EPI/WGI steps still say "open dataflow → Refresh", but
-> task-035 moved both to notebooks (`bronze_ingest_epi`, `bronze_ingest_wgi`). That is
-> task-035 drift, left for a separate pass rather than widened into this one.
+> EPI/WGI ingestion is also via TridentNotebook activities (`bronze_ingest_epi`,
+> `bronze_ingest_wgi`) since task-035 — the `EPI_file2table` and `WGI_file2table`
+> dataflow items still exist in the workspace but are **not** on the pipeline's
+> activity path. Do not run them as a substitute for the activities below.
 
 **Bronze EPI:**
-1. Open dataflow: `EPI_file2table`
-2. Click "Refresh" button
+1. Open the pipeline `orchestrator_pipeline_bronze_to_gold`
+2. Run the `bronze_EPI` TridentNotebook activity (notebook `bronze_ingest_epi`)
 3. Outputs: `bronze_epi2024results`
 
 **Bronze WGI:**
-1. Open dataflow: `WGI_file2table`
-2. Click "Refresh" button
-3. Outputs: `bronze_WB_ESGCSV`, `bronze_WB_ESGSeries`
+1. Open the pipeline `orchestrator_pipeline_bronze_to_gold`
+2. Run the `bronze_WGI` TridentNotebook activity (notebook `bronze_ingest_wgi`)
+3. Outputs: `bronze_WGI` (six World Bank indicators, long format)
 
 **Bronze EU Supply Shares:**
 1. Run copy activity: `bronzecopy_EUSupplyShares` from pipeline
@@ -106,13 +107,17 @@ for table in tables:
 
 **Azure SQL Connection Failed:**
 - Check firewall rules allow Fabric IP addresses
-- Verify authentication credentials in dataflow connection
-- Test connection in dataflow editor
+- Verify the Fabric connection `oem_azuresql_procurement` is bound (Manage connections
+  and gateways → Connections) — procurement ingestion is via the Copy activities
+  `bronzecopy_procurement_transactional` and `bronzecopy_supplier_ref` (task-048 retired
+  the `bronze_azureSQLdb2table` dataflow; the dataflow workspace item is deleted)
+- Test the connection from its context menu in Manage connections and gateways
 
-**EPI/WGI File Not Found:**
-- Verify CSV files uploaded to workspace
-- Check dataflow source configuration
-- Ensure file paths are correct
+**EPI/WGI Notebook Failure:**
+- EPI/WGI are TridentNotebook activities (`bronze_ingest_epi`, `bronze_ingest_wgi`) since
+  task-035 — not dataflow refreshes. Check the notebook's output cell for the raised error
+- EPI: a 404 means Yale has no file for that `p_epi_year`, or changed the URL pattern
+- WGI: check network access to `api.worldbank.org` from the Fabric capacity
 
 **HTTP Copy Failed (EU Supply Shares):**
 - Check internet connectivity from Fabric
@@ -129,5 +134,7 @@ After bronze ingestion succeeds:
 ## Related Files
 
 - `/fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/`
-- `/fabric/EPI_file2table.Dataflow/`
-- `/fabric/WGI_file2table.Dataflow/`
+- `/fabric/bronze_ingest_epi.Notebook/` (EPI ingestion, since task-035)
+- `/fabric/bronze_ingest_wgi.Notebook/` (WGI ingestion, since task-035)
+- `/fabric/EPI_file2table.Dataflow/` — workspace item only, NOT on the pipeline path
+- `/fabric/WGI_file2table.Dataflow/` — workspace item only, NOT on the pipeline path

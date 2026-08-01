@@ -258,7 +258,8 @@ Every edge uses `dependencyConditions: ["Succeeded"]`.
 ## Performance Optimization (Task 12)
 
 **Current Bottlenecks:** (To be measured)
-- Bronze ingestion: Dataflow refresh times
+- Bronze ingestion: Copy activity throughput (Azure SQL) and TridentNotebook run times
+  (EPI/WGI) — there are no dataflow refreshes on the pipeline (task-035, task-048)
 - Gold transformation: Complex surrogate key generation and alias resolution
 - Warehouse sync: Large table copy
 
@@ -299,7 +300,8 @@ Every edge uses `dependencyConditions: ["Succeeded"]`.
 
 ### Activity Timeout
 - Review activity timeout setting (currently 12 hours - very generous)
-- Check notebook/dataflow logs for infinite loops or hangs
+- Check notebook activity logs for infinite loops or hangs (there are no dataflow
+  refreshes on the pipeline path — task-035, task-048)
 - Increase timeout if legitimately long-running
 
 ### Activity Failure - Retry Exhausted

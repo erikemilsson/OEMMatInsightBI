@@ -11,15 +11,19 @@
 | Artifact | Type | Purpose | Status |
 |----------|------|---------|--------|
 | ~~`bronze_azureSQLdb2table`~~ | Dataflow | Ingested procurement data from Azure SQL | ❌ Retired 2026-07-31 — replaced by Copy activities `bronzecopy_procurement_transactional` + `bronzecopy_supplier_ref` ([manifest](../../.claude/support/retired/bronze-azuresqldb2table-dataflow/manifest.json)) |
-| `EPI_file2table` | Dataflow | Ingests Environmental Performance Index data | ✅ Active |
-| `WGI_file2table` | Dataflow | Ingests World Governance Indicators | ✅ Active |
+| `EPI_file2table` | Dataflow | Was the EPI ingestion mechanism before task-035 | ⚠️ Workspace item only — NOT on the pipeline path (task-035 moved EPI to the `bronze_ingest_epi` TridentNotebook activity) |
+| `WGI_file2table` | Dataflow | Was the WGI ingestion mechanism before task-035 | ⚠️ Workspace item only — NOT on the pipeline path (task-035 moved WGI to the `bronze_ingest_wgi` TridentNotebook activity) |
 
 ### 📓 Notebooks (Transformations)
 | Artifact | Type | Purpose | Status |
 |----------|------|---------|--------|
+| `bronze_ingest_epi` | Notebook | EPI ingestion from Yale (since task-035) | ✅ Active |
+| `bronze_ingest_wgi` | Notebook | WGI ingestion from World Bank API (since task-035) | ✅ Active |
 | `bronze-to-silver` | Notebook | Bronze → Silver cleaning transformations | ✅ Active |
 | `silver-to-gold2` | Notebook | Silver → Gold star schema creation | ✅ Active |
 | `data_quality_analysis` | Notebook | Data quality monitoring and reporting | ✅ Active |
+| `data_quality_checks` | Notebook | Pipeline data quality checks (on the pipeline path) | ✅ Active |
+| `pipeline_error_handler` | Notebook | Error categorisation + execution-log write | ✅ Active |
 
 ### 💾 Storage
 | Artifact | Type | Purpose | Status |

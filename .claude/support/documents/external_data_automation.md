@@ -17,7 +17,10 @@ This document provides comprehensive research findings on automating the ingesti
 **Implementation (2026-04-05):**
 - ✅ **EPI notebook:** `fabric/bronze_ingest_epi.Notebook/` — downloads CSV via `requests`, writes to `bronze_epi2024results`
 - ✅ **WGI notebook:** `fabric/bronze_ingest_wgi.Notebook/` — calls World Bank API v2 (JSON), writes to `bronze_WGI`
-- ⏭️ **Pipeline wiring:** Erik to replace dataflow activities with notebook activities in Fabric UI
+- ✅ **Pipeline wiring:** done (task-035, 2026-07-26) — `bronze_EPI` and `bronze_WGI` are
+  TridentNotebook activities in `orchestrator_pipeline_bronze_to_gold`; the
+  `EPI_file2table` / `WGI_file2table` dataflow items still exist in the workspace but are
+  not on the pipeline's activity path
 
 ---
 
@@ -369,11 +372,17 @@ else:
 
 ### Phase 1: Replace Manual Dataflows (Quick Win)
 
-**Current State:**
+> **Implemented 2026-07-26 (task-035):** the pipeline now runs `bronze_ingest_epi` and
+> `bronze_ingest_wgi` TridentNotebook activities. The "Target State" below (Copy
+> activities) was the original 2026-04-05 design; the shipped solution uses notebooks
+> instead, which avoid the dataflow credential-stripping problem. The original Phase 1
+> text is retained as historical design context.
+
+**Current State (pre-task-035, historical):**
 - `EPI_file2table.Dataflow` - Manual file upload
 - `WGI_file2table.Dataflow` - Manual file upload (was WB_file2table)
 
-**Target State:**
+**Target State (original 2026-04-05 design — superseded by notebooks):**
 - `EPI_HTTP_download.CopyActivity` - Automated download from Yale
 - `WGI_API_download.CopyActivity` - Automated download from World Bank API
 
@@ -542,7 +551,12 @@ def validate_epi_schema(df):
 
 ### Pipeline Performance
 
-**Current (Manual Upload):**
+> **Note:** the "Current (Manual Upload)" state below is the pre-task-035 baseline.
+> Since task-035 (2026-07-26) the pipeline runs the `bronze_ingest_epi` and
+> `bronze_ingest_wgi` TridentNotebook activities directly — the "Automated" column is
+> the shipped state.
+
+**Current (Manual Upload, pre-task-035):**
 - User downloads files manually
 - User uploads to Fabric
 - Dataflow ingests from uploaded files
@@ -605,9 +619,16 @@ https://www.worldbank.org/en/publication/worldwide-governance-indicators
 
 ### Remaining (Erik in Fabric UI)
 
-⏭️ **Pipeline Wiring** - Replace `bronze_EPI` (RefreshDataflow) and `bronze_WGI` (RefreshDataflow) activities in `orchestrator_pipeline_bronze_to_gold` with TridentNotebook activities pointing to the new notebooks
-⏭️ **Test End-to-End** - Run full pipeline, verify data flows through bronze->silver->gold
-⏭️ **Decommission Dataflows** - Remove `EPI_file2table.Dataflow` and `WGI_file2table.Dataflow` after validation
+✅ **Pipeline Wiring** - Done (task-035, 2026-07-26): `bronze_EPI` and `bronze_WGI` are
+TridentNotebook activities in `orchestrator_pipeline_bronze_to_gold` pointing at
+`bronze_ingest_epi` / `bronze_ingest_wgi`. No RefreshDataflow activities remain on the
+pipeline (task-048 later retired the `bronze_procurement` RefreshDataflow too).
+✅ **Test End-to-End** - Done (task-035): live pipeline run green end-to-end with both
+notebooks succeeding.
+⏭️ **Decommission Dataflows** - DEFERRED follow-up (not on this task's path): the
+`EPI_file2table.Dataflow` and `WGI_file2table.Dataflow` workspace items still exist but
+are not referenced by the pipeline. Remove them from the workspace once the notebook
+lineage is confirmed stable over a longer window.
 
 ### Future Enhancements
 

@@ -614,17 +614,19 @@ if missing_wgi_columns:
     raise RuntimeError(
         f"bronze_WGI is missing {missing_wgi_columns}.\n"
         f"  Columns present: {df_wgi.columns}\n"
-        "  CAUSE: bronze_WGI is still being written by the retired WGI_file2table.Dataflow "
+        "  CAUSE: bronze_WGI is being written by the retired WGI_file2table.Dataflow "
         "(Excel, 2023 percentile ranks, ~5 indicators) rather than by "
         "bronze_ingest_wgi.Notebook (World Bank API, long format, 6 indicators, estimates).\n"
         "  WHY NOT FALL BACK: silver_wgi must preserve Year/Value "
         "(spec_v1 § Data Transformations #3, DEC-001) — the identity-only projection this "
         "notebook used to emit is exactly the defect task-031 removed, and the dataflow's "
         "percentile ranks are not interchangeable with the API's estimates.\n"
-        "  FIX: complete task-035 — replace the 'bronze_WGI' RefreshDataflow activity in "
-        "orchestrator_pipeline_bronze_to_gold with a TridentNotebook activity calling "
-        "bronze_ingest_wgi. Running bronze_ingest_wgi by hand unblocks a single run, but "
-        "the next pipeline run overwrites bronze_WGI from the dataflow again."
+        "  FIX: task-035 shipped (2026-07-26) — the 'bronze_WGI' activity in "
+        "orchestrator_pipeline_bronze_to_gold is a TridentNotebook calling bronze_ingest_wgi, "
+        "so the pipeline no longer overwrites bronze_WGI from the dataflow. If you are "
+        "seeing this, the activity has been re-pointed at the dataflow, or the dataflow was "
+        "run by hand and then the pipeline in the same session. Re-point the activity at "
+        "bronze_ingest_wgi.Notebook (the shipped state) to fix it permanently."
     )
 
 # Standardize columns: snake_case names, UPPER ISO3, typed year/value.

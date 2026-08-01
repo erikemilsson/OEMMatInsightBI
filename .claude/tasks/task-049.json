@@ -1,6 +1,6 @@
 {
   "id": "task-049",
-  "status": "Pending",
+  "status": "Finished",
   "priority": "P1",
   "phase": "4",
   "phase_name": "CI/CD Deployment",
@@ -13,9 +13,9 @@
   "out_of_spec": false,
   "absorbed_into": "",
   "created_date": "2026-07-31",
-  "updated_date": "2026-07-31",
-  "completion_date": null,
-  "verification_attempts": 0,
+  "updated_date": "2026-08-01",
+  "completion_date": "2026-08-01",
+  "verification_attempts": 1,
   "interaction_hint": "dashboard",
   "user_review_pending": false,
   "difficulty": 4,
@@ -32,7 +32,11 @@
     ".claude/commands/run-full-pipeline.md",
     ".claude/commands/run-silver.md",
     "fabric/bronze-to-silver.Notebook/notebook-content.py",
-    "docs/architecture/fabric-artifacts-inventory.md"
+    "docs/architecture/fabric-artifacts-inventory.md",
+    ".claude/support/documents/error_handling_strategy.md",
+    "docs/architecture/data-flow-diagram.md",
+    "docs/guides/pipeline_schedule.md",
+    "README.md"
   ],
   "description": "Close the documentation-drift class left by two completed migrations, plus one stale decision record. task-048 retired bronze_azureSQLdb2table (Dataflow Gen2 -> two Copy activities; the workspace item is DELETED and returns 404) and task-035 earlier moved EPI/WGI ingestion from dataflows to notebooks. Both shipped; neither fully closed its documentation surface, and the two drifts are interleaved in the SAME files, which is why task-048's own attempts to fix its slice kept missing instances. Split out of task-048 by user decision 2026-07-31 after that task escalated at the 3-attempt verification threshold with all 7 of its acceptance criteria passing and only cross-file doc consistency failing.",
   "acceptanceCriteria": [
@@ -52,6 +56,66 @@
     "KNOWN INSTANCES AT CREATION (a starting sample \u2014 the probe defines the real population, per criterion 3). task-048 slice: medallion_architecture.md:137 ('**Ingestion Methods:** - Dataflow (Azure SQL)', twelve lines below the table task-048 rewrote to name the Copy activities, so the file contradicts itself); data_sources.md:194 (Source->Bronze diagram annotates the Azure SQL path '(dataflow)' while EPI/WGI are annotated '(notebook)' \u2014 the annotation IS the mechanism claim); data_sources.md:247-249 and run-bronze.md:107-110 (the operational runbooks, criterion 0); data_sources.md:11 ('**Authentication:** (TBD - verify in dataflow connection)' although the answer, Fabric connection `oem_azuresql_procurement`, is stated 29 lines below); data_sources.md:268 ('the next pipeline run overwrites bronze from the dataflow'); orchestration.md:261 ('Bronze ingestion: Dataflow refresh times' as a current bottleneck, in the doc task-048 rewrote from live state); run-full-pipeline.md:213 ('Verify dataflow connections are configured correctly' as bronze-stage triage, in a file task-048 rewrote); error_recovery_playbook.md:76 (Symptoms still reads 'on the procurement dataflow' inside a section task-048 otherwise corrected).",
     "GROUND TRUTH for anything that needs re-deriving: the pipeline has 10 activities \u2014 6 bronze (bronzecopy_EUSupplyShares, bronzecopy_GlobalSupplyShares, bronzecopy_procurement_transactional, bronzecopy_supplier_ref all Copy retry=3/300s; bronze_WGI, bronze_EPI both TridentNotebook retry=2/30s), then bronze-to-silver (retry 2/120s, depends on all 6), silver-to-gold (2/120s), data_quality_checks (1/120s), pipeline_error_handler (0/30s, runs on every outcome). ZERO RefreshDataflow. Azure SQL is read via Fabric connection oem_azuresql_procurement (da9667d6-9df0-492e-83e0-de4a55fc388e), shared with security group Fabric-SPN-Access (dbe8361c-5810-4e35-8958-6d1b7cdd3680). The dataflow item 47f7a4ab-2b69-4275-8171-1f6bd55b25e4 is DELETED \u2014 REST GET returns 404. Only EPI_file2table and WGI_file2table remain as Dataflow items, and neither is on the pipeline's activity path.",
     "DO NOT re-open task-048's engineering. Do not touch pipeline-content.json, the Copy activities, the connection, correct_procurement_date, its tests, or the retirement snapshot. This task is documentation only. The one code file listed in files_affected (bronze-to-silver notebook-content.py) is there solely for the stale task-035 instruction inside an error string at ~line 624.",
-    "Bronze holds the source's RAW day/year-transposed dates by design \u2014 a Copy activity cannot transform, so the correction runs in bronze-to-silver. Any doc describing bronze procurement dates as usable is wrong; point readers at silver."
-  ]
+    "Bronze holds the source's RAW day/year-transposed dates by design \u2014 a Copy activity cannot transform, so the correction runs in bronze-to-silver. Any doc describing bronze procurement dates as usable is wrong; point readers at silver.",
+    "[IMPLEMENTED 2026-08-01] implementation_status: completed. 14 files modified, all 8 acceptance criteria met, 210 tests pass. Decision-004 accepted as point-in-time (criterion 5 option b, DEC-016) \u2014 NOT edited inline; recorded here, not as a new DEC (task-scoped disposition, non-blocking, non-architectural).",
+    "CRITICAL PROBE-DISCIPLINE FINDING: naive `rg -i 'dataflow'` (no --hidden) returned only 88 hits \u2014 ripgrep silently skips ALL hidden dirs by default, so the entire .claude/ tree (304 hits across tasks/commands/support-documents) was invisible. This is the SAME r4 root-narrowing failure mode task-049 exists to enforce against. Corrected by searching explicit dirs (.claude/ + non-hidden tree). Fifth face of the same bug: truncation / supplied-list / narrow-term / narrow-root / hidden-dir-default-exclusion.",
+    "PROBE COMMANDS (pre-fix and post-fix used the SAME command for apples-to-apples): `rg -i -n 'dataflow' --no-heading .claude/ .github/ src/ fabric/ tests/ docs/ scripts/ README.md CONTRIBUTING.md project_definition.md nb-pcs-snapshot.md` | `rg -n 'RefreshDataflow' --no-heading <same dirs>` | `rg -n 'bronze_procurement' --no-heading <same dirs>` | `rg -n 'bronze_procurement_transactional' --no-heading <same dirs>` (last is a subtractable subset to derive the non-transactional count).",
+    "PRE-FIX COUNTS: dataflow(ci)=392 | RefreshDataflow=89 | bronze_procurement(all)=159 | bronze_procurement_transactional=105 | bronze_procurement(non-transactional)=54.",
+    "POST-FIX COUNTS: dataflow(ci)=388 (-4) | RefreshDataflow=90 (+1) | bronze_procurement(all)=161 (+2) | bronze_procurement_transactional=105 (unchanged) | bronze_procurement(non-transactional)=56 (+2).",
+    "DELTA INTERPRETATION: raw counts did NOT drop to zero because edits ADDED explanatory past-tense mentions ('the dataflow is retired', 'no dataflow refreshes on the pipeline', point-in-time annotation banners) while REMOVING stale current-state claims ('Verify authentication credentials in dataflow', 'Open dataflow: EPI_file2table', 'Bronze ingestion: Dataflow refresh times', 'Dataflow (Azure SQL)'). Delta analysis (comm -23 / comm -13 on sorted pre/post probe files) confirms every REMOVED line is a stale current-state claim and every ADDED line is past-tense/annotation/corrective. All remaining hits dispositioned EXEMPT (archival / past-tense / generic dataflow-concept / point-in-time-annotated / decision-record / generated / test-fixture / variable-name) or DEFERRED (table-name drift). No hit unclassified.",
+    "PATH EXCLUSIONS: NONE in the recorded probe (explicit-dir enumeration includes .claude/ \u2014 the load-bearing dir r4 missed). Earlier exploratory `rg` without --hidden silently excluded .claude/ (88 vs 392) \u2014 r4 failure recurring, basis of the template_gap friction marker.",
+    "CRITERION 0 (operational runbooks first): data_sources.md L247-249 + run-bronze.md L107-110 \u2014 'Verify authentication credentials in dataflow' / 'Test connection in dataflow editor' replaced with Fabric-connection guidance naming oem_azuresql_procurement + the two Copy activities. DONE.",
+    "CRITERION 1 (repo-wide probe, no truncation, command+count recorded): DONE. No head pipe. Grep(ripgrep) used. CRITERION 2 (feature class: dataflow/RefreshDataflow/bronze_procurement-less-_transactional): DONE. CRITERION 3 (every hit dispositioned FIXED/EXEMPT-with-reason/DEFERRED, none unclassified): DONE.",
+    "CRITERION 4 (task-035 residual drift): run-silver.md L178 'complete task-035'->'task-035 shipped'; external_data_automation.md L608 pending->done; bronze-to-silver notebook-content.py L624 error string updated; fabric-artifacts-inventory.md EPI/WGI '\u2705 Active'->'\u26a0\ufe0f Workspace item only \u2014 NOT on pipeline path'; run-bronze.md EPI/WGI 'open dataflow\u2192Refresh'->TridentNotebook activity steps. DONE.",
+    "CRITERION 5 (decision-004 not edited inline): DONE \u2014 accepted as point-in-time (option b). Arithmetic (8 activities/3 RefreshDataflow+2 Copy) is load-bearing context for the Option-A fan-in topology CHOICE, not a current-state claim. Live state captured in pipeline-content.json, orchestration.md (L127 'Activities: 10 \u2014 6 bronze (4 Copy, 2 TridentNotebook; 0 RefreshDataflow)'), error_recovery_playbook.md, + new error_handling_strategy.md annotation. Routing via /research or /iterate remains available separately.",
+    "CRITERION 5b (error_handling_strategy.md, NOT in files_affected): annotated as point-in-time (2026-04-05 design doc) at Retry Configuration table (\u00a73) + Troubleshooting Matrix. Decision: annotate not rewrite \u2014 the file's 'Recommended Retries' column IS what task-011 shipped. Listed in files_modified.",
+    "CRITERION 6 (re-run same probe post-fix, output recorded): DONE \u2014 POST-FIX COUNTS above. Same command as pre-fix. Population demonstrated closed: every remaining hit EXEMPT/DEFERRED, none unclassified.",
+    "NON-BLOCKING FOLLOW-UPS (DEFERRED, suggested -> new tasks): (1) table-name drift bronze_procurement -> bronze_procurement_transactional in 7 files (README L66, data-flow-diagram L15, data_quality_architecture L14, data_coverage_flow L48, coding_standards L148, performance-baselines L38, performance_monitor.py L270 comment) \u2014 a DIFFERENT drift class (earlier rename, not the dataflow migration); (2) README.md L125 procurement_array example value uses non-live sink names; (3) decommissioning EPI_file2table/WGI_file2table workspace items (still exist, not on pipeline path).",
+    "FILES MODIFIED (14 deliverables): data_sources.md, medallion_architecture.md, orchestration.md, error_recovery_playbook.md, external_data_automation.md, error_handling_strategy.md, run-bronze.md, run-full-pipeline.md, run-silver.md, bronze-to-silver.Notebook/notebook-content.py, fabric-artifacts-inventory.md, data-flow-diagram.md, pipeline_schedule.md, README.md. (files_affected declared 10; 4 extras: error_handling_strategy.md, data-flow-diagram.md, pipeline_schedule.md, README.md \u2014 see FB-086 at verify time.)",
+    "[CORRECTION 2026-08-01, verify-agent] The criterion-5 note above cites 'orchestration.md L127' for the 'Activities: 10 \u2014 6 bronze (4 Copy, 2 TridentNotebook; 0 RefreshDataflow)' line; that line is actually in fabric_workspace.md L127. Substance correct, location mis-attributed. Non-blocking."
+  ],
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-08-01T00:00:00Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "minor",
+          "description": "files_affected declared 10 files but implementation modified 14; the 4 extras (error_handling_strategy.md, data-flow-diagram.md, pipeline_schedule.md, README.md) are in-scope drift fixes \u2014 orchestrator should update files_affected per State Persistence Protocol \u00a7 'After verify-agent returns' item 8"
+        }
+      ],
+      "notes": "Documentation-drift cleanup verified independently. All 8 acceptance criteria met. Pipeline ground truth re-derived from pipeline-content.json: 10 activities (4 Copy retry=3/300s \u2014 bronzecopy_EUSupplyShares/GlobalSupplyShares/procurement_transactional/supplier_ref; 2 TridentNotebook retry=2/30s \u2014 bronze_WGI/bronze_EPI; bronze-to-silver 2/120s, silver-to-gold 2/120s, data_quality_checks 1/120s, pipeline_error_handler 0/30s every-outcome); ZERO RefreshDataflow. Criterion 0: operational runbooks now route to Fabric connection oem_azuresql_procurement + the two Copy activities. Criteria 1-3: probe recorded, Grep/ripgrep used, no head pipe, .claude/ explicitly enumerated; spot-checked remaining hits (parameter.yml generic fabric-cicd limitation, spec_v1.md retired markers/past-tense, incremental_load_strategy.md DEFERRED task-029 + HISTORICAL, fabric_workspace.md 0 live/3 retired) all legitimately EXEMPT/DEFERRED, none unclassified. Criterion 4: all 5 task-035 sites closed. Criterion 5: decision-004 git diff = 0 lines \u2014 NOT edited inline (DEC-016). Criterion 5b: error_handling_strategy.md annotated point-in-time. Criterion 6: post-fix probe recorded (388/90/161/105); independent re-run (398/95/166/109) differs only because task-049.json's own notes were augmented with probe/count text after the implementer's post-fix snapshot \u2014 population closed per criterion-3 spot-check. Tests: 210 pass. task-048 engineering untouched (pipeline-content.json 0-line diff, retired snapshot 0-line diff). FB-086: 14 modified vs 10 declared; 4 extras in-scope. Minor attribution discrepancy in implementer notes: criterion-5 note cites 'orchestration.md L127' for the Activities:10 line but it is actually in fabric_workspace.md L127 \u2014 substance correct, location mis-attributed; non-blocking, corrected in task notes."
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-08-01T00:00:00Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "not_applicable",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "Documentation-drift cleanup verified independently. All 8 acceptance criteria met. Pipeline ground truth re-derived from pipeline-content.json: 10 activities (4 Copy retry=3/300s \u2014 bronzecopy_EUSupplyShares/GlobalSupplyShares/procurement_transactional/supplier_ref; 2 TridentNotebook retry=2/30s \u2014 bronze_WGI/bronze_EPI; bronze-to-silver 2/120s, silver-to-gold 2/120s, data_quality_checks 1/120s, pipeline_error_handler 0/30s every-outcome); ZERO RefreshDataflow. Criterion 0: operational runbooks now route to Fabric connection oem_azuresql_procurement + the two Copy activities. Criteria 1-3: probe recorded, Grep/ripgrep used, no head pipe, .claude/ explicitly enumerated; spot-checked remaining hits (parameter.yml generic fabric-cicd limitation, spec_v1.md retired markers/past-tense, incremental_load_strategy.md DEFERRED task-029 + HISTORICAL, fabric_workspace.md 0 live/3 retired) all legitimately EXEMPT/DEFERRED, none unclassified. Criterion 4: all 5 task-035 sites closed. Criterion 5: decision-004 git diff = 0 lines \u2014 NOT edited inline (DEC-016). Criterion 5b: error_handling_strategy.md annotated point-in-time. Criterion 6: post-fix probe recorded (388/90/161/105); independent re-run (398/95/166/109) differs only because task-049.json's own notes were augmented with probe/count text after the implementer's post-fix snapshot \u2014 population closed per criterion-3 spot-check. Tests: 210 pass. task-048 engineering untouched (pipeline-content.json 0-line diff, retired snapshot 0-line diff). FB-086: 14 modified vs 10 declared; 4 extras in-scope. Minor attribution discrepancy in implementer notes: criterion-5 note cites 'orchestration.md L127' for the Activities:10 line but it is actually in fabric_workspace.md L127 \u2014 substance correct, location mis-attributed; non-blocking, corrected in task notes.",
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "files_affected declared 10 files but implementation modified 14; the 4 extras (error_handling_strategy.md, data-flow-diagram.md, pipeline_schedule.md, README.md) are in-scope drift fixes \u2014 orchestrator should update files_affected per State Persistence Protocol \u00a7 'After verify-agent returns' item 8"
+      }
+    ],
+    "evidence": []
+  }
 }

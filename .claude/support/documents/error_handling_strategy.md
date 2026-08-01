@@ -223,6 +223,19 @@ def should_retry(error_message: str, retry_attempt: int, max_retries: int) -> bo
 
 ## 3. Retry Configuration by Activity
 
+> **Point-in-time (2026-04-05 design doc).** This table is the design baseline that
+> task-011 implemented. The **"Current Retries"** column reflects the *pre-task-011*
+> pipeline (fail-fast, 0 retries everywhere) — it is NOT the live state. The **"Type"**
+> column also predates two later migrations: `bronze_WGI` / `bronze_EPI` are
+> `TridentNotebook` activities since task-035 (not `RefreshDataflow`), and
+> `bronze_procurement` was retired by task-048 and replaced by two Copy activities
+> (`bronzecopy_procurement_transactional`, `bronzecopy_supplier_ref`). The live retry
+> configuration is in `fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/pipeline-content.json`
+> (Copy retry=3/300s, EPI/WGI TridentNotebook retry=2/30s, bronze-to-silver retry=2/120s,
+> silver-to-gold2 retry=2/120s, data_quality_checks retry=1/120s, pipeline_error_handler
+> retry=0/30s) and summarised in `.claude/support/documents/architecture/orchestration.md`.
+> The "Recommended Retries" column below is what task-011 shipped.
+
 ### Activity-Specific Retry Settings
 
 | Activity Name | Type | Current Retries | Recommended Retries | Retry Interval | Timeout | Rationale |
@@ -815,6 +828,13 @@ def send_slack_notification(
 ## 6. Troubleshooting Guide
 
 ### Troubleshooting Matrix
+
+> **Point-in-time (2026-04-05 design doc).** Rows referencing "Dataflow refresh" apply to
+> the pre-task-035/pre-task-048 pipeline. Since task-035 and task-048 there are no
+> RefreshDataflow activities on the pipeline path — EPI/WGI are TridentNotebook activities
+> and Azure SQL is via Copy activities. The dataflow-refresh rows are retained as generic
+> design reference for any future dataflow use; they are not actionable against the
+> current pipeline.
 
 | Error Pattern | Root Cause | Diagnosis Steps | Resolution | Prevention |
 |---------------|------------|-----------------|------------|------------|

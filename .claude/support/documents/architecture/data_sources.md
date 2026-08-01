@@ -8,7 +8,7 @@ This project integrates data from 4 primary sources: 1 transactional database + 
 
 **Server:** `procurement-supplier.database.windows.net`
 **Database:** `procurement-supplier-db`
-**Authentication:** (TBD - verify in dataflow connection)
+**Authentication:** Fabric connection `oem_azuresql_procurement` (service principal, shared with security group `Fabric-SPN-Access`). The retired `bronze_azureSQLdb2table` dataflow bound this credential inside its own definition; the Copy activities that replaced it (task-048) bind it at the workspace connection level instead.
 
 ### Tables
 
@@ -191,7 +191,7 @@ two silver tables carry the same column contract and the gold union needs no spe
 
 ### Source → Bronze
 ```
-Azure SQL ──────────────> bronze_procurement_transactional      (dataflow)
+Azure SQL ──────────────> bronze_procurement_transactional      (copy activity)
                           bronze_supplier_ref
 
 Yale EPI HTTPS ────────> bronze_epi{year}results                (notebook)
@@ -245,8 +245,11 @@ EU CRM HTTP ───────────> bronze_GlobalSupplyShares        
 
 ### Azure SQL Connection Failed
 - Check firewall rules (allow Fabric IP addresses)
-- Verify authentication credentials in dataflow
-- Test connection in dataflow editor
+- Verify the Fabric connection `oem_azuresql_procurement` is bound (Manage connections and
+  gateways → Connections) — procurement ingestion is via the Copy activities
+  `bronzecopy_procurement_transactional` and `bronzecopy_supplier_ref` (task-048 retired
+  the `bronze_azureSQLdb2table` dataflow; the dataflow workspace item is deleted)
+- Test the connection from its context menu in Manage connections and gateways
 
 ### EPI download fails
 - A 404 means Yale has no file for that `p_epi_year`, or changed the URL pattern — the
@@ -263,10 +266,13 @@ EU CRM HTTP ───────────> bronze_GlobalSupplyShares        
   periodically — see the code-mapping note in § 3)
 
 ### `bronze-to-silver` fails with "bronze_WGI is missing ['Indicator Code', 'Year', 'Value']"
-- `bronze_WGI` is being written by the retired `WGI_file2table.Dataflow` rather than by
-  `bronze_ingest_wgi.Notebook`. The error message carries the fix. Running the notebook by
-  hand unblocks one run, but the next pipeline run overwrites bronze from the dataflow
-  again — the pipeline activity itself must point at the notebook
+- **Obsolete since task-035 (2026-07-26):** `bronze_WGI` is now written by the
+  `bronze_ingest_wgi` TridentNotebook activity, not by the retired `WGI_file2table.Dataflow`,
+  so the pipeline can no longer overwrite bronze from the dataflow. The error can still
+  surface if someone re-points the activity at the dataflow manually, or runs the dataflow
+  by hand and then the pipeline in the same session — in that case the fix is to ensure
+  the `bronze_WGI` activity in `orchestrator_pipeline_bronze_to_gold` points at
+  `bronze_ingest_wgi.Notebook` (the shipped state).
 
 ### EU CRM HTTP Error
 - Check GitHub URL is accessible

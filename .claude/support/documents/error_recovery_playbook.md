@@ -73,7 +73,7 @@ Errors that do not match known patterns. Treated conservatively (1 retry, then f
 
 ### 1. Azure SQL Connection Failure (bronzecopy_procurement_transactional / bronzecopy_supplier_ref)
 
-**Symptoms:** Timeout, connection refused, or authentication error on the procurement dataflow.
+**Symptoms:** Timeout, connection refused, or authentication error on the procurement Copy activities (`bronzecopy_procurement_transactional`, `bronzecopy_supplier_ref`).
 
 **Resolution:**
 1. Open Azure Portal > SQL Server > check server status
@@ -95,15 +95,21 @@ Errors that do not match known patterns. Treated conservatively (1 retry, then f
 3. If GitHub is down (check github.com/status), wait and retry
 4. Consider caching the CSV locally as a fallback
 
-### 3. Dataflow Refresh Failure (bronze_WGI, bronze_EPI)
+### 3. Notebook Failure (bronze_WGI, bronze_EPI)
 
-**Symptoms:** Dataflow refresh fails with resource contention or source API errors.
+**Symptoms:** TridentNotebook activity fails — World Bank API (WGI) or Yale EPI server
+unreachable, schema changed at source, or resource contention on the Fabric capacity.
 
 **Resolution:**
-1. Open Fabric workspace > Dataflows > check the specific dataflow's refresh history
+1. Open Fabric workspace > the pipeline `orchestrator_pipeline_bronze_to_gold` > check
+   the `bronze_WGI` / `bronze_EPI` activity's output cell. EPI/WGI ingestion has been via
+   TridentNotebook activities (`bronze_ingest_wgi`, `bronze_ingest_epi`) since task-035 —
+   not dataflow refreshes; the `WGI_file2table` and `EPI_file2table` dataflow items still
+   exist in the workspace but are not on the pipeline's activity path.
 2. If the World Bank API (WGI) or Yale EPI server is down, wait and retry
 3. If resource contention: check Fabric capacity utilization and retry during off-peak
-4. If schema changed at source: update the dataflow mappings in Fabric UI
+4. If schema changed at source: update the ingest notebook's parsing logic (the dataflows
+   no longer map source columns — they are retired from the pipeline path)
 
 ### 4. Spark Session Failure (bronze-to-silver, silver-to-gold)
 
@@ -221,6 +227,6 @@ For richer notifications (Slack, Teams, custom formatting):
 ## Maintenance
 
 - **Monthly:** Review execution log for recurring transient errors; tune retry intervals if needed
-- **After source changes:** Verify pipeline still works; update dataflow mappings if schemas changed
+- **After source changes:** Verify pipeline still works; update ingest notebook parsing (EPI/WGI) or Copy activity column mappings (Azure SQL / HTTP) if schemas changed — there are no dataflow mappings on the pipeline path (task-035, task-048)
 - **After Fabric updates:** Check if retry behavior or notification APIs changed
 - **New error patterns:** Add to `TRANSIENT_ERROR_PATTERNS` or `PERMANENT_ERROR_PATTERNS` in the error handler notebook and update this playbook

@@ -134,9 +134,8 @@ The project implements a **medallion architecture** (bronze → silver → gold)
 > `bronze_WGI`. See `schemas/bronze_tables.md` for the shape.
 
 **Ingestion Methods:**
-- Dataflow (Azure SQL)
+- Copy activities (Azure SQL, HTTP sources)
 - Notebooks (World Bank API, EPI download)
-- Copy activities (HTTP sources)
 
 **Commands:** `/run-bronze`
 

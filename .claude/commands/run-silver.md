@@ -169,16 +169,16 @@ print(wgi.select("indicator_code").distinct().count(), "indicators")  # should b
 - Review column name changes
 
 **`RuntimeError: bronze_WGI is missing ['Indicator Code', 'Year', 'Value']`:**
-- This is a deliberate stop, not a crash. `bronze_WGI` is still being written by the
-  retired `WGI_file2table.Dataflow` (Excel, 2023 percentile ranks) instead of by
-  `bronze_ingest_wgi.Notebook` (World Bank API, long format, estimates).
-- The two are not interchangeable: accepting the dataflow's shape would put a
+- **Obsolete since task-035 (2026-07-26):** `bronze_WGI` is now written by the
+  `bronze_ingest_wgi` TridentNotebook activity (World Bank API, long format, estimates),
+  not by the retired `WGI_file2table.Dataflow` (Excel, 2023 percentile ranks). The
+  pipeline no longer overwrites `bronze_WGI` from the dataflow.
+- This raise is still in place as a guard: it fires if someone re-points the activity at
+  the dataflow, or runs the dataflow by hand and then the pipeline in the same session.
+  The two shapes are not interchangeable — accepting the dataflow's would put a
   differently-scaled quantity in `value` and silently redefine the `WGIᶜ` governance
-  weight in the supply-risk model (DEC-001).
-- **Fix:** complete **task-035** — replace the `bronze_WGI` RefreshDataflow activity in
-  `orchestrator_pipeline_bronze_to_gold` with a TridentNotebook activity calling
-  `bronze_ingest_wgi`. Running that notebook by hand unblocks one run, but the next
-  pipeline run overwrites `bronze_WGI` from the dataflow again.
+  weight in the supply-risk model (DEC-001). Ensure the `bronze_WGI` activity in
+  `orchestrator_pipeline_bronze_to_gold` points at `bronze_ingest_wgi.Notebook`.
 
 **`RuntimeError: WGI indicator_name -> indicator_code is not 1:1`:**
 - Two indicator codes are sharing a series name, so `silver_wgi` would not be unique at
