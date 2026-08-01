@@ -4,24 +4,18 @@ name: Deploy Fabric Artifacts
 # Deploy Fabric artifact definitions (fabric/) to the OEMMatInsightBI workspace
 # via Microsoft's fabric-cicd Python library.
 #
-# Trigger model (read before flipping push-to-main to real publish):
-#   * push to main        -> ALWAYS dry-run. Resolves parameter.yml, enumerates
-#                            repository + deployed items, and reports. Does NOT
-#                            publish. This is the safety gate: it deploys INTO
-#                            the live workspace Erik edits via the Fabric UI,
-#                            so an automated pusher must not race in-flight UI
-#                            work. The commit-ordering convention that holds
-#                            under manual edits is Fabric -> local -> Update
-#                            (commit here only after the UI change is saved);
-#                            an automated push-to-main publish would invert that
-#                            ordering and MUST be validated by task-046 before
-#                            it is enabled.
+# Trigger model (push-to-main real publish enabled 2026-08-01, task-046):
+#   * push to main        -> REAL PUBLISH via fabric-cicd publish_all_items.
+#                            Enabled 2026-08-01 after task-046 validated the
+#                            end-to-end deploy path. The commit-ordering
+#                            convention (Fabric -> local -> Update) still holds:
+#                            commit here only after UI changes are saved, so an
+#                            automated push never races in-flight UI work.
 #   * workflow_dispatch   -> manual. `publish: true` does the real
 #                            fabric-cicd publish; otherwise dry-run.
 #
-# Flipping push-to-main to real publish is a ONE-LINE change in the
-# `EFFECTIVE_DRY_RUN` expression below, deferred until task-046 (owner: both)
-# validates end-to-end. Do NOT enable it here.
+# Push-to-main real publish was enabled 2026-08-01 after task-046 (owner: both)
+# validated end-to-end. See git history for the prior dry-run guard.
 #
 # Auth: Azure AD Service Principal (registered in task-043) via GitHub repo
 # secrets. The workflow exports the secrets to the env vars azure-identity's
@@ -58,10 +52,9 @@ env:
   AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
   AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
   AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-  # Push to main is always dry-run. workflow_dispatch publishes only when the
-  # caller explicitly sets `publish: true`. See the header comment before
-  # changing this.
-  EFFECTIVE_DRY_RUN: ${{ (github.event_name == 'workflow_dispatch' && inputs.publish == true) && 'false' || 'true' }}
+  # Push to main is REAL PUBLISH (enabled 2026-08-01, task-046 validated).
+  # workflow_dispatch publishes only when the caller sets `publish: true`.
+  EFFECTIVE_DRY_RUN: ${{ ((github.event_name == 'workflow_dispatch' && inputs.publish == true) || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && 'false' || 'true' }}
 
 jobs:
   deploy:
