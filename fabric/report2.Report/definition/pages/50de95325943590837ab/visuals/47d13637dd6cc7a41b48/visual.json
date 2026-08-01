@@ -83,8 +83,8 @@
                 }
               },
               "queryRef": "fact_supply_share.Supply Concentration Index",
-              "nativeQueryRef": "Supply Concentration IndexTop Supplier Share (Plain, global)",
-              "displayName": "Supply Concentration IndexTop Supplier Share (Plain, global)"
+              "nativeQueryRef": "Top Supplier Share (Plain, global)",
+              "displayName": "Top Supplier Share (Plain, global)"
             },
             {
               "field": {
@@ -107,16 +107,16 @@
         "sort": [
           {
             "field": {
-              "Measure": {
+              "Column": {
                 "Expression": {
                   "SourceRef": {
-                    "Entity": "fact_supply_share"
+                    "Entity": "gold_dim_material"
                   }
                 },
-                "Property": "Supply Concentration Index"
+                "Property": "material_name_std"
               }
             },
-            "direction": "Descending"
+            "direction": "Ascending"
           }
         ]
       }
