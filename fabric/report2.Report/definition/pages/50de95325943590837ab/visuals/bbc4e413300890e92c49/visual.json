@@ -1,0 +1,38 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.11.0/schema.json",
+  "name": "bbc4e413300890e92c49",
+  "position": {
+    "x": 0,
+    "y": 39.64975579706956,
+    "z": 3,
+    "height": 70.888957334154668,
+    "width": 1279.6057552690631,
+    "tabOrder": 3
+  },
+  "visual": {
+    "visualType": "textbox",
+    "objects": {
+      "general": [
+        {
+          "properties": {
+            "paragraphs": [
+              {
+                "textRuns": [
+                  {
+                    "value": "⚠ GROSS supply-risk figures (per DEC-001). Not official EU CRM Supply Risk values — recycling (EoL_RIR) and substitution (SI_SR) risk-reducing filters are out of scope. Governance + trade weighting reorders material risk vs plain concentration; it compresses (does not inflate) the absolute HHI.",
+                    "textStyle": {
+                      "fontWeight": "bold",
+                      "fontSize": "11pt",
+                      "color": "#e8d166"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

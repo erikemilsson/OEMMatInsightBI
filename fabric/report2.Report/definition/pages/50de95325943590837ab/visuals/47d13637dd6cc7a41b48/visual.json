@@ -2,11 +2,11 @@
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.11.0/schema.json",
   "name": "47d13637dd6cc7a41b48",
   "position": {
-    "x": 9.74933428541676,
-    "y": 0,
+    "x": 0,
+    "y": 110.53871313122424,
     "z": 0,
-    "height": 720.232070335163,
-    "width": 1269.8507906755328,
+    "height": 609.1644299731596,
+    "width": 993.6469104295918,
     "tabOrder": 0
   },
   "visual": {
@@ -83,7 +83,8 @@
                 }
               },
               "queryRef": "fact_supply_share.Supply Concentration Index",
-              "nativeQueryRef": "Supply Concentration Index"
+              "nativeQueryRef": "Supply Concentration IndexTop Supplier Share (Plain, global)",
+              "displayName": "Supply Concentration IndexTop Supplier Share (Plain, global)"
             },
             {
               "field": {
@@ -101,7 +102,47 @@
             }
           ]
         }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Measure": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "fact_supply_share"
+                  }
+                },
+                "Property": "Supply Concentration Index"
+              }
+            },
+            "direction": "Descending"
+          }
+        ]
       }
+    },
+    "objects": {
+      "columnWidth": [
+        {
+          "properties": {
+            "value": {
+              "expr": {
+                "Literal": {
+                  "Value": "196.82955942078829D"
+                }
+              }
+            }
+          },
+          "selector": {
+            "metadata": "fact_supply_share.Supply Concentration Index"
+          }
+        }
+      ],
+      "columnHeaders": [
+        {
+          "properties": {}
+        }
+      ]
     },
     "drillFilterOtherVisuals": true
   },
