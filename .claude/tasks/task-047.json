@@ -8,13 +8,13 @@
   "section_fingerprint": "sha256:40c80fa2e9c5df6de656440b224fd67d5f286f507cdf3172254a1da67eaf8b6e",
   "section_snapshot_ref": "",
   "created_date": "2026-07-30",
-  "updated_date": "2026-07-30",
+  "updated_date": "2026-08-02",
   "verification_attempts": 0,
   "interaction_hint": "",
   "decision_dependencies": [],
   "out_of_spec": false,
   "absorbed_into": "",
-  "status": "Pending",
+  "status": "Blocked",
   "user_review_pending": false,
   "id": "task-047",
   "title": "Harden deploy-fabric.yml dry-run against fabric-cicd private-API churn once a public resolve-only API exists",
@@ -34,6 +34,7 @@
   ],
   "notes": [
     "CREATED 2026-07-30 by /work orchestrator from task-045 implement-agent issues_discovered (non_blocking, suggested_action: create new task).",
-    "Depends on task-046 so the hardening happens after the deploy path is proven end-to-end."
+    "Depends on task-046 so the hardening happens after the deploy path is proven end-to-end.",
+    "BLOCKED 2026-08-02 (/work, Erik-approved): acceptance criterion #1 ('Dry-run mode uses only public fabric-cicd API surface, no underscore-prefixed helpers') cannot be satisfied — fabric-cicd 1.2.0 (latest as of 2026-08-02, re-verified locally this session) exposes no public dry-run/resolve-only API. publish_all_items has no dry_run flag; the package has no resolve/preview/plan module; only private _refresh_repository_items/_refresh_deployed_items helpers exist. The task-045 dry-run path therefore cannot be hardened onto a public surface until a future fabric-cicd release ships one. Blocked on an external dependency (a future library release), not on any in-tree work. Revisit when a new fabric-cicd version lands; bump and re-check the public surface."
   ]
 }

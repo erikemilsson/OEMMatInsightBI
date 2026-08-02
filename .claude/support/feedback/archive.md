@@ -89,3 +89,15 @@ In `render_mermaid()`, `resolve_dep()` returned the raw `f"T{dep}"` without pass
 **Archived:** 2026-07-28 — addressed upstream in template v5.4.1 (2026-07-28). The reference doc `dashboard-regeneration.md § 3 "Generate Dashboard"` already stated the redirect ("run `dashboard-render.py --html ...` and `Write` its stdout to `.claude/dashboard.html`"); v5.4.1 sharpened the `rules/dashboard.md § Regeneration Strategy` summary to the explicit `python3 .claude/scripts/dashboard-render.py --html > .claude/dashboard.html` form with a note on the silent-stale failure mode (omitting the redirect leaves `dashboard.html` stale with no error). The suggested `--write`/`-o` flag was not added — the explicit-redirect doc clarification closes the gap at zero script change. Template-side bridge file moved from `interaction-logs/inbox/` to `processed/` (`OEMMatInsightBI-feedback-FB-008-2026-07-22.json`). Note: the template's own FB-008 is an unrelated item ("/work fails to restore context at session boundaries"); this downstream item was tracked only via the interaction-logs bridge.
 
 `dashboard-render.py --html` renders the full dashboard HTML to **stdout** (`print(render_full_html(...))`) — the on-disk `dashboard.html` only updates when the caller redirects. Observed here during `/health-check` 2026-07-22: a regen piped to `tail -15` for inspection left `dashboard.html` stale until a second pass with an explicit `> .claude/dashboard.html` redirect. The `--task-hash` mode is correctly stdout-only, so the asymmetry was easy to misread.
+
+---
+
+## FB-009: Remove leftover laptop firewall rule on the Azure SQL server
+
+**Status:** addressed
+**Captured:** 2026-08-01
+**Archived:** 2026-08-02 — addressed by direct action (commit `c0fcb3a`, 2026-08-01): the `erik-laptop` firewall rule (`37.247.31.201/32`) was deleted from the `procurement-supplier` Azure SQL server. The rule was a task-046 diagnostic leftover (added 2026-07-31 so the laptop could reach the DB for a credential reset) and became obsolete once task-048 retired the `bronze_azureSQLdb2table` dataflow — the Azure SQL path now runs through the Fabric Connection `oem_azuresql_procurement` in the Fabric runtime, not from the laptop. Not promoted to a spec change (a one-off security cleanup, not a workflow change).
+
+During task-046 diagnostics (2026-07-31) a firewall rule `erik-laptop` = `37.247.31.201/32` was added to the `procurement-supplier` Azure SQL server so the laptop could reach the DB for credential reset/testing. The pipeline no longer needs it — task-048 retired the bronze_azureSQLdb2table dataflow and the Azure SQL path now runs through the Fabric Connection `oem_azuresql_procurement` (executes in the Fabric runtime, not from the laptop). An allow-listed laptop IP on a production SQL server is a security loose end. Remove via Azure portal or `az sql server firewall-rule delete -g <rg> -s procurement-supplier -n erik-laptop`.
+
+**Why it surfaced:** task-046 close-out review of leftover diagnostic state. The pipeline's SPN/Connection path makes the laptop rule obsolete.
