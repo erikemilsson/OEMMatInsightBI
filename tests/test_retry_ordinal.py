@@ -71,6 +71,33 @@ def load_derive_retry_attempt():
     return ns["derive_retry_attempt"]
 
 
+def load_parse_activity_ts():
+    """Extract _parse_activity_ts (the production timestamp parser) from the live
+    notebook. Fabric emits 7 fractional-second digits in activityRunStart;
+    datetime.fromisoformat (pre-3.11) accepts at most 6, so the notebook truncates
+    the fraction. Reusing that parser here — rather than reimplementing the parse
+    inline — keeps this test pinned to the notebook's actual handling. The prior
+    inline `datetime.fromisoformat(s.replace("Z", "+00:00"))` raised ValueError
+    on Python 3.10 (CI matrix lower bound) and only passed on 3.11.
+    """
+    assert HANDLER_NOTEBOOK.exists(), f"Notebook not found: {HANDLER_NOTEBOOK}"
+    tree = ast.parse(
+        HANDLER_NOTEBOOK.read_text(encoding="utf-8"), filename=str(HANDLER_NOTEBOOK)
+    )
+    func = None
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name == "_parse_activity_ts":
+            func = node
+            break
+    assert func is not None, "_parse_activity_ts not found in notebook"
+    module = ast.Module(body=[func], type_ignores=[])
+    ast.fix_missing_locations(module)
+    from datetime import datetime
+    ns = {"datetime": datetime}
+    exec(compile(module, filename=str(HANDLER_NOTEBOOK), mode="exec"), ns)
+    return ns["_parse_activity_ts"]
+
+
 @pytest.fixture(scope="module")
 def derive():
     return load_derive_retry_attempt()
@@ -135,12 +162,12 @@ class TestRealRetriedCopy:
         Guards against someone 'normalising' the timestamps and collapsing the
         attempts. The ~5:20 spacing (300s retry interval + the failed attempt's
         own duration) is what makes each attempt a distinct activityRunStart.
-        """
-        from datetime import datetime
 
-        parsed = [
-            datetime.fromisoformat(s.replace("Z", "+00:00")) for s in COPY_STARTS
-        ]
+        Parses via the notebook's own _parse_activity_ts (Fabric emits 7
+        fractional-second digits; pre-3.11 datetime.fromisoformat rejects them).
+        """
+        parse = load_parse_activity_ts()
+        parsed = [parse(s) for s in COPY_STARTS]
         gaps = [(b - a).total_seconds() for a, b in zip(parsed, parsed[1:])]
         assert all(300 <= g <= 360 for g in gaps), gaps
 
