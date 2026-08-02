@@ -2,7 +2,7 @@
   "id": "task-012_1",
   "title": "Establish performance baseline",
   "description": "Run the full pipeline 3 times in Fabric, record activity-level durations, and identify bottlenecks. Output: performance_baseline.md.",
-  "status": "Pending",
+  "status": "Finished",
   "priority": "P3",
   "difficulty": 3,
   "owner": "human",
@@ -26,12 +26,21 @@
   "notes": [
     "Erik runs in Fabric UI; Claude prepares the baseline.md template if helpful.",
     "Measure before optimizing — avoid premature optimization.",
-    "Each run should use a fresh cache state to avoid skew."
+    "Each run should use a fresh cache state to avoid skew.",
+    "COMPLETED 2026-08-02 (/work complete): performance baseline established from 3 incremental-load runs (p_full_load=false, warm cache). Run 3 exact (Fabric Monitoring); Runs 1-2 gap-derived from minute-granular start timestamps (Fabric detail no longer retrievable). Functional bronze->gold chain ~16.6 min avg; silver-to-gold is the bottleneck at ~58-60% of the chain (~573s avg, 638s exact in run 3). Baseline committed at .claude/support/documents/performance_baseline.md. HARD CONDITION: task-012_5 retest MUST use the same incremental mode (p_full_load=false). Unblocks task-012_3 (primary lever: V-Order/broadcast/caching on silver-to-gold) and task-012_4 (warehouse indexes, both-owned)."
   ],
   "created_date": "2026-04-29",
-  "completion_date": "",
-  "updated_date": "2026-07-29",
-  "task_verification": {},
+  "completion_date": "2026-08-02",
+  "updated_date": "2026-08-02",
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-08-02T04:47:19Z",
+    "checks": {
+      "self_attested": "pass"
+    },
+    "notes": "Human task — completed by user",
+    "issues": []
+  },
   "verification_attempts": 0,
   "verification_history": [],
   "test_protocol": null,
