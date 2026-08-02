@@ -10,7 +10,8 @@ pytest-xdist>=3.5.0  # Parallel test execution
 pyspark>=3.4.0,<4.0.0
 
 # Code Quality
-pytest-flake8>=1.1.1
+# pytest-flake8 removed: registers pytest_collect_file hook incompatible with modern pytest 8.x
+# (PluginValidationError at collection). flake8 runs as a standalone lint step in test.yml instead.
 pytest-mypy>=0.10.3
 
 # Test Utilities
