@@ -2,7 +2,7 @@
   "id": "task-012_4",
   "title": "Author warehouse index DDL",
   "description": "Write CREATE INDEX statements for dimension keys and fact foreign keys, plus statistics rebuild. Erik deploys via SQL endpoint.",
-  "status": "Pending",
+  "status": "Finished",
   "priority": "P3",
   "difficulty": 4,
   "owner": "both",
@@ -27,16 +27,47 @@
     "task-012_1"
   ],
   "notes": [
-    "No file overlap with task-012_2 or task-012_3 — can be developed in parallel."
+    "No file overlap with task-012_2 or task-012_3 — can be developed in parallel.",
+    "[COMPLETED 2026-08-02] Authored warehouse index DDL at fabric/sql/warehouse_indexes.sql. Clustered rowstore indexes on gold_dim_country.country_key, gold_dim_material.material_key, gold_dim_indicator.indicator_key; nonclustered indexes on fact FKs (fact_procurement: material_key/supplier_hq_country_key/production_country_key; fact_epi_score: country_key/indicator_key; fact_supply_share: material_key/country_key); UPDATE STATISTICS WITH FULLSCAN for all 6 indexed tables. IF NOT EXISTS guards + GO batch separators (re-runnable). AC5 (Erik deploys via SQL endpoint) pending — deploy-note in file header. Table/column names cross-checked vs gold_tables.md AND deployed fabric/oem_wh.Warehouse/dbo/Tables/*.sql. Friction: FR-045 (vocab_drift — AC shorthand 'dim_country' vs real 'gold_dim_country'; facts carry no gold_ prefix)."
   ],
   "created_date": "2026-04-29",
-  "completion_date": "",
-  "updated_date": "2026-07-29",
-  "task_verification": {},
-  "verification_attempts": 0,
-  "verification_history": [],
+  "completion_date": "2026-08-02",
+  "updated_date": "2026-08-02",
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-08-02T00:00:00Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "not_applicable",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "warehouse_indexes.sql authored correctly. All 10 indexed column names verified against deployed table SQL at fabric/oem_wh.Warehouse/dbo/Tables/*.sql (ground truth). Clustered indexes on gold_dim_country.country_key, gold_dim_material.material_key, gold_dim_indicator.indicator_key (gold_ prefix on dims). Nonclustered FK indexes on fact_procurement(material_key, supplier_hq_country_key, production_country_key), fact_epi_score(country_key, indicator_key), fact_supply_share(material_key, country_key) — all 7 FK columns exist (facts no gold_ prefix). UPDATE STATISTICS WITH FULLSCAN on all 6 tables. IF NOT EXISTS + GO re-runnable T-SQL. Deploy-note block present (AC5 = Erik's deploy, deferred via user_review_pending). Scope note documents intentional date_key/stage_key exclusion.",
+    "issues": []
+  },
+  "verification_attempts": 1,
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-08-02T00:00:00Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": []
+    }
+  ],
   "test_protocol": null,
-  "user_review_pending": false,
+  "user_review_pending": true,
   "interaction_hint": "dashboard",
   "decision_dependencies": [],
   "recovery_state": "",

@@ -485,7 +485,7 @@ new_columns = [c.lower().replace(' ', '_') for c in left_join_df.columns]
 df_joined = left_join_df.toDF(*new_columns)
 
 # Drop region column (not needed in silver layer)
-silver_df = df_joined.drop("region")
+silver_df = df_joined.drop("region").cache()  # task-012_3: reused in write + count + watermark (3+ actions)
 
 display(silver_df)
 
@@ -663,7 +663,7 @@ df_wgi_typed = df_wgi.select(
 # cannot carry two DIFFERENT values in one snapshot. There is no load-timestamp column
 # to order by, so a latest-wins rule is not expressible here — if bronze ever becomes
 # append-mode, this needs a real dedupe key, not just a tiebreak.
-df_wgi_clean = df_wgi_typed.dropDuplicates(["country_iso3", "indicator_code", "year"])
+df_wgi_clean = df_wgi_typed.dropDuplicates(["country_iso3", "indicator_code", "year"]).cache()  # task-012_3: reused in stats print + display + write
 
 # The declared grain uses indicator_name while the dedupe uses indicator_code. Those
 # are equivalent only while the name↔code mapping is 1:1 — true of WGI's six

@@ -67,6 +67,18 @@ DB = "oem_lh"  # Lakehouse database/schema
 LOG_UNMAPPED = True  # Enable logging of unmapped values
 FAIL_ON_UNMAPPED = False  # Whether to fail pipeline on unmapped values
 
+# task-012_3 — V-Order: write Parquet/Delta columnar files in V-Order so DirectLake
+# scans are faster for Power BI. Fabric-specific (no effect outside Fabric); adds write
+# cost but improves read perf on the gold tables the semantic model binds to. Set once
+# at session start so every .write.format("delta") in this notebook inherits it.
+# DEPLOY NOTE (acceptance criterion 2 — Erik's step in Fabric): after deploying this
+# notebook, run `OPTIMIZE <table>` once on every existing gold table to compact and
+# re-encode already-written files in V-Order. New writes pick V-Order up automatically;
+# OPTIMIZE back-fills legacy files. The per-merge OPTIMIZE in merge_tbl and the
+# incremental fact_procurement write only compact rows they touch — they do NOT
+# re-encode the whole table.
+spark.conf.set("spark.sql.parquet.vorder.enabled", "true")
+
 # EPI vintage: EPI_YEAR now lives in the dedicated parameter cell at the top of this
 # notebook (task-042 crit 1) so the pipeline can single-source it; this derivation reads
 # it AFTER Fabric's injected override, so it tracks the passed vintage. Keep in sync with
@@ -698,7 +710,7 @@ dim_country = (
     .withColumn("_dedupe_rn", F.row_number().over(_dedupe_win))
     .filter(F.col("_dedupe_rn") == 1)
     .select("country_key", "iso3", "iso_numeric", "wb_code", "country_name_std", "region", "is_placeholder")
-)
+).cache()  # task-012_3: reused across lookup build, coverage matrix, WGI weight mapping
 
 # 5. BUILD COMPREHENSIVE LOOKUP TABLE WITH CONFIDENCE SCORES
 _country_lookup_raw = (
@@ -713,7 +725,7 @@ _country_lookup_raw = (
     # Then add aliases with their confidence scores
     .unionByName(
         country_aliases_with_confidence.alias("ca")
-        .join(dim_country.alias("dc"),
+        .join(F.broadcast(dim_country.alias("dc")),  # task-012_3: small dim, broadcast
               F.col("ca.standard_name") == F.col("dc.country_name_std"), "inner")
         .select(
             F.col("ca.alias").alias("lookup_name"),
@@ -744,7 +756,7 @@ country_lookup = (
     .withColumn("_lu_rn", F.row_number().over(_country_lu_win))
     .filter(F.col("_lu_rn") == 1)
     .drop("_lu_rn")
-)
+).cache()  # task-012_3: reused in uniqueness guard + write_tbl
 
 write_tbl(dim_country, "gold_dim_country")
 write_tbl(country_lookup, "gold_dim_country_lookup")
@@ -1038,7 +1050,7 @@ dim_material = (
         .withColumn("is_placeholder", F.lit(True))
     )
     .dropDuplicates(["material_key"])  # CRITICAL: Ensure unique keys for dimension table
-)
+).cache()  # task-012_3: reused across lookup build, quality_by_material join
 
 # Enhanced lookup with confidence scores
 _material_lookup_raw = (
@@ -1053,7 +1065,7 @@ _material_lookup_raw = (
     )
     .unionByName(
         material_aliases_with_confidence.alias("ma")
-        .join(dim_material.alias("dm"),
+        .join(F.broadcast(dim_material.alias("dm")),  # task-012_3: small dim, broadcast
               F.col("ma.standard_material") == F.col("dm.material_name_std"), "inner")
         .select(
             F.col("ma.alias").alias("lookup_name"),
@@ -1081,7 +1093,7 @@ material_lookup = (
     .withColumn("_lu_rn", F.row_number().over(_material_lu_win))
     .filter(F.col("_lu_rn") == 1)
     .drop("_lu_rn")
-)
+).cache()  # task-012_3: reused in uniqueness guard + write_tbl
 
 write_tbl(dim_material, "gold_dim_material")
 write_tbl(material_lookup, "gold_dim_material_lookup")
@@ -1394,8 +1406,12 @@ fact_epi_score = (
     epi_long
     # task-023: join the deduped iso3 -> country_key map (one row per iso3), NOT the
     # per-alias dim_country_lu, so EPI scores are not duplicated once per country alias.
-    .join(dim_country_iso3_map, on=epi_long.iso == dim_country_iso3_map.iso3, how="left")
-    .join(dim_ind_lu.filter(F.col("source_system")=="EPI").select("indicator_key","abbrev"),
+    # task-012_3: broadcast the dim lookups (dim_country, dim_indicator) — both are
+    # small (one row per iso3 / per EPI indicator) and the fact side is the large frame.
+    .join(F.broadcast(dim_country_iso3_map),
+          on=epi_long.iso == dim_country_iso3_map.iso3, how="left")
+    .join(F.broadcast(dim_ind_lu.filter(F.col("source_system")=="EPI")
+                          .select("indicator_key","abbrev")),
           on="abbrev", how="left")
     # task-028: stamped from EPI_YEAR, the same constant that picks EPI_SILVER_TBL above,
     # so the vintage label can never drift from the vintage actually read. The old
@@ -1613,15 +1629,17 @@ if no_mass_rows > 0:
 # Build fact with comprehensive joins and quality tracking
 fact_procurement_raw = (
     p
-    # Date join
+    # Date join — dim_date_lu is NOT broadcast: it carries years of daily rows and may
+    # exceed the broadcast threshold; the dimension joins below are the small ones.
     .join(dim_date_lu.alias("d"), F.col("p.txn_date") == F.col("d.date"), "left")
-    
+
+    # task-012_3: broadcast the small dimension lookups (dim_material, dim_country).
     # Material join with confidence tracking
-    .join(dim_material_lu.alias("m"), F.col("p.material_name") == F.col("m.lookup_name"), "left")
-    
+    .join(F.broadcast(dim_material_lu.alias("m")), F.col("p.material_name") == F.col("m.lookup_name"), "left")
+
     # Country joins with confidence tracking
-    .join(dim_country_lu.alias("c_hq"), F.col("p.hq_country") == F.col("c_hq.lookup_name"), "left")
-    .join(dim_country_lu.alias("c_prod"), F.col("p.prod_country") == F.col("c_prod.lookup_name"), "left")
+    .join(F.broadcast(dim_country_lu.alias("c_hq")), F.col("p.hq_country") == F.col("c_hq.lookup_name"), "left")
+    .join(F.broadcast(dim_country_lu.alias("c_prod")), F.col("p.prod_country") == F.col("c_prod.lookup_name"), "left")
     
     # Calculate derived fields
     .withColumn("unit_factor", unit_norm[unit_key])
@@ -1693,7 +1711,7 @@ fact_procurement_complete = (
         # Keep original values for audit
         F.col("p.row_id").alias("source_row_id")
     )
-)
+).cache()  # task-012_3: reused in write/delete-insert, window_min_date, count
 
 # task-030 (AC1): how many transactions had no usable date this run. Printed rather
 # than silently absorbed — the whole point of the unknown member is that undated
@@ -1880,17 +1898,19 @@ supply_prep = (
 # Join with enhanced lookups including confidence scores
 fact_supply_share_raw = (
     supply_prep.alias("s")
-    
+
+    # task-012_3: broadcast the small dimension lookups (dim_material, dim_country,
+    # dim_stage — 2 rows). The fact side is the unioned supply-share frame.
     # Material join with confidence tracking
-    .join(dim_material_lu.alias("m"), 
+    .join(F.broadcast(dim_material_lu.alias("m")),
           F.col("s.material") == F.col("m.lookup_name"), "left")
-    
+
     # Country join with confidence tracking
-    .join(dim_country_lu.alias("c"), 
+    .join(F.broadcast(dim_country_lu.alias("c")),
           F.col("s.country") == F.col("c.lookup_name"), "left")
-    
+
     # Stage join (no confidence needed as it's a simple code match)
-    .join(dim_stage_lu.alias("st"), 
+    .join(F.broadcast(dim_stage_lu.alias("st")),
           F.col("s.stage") == F.col("st.stage_code"), "left")
     
     # Add year (assuming 2023 for supply share data)
@@ -2125,7 +2145,7 @@ fact_supply_share_final = (
         "has_unmapped_material", "has_unmapped_country",
         "unmapped_impact_score", "source_row_id",
     )
-)
+).cache()  # task-012_3: reused 8+ times (grain guard, mix counts, WGI join, supply risk, write, quality metrics)
 
 _post_rollup_rows = fact_supply_share_final.count()
 if _pre_rollup_rows != _post_rollup_rows:
@@ -2329,7 +2349,7 @@ def map_wgi_weight_to_country_key(wgi_weight, dim_country):
     return (
         wgi_weight.alias("w")
         .join(
-            dim_country.alias("dc"),
+            F.broadcast(dim_country.alias("dc")),  # task-012_3: small dim, broadcast
             F.col("w.country_iso3") == F.upper(F.col("dc.iso3")),
             "inner",
         )
@@ -2353,7 +2373,8 @@ def attach_wgi_weight(fact_df, wgi_by_country_key):
     name list would otherwise promote country_key to position 0.
     """
     original_columns = fact_df.columns
-    joined = fact_df.join(wgi_by_country_key, "country_key", "left")
+    # task-012_3: wgi_by_country_key is one row per country — broadcast.
+    joined = fact_df.join(F.broadcast(wgi_by_country_key), "country_key", "left")
     return joined.select(*original_columns, "wgi_year", "wgi_weight")
 
 
@@ -2770,7 +2791,7 @@ def compute_gold_supply_risk(fact_supply_share, dim_country):
     # from the dim keeps its supply row and is excluded by the wgi_weight filter
     # rather than dropped here.
     fs = fact_supply_share.join(
-        dim_country.select("country_key", "is_placeholder"),
+        F.broadcast(dim_country.select("country_key", "is_placeholder")),  # task-012_3
         "country_key", "left",
     )
 

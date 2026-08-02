@@ -2,7 +2,7 @@
   "id": "task-012_3",
   "title": "Enable V-Order and add broadcast join hints",
   "description": "Set V-Order Spark config on gold writes, run OPTIMIZE on existing tables, add broadcast hints for small dimension joins, enable DataFrame caching where appropriate.",
-  "status": "Pending",
+  "status": "Finished",
   "priority": "P3",
   "difficulty": 4,
   "owner": "claude",
@@ -29,16 +29,57 @@
   "notes": [
     "Touches silver-to-gold2 — runs after task-012_2 (file overlap).",
     "V-Order is Fabric-specific; document for portfolio.",
-    "DEP-CORRECTION 2026-07-29 (/work coherence audit): dependency task-012_2 -> task-012_1. task-012_2 was retired as spec-contradicted; V-Order, broadcast hints and caching are all independently listed in spec § Performance Optimization → Optimization Opportunities and need only the baseline from task-012_1."
+    "DEP-CORRECTION 2026-07-29 (/work coherence audit): dependency task-012_2 -> task-012_1. task-012_2 was retired as spec-contradicted; V-Order, broadcast hints and caching are all independently listed in spec § Performance Optimization → Optimization Opportunities and need only the baseline from task-012_1.",
+    "[COMPLETED 2026-08-02] V-Order: spark.sql.parquet.vorder.enabled=true set at session start in silver-to-gold2 (gold-only scope — see DEC-011; DirectLake reads gold, so write cost lands where read benefit accrues). AC2 OPTIMIZE on existing gold tables is Erik's one-time Fabric step — documented as a deploy note in the notebook, NOT run by Claude. Broadcast hints: F.broadcast() on dim_country (in _country_lookup_raw, map_wgi_weight_to_country_key, compute_gold_supply_risk, + derived dim_country_lu/dim_country_iso3_map/wgi_by_country_key lookups in fact_epi_score/procurement_raw/supply_share_raw), dim_material (_material_lookup_raw + dim_material_lu), dim_indicator (dim_ind_lu). dim_date_lu deliberately NOT broadcast (years of daily rows may exceed threshold — judgment call, documented inline, not in the spec's named three dims). Caching: .cache() on dim_country, dim_material, country_lookup, material_lookup, fact_procurement_complete, fact_supply_share_final (8+ downstream uses — biggest win per task-012_1 baseline), + bronze-to-silver silver_df (write+count+watermark) and df_wgi_clean (stats+display+write). src/transformations/supply_risk.py updated for parity on the 3 parity-guarded fns (map_wgi_weight_to_country_key, attach_wgi_weight, compute_gold_supply_risk) — 235 tests pass incl. 66 supply_risk parity tests. Decision: DEC-011 (V-Order scope, gold-only)."
   ],
   "created_date": "2026-04-29",
-  "completion_date": "",
-  "updated_date": "2026-07-29",
-  "task_verification": {},
-  "verification_attempts": 0,
-  "verification_history": [],
+  "completion_date": "2026-08-02",
+  "updated_date": "2026-08-02",
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-08-02T07:15:00Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "pass",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "V-Order enabled at session start (silver-to-gold2 line 78) gold-only per DEC-011. Broadcast hints on all 3 spec-named dims (dim_country 7 sites, dim_material 3 sites, dim_indicator dim_ind_lu) + bonus wgi_by_country_key/dim_stage_lu. dim_date_lu deliberately not broadcast (inline justification). Caching on all 8 named intermediates. OPTIMIZE deploy note for Erik at lines 73-78. PARAMETERS CELL marker (line 23) + # CELL delimiters preserved. src/transformations/supply_risk.py parity updated for 3 guarded fns. Runtime: 235/235 pytest pass incl 66/66 supply_risk parity; conftest sets spark.sql.ansi.enabled=false matching Fabric. No Row.count attribute gotcha (pre-existing alias('count') uses column-name access, not in diff).",
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "Untracked fabric/sql/warehouse_indexes.sql and decision-011 file are adjacent to this task's scope but belong to sibling task-012_4 and the DEC-011 record respectively — not task-012_3 deliverables; orchestrator awareness only, no action."
+      }
+    ]
+  },
+  "verification_attempts": 1,
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-08-02T07:15:00Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "pass",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "minor",
+          "description": "Untracked fabric/sql/warehouse_indexes.sql and decision-011 file adjacent to scope but belong to task-012_4 / DEC-011 — not task-012_3 deliverables; no action."
+        }
+      ]
+    }
+  ],
   "test_protocol": null,
-  "user_review_pending": false,
+  "user_review_pending": true,
   "interaction_hint": "dashboard",
   "decision_dependencies": [],
   "recovery_state": "",

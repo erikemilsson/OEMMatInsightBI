@@ -238,7 +238,7 @@ def map_wgi_weight_to_country_key(
     return (
         wgi_weight.alias("w")
         .join(
-            dim_country.alias("dc"),
+            F.broadcast(dim_country.alias("dc")),  # task-012_3: small dim, broadcast
             F.col("w.country_iso3") == F.upper(F.col("dc.iso3")),
             "inner",
         )
@@ -272,7 +272,8 @@ def attach_wgi_weight(fact_df: DataFrame, wgi_by_country_key: DataFrame) -> Data
         DataFrame: `fact_df` plus `wgi_year` and `wgi_weight`.
     """
     original_columns = fact_df.columns
-    joined = fact_df.join(wgi_by_country_key, "country_key", "left")
+    # task-012_3: wgi_by_country_key is one row per country — broadcast.
+    joined = fact_df.join(F.broadcast(wgi_by_country_key), "country_key", "left")
     return joined.select(*original_columns, "wgi_year", "wgi_weight")
 
 
@@ -386,7 +387,7 @@ def compute_gold_supply_risk(fact_supply_share: DataFrame,
     # from the dim (should not happen post-silver, but defensive) keeps its
     # supply row and is excluded by the wgi_weight filter rather than dropped here.
     fs = fact_supply_share.join(
-        dim_country.select("country_key", "is_placeholder"),
+        F.broadcast(dim_country.select("country_key", "is_placeholder")),  # task-012_3
         "country_key", "left",
     )
 
