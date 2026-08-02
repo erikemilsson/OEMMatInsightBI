@@ -35,7 +35,9 @@
     "ERIK: Configure schedule in Fabric UI (this is primarily an Erik task)",
     "ON HOLD 2026-07-19 (/health-check): parked out of auto-routing after 35d In Progress. The runbook (docs/guides/pipeline_schedule.md) is written and verified; only the Fabric-UI schedule configuration + first-run confirmation remain. Deliberately deferred behind the P1 audit-fix batch (022/023/024/025/026) — scheduling a daily 06:00 run before the correctness fixes land would automate a pipeline with known duplicate-key and fan-out defects. Resume once the batch is applied and confirmed clean. Only you can move this back to Pending — On Hold tasks are excluded from auto-routing.",
     "DEP-CLEANUP 2026-07-29 (/work coherence audit): 4 of 5 entries in dependencies[] were English prose, not task IDs, so dependency resolution could never satisfy them and this task could not compute as ready. Moved to notes as preconditions: (1) Pipeline must be fully tested and working; (2) Source systems must be available at scheduled time (6:00 AM); (3) Fabric workspace must have capacity for scheduled execution; (4) Notification email addresses configured. Real dependency task-011 retained.",
-    "INHERITED SCOPE (surfaced 2026-07-29): DEC-004 deferred its criterion 5 (failure notification) with \"no on-demand-firing sink exists until task-010 (scheduling) lands ... Revisit at task-010.\" This task's AC4 (\"Notifications working\") is where that deferral comes due. Note notifyOption='MailOnFailure' covers only 1/8 activities after the EPI/WGI repoint — the handler-based signal in gold_pipeline_execution_log is the real failure channel."
+    "INHERITED SCOPE (surfaced 2026-07-29): DEC-004 deferred its criterion 5 (failure notification) with \"no on-demand-firing sink exists until task-010 (scheduling) lands ... Revisit at task-010.\" This task's AC4 (\"Notifications working\") is where that deferral comes due. Note notifyOption='MailOnFailure' covers only 1/8 activities after the EPI/WGI repoint — the handler-based signal in gold_pipeline_execution_log is the real failure channel.",
+    "DRIFT-RECONCILE 2026-08-02 (/work, [A] Apply): ## Orchestration section_fingerprint 14923ee -> 317baa48; spec_fingerprint b966 -> 3696. Drift source = 2026-07-31 bronze_azureSQLdb2table retirement (5 -> 6 bronze activities; RefreshDataflow -> two Copy activities). Scheduling ACs intact. Non-Finished (On Hold) task: status + criterion-3 verification retained (reset-to-Pending applies only to Finished tasks).",
+    "RUNBOOK FOLLOW-UP 2026-08-02: docs/guides/pipeline_schedule.md was updated for the retirement (Copy activities named, 'No RefreshDataflow activities remain') but says 'four Bronze activities' (lines 11,14) while the spec now documents six — minor count staleness in this task's criterion-3 deliverable. FIXED 2026-08-02 (same session): runbook updated to list all six Bronze activities (added bronzecopy_GlobalSupplyShares) and corrected 'four'->'six' on both lines; now matches the spec ## Orchestration activity table."
   ],
   "phase": "3",
   "spec_section": "Orchestration",
@@ -44,7 +46,7 @@
     "docs/guides/pipeline_schedule.md"
   ],
   "created_date": "",
-  "updated_date": "2026-07-29",
+  "updated_date": "2026-08-02",
   "task_verification": {
     "result": "pass",
     "attempt_number": 2,
@@ -119,6 +121,6 @@
   "subtasks": [],
   "progress": "Not started",
   "spec_version": "1",
-  "spec_fingerprint": "sha256:b966f6b2eb73d586281f197f9f62a2772b2e67fff1d3def6847c905491290d6b",
-  "section_fingerprint": "sha256:14923ee96fe7a0954d378cca905df86036427e457a70b867bdf45fcdbd2cfc61"
+  "spec_fingerprint": "sha256:3696c9312b5b1451d713155a2cc75d132d995ec4c768671eba99fc030e695330",
+  "section_fingerprint": "sha256:317baa48f168d3c18e541f60bae2e642f8ebf35f89bf9f26be7c4ec8b285357d"
 }

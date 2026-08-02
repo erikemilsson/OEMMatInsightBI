@@ -8,10 +8,13 @@ The `orchestrator_pipeline_bronze_to_gold` pipeline (`fabric/orchestrator_pipeli
 
 **What this pipeline does on each run** (activity order from the pipeline definition):
 
-1. **Bronze ingestion** (four activities, run in parallel):
-   - `bronzecopy_EUSupplyShares` — Copy activity pulling the EU CRM supply-shares CSV over HTTP into `bronze_EUSupplyShares`.
-   - `bronzecopy_procurement_transactional`, `bronzecopy_supplier_ref` — `Copy` activities loading the Azure SQL procurement data (task-048 replaced the `bronze_procurement` RefreshDataflow); `bronze_WGI`, `bronze_EPI` — `Notebook` activities loading WGI indicators and EPI scores (task-035). No RefreshDataflow activities remain.
-2. **`bronze-to-silver data cleaning`** — notebook; runs after all four Bronze activities succeed.
+1. **Bronze ingestion** (six activities, run in parallel):
+   - `bronzecopy_EUSupplyShares` — `Copy` activity pulling the EU CRM supply-shares CSV over HTTP into `bronze_EUSupplyShares`.
+   - `bronzecopy_GlobalSupplyShares` — `Copy` activity pulling the global supply-shares CSV over HTTP into `bronze_GlobalSupplyShares`.
+   - `bronze_WGI` — `Notebook` activity loading WGI governance indicators (task-035).
+   - `bronzecopy_procurement_transactional`, `bronzecopy_supplier_ref` — `Copy` activities loading the Azure SQL procurement data (task-048 replaced the `bronze_procurement` RefreshDataflow; SPN-safe). No RefreshDataflow activities remain.
+   - `bronze_EPI` — `Notebook` activity loading EPI scores (task-035).
+2. **`bronze-to-silver data cleaning`** — notebook; runs after all six Bronze activities succeed.
 3. **`silver-to-gold`** — notebook; runs after Silver succeeds. Produces the Gold dimensions, facts, and data-quality tables.
 
 The pipeline accepts three parameters: `p_full_load` (bool, default `false`), `p_from_date` (string, default `1900-01-01`), and `procurement_array` (the Azure SQL source→sink list). The scheduled run uses the defaults — an **incremental** load (`p_full_load = false`).
