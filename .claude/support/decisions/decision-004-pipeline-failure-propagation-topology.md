@@ -41,7 +41,7 @@ Mark your selection by checking one box:
 > and the activity count dropped 2 → 1. The original 2-activity shape (handler on `["Failed","Skipped"]` +
 > a trailing native `Fail`) never fired on a clean run and so could not satisfy criterion 3 (successful
 > runs must also populate the log). The as-built is 1 activity — handler on `["Succeeded","Failed","Skipped"]`
-> (runs on every outcome) with an in-notebook `raise` after logging if any activity FAILED. The trailing
+> (runs on every outcome) with an in-notebook `raise` after logging if any activity FAILED *(granularity clarified 2026-08-03, task-051 — final attempt only; a retried-into-success activity is recovered, not a run failure — see the clarification note below)*. The trailing
 > `Fail` activity was removed. Full detail in `## Amendment — 2026-07-27` below.
 
 ## Amendment — 2026-07-27 (Erik-approved)
@@ -75,8 +75,10 @@ clean run `1b76244b` wrote 8 SUCCESS rows and reported Succeeded.
 
 **The Try-Catch trap is still designed around** — by the re-raise rather than a trailing `Fail`.
 The documented Try-Catch shape (a handler on a failure branch that succeeds) makes the overall run
-report Success; the re-raise ensures the handler activity itself fails when any upstream failed,
+report Success; the re-raise ensures the handler activity itself fails when an upstream activity's final attempt failed (a retried-into-success activity is recovered, not a run failure),
 preserving task-026's DQ gate.
+
+*(Clarified 2026-08-03, task-051: the re-raise fires on an activity's final failed attempt, not on any per-attempt FAILED row — `queryactivityruns` returns one row per attempt, so a retried-into-success activity is no longer a false run-failure. Topology unchanged.)*
 
 **Net effect on the Options Comparison table below:** the "Activities added to the pipeline" row
 for Option A changes from `1 handler + 1 Fail` to `1 handler` (the re-raise replaces the `Fail`).

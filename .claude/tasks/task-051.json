@@ -12,17 +12,54 @@
   "user_feedback": "",
   "created_date": "2026-08-03",
   "updated_date": "2026-08-03",
-  "completion_date": null,
-  "verification_attempts": 0,
-  "verification_history": [],
-  "task_verification": {},
+  "completion_date": "2026-08-03",
+  "verification_attempts": 1,
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-08-03T20:24:15Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "notes": "All 6 ACs met. summarize_final_outcomes is a pure function (no I/O) extracted from the live notebook and loaded in tests via ast.parse+exec from HANDLER_NOTEBOOK; _TERMINAL_STATUS single-sourced from the notebook too (AC6). AC1: retried-then-succeeded activity does NOT raise (test_retried_into_success_is_not_a_run_failure, test_a_green_run_reports_nothing). AC2: final-attempt failure still raises (4 tests). AC3: row-writing loop unchanged — log_activity_outcome called for every terminal row, so every attempt incl. failed attempts of a recovered activity still written to gold_pipeline_execution_log. AC4: final attempt ranked by activityRunStart (ISO-8601 lexicographic), retryAttempt never read. AC5: recovered activities printed. Cell markers intact (1 PARAMETERS + 7 CELL); ast.parse OK. tests/test_retry_ordinal.py 24/24 pass; full suite 249/249 pass. Negative control non-vacuous: WGI_ATTEMPTS has 2 Failed + 1 Succeeded rows for one activity — the divergent shape where old 'any Failed' logic raised and new 'final attempt only' logic does not. Working tree clean except filtered .claude/tasks/.last-clean-exit.json; task-051 changes in commit e785d4c confined to the 2 declared files (commit also bundled task-052's separate files = task-052 scope).",
+      "issues": [
+        {"severity": "minor", "description": "spec_v1.md line 693 still says pipeline_error_handler is 're-raising on any FAILED to keep the run red' — describes the pre-fix behavior the task corrected; reconcile via /iterate."},
+        {"severity": "minor", "description": "decision-004-pipeline-failure-propagation-topology.md line 78 similarly says 'the re-raise ensures the handler activity itself fails when any upstream failed' — old per-attempt semantics; DEC-016-gated, route via /iterate or the decision's Select-an-Option checkbox."}
+      ]
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-08-03T20:24:15Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "not_applicable",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "All 6 ACs met. summarize_final_outcomes is a pure function extracted from the live notebook and loaded via ast in tests; _TERMINAL_STATUS single-sourced from the notebook (AC6). Retried-then-succeeded does not raise (AC1); final-attempt failure still raises (AC2, 4 tests); row-writing loop unchanged so every attempt incl. recovered activities' failed attempts still logged (AC3); final attempt ranked by activityRunStart, retryAttempt never read (AC4); recovered activities printed (AC5). Cell markers intact (1 PARAMETERS + 7 CELL); ast.parse OK. test_retry_ordinal.py 24/24 pass; full suite 249/249 pass. Negative control non-vacuous. Scope confined to 2 declared files in commit e785d4c.",
+    "issues": [
+      {"severity": "minor", "description": "spec_v1.md line 693 still describes the pre-fix 're-raising on any FAILED' behavior; reconcile via /iterate."},
+      {"severity": "minor", "description": "decision-004 line 78 still describes old per-attempt semantics; DEC-016-gated, route via /iterate or the decision's Select-an-Option checkbox."}
+    ]
+  },
   "test_protocol": null,
   "user_review_pending": false,
   "recovery_state": "",
   "out_of_spec": false,
   "absorbed_into": "",
   "interaction_hint": "dashboard",
-  "status": "Awaiting Verification",
+  "status": "Finished",
   "difficulty": 3,
   "id": "task-051",
   "title": "Fix pipeline_error_handler reporting a retried-then-succeeded activity as a run failure",

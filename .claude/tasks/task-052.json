@@ -12,17 +12,48 @@
   "user_feedback": "",
   "created_date": "2026-08-03",
   "updated_date": "2026-08-03",
-  "completion_date": null,
-  "verification_attempts": 0,
-  "verification_history": [],
-  "task_verification": {},
+  "completion_date": "2026-08-03",
+  "verification_attempts": 1,
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-08-03T20:24:15Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "notes": "All 6 ACs verified against committed state (commit 0837902, HEAD). Measure-and-revert task: deliverable is the measurement + DO-NOT-RAISE note in the notebook constant block, not a net code change (AC4 — negative result is a valid outcome). (1) API_PAGE_SIZE is a named module-level constant (line 125), call site uses str(API_PAGE_SIZE) (line 174) — matches task-050 constant style. (2) Measurement present and concrete: 2026-08-03 18:46 per_page=10000 run fetch 496s vs 265s at per_page=1000, ~53s/request, one VA.EST page-1 timeout; 19:51 healthy-API confirmation 22s fetch, 0 retries, 31,122 records. (3) Data equivalence explicit: 31,122 records, CC.EST 5158 / GE.EST 5127 / PV.EST 5214 match the per_page=1000 partial run exactly — latency/robustness finding, not correctness. (4) Reverted in 0837902; current source API_PAGE_SIZE=1000 (AST parse + grep confirmed). (5) Notebook constant block (lines 111-124) contains substantive 'DO NOT RAISE API_PAGE_SIZE' comment with both reasons + data-equivalence note; constant annotated '# measured optimum - read the note above before changing'. (6) Baseline comparability restored; git show 0837902 --stat confirms task-012_5.json (BASELINE IMPACT WITHDRAWN note) and performance_optimized.md (comparability table + 'Rejected: larger WGI page size' section) corrected. pytest 249 passed. Scope: revert commit also modified task-012_5.json, task-052.json, performance_optimized.md — all .claude/* infrastructure/support-docs paths expected per AC6, not a scope violation. Live World Bank API not re-hit.",
+      "issues": []
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-08-03T20:24:15Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "not_applicable",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "Measure-and-revert task verified against committed state (0837902). All 6 ACs met: API_PAGE_SIZE named constant (line 125, str() at call site); measurement concrete (18:46 per_page=10000 run 496s/~53s-per-request vs 265s; 19:51 healthy confirmation 22s/0-retries/31,122 records); data equivalence confirmed (31,122 records, per-indicator counts match); reverted to 1000 (negative result valid per AC4); substantive DO-NOT-RAISE note in notebook constant block (lines 111-124) with both reasons + data-equivalence; baseline comparability restored + task-012_5.json and performance_optimized.md corrected in revert commit. pytest 249 passed. Live API not re-hit.",
+    "issues": []
+  },
   "test_protocol": null,
   "user_review_pending": false,
   "recovery_state": "",
   "out_of_spec": false,
   "absorbed_into": "",
   "interaction_hint": "dashboard",
-  "status": "Awaiting Verification",
+  "status": "Finished",
   "difficulty": 3,
   "id": "task-052",
   "title": "Evaluate raising bronze_ingest_wgi per_page \u2014 measured, rejected, reverted",

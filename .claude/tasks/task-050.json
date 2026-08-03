@@ -2,7 +2,7 @@
   "id": "task-050",
   "title": "Harden bronze_ingest_wgi retry against World Bank API degradation",
   "description": "The WGI ingestion notebook's retry policy cannot survive an intermittently degraded World Bank API. Observed 2026-08-03: ~50% of requests timing out for 75+ minutes, blocking bronze_WGI in both a pipeline run and a standalone probe. The weak point is the backoff — `time.sleep(2 * attempt)` waits 2s then 4s after a 60s read timeout, i.e. it retries straight back into the same congestion. Replace with exponential backoff plus jitter, raise the attempt count, and raise the read timeout. Failure-path only: the happy path is untouched, so the task-012_1 performance baseline (bronze_WGI 73s) stays comparable and the task-012_5 retest is not invalidated.",
-  "status": "Awaiting Verification",
+  "status": "Finished",
   "priority": "P2",
   "difficulty": 3,
   "owner": "claude",
@@ -36,10 +36,45 @@
   "user_feedback": "",
   "created_date": "2026-08-03",
   "updated_date": "2026-08-03",
-  "completion_date": null,
-  "verification_attempts": 0,
-  "verification_history": [],
-  "task_verification": {},
+  "completion_date": "2026-08-03",
+  "verification_attempts": 1,
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-08-03T20:24:15Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "notes": "Verified against committed state (HEAD e2a20f2). Retry block replaces time.sleep(2*attempt) with capped exponential backoff (base 5/10/20/40s, capped at API_BACKOFF_CAP=60) plus symmetric +/-25% jitter, with a max(delay,0.0) negative-delay guard. Confined to the except branch — try block only issues requests.get+raise_for_status+break, so happy-path request sequence/timing is unchanged; the 60->120 read timeout is a ceiling not a delay. Five named module-level constants (API_READ_TIMEOUT, API_MAX_RETRIES, API_BACKOFF_BASE, API_BACKOFF_CAP, API_BACKOFF_JITTER) replace inline literals; per_page=1000 unchanged. Retry log line printed before time.sleep. ast.parse OK; pytest 249 passed (task note said 235 — suite grew, no regression); 6 CELL markers, 0 PARAMETERS CELL (correct). Live World Bank API runtime validation deliberately not attempted.",
+      "issues": [
+        {"severity": "minor", "description": "Task note reports 235/235 pytest pass; current suite is 249/249 (tests added since; no regression — informational only)."}
+      ]
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-08-03T20:24:15Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "not_applicable",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "Hardening verified against committed state (HEAD e2a20f2). Capped exponential backoff (5/10/20/40s, cap 60) + symmetric +/-25% jitter + negative-delay guard replaces time.sleep(2*attempt), confined to the except branch (happy-path request sequence/timing unchanged; 60->120 timeout is a ceiling not a delay). Five named module-level constants replace inline literals; per_page=1000 unchanged. Retry log line printed before time.sleep. ast.parse OK; pytest 249 passed (note said 235 — suite grew, no regression); 6 CELL markers, 0 PARAMETERS CELL (correct). Live World Bank API runtime validation deliberately not attempted.",
+    "issues": [
+      {"severity": "minor", "description": "Task note reports 235/235 pytest pass; current suite is 249/249 (tests added since; no regression — informational only)."}
+    ]
+  },
   "test_protocol": null,
   "user_review_pending": false,
   "recovery_state": "",

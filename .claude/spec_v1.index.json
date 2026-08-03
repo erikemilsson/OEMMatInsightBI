@@ -1,6 +1,6 @@
 {
   "spec_file": "spec_v1.md",
-  "spec_fingerprint": "sha256:0e1cb6c1bbfcc356721b8b7ad47b1a6083b49882154ca4219a6b88276228498b",
+  "spec_fingerprint": "sha256:fdc9275d81a7e511018e8ed23b7a2b70a2c2bd407ce998f240a4d5d2d42a4225",
   "section_count": 18,
   "sections": [
     {
@@ -39,8 +39,8 @@
       "heading": "## Orchestration",
       "line_start": 615,
       "line_end": 708,
-      "char_count": 4498,
-      "fingerprint": "sha256:317baa48f168d3c18e541f60bae2e642f8ebf35f89bf9f26be7c4ec8b285357d",
+      "char_count": 4817,
+      "fingerprint": "sha256:87ecb4a6283051d67474bac3eef55813998ec140df203ca0e7aaaebba01a142b",
       "synopsis": "**Purpose:** End-to-end orchestration from ingestion to gold layer"
     },
     {
@@ -119,8 +119,8 @@
       "heading": "## Open Questions & Decisions Needed",
       "line_start": 1527,
       "line_end": 1571,
-      "char_count": 5768,
-      "fingerprint": "sha256:0621fe4655dc332a330df456708009466c674d30b11a115110cebab1ef8f2411",
+      "char_count": 6177,
+      "fingerprint": "sha256:d7826a47602af1282ad6b9d6ffd6066141deacf26dd3ddf69399ba8b78ea578b",
       "synopsis": "1.  **Incremental vs Full Load:**"
     },
     {
