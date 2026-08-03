@@ -1,0 +1,49 @@
+{
+  "id": "task-050",
+  "title": "Harden bronze_ingest_wgi retry against World Bank API degradation",
+  "description": "The WGI ingestion notebook's retry policy cannot survive an intermittently degraded World Bank API. Observed 2026-08-03: ~50% of requests timing out for 75+ minutes, blocking bronze_WGI in both a pipeline run and a standalone probe. The weak point is the backoff — `time.sleep(2 * attempt)` waits 2s then 4s after a 60s read timeout, i.e. it retries straight back into the same congestion. Replace with exponential backoff plus jitter, raise the attempt count, and raise the read timeout. Failure-path only: the happy path is untouched, so the task-012_1 performance baseline (bronze_WGI 73s) stays comparable and the task-012_5 retest is not invalidated.",
+  "status": "Awaiting Verification",
+  "priority": "P2",
+  "difficulty": 3,
+  "owner": "claude",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "spec_section": "Data Architecture",
+  "spec_fingerprint": "sha256:0e1cb6c1bbfcc356721b8b7ad47b1a6083b49882154ca4219a6b88276228498b",
+  "spec_version": "1",
+  "section_fingerprint": "sha256:ecea8c1d811d571ed42db2be6f786f04713790a972884dff8de8059ec5e3a752",
+  "section_snapshot_ref": "",
+  "estimated_hours": 1,
+  "files_affected": [
+    "fabric/bronze_ingest_wgi.Notebook/notebook-content.py"
+  ],
+  "acceptanceCriteria": [
+    "Backoff is exponential with jitter rather than linear `2 * attempt`, and is capped so a single dead page cannot stall the notebook indefinitely.",
+    "Attempt count and read timeout are raised, and both are named module-level constants rather than inline literals.",
+    "Every change is confined to the failure path — a run in which no request times out issues the identical request sequence with identical timing, so the task-012_1 baseline stays comparable.",
+    "Request shape is unchanged (`per_page` in particular is NOT altered) — changing it would change happy-path timing and invalidate the baseline comparison.",
+    "The retry log line states the wait before sleeping, so a future degraded-API run is diagnosable from the notebook output alone."
+  ],
+  "dependencies": [],
+  "decision_dependencies": [],
+  "notes": [
+    "CREATED 2026-08-03 (/work, Erik-approved) mid-way through the task-012_5 prerequisite sequence. Directly unblocks task-012_5 step 4 (3 comparable pipeline runs) and task-036 (E2E automated external-data ingestion); de-risks task-010 (a scheduled pipeline inherits this fragility unattended).",
+    "TIMING WINDOW is why this is safe now: the task-012_5 retest has completed 0 of its 3 clean runs, so hardening lands before any measured run. Backoff, attempt count and timeout all affect the failure path only — bronze_WGI's baseline figure (73s) is a happy-path measurement that none of them can change.",
+    "DELIBERATELY NOT DOING: raising `per_page` from 1000. It would cut the request count from ~36 to ~12 and is the single highest-leverage reliability change available, but it alters the happy-path request sequence and would break comparability with the task-012_1 baseline. Revisit AFTER task-012_5 closes.",
+    "EVIDENCE: see task-036 note 'WGI RELIABILITY FINDING 2026-08-03' and .claude/support/documents/performance_optimized.md § Anomaly 1 for the two observed failures and the arithmetic (~5150 records/indicator at per_page=1000 => ~6 pages x 6 indicators = ~36 requests; at ~50% timeout with 3 attempts a clean run is effectively impossible).",
+    "IMPLEMENTED 2026-08-03 (inline, not via implement-agent — session-level instruction is not to dispatch subagents unless asked). Changes, all in fabric/bronze_ingest_wgi.Notebook/notebook-content.py: (1) added `import random`; (2) five named module-level constants beside API_BASE — API_READ_TIMEOUT=120 (was inline 60), API_MAX_RETRIES=5 (was default 3), API_BACKOFF_BASE=5, API_BACKOFF_CAP=60, API_BACKOFF_JITTER=0.25; (3) fetch_indicator signature default max_retries=API_MAX_RETRIES; (4) retry body replaced `time.sleep(2 * attempt)` with capped exponential backoff plus symmetric jitter, clamped at >= 0, and the log line now states the wait BEFORE sleeping. VERIFIED LOCALLY: ast.parse OK; 6 CELL markers intact (no PARAMETERS CELL in this notebook — correct, the pipeline passes params only to bronze_EPI, bronze-to-silver and silver-to-gold2); backoff schedule simulated = 5/10/20/40s base, jittered 3.8-6.2 / 7.5-12.5 / 15-25 / 30-50s, total 56-94s across 4 retries vs 6s before; worst case per genuinely dead page ~11.6 min then raise (comparable to the 11m35s observed today, so no regression in fail-fast behaviour); negative-delay guard confirmed; 235/235 pytest pass. per_page deliberately unchanged (see note 3). NOT DEPLOYED AND NOT COMMITTED — push to main now auto-publishes to the live workspace, so committing is Erik's call and should follow the Fabric->local->Update ordering convention."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-08-03",
+  "updated_date": "2026-08-03",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "verification_history": [],
+  "task_verification": {},
+  "test_protocol": null,
+  "user_review_pending": false,
+  "recovery_state": "",
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "dashboard"
+}

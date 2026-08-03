@@ -9,7 +9,7 @@
   "parent_task": "task-012",
   "phase": "3",
   "spec_section": "Performance Optimization",
-  "spec_fingerprint": "sha256:b966f6b2eb73d586281f197f9f62a2772b2e67fff1d3def6847c905491290d6b",
+  "spec_fingerprint": "sha256:0e1cb6c1bbfcc356721b8b7ad47b1a6083b49882154ca4219a6b88276228498b",
   "spec_version": "1",
   "section_fingerprint": "sha256:52b023e9f000ef12ac20b44f4d0c5874b0bcf19f56963ed063ac9bcbb1d3c5f2",
   "section_snapshot_ref": "",
@@ -30,11 +30,13 @@
   "notes": [
     "Erik runs in Fabric; Claude can prepare the comparison template.",
     "If <30% improvement, document findings and adjust strategy before closing.",
-    "AC REWRITE 2026-07-29 (/work coherence audit): the previous criteria carried three SLA thresholds (total runtime <20 min, Power BI queries <3s, overall improvement >30%) with no source in the spec, contradicting spec § Performance Optimization: \"Not benchmarked — manual pipeline runs at portfolio scale. No production load or SLA requirements.\" Phase 3's own acceptance criterion asks only for \"basic performance review done\". Criteria are now measure-and-record: the comparison table is the deliverable and the numbers are whatever they are. A portfolio-scale pipeline that is already fast may legitimately show no meaningful improvement — that is a valid result, not a failed task."
+    "AC REWRITE 2026-07-29 (/work coherence audit): the previous criteria carried three SLA thresholds (total runtime <20 min, Power BI queries <3s, overall improvement >30%) with no source in the spec, contradicting spec § Performance Optimization: \"Not benchmarked — manual pipeline runs at portfolio scale. No production load or SLA requirements.\" Phase 3's own acceptance criterion asks only for \"basic performance review done\". Criteria are now measure-and-record: the comparison table is the deliverable and the numbers are whatever they are. A portfolio-scale pipeline that is already fast may legitimately show no meaningful improvement — that is a valid result, not a failed task.",
+    "PROVENANCE REFRESH 2026-08-03 (/work, Erik-approved): spec_fingerprint b966f6b2 -> 0e1cb6c1 (commit 7fc5ff6). Full-spec fingerprint only — section_fingerprint is UNCHANGED because ## Performance Optimization is byte-identical across that commit. No requirements changed for this task; the refresh exists so Step 1b stops re-running granular analysis that narrows to nothing.",
+    "TEMPLATE PREPARED 2026-08-03 (/work, Claude's half per note 1): .claude/support/documents/performance_optimized.md scaffolded with the task-012_1 baseline pre-filled (per-stage avgs, per-run spread, bottleneck ranking) and blank slots for the retest. Includes a comparability-conditions gate (p_full_load=false is a HARD condition from the baseline — a full-load retest is void), a prerequisites table for the two outstanding Erik-owned ACs (012_3 AC2 OPTIMIZE back-fill, 012_4 AC5 index deploy) plus a DirectLake reframe step that must precede the Power BI timings, and a signal-vs-noise note (baseline silver-to-gold spread was 18%, functional total 29%, so at n=3 anything under ~15% is noise). RISK RECORDED: the 012_4 CREATE INDEX block is likely to be rejected — Fabric Data Warehouse clusters via CLUSTER BY on CREATE TABLE/CTAS and accepts only PRIMARY KEY NONCLUSTERED NOT ENFORCED; CREATE CLUSTERED/NONCLUSTERED INDEX is not in its T-SQL surface (verified against Fabric docs, not by execution). The UPDATE STATISTICS block is supported and should be run regardless. A rejected index block is a valid finding, not a task failure."
   ],
   "created_date": "2026-04-29",
   "completion_date": "",
-  "updated_date": "2026-07-29",
+  "updated_date": "2026-08-03",
   "task_verification": {},
   "verification_attempts": 0,
   "verification_history": [],

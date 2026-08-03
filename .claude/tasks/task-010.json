@@ -37,7 +37,8 @@
     "DEP-CLEANUP 2026-07-29 (/work coherence audit): 4 of 5 entries in dependencies[] were English prose, not task IDs, so dependency resolution could never satisfy them and this task could not compute as ready. Moved to notes as preconditions: (1) Pipeline must be fully tested and working; (2) Source systems must be available at scheduled time (6:00 AM); (3) Fabric workspace must have capacity for scheduled execution; (4) Notification email addresses configured. Real dependency task-011 retained.",
     "INHERITED SCOPE (surfaced 2026-07-29): DEC-004 deferred its criterion 5 (failure notification) with \"no on-demand-firing sink exists until task-010 (scheduling) lands ... Revisit at task-010.\" This task's AC4 (\"Notifications working\") is where that deferral comes due. Note notifyOption='MailOnFailure' covers only 1/8 activities after the EPI/WGI repoint — the handler-based signal in gold_pipeline_execution_log is the real failure channel.",
     "DRIFT-RECONCILE 2026-08-02 (/work, [A] Apply): ## Orchestration section_fingerprint 14923ee -> 317baa48; spec_fingerprint b966 -> 3696. Drift source = 2026-07-31 bronze_azureSQLdb2table retirement (5 -> 6 bronze activities; RefreshDataflow -> two Copy activities). Scheduling ACs intact. Non-Finished (On Hold) task: status + criterion-3 verification retained (reset-to-Pending applies only to Finished tasks).",
-    "RUNBOOK FOLLOW-UP 2026-08-02: docs/guides/pipeline_schedule.md was updated for the retirement (Copy activities named, 'No RefreshDataflow activities remain') but says 'four Bronze activities' (lines 11,14) while the spec now documents six — minor count staleness in this task's criterion-3 deliverable. FIXED 2026-08-02 (same session): runbook updated to list all six Bronze activities (added bronzecopy_GlobalSupplyShares) and corrected 'four'->'six' on both lines; now matches the spec ## Orchestration activity table."
+    "RUNBOOK FOLLOW-UP 2026-08-02: docs/guides/pipeline_schedule.md was updated for the retirement (Copy activities named, 'No RefreshDataflow activities remain') but says 'four Bronze activities' (lines 11,14) while the spec now documents six — minor count staleness in this task's criterion-3 deliverable. FIXED 2026-08-02 (same session): runbook updated to list all six Bronze activities (added bronzecopy_GlobalSupplyShares) and corrected 'four'->'six' on both lines; now matches the spec ## Orchestration activity table.",
+    "PROVENANCE REFRESH 2026-08-03 (/work, Erik-approved): spec_fingerprint 3696c931 -> 0e1cb6c1 (commit 7fc5ff6). Full-spec fingerprint only — section_fingerprint is UNCHANGED because ## Orchestration is byte-identical across that commit. No requirements changed for this task; the refresh exists so Step 1b stops re-running granular analysis that narrows to nothing."
   ],
   "phase": "3",
   "spec_section": "Orchestration",
@@ -46,7 +47,7 @@
     "docs/guides/pipeline_schedule.md"
   ],
   "created_date": "",
-  "updated_date": "2026-08-02",
+  "updated_date": "2026-08-03",
   "task_verification": {
     "result": "pass",
     "attempt_number": 2,
@@ -121,6 +122,6 @@
   "subtasks": [],
   "progress": "Not started",
   "spec_version": "1",
-  "spec_fingerprint": "sha256:3696c9312b5b1451d713155a2cc75d132d995ec4c768671eba99fc030e695330",
+  "spec_fingerprint": "sha256:0e1cb6c1bbfcc356721b8b7ad47b1a6083b49882154ca4219a6b88276228498b",
   "section_fingerprint": "sha256:317baa48f168d3c18e541f60bae2e642f8ebf35f89bf9f26be7c4ec8b285357d"
 }

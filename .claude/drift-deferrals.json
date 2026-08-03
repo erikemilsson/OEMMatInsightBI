@@ -1,0 +1,10 @@
+{
+  "deferrals": [
+    {
+      "section": "## Next Steps & Priorities",
+      "deferred_date": "2026-08-03",
+      "affected_tasks": ["task-043", "task-044", "task-045", "task-046", "task-047"],
+      "reason": "Commit 7fc5ff6 rewrote this section's Priority Order and marked Phase 1 (10/10) and Phase 4 (7/7) Complete. The change is roadmap/status bookkeeping, not a requirements change: tasks 043-046 were verified against their own acceptanceCriteria, not against this section's priority list. Applying reconciliation would reset four Finished, verification-passing Phase 4 CI/CD tasks to Pending and delete their task_verification for no correctness gain. task-047 is Absorbed (closed won't-do) and is excluded from routing regardless. Deferred by user decision at /work 2026-08-03."
+    }
+  ]
+}

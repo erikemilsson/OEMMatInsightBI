@@ -56,6 +56,7 @@ p_end_year = "2023"
 import requests
 import json
 import time
+import random
 from pyspark.sql import functions as F
 from pyspark.sql import Row
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType
@@ -93,6 +94,30 @@ WGI_INDICATORS = {
 # World Bank API v2 base URL
 API_BASE = "https://api.worldbank.org/v2"
 
+# Retry tuning (task-050). The World Bank API degrades intermittently: on 2026-08-03 it
+# timed out on roughly half of all requests for over 75 minutes, and bronze_WGI could not
+# complete in either a pipeline run or a standalone probe. The old policy was
+# max_retries=3 with `time.sleep(2 * attempt)` — a 2s then 4s wait after a 60s read
+# timeout, i.e. it retried straight back into the same congestion and gave the remote side
+# no time to recover.
+#
+# One run fetches 6 indicators x ~6 pages (~5,150 records each at per_page=1000) = ~36
+# requests, so at a 50% per-request failure rate a clean run was effectively impossible.
+#
+# These constants govern the FAILURE PATH ONLY. A run in which nothing times out issues the
+# identical request sequence in the identical time, which is what keeps the task-012_1
+# performance baseline (bronze_WGI 73s) comparable for the task-012_5 retest.
+#
+# NOT tuned here on purpose: per_page. Raising it to ~10000 would cut the request count from
+# ~36 to ~12 and is the single highest-leverage reliability change available — but it alters
+# the happy-path request sequence and would invalidate the baseline comparison. Revisit once
+# task-012_5 closes.
+API_READ_TIMEOUT = 120   # was 60 — the server is slow, not absent; give it room to answer
+API_MAX_RETRIES = 5      # was 3
+API_BACKOFF_BASE = 5     # seconds; doubles per attempt -> 5, 10, 20, 40
+API_BACKOFF_CAP = 60     # seconds; ceiling on any single wait
+API_BACKOFF_JITTER = 0.25  # +/- fraction added to each wait, to de-synchronise retries
+
 # Date range from parameters
 start_year = p_start_year.strip()
 end_year = p_end_year.strip()
@@ -114,7 +139,8 @@ for api_code, (short_code, name) in WGI_INDICATORS.items():
 
 # CELL ********************
 
-def fetch_indicator(api_code, short_code, series_name, start_year, end_year, max_retries=3):
+def fetch_indicator(api_code, short_code, series_name, start_year, end_year,
+                    max_retries=API_MAX_RETRIES):
     """
     Fetch all country data for a single WGI indicator from the World Bank API.
     Uses JSON format with pagination. Queries the live API code (api_code, e.g.
@@ -140,7 +166,7 @@ def fetch_indicator(api_code, short_code, series_name, start_year, end_year, max
 
         for attempt in range(1, max_retries + 1):
             try:
-                response = requests.get(url, params=params, timeout=60)
+                response = requests.get(url, params=params, timeout=API_READ_TIMEOUT)
                 response.raise_for_status()
                 break
             except requests.exceptions.RequestException as e:
@@ -149,8 +175,18 @@ def fetch_indicator(api_code, short_code, series_name, start_year, end_year, max
                         f"World Bank API call failed for {api_code} "
                         f"(page {page}) after {max_retries} attempts: {e}"
                     ) from e
-                print(f"  Retry {attempt} for {api_code} page {page}: {e}")
-                time.sleep(2 * attempt)  # Simple backoff
+                # Exponential backoff, capped, with jitter (task-050). Doubling gives the
+                # remote side progressively more room to recover; the cap stops a single
+                # dead page stalling the notebook; the jitter de-synchronises retries so
+                # successive pages don't re-hit the API in lockstep.
+                delay = min(API_BACKOFF_BASE * (2 ** (attempt - 1)), API_BACKOFF_CAP)
+                delay += random.uniform(-API_BACKOFF_JITTER, API_BACKOFF_JITTER) * delay
+                delay = max(delay, 0.0)
+                print(
+                    f"  Retry {attempt}/{max_retries} for {api_code} page {page} "
+                    f"in {delay:.1f}s: {e}"
+                )
+                time.sleep(delay)
 
         data = response.json()
 
