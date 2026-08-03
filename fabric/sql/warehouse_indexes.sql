@@ -1,123 +1,129 @@
 -- ============================================================================
--- warehouse_indexes.sql — OEMMatInsightBI Warehouse Index DDL
+-- warehouse_indexes.sql — RETIRED 2026-08-03 (task-012_4)
 -- ============================================================================
--- Purpose:
---   Improves join + filter performance on the SQL analytics endpoint
---   (Warehouse, type "Warehouse" — the second "oem_lh"-named item, NOT the
---   Lakehouse). Adds:
---     1. Clustered rowstore indexes on the surrogate-key (PK) columns of
---        gold_dim_country, gold_dim_material, gold_dim_indicator.
---     2. Nonclustered indexes on the fact-table foreign-key columns that
---        point back to those three dims.
---     3. UPDATE STATISTICS for every indexed table so the query optimizer
---        sees fresh cardinality after the indexes land.
+-- STATUS: RETIRED. This file is no longer deployable DDL. It is preserved as a
+-- finding document. Do not run it against oem_wh — every statement in the
+-- former DDL is inert on Fabric Data Warehouse (verified by execution,
+-- 2026-08-03; see .claude/support/documents/performance_optimized.md §
+-- Prerequisites that could not be applied).
 --
--- Target tables (all in [dbo]):
---   Dims : gold_dim_country, gold_dim_material, gold_dim_indicator
---   Facts: fact_procurement, fact_epi_score, fact_supply_share
+-- This file resolves task-012_4 acceptance criterion 3 ("fabric/sql/
+-- warehouse_indexes.sql is resolved rather than left misleading"). The
+-- retire path was chosen over a CLUSTER BY rewrite because no defensible
+-- clustering target could be established from actual query patterns —
+-- see § Evidence basis below.
 --
--- Deploy (Erik's step — task-012_4 AC5):
---   Run this script via the SQL analytics endpoint for the oem_lh Lakehouse
---   (a.k.a. the oem_wh Warehouse connection in some tooling). DDL only — no
---   DML, no data movement. Execute the CREATE statements first, then the
---   UPDATE STATISTICS block at the bottom. Each statement is idempotent-safe
---   via IF EXISTS guards so the script can be re-run.
+-- ----------------------------------------------------------------------------
+-- Why the former DDL was inert (the platform limitation)
+-- ----------------------------------------------------------------------------
+-- Fabric Data Warehouse (oem_wh, type "Warehouse") does NOT support
+-- post-hoc CREATE INDEX. Verified by execution 2026-08-03:
 --
--- Scope note:
---   Only the three dims named in task-012_4 are covered. fact_procurement also
---   carries date_key -> gold_dim_date and fact_supply_share carries stage_key
---   -> gold_dim_stage; those FK indexes are intentionally out of scope here
---   and can be added in a follow-up if the bottleneck analysis (task-012_1)
---   shows they matter.
+--   CREATE CLUSTERED INDEX CX_gold_dim_country_country_key
+--       ON dbo.gold_dim_country (country_key);
+--   --> Msg 22424, Level 16, State 0, Line 1:
+--       CREATE INDEX is not a supported statement type.
+--
+-- The only physical-clustering mechanism Fabric DW exposes is
+--   CLUSTER BY <column>   at   CREATE TABLE / CTAS  time.
+-- It also accepts  PRIMARY KEY NONCLUSTERED NOT ENFORCED  (logical only —
+-- not a physical index). There is no post-hoc index DDL of any kind.
+--
+-- UPDATE STATISTICS ... WITH FULLSCAN  is accepted but is a documented
+-- no-op: ACE statistics are auto-maintained by the engine, so the DDL is
+-- redundant. All 6 statements returned:
+--   "Warning: Ignoring update of 'ACE-Cardinality' statistics. ACE
+--    statistics are auto updated, UPDATE STATISTICS DDL statement is
+--    not supported."
+--
+-- ----------------------------------------------------------------------------
+-- Evidence basis — why a CLUSTER BY rewrite was NOT authored (AC1)
+-- ----------------------------------------------------------------------------
+-- Task-012_4 AC1 requires the clustering target to be established from
+-- ACTUAL query patterns, not assumed FK-join shapes. The locally available
+-- query-pattern evidence (the Power BI semantic model TMDL + the measured
+-- Power BI timings in performance_optimized.md) shows no defensible target:
+--
+-- 1. The semantic model read path is DirectLake, NOT the warehouse SQL
+--    endpoint. Every table partition in
+--      fabric/OEMInsightBI_v2.SemanticModel/definition/tables/*.tmdl
+--    is  mode: directLake  with  expressionSource: 'DirectLake - oem_lh',
+--    and expressions.tmdl resolves the source to OneLake parquet:
+--      AzureStorage.DataLake("https://onelake.dfs.fabric.microsoft.com/
+--        99e4cc6d-6ec3-49a7-aed9-b69b04a97aa9/488fb9f8-e635-4683-90c4-ba4fee9dfadb")
+--    DirectLake pages parquet into the Vertipaq engine and bypasses the
+--    warehouse SQL engine entirely. CLUSTER BY on oem_wh tables would NOT
+--    affect any Power BI report query.
+--
+-- 2. The warehouse oem_wh has no documented SQL-endpoint consumer. Its
+--    table set (fabric/oem_wh.Warehouse/dbo/Tables/) is 8 tables:
+--      gold_dim_country, gold_dim_material, gold_dim_indicator,
+--      gold_dim_date, gold_dim_stage,
+--      fact_procurement, fact_epi_score, fact_supply_share.
+--    No ad-hoc SQL workload against oem_wh is recorded in the local
+--    evidence; no slow query against it has ever been identified.
+--
+-- 3. All WARM Power BI query times are fast (performance_optimized.md
+--    § Power BI query performance, measured 2026-08-03 after the 23-table
+--    OPTIMIZE back-fill and a semantic-model refresh):
+--      Executive Dashboard        106–150 ms
+--      Data Quality Monitoring     116 ms
+--      Supply Risk Verify          171 ms
+--      Risk & Sustainability (warm) 85–109 ms
+--    No warm query is slow.
+--
+-- 4. The ONE slow scenario is structurally outside CLUSTER BY's reach.
+--    Risk & Sustainability on first touch after a model refresh measured
+--    84 s / 84 s / 6.58 s / 3.98 s, but performance_optimized.md
+--    explicitly diagnoses this as DirectLake cold-start transcoding of
+--    gold_supply_risk's parquet columns ("Not a DirectQuery fallback";
+--    ~800x cold/warm ratio, column-level warm-up, not model-level). Two
+--    reasons CLUSTER BY cannot help:
+--      (a) DirectLake does not read the warehouse for these tables — it
+--          reads OneLake parquet directly.
+--      (b) gold_supply_risk is not even in the warehouse (the 8 warehouse
+--          tables are listed above); it is lakehouse-parquet-only.
+--    The documented remedy for that cold-start is a warm-up query after
+--    each semantic-model refresh (a task-010 operational concern), not
+--    warehouse clustering.
+--
+-- 5. No pipeline-runtime problem exists either (task-012_5, completed
+--    2026-08-03: primary target silver-to-gold was a null result, +6%
+--    inside noise; nothing measurably improved).
+--
+-- Conclusion: no slow query against the SQL endpoint has been identified,
+-- and the one slow read path (DirectLake cold-start) bypasses the warehouse
+-- by construction. Authoring CLUSTER BY DDL would be acting on the same
+-- assumption the original criteria rested on ("indexes help joins") with
+-- no evidence any query is slow — which is exactly what AC1 prohibits.
+--
+-- ----------------------------------------------------------------------------
+-- What would change this decision (revisit trigger)
+-- ----------------------------------------------------------------------------
+-- A CLUSTER BY rewrite becomes warranted ONLY if ALL of the following hold:
+--   1. A direct SQL-endpoint workload against oem_wh is identified (ad-hoc
+--      queries, a new semantic model in DirectQuery mode, a third-party
+--      consumer), AND
+--   2. A query against that endpoint is measured slow (duration above
+--      noise, reproducible), AND
+--   3. The slow query's filter/join column maps to one of the 8 warehouse
+--      tables, AND
+--   4. The table is (re)created via CTAS so CLUSTER BY can be applied at
+--      creation time.
+-- Until those four hold, this retirement stands.
+--
+-- ----------------------------------------------------------------------------
+-- Audit trail
+-- ----------------------------------------------------------------------------
+-- Former contents (122 lines): CREATE CLUSTERED INDEX on gold_dim_country
+-- .country_key, gold_dim_material.material_key, gold_dim_indicator
+-- .indicator_key; CREATE NONCLUSTERED INDEX on 7 fact FK columns across
+-- fact_procurement, fact_epi_score, fact_supply_share; UPDATE STATISTICS
+-- WITH FULLSCAN on all 6 indexed tables. Authored 2026-08-02, verified
+-- 2026-08-02 (verification_history attempt 1, since superseded). Found
+-- inert on Fabric DW 2026-08-03 by Erik running it against oem_wh.
+-- Task reopened 2026-08-03 (option (a) of the reopen-or-retire decision);
+-- acceptance criteria rewritten to force evidence-first analysis;
+-- retired under AC3 option (b) on 2026-08-03 after the TMDL/Timing analysis
+-- above found no defensible clustering target.
 -- ============================================================================
-
--- ----------------------------------------------------------------------------
--- 1. Clustered indexes on dimension surrogate keys (PKs)
--- ----------------------------------------------------------------------------
--- These columns are bigint, non-NULL by construction, and the join key every
--- fact relies on. A clustered rowstore index suits small dim tables that are
--- looked up by key and scanned in star joins.
-
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('dbo.gold_dim_country') AND name = 'CX_gold_dim_country_country_key')
-    CREATE CLUSTERED INDEX CX_gold_dim_country_country_key
-        ON dbo.gold_dim_country (country_key);
-GO
-
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('dbo.gold_dim_material') AND name = 'CX_gold_dim_material_material_key')
-    CREATE CLUSTERED INDEX CX_gold_dim_material_material_key
-        ON dbo.gold_dim_material (material_key);
-GO
-
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('dbo.gold_dim_indicator') AND name = 'CX_gold_dim_indicator_indicator_key')
-    CREATE CLUSTERED INDEX CX_gold_dim_indicator_indicator_key
-        ON dbo.gold_dim_indicator (indicator_key);
-GO
-
--- ----------------------------------------------------------------------------
--- 2. Nonclustered indexes on fact-table foreign keys
--- ----------------------------------------------------------------------------
--- One index per FK column that references the three scoped dims. Separate
--- single-column indexes (not composite) because the joins are independent
--- and the optimizer can pick any one for a star-join plan.
-
--- fact_procurement: material_key -> gold_dim_material
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('dbo.fact_procurement') AND name = 'IX_fact_procurement_material_key')
-    CREATE NONCLUSTERED INDEX IX_fact_procurement_material_key
-        ON dbo.fact_procurement (material_key);
-GO
-
--- fact_procurement: supplier_hq_country_key -> gold_dim_country
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('dbo.fact_procurement') AND name = 'IX_fact_procurement_supplier_hq_country_key')
-    CREATE NONCLUSTERED INDEX IX_fact_procurement_supplier_hq_country_key
-        ON dbo.fact_procurement (supplier_hq_country_key);
-GO
-
--- fact_procurement: production_country_key -> gold_dim_country
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('dbo.fact_procurement') AND name = 'IX_fact_procurement_production_country_key')
-    CREATE NONCLUSTERED INDEX IX_fact_procurement_production_country_key
-        ON dbo.fact_procurement (production_country_key);
-GO
-
--- fact_epi_score: country_key -> gold_dim_country
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('dbo.fact_epi_score') AND name = 'IX_fact_epi_score_country_key')
-    CREATE NONCLUSTERED INDEX IX_fact_epi_score_country_key
-        ON dbo.fact_epi_score (country_key);
-GO
-
--- fact_epi_score: indicator_key -> gold_dim_indicator
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('dbo.fact_epi_score') AND name = 'IX_fact_epi_score_indicator_key')
-    CREATE NONCLUSTERED INDEX IX_fact_epi_score_indicator_key
-        ON dbo.fact_epi_score (indicator_key);
-GO
-
--- fact_supply_share: material_key -> gold_dim_material
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('dbo.fact_supply_share') AND name = 'IX_fact_supply_share_material_key')
-    CREATE NONCLUSTERED INDEX IX_fact_supply_share_material_key
-        ON dbo.fact_supply_share (material_key);
-GO
-
--- fact_supply_share: country_key -> gold_dim_country
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('dbo.fact_supply_share') AND name = 'IX_fact_supply_share_country_key')
-    CREATE NONCLUSTERED INDEX IX_fact_supply_share_country_key
-        ON dbo.fact_supply_share (country_key);
-GO
-
--- ----------------------------------------------------------------------------
--- 3. UPDATE STATISTICS for every indexed table
--- ----------------------------------------------------------------------------
--- Run AFTER all CREATE INDEX statements so the optimizer picks up the new
--- index paths immediately. WITH FULLSCAN gives the most accurate cardinality
--- for these small-to-mid portfolio-scale tables.
-
-UPDATE STATISTICS dbo.gold_dim_country WITH FULLSCAN;
-GO
-UPDATE STATISTICS dbo.gold_dim_material WITH FULLSCAN;
-GO
-UPDATE STATISTICS dbo.gold_dim_indicator WITH FULLSCAN;
-GO
-UPDATE STATISTICS dbo.fact_procurement WITH FULLSCAN;
-GO
-UPDATE STATISTICS dbo.fact_epi_score WITH FULLSCAN;
-GO
-UPDATE STATISTICS dbo.fact_supply_share WITH FULLSCAN;
-GO

@@ -1,6 +1,6 @@
 {
   "spec_file": "spec_v1.md",
-  "spec_fingerprint": "sha256:fdc9275d81a7e511018e8ed23b7a2b70a2c2bd407ce998f240a4d5d2d42a4225",
+  "spec_fingerprint": "sha256:750a99d4f2b65b8a47ca3f3486f66648de9a7a2f3f80a76a238ee9e6643c6d06",
   "section_count": 18,
   "sections": [
     {
@@ -87,8 +87,8 @@
       "heading": "## Performance Optimization",
       "line_start": 1267,
       "line_end": 1288,
-      "char_count": 934,
-      "fingerprint": "sha256:52b023e9f000ef12ac20b44f4d0c5874b0bcf19f56963ed063ac9bcbb1d3c5f2",
+      "char_count": 1031,
+      "fingerprint": "sha256:9ae24b62672a229a4f0110ac31a0e3ab161325dcdd9d4fdd56a2e40c7709fdd5",
       "synopsis": "**Pipeline Runtime:** Not benchmarked \u2014 manual pipeline runs at portfolio scale. No production load or SLA requirements."
     },
     {

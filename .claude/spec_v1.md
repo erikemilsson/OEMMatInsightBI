@@ -1280,7 +1280,7 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 
 -   [ ] Caching strategies *(task-012_3)*
 
--   [ ] Index creation in warehouse *(task-012_4)*
+-   [x] ~~Index creation in warehouse~~ — **not applicable** (platform limitation), see DEC-012. Task-012_4 was retired on this basis (2026-08-03).
 
 -   [ ] DirectLake optimization (V-Order columnar format) *(task-012_3)*
 
