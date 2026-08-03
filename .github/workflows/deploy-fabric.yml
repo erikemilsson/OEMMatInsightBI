@@ -168,6 +168,22 @@ jobs:
         # they perform only filesystem reads + a GET to the items API; they do
         # not mutate the workspace.
         #
+        # KNOWN LIMITATION (deliberate, verified against fabric-cicd 1.2.0 on
+        # 2026-08-02): the library exposes no public dry-run/resolve-only API.
+        # publish_all_items() has no dry_run flag and there is no resolve /
+        # preview / plan module, so these underscore-prefixed helpers are the
+        # only way to enumerate a deployment plan without publishing. They are
+        # therefore an accepted coupling to private API surface, not an
+        # oversight. The try/except below keeps a helper rename from failing
+        # the workflow — dry-run degrades to an incomplete plan with a warning
+        # rather than a hard error.
+        #
+        # UPGRADE TRIGGER: when bumping fabric-cicd, re-check whether a public
+        # dry-run or resolve-only entry point has shipped; if so, replace this
+        # block with it and drop the try/except. (Tracked as task-047, closed
+        # won't-do 2026-08-02 — the criterion was gated on a library release
+        # that may never come, so the trigger lives here at the call site.)
+        #
         # NOTE: _refresh_repository_items does NOT honor the folder-exclude
         # regex (it walks every .platform under repository_directory), so the
         # raw repository_items still contains the 2 archived items. The dry-run

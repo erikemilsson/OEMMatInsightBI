@@ -2,7 +2,7 @@
 version: 1
 status: active
 created: 2025-11-14
-updated: 2026-07-31
+updated: 2026-08-03
 ---
 
 # OEMMatInsightBI - Project Definition for Claude Code
@@ -207,7 +207,7 @@ Power BI Reports
 
 **Source:** EPI dataset (file-based ingestion)
 
-**Ingestion Method:** `bronze_ingest_epi.Notebook` (PySpark, from manual CSV upload). Supersedes the retired `EPI_file2table.Dataflow` CSV lineage.
+**Ingestion Method:** `bronze_ingest_epi.Notebook` (PySpark, automated HTTP download from `epi.yale.edu` with retry; year-parameterised per task-028). Supersedes the retired `EPI_file2table.Dataflow` CSV lineage.
 
 **Content:** Country-level environmental performance scores across multiple indicators
 
@@ -834,7 +834,7 @@ The report was redesigned and rebuilt from scratch after the semantic model was 
 
 -   [x] Azure SQL ingestion — **Retired (2026-07-31)**: was `bronze_azureSQLdb2table.Dataflow`, now Copy activities `bronzecopy_procurement_transactional` + `bronzecopy_supplier_ref`. See `.claude/support/retired/bronze-azuresqldb2table-dataflow/manifest.json`.
 
--   [x] EPI ingestion (`bronze_ingest_epi.Notebook`, manual CSV upload)
+-   [x] EPI ingestion (`bronze_ingest_epi.Notebook` — automated HTTP download from epi.yale.edu with retry; year-parameterised per task-028)
 
 -   [x] WGI ingestion (`bronze_ingest_wgi.Notebook`, World Bank API)
 
@@ -874,6 +874,8 @@ The report was redesigned and rebuilt from scratch after the semantic model was 
 
 -   [x] Data quality observability tables (gold_quality_history, gold_gap_registry, gold_low_confidence_audit)
 
+-   [x] `gold_supply_risk` — governance- & trade-weighted dual HHI, global vs EU-sourcing, with bottleneck flagging (task-038)
+
 **Semantic Model:**
 
 -   [x] Star schema defined
@@ -896,7 +898,7 @@ The report was redesigned and rebuilt from scratch after the semantic model was 
 
 **Testing:**
 
--   [x] Unit tests for transformation logic (94 tests, `tests/`)
+-   [x] Unit tests for transformation logic (235 tests, `tests/`), including the notebook↔`src/` parity contract (task-032)
 
 -   [x] CI pipeline: GitHub Actions with matrix testing (Python 3.10-3.12)
 
@@ -918,14 +920,18 @@ The report was redesigned and rebuilt from scratch after the semantic model was 
 
 -   [x] Theme applied (CY24SU10)
 
+**Deployment:**
+
+-   [x] Automated Fabric deployment on merge to main (`fabric-cicd` + GitHub Actions, Service Principal auth, dry-run mode)
+
 ### What's Incomplete/Needs Work ⚠️
 
 **Remaining Technical Work** (mapped to tasks):
 
 -   [ ] Incremental load — implementation done (006_1a/1b/1c/2); end-to-end testing in Fabric remains (task-006_3)
 -   [ ] Pipeline scheduling (task-010)
--   [ ] Performance optimization (task-012, broken into 012_1–012_5)
--   [ ] CI/CD deployment via `fabric-cicd` (Phase 4)
+-   [ ] Performance retest — optimizations applied (012_3, 012_4); before/after measurement remains (task-012_5)
+-   [ ] External-data ingestion — automated in code; end-to-end runtime verification remains (task-036)
 
 **Documentation:**
 
@@ -934,7 +940,11 @@ The report was redesigned and rebuilt from scratch after the semantic model was 
 
 ### Known Issues/Technical Debt 🔴
 
-No open issues. Previously identified gap (data quality visibility) addressed via quality observability tables in tasks 018/019.
+**Permanent data limitation — WGI governance coverage.** The World Bank publishes no WGI for non-member states; Taiwan (TWN) has none and never will. This is not an aliasing defect and cannot be resolved by mapping. Affected rows carry `incomplete_wgi_coverage`; supply risk for Taiwan-supplied materials is **understated by construction**. NULL must never coerce to 0 (0 is a legitimate index value meaning diffuse supply).
+
+**Accepted coupling — `fabric-cicd` private API.** See § Infrastructure & Deployment → CI/CD Deployment → Known Limitations.
+
+No other open issues. Previously identified gap (data quality visibility) addressed via quality observability tables in tasks 018/019.
 
 ------------------------------------------------------------------------
 
@@ -1202,7 +1212,7 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 
 ### CI/CD Deployment
 
-**Status: Planned (Phase 4) — not yet implemented.** The following describes the intended approach; `parameter.yml` and `.github/workflows/fabric-deploy.yml` do not exist on disk yet (only `.github/workflows/test.yml` is live). See § Next Steps → Phase 4 for deliverables.
+**Status: Implemented (Phase 4, 2026-08-01).** `.github/workflows/deploy-fabric.yml` and `fabric/parameter.yml` are live; `.github/workflows/test.yml` runs the test matrix.
 
 **Approach:** Git-based deployment using Microsoft's `fabric-cicd` Python library + GitHub Actions (Microsoft CI/CD Option 2 — trunk-based with build environments).
 
@@ -1216,7 +1226,7 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 -   **Parameterization:** `parameter.yml` for environment-specific config (lakehouse IDs, connection strings)
 -   **Key functions:** `publish_all_items()`, `unpublish_all_orphan_items()`
 
-**GitHub Actions Workflow:** `.github/workflows/fabric-deploy.yml`
+**GitHub Actions Workflow:** `.github/workflows/deploy-fabric.yml`
 
 -   Install `fabric-cicd`
 -   Authenticate via Service Principal (client ID, client secret, tenant ID stored as GitHub secrets)
@@ -1225,10 +1235,14 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 
 **Scope of deployment:** Metadata only — notebooks, pipelines, semantic model definitions, warehouse DDL. Data is never deployed; data population happens via the orchestrator pipeline.
 
+**Additional capabilities beyond the original plan:**
+-   Dry-run mode reporting the deployment plan without publishing
+-   Retired artifacts under `fabric/archive/` excluded from publish via folder regex
+
 **Known Limitations:**
 -   Notebook-to-Lakehouse bindings don't auto-update across environments — `parameter.yml` handles this
 -   Lakehouse table data, shortcuts, and views are not deployed (metadata only)
--   `fabric-cicd` is pre-1.0 (v0.3.x) but production-used across the community
+-   **Dry-run mode couples to private `fabric-cicd` API.** Verified against 1.2.0 (2026-08-02): the library exposes no public dry-run or resolve-only entry point, so enumeration calls `_refresh_repository_items` / `_refresh_deployed_items`. Documented at the call site with an upgrade trigger; degrades to a warning rather than a hard failure if renamed. Tracked as task-047, closed won't-do — the criterion was gated on a library release that may never ship.
 
 **Credentials:** Service Principal setup is a human task (Azure AD app registration, Fabric workspace permissions). Secrets stored in GitHub repository settings, never committed to code.
 
@@ -1276,7 +1290,7 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 
 ### Current Testing Status
 
-**Unit Tests:** 94 tests for transformation logic in `tests/` (as of 2026-07-23; originally 33 from task-008, since extended by task-020/027/032). **Integration Tests:** None yet. **Data Validation Tests:** Quality checks in gold layer + observability tables.
+**Unit Tests:** 235 tests for transformation logic in `tests/` (as of 2026-08-03; originally 33 from task-008, since extended by task-020/027/032 and the Phase 2–4 work), including the notebook↔`src/` parity contract (task-032). **Integration Tests:** None yet. **Data Validation Tests:** Quality checks in gold layer + observability tables.
 
 **Testing Approach:**
 
@@ -1460,7 +1474,7 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
 
 -   File location: Manual CSV upload to Fabric Lakehouse Files
 
--   Ingestion: `bronze_ingest_epi.Notebook` after manual CSV upload
+-   Ingestion: `bronze_ingest_epi.Notebook` — automated HTTP download, no manual upload
 
 -   Current year: 2024
 
@@ -1561,10 +1575,10 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
 
 | Phase | Focus | Status | Acceptance Criteria |
 |-------|-------|--------|-------------------|
-| Phase 1 | Core Data Model & Reports | Active (9/10) — task-034 (Data Gaps report page) outstanding | Gold tables populated, semantic model connected, Power BI report built |
-| Phase 2 | Automation & Quality | Active (28/32) — task-006_3, task-036, task-038 remain | Incremental load works for fact_procurement, data quality checks run in pipeline, external data ingestion scripted |
-| Phase 3 | Operations & Performance | Active (8/15) — task-010 (scheduling, On Hold) + task-012_1/_3/_4/_5 (performance) | Error handling with Try-Catch in pipeline, pipeline scheduling configured, basic performance review done |
-| Phase 4 | CI/CD Deployment | Active (0/4) — task-043 … task-046 | GitHub Actions workflow deploys Fabric artifacts on merge to main via `fabric-cicd` |
+| Phase 1 | Core Data Model & Reports | **Complete (10/10)** | Gold tables populated, semantic model connected, Power BI report built |
+| Phase 2 | Automation & Quality | Active (36/38) — task-006_3, task-036 remain (both Fabric-run verification) | Incremental load works for fact_procurement, data quality checks run in pipeline, external data ingestion scripted |
+| Phase 3 | Operations & Performance | Active (13/15) — task-010 (scheduling, On Hold) + task-012_5 (perf retest) | Error handling with Try-Catch in pipeline, pipeline scheduling configured, basic performance review done |
+| Phase 4 | CI/CD Deployment | **Complete (7/7)** — task-043…046 shipped; task-048/049 folded in | GitHub Actions workflow deploys Fabric artifacts on merge to main via `fabric-cicd` |
 
 ### Phase 4 — CI/CD Deployment
 
@@ -1579,13 +1593,18 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
 
 2. **SQL Warehouse Analytics Layer** — already implemented (4 views + 2 stored procedures in `oem_wh`). No additional work needed.
 
-### Priority Order
+### Remaining Work
 
-Complete in sequence:
-1. **Phase 2 remaining:** task-038 (build `gold_supply_risk` — needs `/breakdown`, difficulty 7), task-036 (external-data ingestion test), task-006_3 (incremental-load test in Fabric)
-2. **Phase 1 remainder:** task-034 (Data Gaps report page) — carried over; can proceed in parallel
-3. **Phase 3:** task-010 (scheduling) + task-012_1/_3/_4/_5 (performance) — task-011 (error handling) is done; task-012_2 (partitioning) retired per Technical Decisions 2
-4. **Phase 4:** CI/CD — task-043 (Service Principal) and task-044 (`parameter.yml`) have no dependencies and can start early
+Four tasks remain, all gated on Fabric-UI execution by the project owner. They are not sequential — they collapse into a single Fabric session:
+
+**Prerequisites (must precede the measured runs):** `OPTIMIZE` on gold tables (task-012_3 AC2); deploy `fabric/sql/warehouse_indexes.sql` (task-012_4 AC5). Running the retest before these invalidates the comparison.
+
+1. **task-036** — external-data e2e: satisfied by any complete pipeline run (EPI/WGI ingest identically in both parameter modes).
+2. **task-006_3** — incremental load: one full-load run (`p_full_load=true`, which must log FULL LOAD — the runtime proof for task-039's parameters cell) plus one incremental run, then the duplicate check.
+3. **task-012_5** — performance retest: three incremental warm-cache runs, matching the task-012_1 baseline methodology.
+4. **task-010** — scheduling: configure the daily 06:00 run; the first scheduled execution supplies its own evidence.
+
+Descoped: task-034 (Data Gaps report page — optional surface; the underlying table and measures shipped under task-001). Closed won't-do: task-047 (see § CI/CD Deployment → Known Limitations).
 
 ------------------------------------------------------------------------
 

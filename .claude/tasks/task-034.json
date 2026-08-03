@@ -2,7 +2,7 @@
   "id": "task-034",
   "title": "Build Data Gaps page in Power BI following DQ_PAGE_GUIDE.md",
   "description": "Build the Data Gaps report page visuals in Power BI per DQ_PAGE_GUIDE.md. The underlying gold_data_gaps table, TMDL model entries, and coverage DAX measures all landed under task-001; only the report-page build remains. Originally tracked as inline subtask task-001-6 inside task-001, which was marked Finished while this item was still Pending — promoted to a standalone task by /health-check 2026-07-19 so it is visible to routing.",
-  "status": "Pending",
+  "status": "Absorbed",
   "priority": "P3",
   "difficulty": 3,
   "owner": "human",
@@ -27,14 +27,15 @@
     "Original note flagged this as an OPTIONAL ENHANCEMENT — treat as low priority, and feel free to close it as descoped rather than building it if the Data Gaps page no longer earns its place in the report.",
     "STALENESS CHECK FIRST: this item was authored 2026-01-16. Confirm DQ_PAGE_GUIDE.md and the gold_data_gaps schema still match current reality before building — the gold layer has changed substantially since (tasks 022-031).",
     "SEMANTIC-MODEL SYNC FOLDED IN 2026-07-23 (Erik's call — no standalone TMDL-sync task). The repo v2 semantic model (OEMInsightBI_v2.SemanticModel) is Jan-2026-dated and has confirmed drift against the current gold schema that THIS page depends on: (a) gold_quality_history is in the model but MISSING the status/producer columns task-040 added — a DirectLake model does not pick up new COLUMNS on refresh, only new rows, so any gate-verdict visual needs the model updated first; (b) gold_unmapped_unit_audit (task-030) is not in the model at all — new tables must be added explicitly; (c) decide per audit table whether it is report-facing (gold_unmapped_*, gold_data_quality_*, mapping_* are currently out of the model — likely deliberate, confirm rather than bulk-add). When building this page, update the model (Fabric UI or TMDL) for whatever tables/columns the visuals actually read, then pull the current model back to the repo (sync-from-fabric) so fabric/OEMInsightBI_v2.SemanticModel stops being six months stale. Practically gated on task-035: the page's AC3 ('visuals populate after a pipeline run') cannot be met while the pipeline is red at Stage 2.",
-    "SPEC ANCHOR 2026-07-29 (/work coherence audit): spec_section was empty; set to 'Data Quality & Validation' (gold_data_gaps and the coverage measures are defined there)."
+    "SPEC ANCHOR 2026-07-29 (/work coherence audit): spec_section was empty; set to 'Data Quality & Validation' (gold_data_gaps and the coverage measures are defined there).",
+    "DESCOPED 2026-08-02 (Erik's call, /work task review). Taking the explicit invitation in note 2 ('feel free to close it as descoped rather than building it if the Data Gaps page no longer earns its place'). Two grounds: (1) the page is an optional report surface, not a spec acceptance criterion — spec § Data Quality & Validation requires the gold_data_gaps TABLE and the coverage measures, both of which landed under task-001 and are verified; only the visual layer is dropped. (2) The strongest remaining argument for building it was note 4's folded-in semantic-model sync, and that justification has since expired: fabric/OEMInsightBI_v2.SemanticModel was resynced from the workspace 2026-08-01 (commit 'Committing 2 items from workspace') and now carries gold_supply_risk.tmdl, so the 'six months stale' condition no longer holds. Claude-side deliverables are intact and shipped; what is dropped is ~3h of human Power BI report-building with low marginal portfolio value. SPEC FOLLOW-UP: spec § Next Steps & Priorities Phase Structure row 1 still reads 'Active (9/10) — task-034 (Data Gaps report page) outstanding' and Priority Order item 2 still names it; those lines need an /iterate pass to reflect the descope (spec body text — DEC-016 routing, not editable here)."
   ],
   "user_feedback": "",
   "created_date": "2026-07-19",
-  "updated_date": "2026-07-29",
+  "updated_date": "2026-08-02",
   "completion_date": null,
   "verification_attempts": 0,
   "out_of_spec": false,
-  "absorbed_into": "",
+  "absorbed_into": "Descoped 2026-08-02 (Erik's call) — optional report surface; spec § Data Quality & Validation is satisfied by the gold_data_gaps table + coverage measures delivered under task-001.",
   "interaction_hint": "dashboard"
 }

@@ -13,8 +13,8 @@
   "interaction_hint": "",
   "decision_dependencies": [],
   "out_of_spec": false,
-  "absorbed_into": "",
-  "status": "Blocked",
+  "absorbed_into": "Closed won't-do 2026-08-02 (Erik's call) — acceptance criterion 1 requires a public fabric-cicd resolve-only API that does not exist; retained in-tree as a documented limitation in .github/workflows/deploy-fabric.yml.",
+  "status": "Absorbed",
   "user_review_pending": false,
   "id": "task-047",
   "title": "Harden deploy-fabric.yml dry-run against fabric-cicd private-API churn once a public resolve-only API exists",
@@ -35,6 +35,7 @@
   "notes": [
     "CREATED 2026-07-30 by /work orchestrator from task-045 implement-agent issues_discovered (non_blocking, suggested_action: create new task).",
     "Depends on task-046 so the hardening happens after the deploy path is proven end-to-end.",
-    "BLOCKED 2026-08-02 (/work, Erik-approved): acceptance criterion #1 ('Dry-run mode uses only public fabric-cicd API surface, no underscore-prefixed helpers') cannot be satisfied — fabric-cicd 1.2.0 (latest as of 2026-08-02, re-verified locally this session) exposes no public dry-run/resolve-only API. publish_all_items has no dry_run flag; the package has no resolve/preview/plan module; only private _refresh_repository_items/_refresh_deployed_items helpers exist. The task-045 dry-run path therefore cannot be hardened onto a public surface until a future fabric-cicd release ships one. Blocked on an external dependency (a future library release), not on any in-tree work. Revisit when a new fabric-cicd version lands; bump and re-check the public surface."
+    "BLOCKED 2026-08-02 (/work, Erik-approved): acceptance criterion #1 ('Dry-run mode uses only public fabric-cicd API surface, no underscore-prefixed helpers') cannot be satisfied — fabric-cicd 1.2.0 (latest as of 2026-08-02, re-verified locally this session) exposes no public dry-run/resolve-only API. publish_all_items has no dry_run flag; the package has no resolve/preview/plan module; only private _refresh_repository_items/_refresh_deployed_items helpers exist. The task-045 dry-run path therefore cannot be hardened onto a public surface until a future fabric-cicd release ships one. Blocked on an external dependency (a future library release), not on any in-tree work. Revisit when a new fabric-cicd version lands; bump and re-check the public surface.",
+    "CLOSED WON'T-DO 2026-08-02 (Erik's call, /work task review). Acceptance criterion 1 is not satisfiable by any in-tree work — it is gated on a fabric-cicd release that may never ship. Holding an unsatisfiable task open would leave the project permanently reading as incomplete for a durability concern that has not actually bitten. Disposition: the constraint is retained as a documented limitation at the call site in .github/workflows/deploy-fabric.yml (private-helper usage + why + the upgrade trigger), so the knowledge survives the task closure and a future fabric-cicd bump has a written trigger to act on. task-045's dry-run path is unchanged and working; nothing is removed."
   ]
 }
