@@ -2,7 +2,7 @@
   "id": "task-012",
   "title": "Optimize Pipeline Performance",
   "description": "Measure baseline performance, implement partitioning strategy, enable V-Order optimization, optimize transformations, and create warehouse indexes. Target: >30% performance improvement.",
-  "status": "Broken Down",
+  "status": "Finished",
   "priority": "P3",
   "difficulty": 7,
   "estimatedEffort": "2-4 days",
@@ -16,8 +16,17 @@
     ".claude/spec_v1.md"
   ],
   "created_date": "",
-  "updated_date": "2026-07-19",
-  "task_verification": {},
+  "completion_date": "2026-08-03",
+  "updated_date": "2026-08-03",
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-08-03T21:45:00Z",
+    "checks": {
+      "roll_up": "pass"
+    },
+    "issues": [],
+    "notes": "Parent auto-completed by /work (Erik-approved [A]) after task-012_4 user review closed: all non-Absorbed subtasks Finished with passing per-task verification — 012_1 (baseline, pass), 012_3 (V-Order, pass), 012_4 (warehouse indexes retired via DEC-012, pass), 012_5 (retest, pass); 012_2 (partitioning) Absorbed. The headline AC5 ('Performance improvement >30% vs baseline') was a MEASURED NULL RESULT, not achieved: task-012_5's retest found no pipeline-runtime improvement from the 012_3 effort, and both remaining optimization levers hit Fabric platform limitations — partitioning (012_2) retired per DEC-011 and warehouse indexes (012_4) retired per DEC-012 (DirectLake bypasses the warehouse SQL endpoint, so CLUSTER BY cannot reach any Power BI report query; CREATE INDEX rejected with Msg 22424). Only V-Order shipped (012_3, DEC-011). Measured warm Power BI timings 85-171 ms (well under the <3s AC6). The optimization INVESTIGATION is complete and the null result is documented in performance_optimized.md, DEC-011, and DEC-012. Marked Finished (not left Broken Down) because the investigative work is genuinely done and the null outcome is an honest, AC4-sanctioned result rather than a defect."
+  },
   "verification_attempts": 0,
   "verification_history": [],
   "test_protocol": null,
@@ -62,7 +71,8 @@
     "ERIK: Run baseline measurements, deploy optimizations, validate performance gains",
     "NOTE: This task is Erik-heavy due to baseline measurement and Fabric-specific testing",
     "--- BREAKDOWN 2026-04-29 ---",
-    "Broken down into 5 subtasks: 012_1 (baseline) → [012_2, 012_3, 012_4 in sequence/parallel] → 012_5 (validate)"
+    "Broken down into 5 subtasks: 012_1 (baseline) → [012_2, 012_3, 012_4 in sequence/parallel] → 012_5 (validate)",
+    "[AUTO-COMPLETED 2026-08-03 via /work complete task-012_4 (Erik-approved [A])] All non-Absorbed subtasks Finished with passing per-task verification. Headline AC5 (>30% improvement) was a measured null result — see task_verification.notes for the platform-limitation rationale (DEC-011 partitioning, DEC-012 warehouse indexes) and the V-Order-only outcome. Closed as Finished with an honest null-result note rather than left Broken Down, per Erik's [A] choice."
   ],
   "optimizationTechniques": [
     {
@@ -116,5 +126,5 @@
     "task-012_4",
     "task-012_5"
   ],
-  "progress": "Not started (0/5 subtasks complete)"
+  "progress": "Complete — 4/5 subtasks Finished (012_1/012_3/012_4/012_5, all pass), 012_2 Absorbed; headline >30% AC was a measured null result (V-Order only shipped)"
 }
