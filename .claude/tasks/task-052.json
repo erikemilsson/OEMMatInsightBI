@@ -25,25 +25,28 @@
   "status": "Awaiting Verification",
   "difficulty": 3,
   "id": "task-052",
-  "title": "Raise bronze_ingest_wgi per_page to cut the World Bank request count ~36 -> ~6",
+  "title": "Evaluate raising bronze_ingest_wgi per_page \u2014 measured, rejected, reverted",
   "spec_section": "Data Architecture",
   "section_fingerprint": "sha256:ecea8c1d811d571ed42db2be6f786f04713790a972884dff8de8059ec5e3a752",
-  "description": "Every World Bank API request is an independent chance to hit the intermittent read timeout that stopped bronze_WGI completing on 2026-08-03. At per_page=1000 a run issued ~36 requests (6 indicators x ~6 pages at ~5,150 records each); at per_page=10000 the API reports pages=1 per indicator, so a run issues ~6. Cutting the request count is the single highest-leverage reliability change available and was named as such in task-050, which deliberately excluded it because \u2014 unlike the retry constants \u2014 it changes the HAPPY PATH and therefore breaks comparability with the task-012_1 baseline. Erik took that trade-off knowingly on 2026-08-03 rather than wait out the API degradation.",
+  "description": "Every World Bank API request is an independent chance to hit the intermittent read timeout that stopped bronze_WGI completing on 2026-08-03, so raising per_page (1000 -> 10000, cutting ~36 requests per run to ~6) looked like the highest-leverage reliability change available. It was shipped, measured against the live API the same day, and REJECTED: the request-count saving is swamped by per-request cost, and the change makes the notebook more fragile rather than less. Reverted to per_page=1000. The deliverable is the measurement and the DO-NOT-RAISE note in the notebook, not the change.",
   "files_affected": [
     "fabric/bronze_ingest_wgi.Notebook/notebook-content.py"
   ],
   "acceptanceCriteria": [
-    "per_page is a named module-level constant (API_PAGE_SIZE), not an inline literal, matching the constant style task-050 established.",
-    "A run fetches each indicator in a single request where the record count allows it, cutting the per-run request count from ~36 to ~6.",
-    "Pagination still works if an indicator ever exceeds one page \u2014 the loop remains driven by the API's own metadata 'pages' value rather than assuming a single page.",
-    "No other request parameter changes, so the bronze contract and the resulting bronze_WGI schema are untouched.",
-    "The baseline consequence is recorded where it will be read: in the notebook comment, in task-012_5's notes, and in performance_optimized.md."
+    "per_page is a named module-level constant (API_PAGE_SIZE) rather than an inline literal, matching the constant style task-050 established.",
+    "The raised value is measured against the live API rather than reasoned about \u2014 request count, per-request latency, fetch-cell duration and record counts all recorded.",
+    "Data equivalence is checked explicitly, so a latency finding is never confused with a correctness one.",
+    "The measured outcome is acted on whatever it says, including reverting the change if it is worse \u2014 a negative result is a valid outcome, not a failed task.",
+    "The finding is recorded where the next person to have this idea will read it (the notebook's own constant block), not only in task notes.",
+    "If reverted, the task-012_1 baseline comparability is restored and task-012_5's notes and performance_optimized.md are corrected accordingly."
   ],
   "notes": [
-    "CREATED 2026-08-03 (/work, Erik-approved). Splits out the change task-050 note 3 explicitly deferred ('DELIBERATELY NOT DOING: raising per_page ... Revisit AFTER task-012_5 closes'). Erik chose to take it now instead.",
-    "BASELINE CONSEQUENCE \u2014 the accepted cost, recorded so it is not rediscovered as a surprise: the task-012_1 baseline measured bronze_WGI at 73s with per_page=1000. That figure is no longer like-for-like, so task-012_5 cannot report a bronze_WGI delta against it. The bronze stage must be annotated as RE-BASELINED rather than compared. The optimizations task-012_5 actually exists to measure (V-Order and broadcast hints from task-012_3, index DDL from task-012_4) act on silver and gold, so the silver/gold comparison \u2014 where the real signal is \u2014 stays intact.",
-    "IMPLEMENTED 2026-08-03 (inline, not via implement-agent \u2014 session-level instruction is not to dispatch subagents unless asked). Added API_PAGE_SIZE = 10000 beside the task-050 constants and changed the request param to str(API_PAGE_SIZE). Rewrote the constant block's comment, which previously stated per_page was deliberately NOT tuned, so it now records the raise, the arithmetic and the baseline consequence.",
-    "VERIFIED LOCALLY: ast.parse OK; 6 CELL markers intact; 249/249 pytest pass. NOT verified against the live API \u2014 the record count per indicator (~5,150) is from the 2026-08-03 partial run, so pages=1 at per_page=10000 is arithmetic, not an observation. The first real run is the confirmation; if the World Bank caps per_page below 10000 the loop still paginates correctly, just with less benefit.",
-    "NOT DEPLOYED BY CLAUDE: push to main auto-publishes to the live workspace, so committing is Erik's call."
+    "CREATED 2026-08-03 (/work, Erik-approved). Splits out the change task-050 note 3 explicitly deferred ('DELIBERATELY NOT DOING: raising per_page ... Revisit AFTER task-012_5 closes'). Erik chose to take it early rather than wait out the API degradation.",
+    "SHIPPED THEN REVERTED 2026-08-03, same day. Commit e785d4c raised API_PAGE_SIZE to 10000; the revert follows in the next commit. Both are Erik-approved decisions taken with the measurement in hand.",
+    "MEASUREMENT (live standalone run, 2026-08-03 18:46, per_page=10000). Fetch cell 8m16s (496s) vs 265s for the per_page=1000 run earlier the same day \u2014 roughly TWICE AS SLOW. One timeout logged (VA.EST page 1, 4.9s backoff, ~125s cost), leaving ~371s across 7 successful requests = ~53s per request. The 265s run's timeouts were inferred from arithmetic rather than a log, so per-request cost there is bounded at 0.4s (2 timeouts) to 3.9s (1 timeout); 3 timeouts is arithmetically impossible. Per-request cost therefore rose between 13x and 130x \u2014 the conclusion holds across the whole uncertainty range.",
+    "WHY IT BACKFIRED \u2014 two independent reasons, both now in the notebook's constant block: (1) SLOWER \u2014 the World Bank API charges far more to serialise one ~5,150-record page than six 1,000-record pages, which swamps the 36->6 request saving. (2) MORE FRAGILE \u2014 at ~53s against a 120s read timeout every request sits at ~44% of its budget, versus under 3% at per_page=1000. Large pages move every request toward the ceiling instead of reducing exposure, which is exactly how VA.EST page 1 timed out during the run intended to demonstrate the improvement. The premise 'fewer requests = fewer chances to fail' ignores that per-request failure probability is not independent of page size.",
+    "DATA EQUIVALENCE CONFIRMED, so this is purely a latency/robustness finding and not a correctness one: 31,122 records total at per_page=10000, with CC.EST 5158 / GE.EST 5127 / PV.EST 5214 matching the earlier per_page=1000 partial run EXACTLY on all three indicators it had reached. Pagination is driven by the API's own metadata 'pages' value, so neither value truncates.",
+    "BASELINE RESTORED: the re-baselining cost recorded against task-012_5 is withdrawn. per_page is back to 1000, so the task-012_1 bronze_WGI figure (73s) is a like-for-like comparison again and task-012_5 can report a real bronze delta. task-012_5 notes and performance_optimized.md corrected in the same commit.",
+    "STANDING CONCLUSION: task-050's capped exponential backoff is what actually fixed the degraded-API case \u2014 the 265s run completed where the notebook had failed twice that morning. per_page was a fix for a problem task-050 had already solved."
   ]
 }

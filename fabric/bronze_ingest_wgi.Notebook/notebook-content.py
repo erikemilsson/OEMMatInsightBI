@@ -101,23 +101,28 @@ API_BASE = "https://api.worldbank.org/v2"
 # timeout, i.e. it retried straight back into the same congestion and gave the remote side
 # no time to recover.
 #
-# One run fetched 6 indicators x ~6 pages (~5,150 records each at per_page=1000) = ~36
+# One run fetches 6 indicators x ~6 pages (~5,150 records each at per_page=1000) = ~36
 # requests, so at a 50% per-request failure rate a clean run was effectively impossible.
 #
-# The four backoff/retry constants below govern the FAILURE PATH ONLY. A run in which
-# nothing times out issues the identical request sequence in the identical time.
+# These constants govern the FAILURE PATH ONLY. A run in which nothing times out issues the
+# identical request sequence in the identical time, which is what keeps the task-012_1
+# performance baseline (bronze_WGI 73s) comparable for the task-012_5 retest.
 #
-# API_PAGE_SIZE is different, and was raised deliberately on 2026-08-03 (Erik-approved).
-# Every request is an independent chance to hit the intermittent read timeout, so cutting
-# the request count is the single highest-leverage reliability change available: at
-# per_page=10000 the API reports pages=1 for a ~5,150-record indicator, so one request
-# covers an indicator and a run issues ~6 rather than ~36.
-#
-# BASELINE CONSEQUENCE, accepted knowingly: this one DOES change the happy path. The
-# task-012_1 baseline (bronze_WGI 73s at per_page=1000) stops being a like-for-like
-# comparison, so the task-012_5 retest cannot report a bronze_WGI delta against it — the
-# stage has to be annotated as re-baselined rather than compared. See task-012_5 notes.
-API_PAGE_SIZE = 10000    # was 1000 — ~36 requests per run -> ~6
+# DO NOT RAISE API_PAGE_SIZE. Tried and measured 2026-08-03 (task-052), on the theory that
+# fewer requests means fewer chances to hit the intermittent read timeout. That is wrong for
+# this API, in both directions:
+#   * SLOWER. At per_page=10000 the API does return pages=1 per indicator (~6 requests per
+#     run instead of ~36), but each request cost ~53s against ~0.4-3.9s at per_page=1000.
+#     The fetch cell went 265s -> 496s. Serialising one large page costs the server far more
+#     than six small ones, and that swamps the request-count saving.
+#   * MORE FRAGILE, not less. At ~53s against a 120s read timeout every request sits at ~44%
+#     of its budget; at per_page=1000 each uses under 3%. Large pages move every request
+#     close to the ceiling rather than reducing exposure - which is how VA.EST page 1 timed
+#     out during the very run meant to demonstrate the improvement.
+# Data was identical either way (31,122 records; per-indicator counts unchanged), so this is
+# purely a latency and robustness finding. Reverted the same day. task-050's backoff is what
+# actually fixed the degraded-API case.
+API_PAGE_SIZE = 1000     # measured optimum - read the note above before changing
 API_READ_TIMEOUT = 120   # was 60 — the server is slow, not absent; give it room to answer
 API_MAX_RETRIES = 5      # was 3
 API_BACKOFF_BASE = 5     # seconds; doubles per attempt -> 5, 10, 20, 40

@@ -22,21 +22,16 @@
 | Cache state | warm (~7 min idle between runs) | `___` | `___` |
 | Runs | 3 | `___` | `___` |
 | Duration source | Fabric Monitoring detail pane | `___` | `___` |
-| WGI `per_page` | **`1000`** | **`10000` — deliberately changed, see below** | **No, by decision** |
+| WGI `per_page` | `1000` | `1000` | ✅ (raised to 10000, measured, reverted — see below) |
 
 ⚠️ **Hard condition** (`performance_baseline.md` line 21): a full-load retest is **not**
 comparable to this baseline. If the retest ran in full-load mode, stop and re-run.
 
-⚠️ **`bronze_WGI` is RE-BASELINED, not comparable** (task-052, Erik-approved 2026-08-03).
-The baseline measured `bronze_WGI` at 73 s with `per_page=1000` (~36 API requests). task-052
-raised it to `10000` (~6 requests) to stop the intermittent World Bank read timeouts from
-blocking the retest entirely. That changes the happy path, so **do not report a `bronze_WGI`
-delta against the 73 s figure** — record the new number as a fresh baseline and say why.
-
-This does **not** void the retest. The optimizations under test — V-Order and broadcast
-hints (task-012_3), index DDL (task-012_4) — all act on **silver and gold**, which is where
-the signal was expected and where the comparison remains strictly like-for-like. Bronze was
-never the thing being optimized; it was the thing that kept failing.
+✅ **`bronze_WGI` comparability is intact.** task-052 briefly raised `per_page` to `10000` on
+2026-08-03, which *would* have re-baselined the stage — but the change was measured against
+the live API the same day, found to be **worse on both latency and robustness**, and
+reverted. `per_page` is back to `1000`, so the 73 s baseline figure remains like-for-like and
+the retest can report a real bronze delta. See § Findings → *Rejected: larger WGI page size*.
 
 ## Prerequisites applied before the retest
 
@@ -151,11 +146,42 @@ happy-path measurement that longer backoff does not affect. See § Findings.
   timeout + ~5 s backoff)` plus a healthy fetch ≈ 265 s — which supports the premise behind
   the raised timeout: **the server was slow, not absent**, and the old 60 s ceiling was
   cutting off answers that were still coming.
-- **task-052** then raised `per_page` 1000 → 10000, cutting a run from ~36 requests to ~6.
-  This one **does** change the happy path and re-baselines `bronze_WGI` — see the
-  comparability table at the top. Taken deliberately: at ~50 % per-request timeout, fewer
-  requests is the only change that makes a clean run likely, and waiting out the API had no
-  known end date.
+- **task-052** then raised `per_page` 1000 → 10000, cutting a run from ~36 requests to ~6 —
+  and was **reverted the same day after measurement**. It made the fetch about twice as slow
+  and left every request near the read-timeout ceiling. Details below; comparability with the
+  73 s baseline is therefore intact.
+
+##### Rejected: larger WGI page size (task-052)
+
+Ran standalone at `per_page=10000`, 2026-08-03 18:46.
+
+| | `per_page=1000` | `per_page=10000` |
+|---|---|---|
+| Requests per run | ~36 | ~6 |
+| Fetch cell | **265 s** | **496 s** (8 m 16 s) |
+| Timeouts logged | inferred 1–2 | 1 (`VA.EST` p1) |
+| Cost per successful request | ~0.4–3.9 s | **~53 s** |
+| Share of the 120 s read-timeout budget | <3 % | **~44 %** |
+| Records fetched | — | **31,122** (identical) |
+
+Two independent reasons it fails, both now recorded in the notebook's own constant block so
+the next person to have the idea reads them before acting:
+
+1. **Slower.** Serialising one ~5,150-record page costs the API far more than six
+   1,000-record pages, which swamps the request-count saving. Per-request cost rose between
+   13× and 130× (the range reflects genuine uncertainty about the earlier run's timeout
+   count, which was inferred arithmetically rather than logged — the conclusion holds across
+   all of it).
+2. **More fragile, not less.** The premise *"fewer requests means fewer chances to fail"*
+   assumes per-request failure probability is independent of page size. It isn't. At ~53 s
+   against a 120 s ceiling every request sits near the edge — which is precisely how
+   `VA.EST` page 1 timed out during the run meant to demonstrate the improvement.
+
+**Data was identical** (31,122 records; `CC.EST` 5158 / `GE.EST` 5127 / `PV.EST` 5214 match
+the earlier run exactly), so this is purely a latency and robustness finding.
+
+**What actually fixed the degraded API was task-050's backoff** — the 265 s run completed
+where the notebook had failed twice that morning. `per_page` was a fix for a solved problem.
 
 #### Anomaly 2 — a functionally successful run is reported as Failed
 
