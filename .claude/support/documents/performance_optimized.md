@@ -1,9 +1,11 @@
 # Performance Optimized — orchestrator_pipeline_bronze_to_gold
 
-> **Status: TEMPLATE — awaiting retest data (task-012_5).**
-> Baseline columns are pre-filled from `performance_baseline.md` (task-012_1, final).
-> Every `___` is a slot for Erik to fill from Fabric Monitoring. Delete this banner
-> and replace it with a FINAL status line when the retest is complete.
+> **Status: FINAL — retest complete 2026-08-03 (task-012_5).**
+> Three comparable runs at `p_full_load=false`, warm cache, durations read from the Fabric
+> Monitoring detail pane. **Headline: the primary target (`silver-to-gold`) is a null result
+> (+6 %, inside noise); one confirmed regression (`data_quality_checks`, +43 %); functional
+> total +18 %.** Nothing measurably improved. See § Conclusion.
+> One open gap: the first Power BI report page is still recorded as "name TBC".
 >
 > **No improvement target exists.** Per spec § Performance Optimization the pipeline is
 > *not benchmarked, runs at portfolio scale, no production load or SLA requirements*.
@@ -16,12 +18,12 @@
 
 | Condition | Baseline | Retest | Match? |
 |-----------|----------|--------|--------|
-| Load mode | **incremental, `p_full_load=false`** | `___` | `___` |
-| `p_from_date` | default `1900-01-01` | `___` | `___` |
-| `p_epi_year` | `2024` | `___` | `___` |
-| Cache state | warm (~7 min idle between runs) | `___` | `___` |
-| Runs | 3 | `___` | `___` |
-| Duration source | Fabric Monitoring detail pane | `___` | `___` |
+| Load mode | **incremental, `p_full_load=false`** | `false` (pipeline default, untouched) | ✅ |
+| `p_from_date` | default `1900-01-01` | `1900-01-01` (default, untouched) | ✅ |
+| `p_epi_year` | `2024` | `2024` (default, untouched) | ✅ |
+| Cache state | warm (~7 min idle between runs) | warm (~5–7 min idle) | ✅ |
+| Runs | 3 | 3 | ✅ |
+| Duration source | Fabric Monitoring detail pane | Fabric Monitoring detail pane | ✅ |
 | WGI `per_page` | `1000` | `1000` | ✅ (raised to 10000, measured, reverted — see below) |
 
 ⚠️ **Hard condition** (`performance_baseline.md` line 21): a full-load retest is **not**
@@ -183,6 +185,15 @@ the earlier run exactly), so this is purely a latency and robustness finding.
 **What actually fixed the degraded API was task-050's backoff** — the 265 s run completed
 where the notebook had failed twice that morning. `per_page` was a fix for a solved problem.
 
+**Confirmed on a recovered API, 2026-08-03 19:51** (`per_page=1000`, back to baseline config):
+fetch cell **22 s, zero retries**, 31,122 records. So a healthy fetch is ~22 s (~0.6 s across
+~36 requests), which retroactively confirms the 265 s run was ~22 s of work plus two 120 s
+timeouts — the inference the earlier bound rested on. It also makes the page-size comparison
+direct rather than bounded: **~53 s per request at 10000 vs ~0.6 s at 1000, ~88×.**
+
+Total notebook 77 s against the 73 s baseline — **the World Bank API has recovered and the
+3-run retest is unblocked.**
+
 #### Anomaly 2 — a functionally successful run is reported as Failed
 
 Every functional activity succeeded (bronze → silver → gold → DQ). The pipeline is marked
@@ -210,59 +221,120 @@ detail is exactly what `get_retry_effectiveness()` reads. Under the corrected lo
 run would have been reported **Succeeded**, with `bronze_WGI (2 failed attempt(s))` noted as
 recovered.
 
-### Retest Run 1 — pipeline start `___`
+### Retest Run 1 — pipeline start 2026-08-03 20:15:07
 
-| Activity | Stage | Start | Duration |
-|----------|-------|-------|----------|
-| `bronzecopy_EUSupplyShares` | Bronze | `___` | `___` |
-| `bronzecopy_GlobalSupplyShares` | Bronze | `___` | `___` |
-| `bronzecopy_procurement_transactional` | Bronze | `___` | `___` |
-| `bronzecopy_supplier_ref` | Bronze | `___` | `___` |
-| `bronze_EPI` | Bronze | `___` | `___` |
-| `bronze_WGI` | Bronze | `___` | `___` |
-| `bronze-to-silver data cleaning` | Silver | `___` | `___` |
-| `silver-to-gold` | Gold | `___` | `___` |
-| `data_quality_checks` | Gold | `___` | `___` |
-| `pipeline_error_handler` | (handler) | `___` | `___` — excluded |
+All 10 activities **Succeeded**; the run ended green. Total wall clock 21 m 49 s
+(20:15:07 → 20:36:56).
 
-- Bronze / Silver / Gold / **Functional total**: `___` / `___` / `___` / **`___`**
-- Cache state: `___`
+| Activity | Stage | Start | Duration | vs baseline |
+|----------|-------|-------|----------|-------------|
+| `bronzecopy_EUSupplyShares` | Bronze | 20:15:07 | 23 s | 17 s → +6 s |
+| `bronzecopy_GlobalSupplyShares` | Bronze | 20:15:07 | 19 s | 19 s → identical |
+| `bronzecopy_procurement_transactional` | Bronze | 20:15:07 | 72 s | 71 s → +1 s |
+| `bronzecopy_supplier_ref` | Bronze | 20:15:07 | 72 s | 66 s → +6 s |
+| `bronze_EPI` | Bronze | 20:15:07 | 75 s | 74 s → +1 s |
+| `bronze_WGI` | Bronze | 20:15:07 | 89 s | 73 s → +22 %, no retries |
+| `bronze-to-silver data cleaning` | Silver | 20:16:37 | **233 s** | ~167 s avg (120–240) → +40 % vs mean, inside range |
+| `silver-to-gold` | Gold | 20:20:31 | **607 s** | ~573 s avg (540–638) → **+6 %, inside range** |
+| `data_quality_checks` | Gold | 20:30:40 | **292 s** | ~169 s avg (120–206) → **+73 % vs mean, +42 % over baseline MAX** |
+| `pipeline_error_handler` | (handler) | 20:35:33 | 83 s | — excluded |
 
-### Retest Run 2 — pipeline start `___`
+**Read after 1 of 3:**
 
-| Activity | Stage | Start | Duration |
-|----------|-------|-------|----------|
-| `bronzecopy_EUSupplyShares` | Bronze | `___` | `___` |
-| `bronzecopy_GlobalSupplyShares` | Bronze | `___` | `___` |
-| `bronzecopy_procurement_transactional` | Bronze | `___` | `___` |
-| `bronzecopy_supplier_ref` | Bronze | `___` | `___` |
-| `bronze_EPI` | Bronze | `___` | `___` |
-| `bronze_WGI` | Bronze | `___` | `___` |
-| `bronze-to-silver data cleaning` | Silver | `___` | `___` |
-| `silver-to-gold` | Gold | `___` | `___` |
-| `data_quality_checks` | Gold | `___` | `___` |
-| `pipeline_error_handler` | (handler) | `___` | `___` — excluded |
+- **`silver-to-gold` — the actual optimization target — shows no improvement.** 607 s against
+  a 573 s mean is +6 %, comfortably inside the baseline's own 540–638 s spread, and it is
+  *above* the mean rather than below. Note the swing against the 14:08 preliminary (548 s):
+  59 s, ~11 %, run to run, with no code change between them. That spread is the reason for
+  n=3 and it is why +6 % cannot be called a regression either.
+- **`data_quality_checks` is the standout.** 292 s against a 120–206 s baseline is 42 % above
+  the highest figure ever recorded for it, and it is the **second consecutive** run over that
+  max (231 s at 14:08) — and worse the second time. Two points is not a trend, but this is
+  now the finding most likely to survive to the write-up.
+- **Bronze is flat**, as expected: five of six activities within 6 s of baseline. `bronze_WGI`
+  at 89 s vs 73 s ran with zero retries, so the gap is residual API latency, not the notebook.
+- **task-051 was NOT exercised.** No activity retried, so the handler's success here proves
+  only that a clean run stays clean — the old logic would also have passed. The fix only
+  becomes observable on a run where something retries and recovers.
 
-- Bronze / Silver / Gold / **Functional total**: `___` / `___` / `___` / **`___`**
-- Cache state: `___`
+- Bronze / Silver / Gold / **Functional total**: 89 s / 233 s / 899 s / **1221 s**
+- Cache state: warm
 
-### Retest Run 3 — pipeline start `___`
+### Retest Run 2 — pipeline start 2026-08-03 21:02:08
 
-| Activity | Stage | Start | Duration |
-|----------|-------|-------|----------|
-| `bronzecopy_EUSupplyShares` | Bronze | `___` | `___` |
-| `bronzecopy_GlobalSupplyShares` | Bronze | `___` | `___` |
-| `bronzecopy_procurement_transactional` | Bronze | `___` | `___` |
-| `bronzecopy_supplier_ref` | Bronze | `___` | `___` |
-| `bronze_EPI` | Bronze | `___` | `___` |
-| `bronze_WGI` | Bronze | `___` | `___` |
-| `bronze-to-silver data cleaning` | Silver | `___` | `___` |
-| `silver-to-gold` | Gold | `___` | `___` |
-| `data_quality_checks` | Gold | `___` | `___` |
-| `pipeline_error_handler` | (handler) | `___` | `___` — excluded |
+Run `1ee5f0d4-adcb-4043-9ca0-8c387e70fa6b`. All 10 activities **Succeeded**. Total wall clock
+20 m 47 s (21:02:08 → 21:22:55).
 
-- Bronze / Silver / Gold / **Functional total**: `___` / `___` / `___` / **`___`**
-- Cache state: `___`
+| Activity | Stage | Start | Duration | vs baseline | vs Run 1 |
+|----------|-------|-------|----------|-------------|----------|
+| `bronzecopy_EUSupplyShares` | Bronze | 21:02:08 | **105 s** | 17 s → **+518 %** | 23 s → +82 s |
+| `bronzecopy_GlobalSupplyShares` | Bronze | 21:02:08 | **103 s** | 19 s → **+442 %** | 19 s → +84 s |
+| `bronzecopy_procurement_transactional` | Bronze | 21:02:08 | 103 s | 71 s → +45 % | 72 s → +31 s |
+| `bronzecopy_supplier_ref` | Bronze | 21:02:08 | 99 s | 66 s → +50 % | 72 s → +27 s |
+| `bronze_EPI` | Bronze | 21:02:08 | 81 s | 74 s → +9 % | 75 s → +6 s |
+| `bronze_WGI` | Bronze | 21:02:08 | 65 s | 73 s → **−11 %** | 89 s → −24 s |
+| `bronze-to-silver data cleaning` | Silver | 21:03:54 | 216 s | ~167 s avg (120–240) → +29 %, inside range | 233 s → −17 s |
+| `silver-to-gold` | Gold | 21:07:32 | **578 s** | ~573 s avg (540–638) → **+1 %, on the mean** | 607 s → −29 s |
+| `data_quality_checks` | Gold | 21:17:10 | **217 s** | ~169 s avg (120–206) → +28 % vs mean, **+5 % over max** | 292 s → −75 s |
+| `pipeline_error_handler` | (handler) | 21:20:49 | 126 s | — excluded | 83 s → +43 s |
+
+**Read after 2 of 3:**
+
+- **`silver-to-gold` is a null result and increasingly clearly so.** 578 s lands within 5 s of
+  the 573 s baseline mean. Three post-optimization measurements now read 548 / 607 / 578 —
+  scattered either side of the mean, all inside the baseline's own 540–638 spread. The V-Order
+  and broadcast-hint work did not move the primary target measurably at this scale.
+- **`data_quality_checks` stays above the baseline maximum — 3 for 3.** 231 / 292 / 217 against
+  a 120–206 s baseline. The spread is wide, so the *magnitude* is unreliable, but every single
+  post-optimization observation exceeds the highest pre-optimization figure. That consistency
+  is the signal; the average (~247 s) is not trustworthy given the scatter.
+- **New in this run: the four Bronze Copy activities all converged on ~100 s** (99–105 s) from
+  19–72 s in Run 1. All four start simultaneously at 21:02:08, and the two smallest jumped
+  most — `EUSupplyShares` 23 → 105 s, `GlobalSupplyShares` 19 → 103 s. A shared ceiling hit by
+  four parallel activities at once looks like contention (capacity throttling, or load on the
+  Azure SQL source) rather than four independent slowdowns. **This is unrelated to anything
+  task-012_3 changed** — no optimization touched the Copy activities. Run 3 decides whether it
+  reproduces.
+- `bronze_WGI` came in at 65 s, *below* the 73 s baseline, confirming the API has fully
+  recovered and that `per_page=1000` is at parity with the baseline configuration.
+- **task-051 still not exercised** — no activity retried in this run either.
+
+- Bronze / Silver / Gold / **Functional total**: 105 s / 216 s / 795 s / **1116 s**
+- Cache state: warm (~7 min idle after Run 1)
+
+### Retest Run 3 — pipeline start 2026-08-03 21:25:33
+
+Run `9451efda-ab49-4c62-bb4d-5c13bafd781b`. All 10 activities **Succeeded**. Total wall clock
+21 m 00 s (21:25:33 → 21:46:33).
+
+| Activity | Stage | Start | Duration | vs baseline | vs Run 2 |
+|----------|-------|-------|----------|-------------|----------|
+| `bronzecopy_EUSupplyShares` | Bronze | 21:25:33 | 26 s | 17 s → +9 s | 105 s → **−79 s** |
+| `bronzecopy_GlobalSupplyShares` | Bronze | 21:25:33 | 26 s | 19 s → +7 s | 103 s → **−77 s** |
+| `bronzecopy_procurement_transactional` | Bronze | 21:25:33 | 67 s | 71 s → −4 s | 103 s → −36 s |
+| `bronzecopy_supplier_ref` | Bronze | 21:25:33 | 64 s | 66 s → −2 s | 99 s → −35 s |
+| `bronze_EPI` | Bronze | 21:25:33 | 102 s | 74 s → +38 % | 81 s → +21 s |
+| `bronze_WGI` | Bronze | 21:25:33 | 87 s | 73 s → +19 % | 65 s → +22 s |
+| `bronze-to-silver data cleaning` | Silver | 21:27:17 | 216 s | ~167 s avg (120–240) → +29 %, inside range | 216 s → identical |
+| `silver-to-gold` | Gold | 21:30:54 | **638 s** | ~573 s avg (540–638) → **+11 %, equals baseline max** | 578 s → +60 s |
+| `data_quality_checks` | Gold | 21:41:33 | **217 s** | ~169 s avg (120–206) → **+5 % over max** | 217 s → identical |
+| `pipeline_error_handler` | (handler) | 21:45:11 | 82 s | — excluded | 126 s → −44 s |
+
+- Bronze / Silver / Gold / **Functional total**: 102 s / 216 s / 855 s / **1173 s**
+- Cache state: warm (~5 min idle after Run 2)
+
+**Run 3 settles both open questions:**
+
+- **The Run 2 Bronze Copy slowdown was a one-off.** All four Copy activities returned to
+  normal (26 / 26 / 67 / 64 s vs Run 2's 105 / 103 / 103 / 99 s), two of them *below*
+  baseline. Transient contention, exactly as suspected — **not a regression**, and nothing
+  task-012_3 touched. Recorded and dismissed.
+- **`data_quality_checks` reproduced at 217 s**, identical to Run 2 to the second. Three
+  retest runs plus the 14:08 preliminary now sit at 292 / 217 / 217 / 231 s against a
+  120–206 s baseline: **4 for 4 above the previous maximum.** Confirmed.
+
+**task-051 was never exercised across any of the three runs** — no activity retried, so the
+handler's corrected final-attempt logic remains unproven in production. It is verified by unit
+test only (14 tests, negative control confirming the old logic fails the same rows).
 
 > **Capture the Monitoring detail per run, immediately.** The baseline lost exact values
 > for runs 1–2 because Fabric's detail pane was no longer retrievable afterwards, leaving
@@ -276,12 +348,26 @@ recovered.
 
 | Stage | Baseline avg | Retest avg | Δ (s) | Δ (%) | Verdict |
 |-------|--------------|------------|-------|-------|---------|
-| Bronze (6 parallel, max) | ~85 s | `___` | `___` | `___` | `___` |
-| Silver (`bronze-to-silver`) | ~167 s | `___` | `___` | `___` | `___` |
-| Gold — `silver-to-gold` | **~573 s** | `___` | `___` | `___` | `___` |
-| Gold — `data_quality_checks` | ~169 s | `___` | `___` | `___` | `___` |
-| **Gold stage total** | ~741 s | `___` | `___` | `___` | `___` |
-| **Functional total** | **~993 s (16.6 min)** | `___` | `___` | `___` | `___` |
+| Bronze (6 parallel, max) | ~85 s | 99 s | +14 s | +16 % | **No change** — inside baseline 60–120 spread |
+| Silver (`bronze-to-silver`) | ~167 s | 222 s | +55 s | +33 % | **Suggestive, not proven** — inside baseline 120–240 spread |
+| Gold — `silver-to-gold` | **~573 s** | **608 s** | **+35 s** | **+6 %** | **NULL RESULT** — under the 15 % noise floor; ranges overlap |
+| Gold — `data_quality_checks` | ~169 s | **242 s** | **+73 s** | **+43 %** | **REGRESSION** — all 3 runs exceed baseline max |
+| **Gold stage total** | ~741 s | 850 s | +109 s | +15 % | Driven entirely by `data_quality_checks` |
+| **Functional total** | **~993 s (16.6 min)** | **1170 s (19.5 min)** | **+177 s** | **+18 %** | **Slower** — all 3 runs exceed baseline max |
+
+**Retest per-run detail** (all values exact from the Monitoring detail pane):
+
+| Stage | Run 1 | Run 2 | Run 3 | Retest spread | Baseline spread | Separated? |
+|-------|-------|-------|-------|---------------|-----------------|------------|
+| Bronze | 89 s | 105 s | 102 s | 89–105 | 60–120 | No — overlaps |
+| Silver | 233 s | 216 s | 216 s | 216–233 | 120–240 | No — overlaps |
+| `silver-to-gold` | 607 s | 578 s | 638 s | 578–638 | 540–638 | No — overlaps |
+| `data_quality_checks` | 292 s | 217 s | 217 s | 217–292 | 120–206 | **Yes — no overlap** |
+| **Functional total** | 1221 s | 1116 s | 1173 s | 1116–1221 | 840–1080 | **Yes — no overlap** |
+
+The *separated* column is the load-bearing one. Comparing averages against a baseline whose
+own spread is 18–29 % proves little; **non-overlapping ranges** do. Only two rows clear that
+bar, and they are the two this write-up rests on.
 
 **Baseline per-run detail** (for spread comparison — Run 3 exact, Runs 1–2 `~` gap-derived):
 
@@ -306,10 +392,15 @@ Did the bottleneck move? Baseline ranking is pre-filled.
 
 | Rank | Activity | Baseline avg | Baseline % | Retest avg | Retest % | Still the bottleneck? |
 |------|----------|--------------|------------|------------|----------|----------------------|
-| 1 | `silver-to-gold` | ~573 s | ~58% | `___` | `___` | `___` |
-| 2 | `bronze-to-silver data cleaning` | ~167 s | ~17% | `___` | `___` | `___` |
-| 2 | `data_quality_checks` | ~169 s | ~17% | `___` | `___` | `___` |
-| 4 | Bronze (6 parallel) | ~85 s | ~9% | `___` | `___` | `___` |
+| 1 | `silver-to-gold` | ~573 s | ~58% | 608 s | **52%** | **Yes** — still over half the run |
+| 2 | `data_quality_checks` | ~169 s | ~17% | 242 s | **21%** | Rose from tied-2nd to clear 2nd |
+| 3 | `bronze-to-silver data cleaning` | ~167 s | ~17% | 222 s | 19% | Unchanged in rank |
+| 4 | Bronze (6 parallel) | ~85 s | ~9% | 99 s | 8% | Unchanged in rank |
+
+**The bottleneck did not move.** `silver-to-gold` remains the dominant cost. Its *share* fell
+from 58 % to 52 %, but that is not an improvement — it is arithmetic: the denominator grew
+because `data_quality_checks` got slower. In absolute terms `silver-to-gold` is 35 s slower,
+not faster.
 
 ---
 
@@ -378,11 +469,40 @@ either way.
 
 ### What improved
 
-`___`
+**Nothing measurably improved.** No stage was faster than baseline by more than noise, and no
+stage's retest range sat below its baseline range.
+
+This is stated plainly rather than softened. The optimization work shipped in task-012_3
+(V-Order, broadcast hints, caching, plus the 23-table `OPTIMIZE` back-fill) produced no
+measurable pipeline-runtime benefit at this data scale.
+
+Two genuinely useful things were *learned* in the process, but neither is a runtime
+improvement and neither is claimed as one:
+
+- **Direct Lake cold-start behaviour on `gold_supply_risk`** (~84 s cold vs ~100 ms warm,
+  ~800×) — see § Power BI. Operationally important; not an optimization result.
+- **The World Bank page-size finding** (task-052) — see § Rejected: larger WGI page size.
 
 ### What did not move (null results)
 
-`___`
+**`silver-to-gold` — the primary target — is a null result.**
+
+608 s retest average against a 573 s baseline: +6 %, well under the 15 % noise floor this
+document set in advance, with retest (578–638 s) and baseline (540–638 s) ranges overlapping
+almost completely. Three post-optimization measurements read 607 / 578 / 638 s, scattered
+either side of the baseline mean.
+
+This is the headline result of task-012_5. V-Order and the broadcast hints were aimed
+squarely at this activity and did not move it at portfolio scale. That is a legitimate
+finding, not a failure — spec § Performance Optimization explicitly states the pipeline is
+*not benchmarked, runs at portfolio scale, no production load or SLA requirements*. A
+pipeline that was already fast enough had little to give.
+
+**Bronze is flat** (99 s vs 85 s, inside the 60–120 s baseline spread), which is expected —
+no optimization targeted it.
+
+**`bronze-to-silver` is suggestive but unproven**: +33 % on the average, yet 216–233 s sits
+inside the 120–240 s baseline spread. Not claimed as either an improvement or a regression.
 
 ### What got worse (regressions)
 
@@ -390,7 +510,46 @@ either way.
 > *"Any optimization that measurably made things worse is called out explicitly rather
 > than omitted."* If nothing regressed, write "None measured" — do not delete the section.
 
-`___`
+**1. `data_quality_checks` — confirmed regression, +43 %.**
+
+| | Baseline | 14:08 | Run 1 | Run 2 | Run 3 |
+|---|---|---|---|---|---|
+| Duration | 120 / 180 / **206** s | 231 s | 292 s | 217 s | 217 s |
+
+Four post-optimization observations, **all above the highest pre-optimization figure**, with
+no overlap between the ranges. The baseline's own 206 s figure is the exact one (Runs 1–2 were
+gap-derived), so the comparison holds against the most reliable baseline point available.
+
+**Causation is NOT established, and should not be assumed.** task-012_3 did not modify the
+`data_quality_checks` notebook. The leading hypothesis is unrelated to the optimization work:
+the three quality-observability tables **accumulate rows on every pipeline run**, so if the
+checks scan accumulated history their runtime grows monotonically with the number of runs
+ever executed — and many runs have accrued between baseline and retest. That would make this
+a *design* characteristic surfacing as an apparent regression, not damage done by V-Order.
+
+Cheap falsification, worth doing before any fix: record the row counts of the three quality
+tables and re-run the checks. If runtime tracks row count, the hypothesis holds and the fix is
+to bound the scan window rather than to touch anything task-012_3 shipped.
+
+**2. Functional total — 18 % slower, ~993 s → ~1170 s.**
+
+All three retest runs (1116–1221 s) exceed the entire baseline range (840–1080 s). Arithmetically
+this is the sum of the parts: `data_quality_checks` (+73 s), `bronze-to-silver` (+55 s),
+`silver-to-gold` (+35 s), Bronze (+14 s).
+
+Two honest caveats on this one, both weakening it relative to the `data_quality_checks` finding:
+
+- Baseline Runs 1–2 were **gap-derived from minute-granular timestamps**, not read from the
+  detail pane, so the 840–1080 s baseline range is less trustworthy than the per-activity
+  figures. Against the one exact baseline run (1060 s) the retest minimum of 1116 s is only
+  +5 %.
+- Only `data_quality_checks` clears the non-overlap bar on its own. The rest of the +177 s is
+  an accumulation of individually-inconclusive drifts.
+
+**Not a regression: the Run 2 Bronze Copy spike.** All four Copy activities hit ~100 s in Run 2
+against 19–72 s in Run 1, then returned to 26–67 s in Run 3. Four parallel activities
+converging on one value for a single run, in activities no optimization touched, is transient
+contention. Recorded for completeness and dismissed.
 
 ### Prerequisites that could not be applied
 
@@ -412,21 +571,54 @@ The baseline anticipated the direction of this ("task-012_4 targets the SQL-endp
 path rather than pipeline runtime, so it won't move this baseline much") but not the
 magnitude: the effect is not small, it is zero.
 
-`___` *(add any further prerequisites that could not be applied)*
+**No further prerequisites were blocked.** Items 1 and 4 of the prerequisites table (the
+23-table `OPTIMIZE` back-fill and the semantic-model reframe) both applied cleanly, so V-Order
+was genuinely in effect for every measurement in this document — the null result on
+`silver-to-gold` is a real null, not an artefact of an unapplied optimization.
 
 ## Conclusion
 
-`___`
+**The optimization work did not make the pipeline faster, and the retest says so.**
+
+`silver-to-gold` — the activity V-Order and the broadcast hints targeted, and 52 % of total
+runtime — came in 6 % slower than baseline, comfortably inside noise. That is the answer to
+the question task-012_5 was created to ask. Overall functional runtime is ~18 % higher
+(~16.6 → ~19.5 min), of which the only individually-defensible component is a confirmed
+`data_quality_checks` regression whose cause is more likely accumulated quality-table history
+than anything task-012_3 shipped.
+
+Meanwhile **task-012_4's lever does not exist on this platform** — `CREATE INDEX` is rejected
+outright by Fabric Data Warehouse and `UPDATE STATISTICS` is a documented no-op. Its
+contribution is not small; it is zero.
+
+This is a valid and expected outcome rather than a failed task. Spec § Performance
+Optimization states the pipeline is *not benchmarked, runs at portfolio scale, no production
+load or SLA requirements*, and the >30 % improvement target was retired on 2026-07-29 precisely
+because it had no source in the spec. **A system with no performance problem cannot demonstrate
+a performance fix.** The measurement discipline — a pre-registered 15 % noise floor, a
+non-overlap test rather than average-chasing, and an explicit refusal to attribute the one real
+regression to the optimization without evidence — is the portfolio-relevant output here, not a
+speed-up that was never available.
+
+**Recommended follow-ups** (none urgent, none blocking):
+
+1. **Test the `data_quality_checks` hypothesis** — record quality-table row counts, correlate
+   with runtime. If it tracks, bound the scan window. This is the only actionable finding.
+2. **Do not pursue further pipeline optimization at this scale.** There is no measured problem
+   to solve, and the noise floor exceeds any plausible remaining gain.
+3. **Keep the Direct Lake cold-start finding visible** — ~84 s first-touch on
+   `gold_supply_risk` is the one user-visible latency in the system, and it is a warming
+   question, not a query-tuning one.
 
 ---
 
 ## Acceptance criteria (task-012_5)
 
-- [ ] Pipeline retest run 3 times, matching the methodology used for the task-012_1 baseline
-- [ ] Activity-level durations recorded and compared against the baseline, bronze/silver/gold broken out
-- [ ] Power BI query response times recorded for representative report pages
-- [ ] A before/after comparison table committed here, stating the measured deltas whatever they are — including null or negative results
-- [ ] Any optimization that measurably made things worse is called out explicitly rather than omitted
+- [x] Pipeline retest run 3 times, matching the methodology used for the task-012_1 baseline — runs at 20:15, 21:02, 21:25 on 2026-08-03, all defaults (`p_full_load=false`), warm cache, durations from the Monitoring detail pane
+- [x] Activity-level durations recorded and compared against the baseline, bronze/silver/gold broken out — all 10 activities × 3 runs, per-stage summary plus per-run spread
+- [x] Power BI query response times recorded for representative report pages — 5 pages; **one gap: the first page's name is still "TBC"** and needs filling
+- [x] A before/after comparison table committed here, stating the measured deltas whatever they are — including null or negative results — the primary target is reported as a null result
+- [x] Any optimization that measurably made things worse is called out explicitly rather than omitted — `data_quality_checks` +43 %, functional total +18 %, both with their caveats stated
 
 **Sources:** baseline `performance_baseline.md` (task-012_1) · optimizations task-012_3
 (DEC-011) · index DDL `fabric/sql/warehouse_indexes.sql` (task-012_4)
