@@ -1,0 +1,51 @@
+{
+  "id": "task-053",
+  "title": "Investigate the data_quality_checks runtime regression (+43% vs baseline)",
+  "description": "task-012_5's retest measured data_quality_checks at 242 s avg against a 169 s baseline, with all four post-optimization observations (292/217/217, plus 231 at the 14:08 preliminary) above the 206 s baseline maximum and no overlap between the ranges. It is the only per-activity finding in the retest that clears a non-overlap test, and it now accounts for 21% of pipeline runtime against 17% at baseline. Causation is NOT established: task-012_3 never modified this notebook, so attributing it to V-Order or the broadcast hints is unfounded. The leading hypothesis is that gold_quality_history accumulates rows on every pipeline run \u2014 it is referenced 26 times in data_quality_checks \u2014 so if any check scans it unbounded, runtime grows monotonically with the number of runs ever executed. That would make this a design characteristic surfacing as an apparent regression rather than damage from the optimization work, and it would get worse indefinitely once task-010 puts the pipeline on a schedule.",
+  "status": "Pending",
+  "priority": "P2",
+  "difficulty": 3,
+  "owner": "both",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "spec_section": "Data Quality & Validation",
+  "spec_fingerprint": "sha256:0e1cb6c1bbfcc356721b8b7ad47b1a6083b49882154ca4219a6b88276228498b",
+  "spec_version": "1",
+  "section_fingerprint": "sha256:ab8feb951cd64aefdb8d8ecd1f5c7a4a64a7233e21ccd44a873422cc7735e0da",
+  "section_snapshot_ref": "",
+  "estimated_hours": 2,
+  "files_affected": [
+    "fabric/data_quality_checks.Notebook/notebook-content.py"
+  ],
+  "acceptanceCriteria": [
+    "The gold_quality_history read pattern in data_quality_checks is characterised statically first \u2014 every read is identified and classified as bounded (filtered to a run or window) or unbounded (whole-table scan). This half needs no Fabric access and should be done before anything is run.",
+    "The hypothesis is tested against data, not just inspection: gold_quality_history row count is recorded alongside the activity duration, so growth-vs-runtime can be correlated across the runs already measured in performance_optimized.md.",
+    "The conclusion states plainly whether accumulated history explains the regression, and if it does not, says so and leaves the cause open rather than substituting a second guess.",
+    "If unbounded scans are confirmed as the cause, the fix bounds the scan window rather than truncating history \u2014 the trend data is the point of the table (three quality-observability tables track quality over time per the data_quality_architecture doc).",
+    "The finding is written back into performance_optimized.md's regression section, which currently records the hypothesis as untested."
+  ],
+  "dependencies": [
+    "task-012_5"
+  ],
+  "decision_dependencies": [],
+  "notes": [
+    "CREATED 2026-08-03 (/work, Erik-approved) from the task-012_5 retest. This is the single actionable finding the retest produced \u2014 everything else was a null result or a dismissed transient.",
+    "EVIDENCE: performance_optimized.md \u00a7 What got worse (regressions) item 1, and the per-run tables for Runs 1-3. Baseline 120/180/206 s (the 206 is the one exact baseline figure; runs 1-2 were gap-derived), retest 292/217/217 s, preliminary 231 s.",
+    "WHY owner=both AND why Claude can act first (so this is correctly Pending, not Blocked): AC1 is pure static analysis of a notebook already in the repo \u2014 no Fabric access needed. Only AC2's row count requires Erik to run a query. This is the opposite of the FB-100 shape, where a both-owned task with an empty files_affected cannot start until the human acts.",
+    "DO NOT assume the optimization caused this. task-012_3 changed silver-to-gold (V-Order, broadcast hints, caching) and bronze-to-silver (caching); it did not touch data_quality_checks. A confident-sounding causal story here would be exactly the kind of unfounded attribution the retest write-up deliberately avoided.",
+    "URGENCY LINK: task-010 (pipeline scheduling) makes this worse if the hypothesis holds \u2014 a daily scheduled run adds history every day, so an unbounded scan degrades without bound."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-08-03",
+  "updated_date": "2026-08-03",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "verification_history": [],
+  "task_verification": {},
+  "test_protocol": null,
+  "user_review_pending": false,
+  "recovery_state": "",
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "dashboard"
+}

@@ -1,15 +1,15 @@
 {
   "id": "task-012_4",
-  "title": "Author warehouse index DDL",
+  "title": "Physical clustering for warehouse gold tables (CLUSTER BY, replacing the rejected index DDL)",
   "description": "Write CREATE INDEX statements for dimension keys and fact foreign keys, plus statistics rebuild. Erik deploys via SQL endpoint.",
-  "status": "Finished",
+  "status": "Pending",
   "priority": "P3",
   "difficulty": 4,
   "owner": "both",
   "parent_task": "task-012",
   "phase": "3",
   "spec_section": "Performance Optimization",
-  "spec_fingerprint": "sha256:b966f6b2eb73d586281f197f9f62a2772b2e67fff1d3def6847c905491290d6b",
+  "spec_fingerprint": "sha256:0e1cb6c1bbfcc356721b8b7ad47b1a6083b49882154ca4219a6b88276228498b",
   "spec_version": "1",
   "section_fingerprint": "sha256:52b023e9f000ef12ac20b44f4d0c5874b0bcf19f56963ed063ac9bcbb1d3c5f2",
   "section_snapshot_ref": "",
@@ -17,38 +17,26 @@
     "fabric/sql/warehouse_indexes.sql"
   ],
   "acceptanceCriteria": [
-    "Indexes defined for dim_country, dim_material, dim_indicator (clustered on surrogate keys)",
-    "Indexes defined for fact_procurement, fact_epi_score, fact_supply_share foreign keys",
-    "UPDATE STATISTICS statements included",
-    "DDL committed to fabric/sql/warehouse_indexes.sql",
-    "Erik deploys via SQL endpoint and confirms successful index creation"
+    "The tables and keys worth clustering are established from actual query patterns against oem_wh, not from assumed FK-join shapes \u2014 the original criteria assumed indexes would help without evidence that any query was slow.",
+    "Clustering is expressed the only way Fabric Data Warehouse supports it: CLUSTER BY at CREATE TABLE / CTAS time. Post-hoc CREATE INDEX is confirmed rejected (Msg 22424) and must not reappear.",
+    "fabric/sql/warehouse_indexes.sql is resolved rather than left misleading \u2014 either rewritten to the supported mechanism or retired with a pointer to the finding. It must not sit in the repo looking deployable when every statement in it is inert.",
+    "Any runtime claim is measured, not assumed. A null result is an acceptable and likely outcome \u2014 task-012_5 found no pipeline-runtime problem to fix, and the SQL-endpoint read path has never been shown to be slow either.",
+    "Erik deploys the change and confirms the tables are created with the intended clustering."
   ],
   "dependencies": [
     "task-012_1"
   ],
   "notes": [
-    "No file overlap with task-012_2 or task-012_3 — can be developed in parallel.",
-    "[COMPLETED 2026-08-02] Authored warehouse index DDL at fabric/sql/warehouse_indexes.sql. Clustered rowstore indexes on gold_dim_country.country_key, gold_dim_material.material_key, gold_dim_indicator.indicator_key; nonclustered indexes on fact FKs (fact_procurement: material_key/supplier_hq_country_key/production_country_key; fact_epi_score: country_key/indicator_key; fact_supply_share: material_key/country_key); UPDATE STATISTICS WITH FULLSCAN for all 6 indexed tables. IF NOT EXISTS guards + GO batch separators (re-runnable). AC5 (Erik deploys via SQL endpoint) pending — deploy-note in file header. Table/column names cross-checked vs gold_tables.md AND deployed fabric/oem_wh.Warehouse/dbo/Tables/*.sql. Friction: FR-045 (vocab_drift — AC shorthand 'dim_country' vs real 'gold_dim_country'; facts carry no gold_ prefix).",
-    "AC5 EMPIRICALLY UNACHIEVABLE 2026-08-03 (Erik ran it in Fabric; /work step 2 of the task-012_5 prerequisite sequence). Against oem_wh (type Warehouse): CREATE CLUSTERED INDEX returned 'Msg 22424, Level 16, State 0, Line 1: CREATE INDEX is not a supported statement type.' All 6 UPDATE STATISTICS ... WITH FULLSCAN statements returned 'Warning: Ignoring update of 'ACE-Cardinality' statistics. ACE statistics are auto updated, UPDATE STATISTICS DDL statement is not supported.' — accepted but no-op. So the ENTIRE deliverable fabric/sql/warehouse_indexes.sql is inert on Fabric Data Warehouse: AC1/AC2 (index definitions) describe unsupported DDL, AC3 (UPDATE STATISTICS) is redundant because the engine auto-maintains ACE statistics, and AC5 (deploy + confirm index creation) cannot be satisfied by any input. Fabric DW does physical clustering via CLUSTER BY at CREATE TABLE/CTAS time and accepts only PRIMARY KEY NONCLUSTERED NOT ENFORCED. Recorded in .claude/support/documents/performance_optimized.md prerequisites table + findings. OPEN QUESTION for Erik: this task is Finished with a passing verification whose ACs are now known unachievable — decide whether to reopen and rewrite toward CLUSTER BY, or retire the DDL file and close the task as a documented platform-limitation finding. Not actioned unilaterally."
+    "No file overlap with task-012_2 or task-012_3 \u2014 can be developed in parallel.",
+    "[COMPLETED 2026-08-02] Authored warehouse index DDL at fabric/sql/warehouse_indexes.sql. Clustered rowstore indexes on gold_dim_country.country_key, gold_dim_material.material_key, gold_dim_indicator.indicator_key; nonclustered indexes on fact FKs (fact_procurement: material_key/supplier_hq_country_key/production_country_key; fact_epi_score: country_key/indicator_key; fact_supply_share: material_key/country_key); UPDATE STATISTICS WITH FULLSCAN for all 6 indexed tables. IF NOT EXISTS guards + GO batch separators (re-runnable). AC5 (Erik deploys via SQL endpoint) pending \u2014 deploy-note in file header. Table/column names cross-checked vs gold_tables.md AND deployed fabric/oem_wh.Warehouse/dbo/Tables/*.sql. Friction: FR-045 (vocab_drift \u2014 AC shorthand 'dim_country' vs real 'gold_dim_country'; facts carry no gold_ prefix).",
+    "AC5 EMPIRICALLY UNACHIEVABLE 2026-08-03 (Erik ran it in Fabric; /work step 2 of the task-012_5 prerequisite sequence). Against oem_wh (type Warehouse): CREATE CLUSTERED INDEX returned 'Msg 22424, Level 16, State 0, Line 1: CREATE INDEX is not a supported statement type.' All 6 UPDATE STATISTICS ... WITH FULLSCAN statements returned 'Warning: Ignoring update of 'ACE-Cardinality' statistics. ACE statistics are auto updated, UPDATE STATISTICS DDL statement is not supported.' \u2014 accepted but no-op. So the ENTIRE deliverable fabric/sql/warehouse_indexes.sql is inert on Fabric Data Warehouse: AC1/AC2 (index definitions) describe unsupported DDL, AC3 (UPDATE STATISTICS) is redundant because the engine auto-maintains ACE statistics, and AC5 (deploy + confirm index creation) cannot be satisfied by any input. Fabric DW does physical clustering via CLUSTER BY at CREATE TABLE/CTAS time and accepts only PRIMARY KEY NONCLUSTERED NOT ENFORCED. Recorded in .claude/support/documents/performance_optimized.md prerequisites table + findings. OPEN QUESTION for Erik: this task is Finished with a passing verification whose ACs are now known unachievable \u2014 decide whether to reopen and rewrite toward CLUSTER BY, or retire the DDL file and close the task as a documented platform-limitation finding. Not actioned unilaterally.",
+    "REOPENED 2026-08-03 (Erik's decision, option (a) of the reopen-or-retire question carried on the dashboard since this morning). Finished -> Pending; the 2026-08-02 verification is moved to verification_history and task_verification cleared, because it passed against criteria that no longer apply. WHY IT WAS REOPENED: AC5 ('Erik deploys via SQL endpoint and confirms successful index creation') was unsatisfiable by any input. Fabric DW rejects CREATE INDEX outright (Msg 22424, verified by execution 2026-08-03 against oem_wh) and no-ops UPDATE STATISTICS (ACE statistics are auto-maintained). The task sat Finished with a passing verification and a deliverable that cannot be deployed \u2014 the verification was not wrong, it verified the DDL was authored correctly, which it was.",
+    "SCOPING CAVEAT, recorded so it is weighed before work starts rather than discovered after: task-012_5 completed the same day and found NO pipeline-runtime problem to solve \u2014 the primary optimization target was a null result and nothing measurably improved from the whole task-012_3 effort. CLUSTER BY targets the SQL-endpoint READ path rather than pipeline runtime, so it is not strictly refuted by that finding, but no evidence exists that any warehouse query is slow either. AC1 exists to force that evidence to be gathered first. If no slow query can be identified, the honest outcome is to retire warehouse_indexes.sql under AC3 and close this as a documented platform-limitation finding \u2014 which was option (b) of the original question."
   ],
   "created_date": "2026-04-29",
-  "completion_date": "2026-08-02",
+  "completion_date": null,
   "updated_date": "2026-08-03",
-  "task_verification": {
-    "result": "pass",
-    "timestamp": "2026-08-02T00:00:00Z",
-    "checks": {
-      "files_exist": "pass",
-      "consistency_check": "pass",
-      "spec_alignment": "pass",
-      "output_quality": "pass",
-      "runtime_validation": "not_applicable",
-      "integration_ready": "pass",
-      "scope_validation": "pass"
-    },
-    "notes": "warehouse_indexes.sql authored correctly. All 10 indexed column names verified against deployed table SQL at fabric/oem_wh.Warehouse/dbo/Tables/*.sql (ground truth). Clustered indexes on gold_dim_country.country_key, gold_dim_material.material_key, gold_dim_indicator.indicator_key (gold_ prefix on dims). Nonclustered FK indexes on fact_procurement(material_key, supplier_hq_country_key, production_country_key), fact_epi_score(country_key, indicator_key), fact_supply_share(material_key, country_key) — all 7 FK columns exist (facts no gold_ prefix). UPDATE STATISTICS WITH FULLSCAN on all 6 tables. IF NOT EXISTS + GO re-runnable T-SQL. Deploy-note block present (AC5 = Erik's deploy, deferred via user_review_pending). Scope note documents intentional date_key/stage_key exclusion.",
-    "issues": []
-  },
+  "task_verification": {},
   "verification_attempts": 1,
   "verification_history": [
     {
@@ -65,10 +53,26 @@
         "scope_validation": "pass"
       },
       "issues": []
+    },
+    {
+      "result": "pass",
+      "timestamp": "2026-08-02T00:00:00Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "notes": "warehouse_indexes.sql authored correctly. All 10 indexed column names verified against deployed table SQL at fabric/oem_wh.Warehouse/dbo/Tables/*.sql (ground truth). Clustered indexes on gold_dim_country.country_key, gold_dim_material.material_key, gold_dim_indicator.indicator_key (gold_ prefix on dims). Nonclustered FK indexes on fact_procurement(material_key, supplier_hq_country_key, production_country_key), fact_epi_score(country_key, indicator_key), fact_supply_share(material_key, country_key) \u2014 all 7 FK columns exist (facts no gold_ prefix). UPDATE STATISTICS WITH FULLSCAN on all 6 tables. IF NOT EXISTS + GO re-runnable T-SQL. Deploy-note block present (AC5 = Erik's deploy, deferred via user_review_pending). Scope note documents intentional date_key/stage_key exclusion.",
+      "issues": [],
+      "superseded_note": "Verification passed 2026-08-02 against the ORIGINAL acceptanceCriteria, which asked for CREATE INDEX / UPDATE STATISTICS DDL. Those criteria were sound as authored and the DDL was authored correctly \u2014 the platform, not the work, is what made them unsatisfiable. Retained here for audit; it does not carry over to the rewritten criteria."
     }
   ],
   "test_protocol": null,
-  "user_review_pending": true,
+  "user_review_pending": false,
   "interaction_hint": "dashboard",
   "decision_dependencies": [],
   "recovery_state": "",
