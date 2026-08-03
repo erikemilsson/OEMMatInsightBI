@@ -5,7 +5,7 @@
 > Monitoring detail pane. **Headline: the primary target (`silver-to-gold`) is a null result
 > (+6 %, inside noise); one confirmed regression (`data_quality_checks`, +43 %); functional
 > total +18 %.** Nothing measurably improved. See § Conclusion.
-> One open gap: the first Power BI report page is still recorded as "name TBC".
+> All five acceptance criteria are satisfied; no open gaps.
 >
 > **No improvement target exists.** Per spec § Performance Optimization the pipeline is
 > *not benchmarked, runs at portfolio scale, no production load or SLA requirements*.
@@ -415,14 +415,29 @@ page render in the service are **not** comparable to each other.
   Windows-only and unavailable on macOS; the `query` request time is the end-to-end
   server round trip per visual.
 - **Measured on:** 2026-08-03, after the 23-table `OPTIMIZE` and a semantic-model refresh.
+- **Page identification:** resolved 2026-08-03 from the report definition in git
+  (`fabric/report2.Report/definition/pages/`), not from recollection. `pageOrder` is
+  `Executive Dashboard` → `Riks & Sustainability` → `Data Quality Monitoring` → `SR verify`,
+  and the visual counts (6 / 4 / 1 / 3) corroborate the query counts measured. Page names
+  below are the report's **actual** `displayName` values.
 
 | Report page | Queries | Timings | Verdict |
 |-------------|---------|---------|---------|
-| First page (name TBC) | 6 | 150 / 132 / 130 / 116 / 116 / 106 ms | healthy — includes session cold-start |
+| **Executive Dashboard** (page 1) | 6 | 150 / 132 / 130 / 116 / 116 / 106 ms | healthy — includes session cold-start |
 | Data Quality Monitoring | 1 | **116 ms** | healthy |
-| SR Verify | 1 | **171 ms** | healthy |
-| **Risk & Sustainability** (cold) | 4 | **84 s · 84 s · 6.58 s · 3.98 s** | first touch after model refresh |
-| **Risk & Sustainability** (warm) | 4 | **109 / 105 / 95 / 85 ms** | same 4 queries, re-run immediately |
+| SR verify | 1 | **171 ms** | healthy |
+| **Riks & Sustainability** (cold) | 4 | **84 s · 84 s · 6.58 s · 3.98 s** | first touch after model refresh |
+| **Riks & Sustainability** (warm) | 4 | **109 / 105 / 95 / 85 ms** | same 4 queries, re-run immediately |
+
+**Two notes on the table above:**
+
+- **`SR verify` holds 3 visuals but only 1 query was captured.** Not a discrepancy in the
+  measurement — visuals that resolve from already-cached columns, or that carry no DAX
+  (text, image, shape), issue no `query` XHR. The other three pages match their visual counts
+  exactly, which is what makes the `Executive Dashboard` identification unambiguous.
+- **`Riks & Sustainability` is a typo in the report** — it should read *Risk*. User-visible on
+  the page tab. Not touched here: report edits are made in the Fabric UI and the
+  Fabric → local → Update ordering convention applies, so this is flagged rather than fixed.
 
 ### Finding — Direct Lake cold-start transcoding on `gold_supply_risk`, ~800× cold/warm
 
@@ -616,7 +631,7 @@ speed-up that was never available.
 
 - [x] Pipeline retest run 3 times, matching the methodology used for the task-012_1 baseline — runs at 20:15, 21:02, 21:25 on 2026-08-03, all defaults (`p_full_load=false`), warm cache, durations from the Monitoring detail pane
 - [x] Activity-level durations recorded and compared against the baseline, bronze/silver/gold broken out — all 10 activities × 3 runs, per-stage summary plus per-run spread
-- [x] Power BI query response times recorded for representative report pages — 5 pages; **one gap: the first page's name is still "TBC"** and needs filling
+- [x] Power BI query response times recorded for representative report pages — all 4 report pages, identified from the report definition in git (`pageOrder` + visual counts), plus a cold/warm pair on `Riks & Sustainability`
 - [x] A before/after comparison table committed here, stating the measured deltas whatever they are — including null or negative results — the primary target is reported as a null result
 - [x] Any optimization that measurably made things worse is called out explicitly rather than omitted — `data_quality_checks` +43 %, functional total +18 %, both with their caveats stated
 
