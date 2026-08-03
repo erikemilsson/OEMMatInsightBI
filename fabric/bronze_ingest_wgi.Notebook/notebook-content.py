@@ -101,17 +101,23 @@ API_BASE = "https://api.worldbank.org/v2"
 # timeout, i.e. it retried straight back into the same congestion and gave the remote side
 # no time to recover.
 #
-# One run fetches 6 indicators x ~6 pages (~5,150 records each at per_page=1000) = ~36
+# One run fetched 6 indicators x ~6 pages (~5,150 records each at per_page=1000) = ~36
 # requests, so at a 50% per-request failure rate a clean run was effectively impossible.
 #
-# These constants govern the FAILURE PATH ONLY. A run in which nothing times out issues the
-# identical request sequence in the identical time, which is what keeps the task-012_1
-# performance baseline (bronze_WGI 73s) comparable for the task-012_5 retest.
+# The four backoff/retry constants below govern the FAILURE PATH ONLY. A run in which
+# nothing times out issues the identical request sequence in the identical time.
 #
-# NOT tuned here on purpose: per_page. Raising it to ~10000 would cut the request count from
-# ~36 to ~12 and is the single highest-leverage reliability change available — but it alters
-# the happy-path request sequence and would invalidate the baseline comparison. Revisit once
-# task-012_5 closes.
+# API_PAGE_SIZE is different, and was raised deliberately on 2026-08-03 (Erik-approved).
+# Every request is an independent chance to hit the intermittent read timeout, so cutting
+# the request count is the single highest-leverage reliability change available: at
+# per_page=10000 the API reports pages=1 for a ~5,150-record indicator, so one request
+# covers an indicator and a run issues ~6 rather than ~36.
+#
+# BASELINE CONSEQUENCE, accepted knowingly: this one DOES change the happy path. The
+# task-012_1 baseline (bronze_WGI 73s at per_page=1000) stops being a like-for-like
+# comparison, so the task-012_5 retest cannot report a bronze_WGI delta against it — the
+# stage has to be annotated as re-baselined rather than compared. See task-012_5 notes.
+API_PAGE_SIZE = 10000    # was 1000 — ~36 requests per run -> ~6
 API_READ_TIMEOUT = 120   # was 60 — the server is slow, not absent; give it room to answer
 API_MAX_RETRIES = 5      # was 3
 API_BACKOFF_BASE = 5     # seconds; doubles per attempt -> 5, 10, 20, 40
@@ -160,7 +166,7 @@ def fetch_indicator(api_code, short_code, series_name, start_year, end_year,
             "source": "3",  # WGI source ID
             "format": "json",
             "date": f"{start_year}:{end_year}",
-            "per_page": "1000",
+            "per_page": str(API_PAGE_SIZE),
             "page": str(page),
         }
 

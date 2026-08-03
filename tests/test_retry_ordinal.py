@@ -218,3 +218,162 @@ class TestMixedRun:
             if r["activityName"] in SUCCESS_STARTS
         }
         assert success_ordinals == {name: 0 for name in SUCCESS_STARTS}
+
+# =============================================================================
+# Final-outcome collapsing (task-051)
+# =============================================================================
+# queryactivityruns returns one row PER ATTEMPT. The handler's re-raise
+# originally fired on the presence of any Failed row, so an activity the
+# pipeline retried into success reported the whole run as Failed. These tests
+# pin the corrected semantics: the raise keys off each activity's FINAL attempt,
+# while every attempt stays in the log for get_retry_effectiveness().
+
+
+def load_summarize_final_outcomes():
+    """Extract summarize_final_outcomes from the live notebook.
+
+    _TERMINAL_STATUS is pulled from the notebook too rather than restated here,
+    so the mapping stays single-sourced (same reasoning as load_parse_activity_ts
+    reusing the production timestamp parser).
+    """
+    assert HANDLER_NOTEBOOK.exists(), f"Notebook not found: {HANDLER_NOTEBOOK}"
+    tree = ast.parse(
+        HANDLER_NOTEBOOK.read_text(encoding="utf-8"), filename=str(HANDLER_NOTEBOOK)
+    )
+    func = None
+    terminal_assign = None
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name == "summarize_final_outcomes":
+            func = node
+        elif isinstance(node, ast.Assign) and any(
+            isinstance(t, ast.Name) and t.id == "_TERMINAL_STATUS" for t in node.targets
+        ):
+            terminal_assign = node
+    assert func is not None, "summarize_final_outcomes not found in notebook"
+    assert terminal_assign is not None, "_TERMINAL_STATUS not found in notebook"
+    module = ast.Module(body=[terminal_assign, func], type_ignores=[])
+    ast.fix_missing_locations(module)
+    ns = {}
+    exec(compile(module, filename=str(HANDLER_NOTEBOOK), mode="exec"), ns)
+    return ns["summarize_final_outcomes"]
+
+
+@pytest.fixture(scope="module")
+def summarize():
+    return load_summarize_final_outcomes()
+
+
+SELF_NAME = "pipeline_error_handler"
+
+# The 2026-08-03 14:08 orchestrator run: bronze_WGI failed on GOV_WGI_GE.EST
+# (pages 3 then 4) and succeeded on the third attempt. Durations 16m47s, 3m54s
+# and 4m7s are as recorded in task-036's WGI RELIABILITY FINDING note; the start
+# timestamps below are RECONSTRUCTED from those durations rather than captured
+# verbatim from the API, since only the durations were recorded at the time.
+# Only their ordering is load-bearing for these tests.
+WGI_ATTEMPTS = [
+    ("2026-08-03T14:08:00.0000000Z", "Failed"),
+    ("2026-08-03T14:24:50.0000000Z", "Failed"),
+    ("2026-08-03T14:28:47.0000000Z", "Succeeded"),
+]
+
+
+def _outcome_row(name, start, status, message=None):
+    """A queryactivityruns row. `error` is present even on success, as a dict of
+    empty strings - the notebook's cell header records this; branching on a
+    truthy `error` is exactly the bug that shape causes."""
+    return {
+        "activityName": name,
+        "pipelineRunId": RUN_ID,
+        "activityRunStart": start,
+        "status": status,
+        "error": {"message": message or "", "errorCode": "", "failureType": ""},
+    }
+
+
+class TestRetriedThenSucceeded:
+    """The regression this function exists to prevent."""
+
+    def test_retried_into_success_is_not_a_run_failure(self, summarize):
+        rows = [_outcome_row("bronze_WGI", s, st) for s, st in WGI_ATTEMPTS]
+        final_failures, recovered = summarize(rows, SELF_NAME)
+        assert final_failures == []
+        assert recovered == [("bronze_WGI", 2)]
+
+    def test_iteration_order_does_not_change_the_verdict(self, summarize):
+        rows = [_outcome_row("bronze_WGI", s, st) for s, st in WGI_ATTEMPTS]
+        for ordering in (rows[::-1], [rows[1], rows[2], rows[0]]):
+            final_failures, recovered = summarize(ordering, SELF_NAME)
+            assert final_failures == []
+            assert recovered == [("bronze_WGI", 2)]
+
+    def test_a_green_run_reports_nothing(self, summarize):
+        rows = [
+            _outcome_row(name, start, "Succeeded")
+            for name, start in SUCCESS_STARTS.items()
+        ]
+        assert summarize(rows, SELF_NAME) == ([], [])
+
+
+class TestGenuineFailure:
+    """A real failure must still fail the run - the DQ gate depends on it."""
+
+    def test_single_failed_attempt_is_a_final_failure(self, summarize):
+        rows = [_outcome_row("data_quality_checks", COPY_STARTS[0], "Failed", "DQ gate")]
+        final_failures, recovered = summarize(rows, SELF_NAME)
+        assert final_failures == [("data_quality_checks", "DQ gate")]
+        assert recovered == []
+
+    def test_exhausted_retries_are_a_final_failure(self, summarize):
+        rows = [
+            _outcome_row("bronzecopy_GlobalSupplyShares", s, "Failed", "timeout")
+            for s in COPY_STARTS
+        ]
+        final_failures, recovered = summarize(rows, SELF_NAME)
+        assert final_failures == [("bronzecopy_GlobalSupplyShares", "timeout")]
+        assert recovered == []
+
+    def test_success_before_a_later_failure_still_fails(self, summarize):
+        """Ordering, not mere presence of a Succeeded row, decides the outcome."""
+        rows = [
+            _outcome_row("bronze_WGI", COPY_STARTS[0], "Succeeded"),
+            _outcome_row("bronze_WGI", COPY_STARTS[1], "Failed", "late failure"),
+        ]
+        final_failures, _ = summarize(rows, SELF_NAME)
+        assert final_failures == [("bronze_WGI", "late failure")]
+
+    def test_empty_error_message_becomes_none_not_blank(self, summarize):
+        rows = [_outcome_row("bronze_EPI", COPY_STARTS[0], "Failed")]
+        assert summarize(rows, SELF_NAME) == ([("bronze_EPI", None)], [])
+
+    def test_a_real_failure_alongside_a_recovery_is_still_raised(self, summarize):
+        rows = [_outcome_row("bronze_WGI", s, st) for s, st in WGI_ATTEMPTS]
+        rows.append(_outcome_row("data_quality_checks", COPY_STARTS[3], "Failed", "DQ"))
+        final_failures, recovered = summarize(rows, SELF_NAME)
+        assert final_failures == [("data_quality_checks", "DQ")]
+        assert recovered == [("bronze_WGI", 2)]
+
+
+class TestRowFiltering:
+    def test_self_activity_is_excluded(self, summarize):
+        """The handler sees itself mid-run; without the skip it logs a phantom."""
+        rows = [
+            _outcome_row(SELF_NAME, COPY_STARTS[0], "Failed", "self"),
+            _outcome_row("bronze_EPI", COPY_STARTS[1], "Succeeded"),
+        ]
+        assert summarize(rows, SELF_NAME) == ([], [])
+
+    @pytest.mark.parametrize("status", ["InProgress", "Queued", "Skipped", "Cancelled"])
+    def test_non_terminal_rows_are_ignored(self, summarize, status):
+        rows = [_outcome_row("bronze_EPI", COPY_STARTS[0], status)]
+        assert summarize(rows, SELF_NAME) == ([], [])
+
+    def test_non_terminal_last_row_does_not_mask_an_earlier_failure(self, summarize):
+        """A Cancelled row after a Failed one must not read as recovery."""
+        rows = [
+            _outcome_row("bronze_EPI", COPY_STARTS[0], "Failed", "boom"),
+            _outcome_row("bronze_EPI", COPY_STARTS[1], "Cancelled"),
+        ]
+        final_failures, recovered = summarize(rows, SELF_NAME)
+        assert final_failures == [("bronze_EPI", "boom")]
+        assert recovered == []

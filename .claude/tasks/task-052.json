@@ -1,0 +1,49 @@
+{
+  "priority": "P2",
+  "owner": "claude",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "spec_fingerprint": "sha256:0e1cb6c1bbfcc356721b8b7ad47b1a6083b49882154ca4219a6b88276228498b",
+  "spec_version": "1",
+  "section_snapshot_ref": "",
+  "estimated_hours": 1,
+  "dependencies": [],
+  "decision_dependencies": [],
+  "user_feedback": "",
+  "created_date": "2026-08-03",
+  "updated_date": "2026-08-03",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "verification_history": [],
+  "task_verification": {},
+  "test_protocol": null,
+  "user_review_pending": false,
+  "recovery_state": "",
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "interaction_hint": "dashboard",
+  "status": "Awaiting Verification",
+  "difficulty": 3,
+  "id": "task-052",
+  "title": "Raise bronze_ingest_wgi per_page to cut the World Bank request count ~36 -> ~6",
+  "spec_section": "Data Architecture",
+  "section_fingerprint": "sha256:ecea8c1d811d571ed42db2be6f786f04713790a972884dff8de8059ec5e3a752",
+  "description": "Every World Bank API request is an independent chance to hit the intermittent read timeout that stopped bronze_WGI completing on 2026-08-03. At per_page=1000 a run issued ~36 requests (6 indicators x ~6 pages at ~5,150 records each); at per_page=10000 the API reports pages=1 per indicator, so a run issues ~6. Cutting the request count is the single highest-leverage reliability change available and was named as such in task-050, which deliberately excluded it because \u2014 unlike the retry constants \u2014 it changes the HAPPY PATH and therefore breaks comparability with the task-012_1 baseline. Erik took that trade-off knowingly on 2026-08-03 rather than wait out the API degradation.",
+  "files_affected": [
+    "fabric/bronze_ingest_wgi.Notebook/notebook-content.py"
+  ],
+  "acceptanceCriteria": [
+    "per_page is a named module-level constant (API_PAGE_SIZE), not an inline literal, matching the constant style task-050 established.",
+    "A run fetches each indicator in a single request where the record count allows it, cutting the per-run request count from ~36 to ~6.",
+    "Pagination still works if an indicator ever exceeds one page \u2014 the loop remains driven by the API's own metadata 'pages' value rather than assuming a single page.",
+    "No other request parameter changes, so the bronze contract and the resulting bronze_WGI schema are untouched.",
+    "The baseline consequence is recorded where it will be read: in the notebook comment, in task-012_5's notes, and in performance_optimized.md."
+  ],
+  "notes": [
+    "CREATED 2026-08-03 (/work, Erik-approved). Splits out the change task-050 note 3 explicitly deferred ('DELIBERATELY NOT DOING: raising per_page ... Revisit AFTER task-012_5 closes'). Erik chose to take it now instead.",
+    "BASELINE CONSEQUENCE \u2014 the accepted cost, recorded so it is not rediscovered as a surprise: the task-012_1 baseline measured bronze_WGI at 73s with per_page=1000. That figure is no longer like-for-like, so task-012_5 cannot report a bronze_WGI delta against it. The bronze stage must be annotated as RE-BASELINED rather than compared. The optimizations task-012_5 actually exists to measure (V-Order and broadcast hints from task-012_3, index DDL from task-012_4) act on silver and gold, so the silver/gold comparison \u2014 where the real signal is \u2014 stays intact.",
+    "IMPLEMENTED 2026-08-03 (inline, not via implement-agent \u2014 session-level instruction is not to dispatch subagents unless asked). Added API_PAGE_SIZE = 10000 beside the task-050 constants and changed the request param to str(API_PAGE_SIZE). Rewrote the constant block's comment, which previously stated per_page was deliberately NOT tuned, so it now records the raise, the arithmetic and the baseline consequence.",
+    "VERIFIED LOCALLY: ast.parse OK; 6 CELL markers intact; 249/249 pytest pass. NOT verified against the live API \u2014 the record count per indicator (~5,150) is from the 2026-08-03 partial run, so pages=1 at per_page=10000 is arithmetic, not an observation. The first real run is the confirmation; if the World Bank caps per_page below 10000 the loop still paginates correctly, just with less benefit.",
+    "NOT DEPLOYED BY CLAUDE: push to main auto-publishes to the live workspace, so committing is Erik's call."
+  ]
+}

@@ -675,11 +675,22 @@ print("\nPipeline error handler ready.")
 # and get_retry_effectiveness have both outcomes to compare) could not be met.
 # Proven by orchestrator run b5d799b1-3643-45d9-9a63-bcae0cc8199a on 2026-07-27:
 # 8 activities all Succeeded, 0 log rows written.
-# Running on every outcome and re-raising when a FAILED row was logged serves
-# both criteria with one activity: the log is always written, and a failing run
-# still ends red because this activity fails. The trailing Fail activity is not
-# merely redundant under this shape - it would fail a healthy run - so it was
-# removed with this change.
+# Running on every outcome and re-raising on a genuine failure serves both
+# criteria with one activity: the log is always written, and a failing run still
+# ends red because this activity fails. The trailing Fail activity is not merely
+# redundant under this shape - it would fail a healthy run - so it was removed
+# with this change.
+#
+# WHAT COUNTS AS A GENUINE FAILURE (corrected 2026-08-03):
+# queryactivityruns returns one row PER ATTEMPT, so an activity the pipeline
+# retried into success appears as N Failed rows plus one Succeeded row. The
+# original re-raise fired on the presence of any Failed row, which reported a
+# functionally green run as red - seen on the 14:08 run of 2026-08-03, where
+# bronze_WGI failed twice against a degraded World Bank API and succeeded on the
+# third attempt. Every attempt is still logged (get_retry_effectiveness needs
+# exactly that detail), but the raise now keys off each activity's FINAL attempt.
+# See summarize_final_outcomes. Left unfixed this becomes a false-alarm generator
+# the moment task-010 puts the pipeline on a schedule.
 #
 # Empirically established 2026-07-27 (scratch_qar_test run
 # 7c2781b8-6ad2-4bd6-bf0d-ff8acccf6991), because the docs address none of it:
@@ -783,14 +794,77 @@ def derive_retry_attempt(activity, starts_by_key):
     return sum(1 for t in starts_by_key.get(key, []) if t < own_start)
 
 
+def summarize_final_outcomes(activities, self_activity_name=None):
+    """Collapse per-attempt rows to ONE final outcome per activity.
+
+    queryactivityruns returns a separate row per attempt, so a retried activity
+    that eventually succeeded appears as N Failed rows PLUS one Succeeded row.
+    Treating the presence of any Failed row as a run failure therefore reports a
+    functionally green run as red - observed on the 2026-08-03 14:08 orchestrator
+    run, where bronze_WGI failed twice against a degraded World Bank API and
+    succeeded on the third attempt, yet the run reported Failed.
+
+    The last attempt is the activity's real outcome. It is identified by ranking
+    activityRunStart, the same signal derive_retry_attempt uses and for the same
+    reason: retryAttempt is always null (see that function's docstring).
+
+    Returns (final_failures, recovered):
+      final_failures - [(name, error_message)] whose LAST terminal attempt Failed.
+                       These are genuine failures and must fail the run.
+      recovered      - [(name, failed_attempt_count)] that failed at least once
+                       but whose LAST terminal attempt Succeeded. Reported, not
+                       raised - the pipeline's own retry already handled them.
+
+    Non-terminal rows (InProgress, Queued, Skipped, Cancelled) are ignored here;
+    harvest_pipeline_run counts and reports them separately.
+    """
+    latest = {}
+    failed_counts = {}
+
+    for activity in activities:
+        name = activity.get("activityName")
+        if self_activity_name is not None and name == self_activity_name:
+            continue
+
+        status = _TERMINAL_STATUS.get(activity.get("status"))
+        if status is None:
+            continue
+
+        if status == "FAILED":
+            failed_counts[name] = failed_counts.get(name, 0) + 1
+
+        start = activity.get("activityRunStart") or ""
+        previous = latest.get(name)
+        # ISO-8601 UTC strings sort lexicographically as they sort chronologically.
+        if previous is None or start > previous[0]:
+            error = activity.get("error") or {}
+            message = (error.get("message") or "").strip() or None
+            latest[name] = (start, status, message)
+
+    final_failures = []
+    recovered = []
+    for name in sorted(latest):
+        _, status, message = latest[name]
+        if status == "FAILED":
+            final_failures.append((name, message))
+        elif failed_counts.get(name):
+            recovered.append((name, failed_counts[name]))
+
+    return final_failures, recovered
+
+
 def harvest_pipeline_run(run_id):
     """Write one execution-log row per terminal activity in run_id.
 
     Logs successes as well as failures, so get_execution_summary() and
-    get_retry_effectiveness() have both outcomes to compare.
+    get_retry_effectiveness() have both outcomes to compare. EVERY attempt is
+    logged, including the failed attempts of an activity that later succeeded -
+    that per-attempt detail is exactly what get_retry_effectiveness() reads.
 
-    Raises RuntimeError, after all rows are written, if any activity failed -
-    which is what makes the orchestrator run report Failed. See the cell header.
+    Raises RuntimeError, after all rows are written, if any activity's FINAL
+    attempt failed - which is what makes the orchestrator run report Failed.
+    An activity that failed and then succeeded on retry does NOT raise. See the
+    cell header and summarize_final_outcomes.
     """
     activities = fetch_activity_runs(run_id)
 
@@ -816,7 +890,6 @@ def harvest_pipeline_run(run_id):
 
     written = 0
     skipped = []
-    failures = []
 
     for activity in activities:
         name = activity.get("activityName")
@@ -848,27 +921,40 @@ def harvest_pipeline_run(run_id):
             duration_seconds=(duration_ms / 1000.0) if duration_ms is not None else None,
         )
         written += 1
-        if log_status == "FAILED":
-            failures.append(str(name) + ": " + str(message or "no error message"))
+
+    # One outcome per activity, not one per attempt - a retried-then-succeeded
+    # activity must not fail the run.
+    final_failures, recovered = summarize_final_outcomes(activities, SELF_ACTIVITY_NAME)
 
     print("Harvested pipeline run " + str(run_id) + ": " + str(written) + " row(s) logged.")
     if skipped:
         print("Non-terminal activities not logged: " + ", ".join(skipped))
+    if recovered:
+        print(
+            "Recovered after retry (logged, not a run failure): "
+            + ", ".join(
+                str(name) + " (" + str(count) + " failed attempt(s))"
+                for name, count in recovered
+            )
+        )
 
     # Re-raise AFTER every row is written, so the log survives the failure.
     # This is what keeps a failing run red: without it, the Try-Catch shape
     # would report the whole run as Succeeded once this handler succeeded,
     # silently undoing task-026's DQ gate. Confirmed live 2026-07-27.
-    if failures:
+    if final_failures:
         raise RuntimeError(
             "Orchestrator run "
             + str(run_id)
             + " had "
-            + str(len(failures))
+            + str(len(final_failures))
             + " failed activity(ies); "
             + str(written)
             + " row(s) were written to the execution log first. "
-            + " | ".join(failures)
+            + " | ".join(
+                str(name) + ": " + str(message or "no error message")
+                for name, message in final_failures
+            )
         )
 
     return written

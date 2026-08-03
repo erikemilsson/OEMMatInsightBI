@@ -22,9 +22,21 @@
 | Cache state | warm (~7 min idle between runs) | `___` | `___` |
 | Runs | 3 | `___` | `___` |
 | Duration source | Fabric Monitoring detail pane | `___` | `___` |
+| WGI `per_page` | **`1000`** | **`10000` — deliberately changed, see below** | **No, by decision** |
 
 ⚠️ **Hard condition** (`performance_baseline.md` line 21): a full-load retest is **not**
 comparable to this baseline. If the retest ran in full-load mode, stop and re-run.
+
+⚠️ **`bronze_WGI` is RE-BASELINED, not comparable** (task-052, Erik-approved 2026-08-03).
+The baseline measured `bronze_WGI` at 73 s with `per_page=1000` (~36 API requests). task-052
+raised it to `10000` (~6 requests) to stop the intermittent World Bank read timeouts from
+blocking the retest entirely. That changes the happy path, so **do not report a `bronze_WGI`
+delta against the 73 s figure** — record the new number as a fresh baseline and say why.
+
+This does **not** void the retest. The optimizations under test — V-Order and broadcast
+hints (task-012_3), index DDL (task-012_4) — all act on **silver and gold**, which is where
+the signal was expected and where the comparison remains strictly like-for-like. Bronze was
+never the thing being optimized; it was the thing that kept failing.
 
 ## Prerequisites applied before the retest
 
@@ -129,6 +141,22 @@ hardening the retry *before* run 1 would preserve comparability: exponential bac
 changes failure-path behavior, and the baseline's `bronze_WGI` figure (73 s) is a
 happy-path measurement that longer backoff does not affect. See § Findings.
 
+**RESOLVED 2026-08-03 in two steps, both before run 1 of 3:**
+
+- **task-050** hardened the failure path only — capped exponential backoff with jitter
+  (5/10/20/40 s, cap 60, ±25%), 5 attempts, 120 s read timeout. Comparability preserved by
+  construction. A standalone probe after deploying it **completed** (324 s total, 265 s in
+  the fetch cell) where the same notebook had failed twice earlier the same day. The timing
+  is consistent with two read timeouts absorbed and retried into success — `2 × (120 s
+  timeout + ~5 s backoff)` plus a healthy fetch ≈ 265 s — which supports the premise behind
+  the raised timeout: **the server was slow, not absent**, and the old 60 s ceiling was
+  cutting off answers that were still coming.
+- **task-052** then raised `per_page` 1000 → 10000, cutting a run from ~36 requests to ~6.
+  This one **does** change the happy path and re-baselines `bronze_WGI` — see the
+  comparability table at the top. Taken deliberately: at ~50 % per-request timeout, fewer
+  requests is the only change that makes a clean run likely, and waiting out the API had no
+  known end date.
+
 #### Anomaly 2 — a functionally successful run is reported as Failed
 
 Every functional activity succeeded (bronze → silver → gold → DQ). The pipeline is marked
@@ -143,7 +171,18 @@ pipeline therefore marks the whole run Failed.
 
 This matters beyond the retest: it is a false-positive failure signal for **task-010**
 (pipeline scheduling — scheduled runs would alert on self-healing transients) and touches
-DEC-004's failure-propagation topology. Recorded here; not actioned.
+DEC-004's failure-propagation topology.
+
+**RESOLVED 2026-08-03 by task-051.** `summarize_final_outcomes()` collapses the per-attempt
+rows to one outcome per activity, ranking `activityRunStart` to find the final attempt — the
+same derivation `derive_retry_attempt()` already used, and for the same reason (`retryAttempt`
+is always null). The re-raise now keys off each activity's **final** attempt, so a
+retried-then-succeeded activity is reported as recovered rather than failing the run, while
+an activity whose last attempt failed still ends the run red — task-026's DQ gate and
+DEC-004's propagation are preserved. Every attempt is still logged, because that per-attempt
+detail is exactly what `get_retry_effectiveness()` reads. Under the corrected logic the 14:08
+run would have been reported **Succeeded**, with `bronze_WGI (2 failed attempt(s))` noted as
+recovered.
 
 ### Retest Run 1 — pipeline start `___`
 
