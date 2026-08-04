@@ -3237,12 +3237,17 @@ def create_data_gaps_table():
         WHERE production_country_key IS NOT NULL
     """)
 
-    # 2. Get countries that have EPI scores (using the main EPI indicator)
-    # We'll check for the presence of ANY EPI score for each country
+    # 2. Countries with an overall EPI composite score (abbrev='EPI'). Post-task-054
+    #    the fact table carries 30+ sub-indicator rows per country, so filtering only
+    #    on score IS NOT NULL would count a country with any non-null sub-indicator.
+    #    Joining gold_dim_indicator on indicator_key and restricting to abbrev='EPI'
+    #    keeps this aligned to the TMDL 'Countries with EPI Data' measure
+    #    (DISTINCTCOUNT(country_key) filtered to gold_dim_indicator[abbrev]="EPI").
     countries_with_epi = spark.sql(f"""
-        SELECT DISTINCT country_key
-        FROM {DB}.fact_epi_score
-        WHERE score IS NOT NULL
+        SELECT DISTINCT f.country_key
+        FROM {DB}.fact_epi_score f
+        JOIN {DB}.gold_dim_indicator d ON f.indicator_key = d.indicator_key
+        WHERE d.abbrev = 'EPI' AND f.score IS NOT NULL
     """)
 
     # 3. Get countries that have WGI scores (World Governance Indicators)

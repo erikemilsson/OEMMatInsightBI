@@ -41,7 +41,7 @@ This document defines the Row-Level Security (RLS) implementation strategy for t
 - **Geography:** `gold_dim_country[region]` - Americas, Europe, Asia, Asia-Pacific, Africa
 - **Material Category:** `gold_dim_material[commodity_group]` - Battery metals, Base metals, Rare earths, etc.
 - **Time:** `gold_dim_date` - Could restrict to recent years only
-- **Indicator Type:** `gold_dim_indicator[indicator_source]` - EPI vs WGI
+- **Indicator Type:** `gold_dim_indicator[source_system]` - EPI vs WGI
 
 ### Current Security Posture
 

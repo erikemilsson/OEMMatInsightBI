@@ -335,7 +335,7 @@ RETURN
 Avg EPI Score =
 CALCULATE(
     AVERAGE(fact_epi_score[score]),
-    gold_dim_indicator[indicator_source] = "EPI"
+    gold_dim_indicator[abbrev] = "EPI"
 )
 ```
 **Business Logic:** Simple average of EPI scores for supplier countries. Range: 0-100 (higher = better environmental performance).
@@ -345,20 +345,26 @@ CALCULATE(
 **Weighted EPI Score**
 ```dax
 Weighted EPI Score =
+VAR EpiSubIndicators =
+    FILTER(
+        gold_dim_indicator,
+        gold_dim_indicator[source_system] = "EPI"
+            && gold_dim_indicator[abbrev] <> "EPI"
+    )
 VAR WeightedScores =
-    SUMX(
-        fact_epi_score,
-        fact_epi_score[score] * RELATED(gold_dim_indicator[weight])
+    CALCULATE(
+        SUMX(
+            fact_epi_score,
+            fact_epi_score[score] * RELATED(gold_dim_indicator[weight])
+        ),
+        EpiSubIndicators
     )
 VAR TotalWeights =
-    CALCULATE(
-        SUM(gold_dim_indicator[weight]),
-        gold_dim_indicator[indicator_source] = "EPI"
-    )
+    CALCULATE(SUM(gold_dim_indicator[weight]), EpiSubIndicators)
 RETURN
     DIVIDE(WeightedScores, TotalWeights, 0)
 ```
-**Business Logic:** EPI score weighted by indicator importance (e.g., climate change 40%, biodiversity 10%).
+**Business Logic:** EPI sub-indicator scores weighted by indicator importance (e.g., climate change 40%, biodiversity 10%). The overall EPI composite (`abbrev = "EPI"`) is excluded — it is itself a weighted aggregate of these sub-indicators, so including it would double-count. WGI indicators (`source_system = "WB"`) are excluded so the numerator and denominator stay on the same source family. EPI data is single-year (2024), so the country × indicator × year grain does not inflate the weight sum.
 
 ---
 
@@ -394,7 +400,7 @@ SUMX(
 Avg WGI Score =
 CALCULATE(
     AVERAGE(fact_epi_score[score]),
-    gold_dim_indicator[indicator_source] = "WB"
+    gold_dim_indicator[source_system] = "WB"
 )
 ```
 **Business Logic:** Average World Bank governance score. Range: -2.5 to +2.5 (higher = better governance).
@@ -445,7 +451,7 @@ VAR HighEPISpend =
     CALCULATE(
         [Total Spend EUR],
         fact_epi_score[score] >= 60,
-        gold_dim_indicator[indicator_source] = "EPI"
+        gold_dim_indicator[abbrev] = "EPI"
     )
 RETURN
     DIVIDE(HighEPISpend, [Total Spend EUR], 0)
@@ -462,7 +468,7 @@ VAR MediumEPISpend =
         [Total Spend EUR],
         fact_epi_score[score] >= 40,
         fact_epi_score[score] < 60,
-        gold_dim_indicator[indicator_source] = "EPI"
+        gold_dim_indicator[abbrev] = "EPI"
     )
 RETURN
     DIVIDE(MediumEPISpend, [Total Spend EUR], 0)
@@ -477,7 +483,7 @@ VAR LowEPISpend =
     CALCULATE(
         [Total Spend EUR],
         fact_epi_score[score] < 40,
-        gold_dim_indicator[indicator_source] = "EPI"
+        gold_dim_indicator[abbrev] = "EPI"
     )
 RETURN
     DIVIDE(LowEPISpend, [Total Spend EUR], 0)
@@ -827,7 +833,7 @@ High EPI Spend =
             [Total Spend EUR],
             fact_epi_score[score] >= 60
         ),
-        gold_dim_indicator[indicator_source] = "EPI"
+        gold_dim_indicator[abbrev] = "EPI"
     )
 ```
 
@@ -838,7 +844,7 @@ High EPI Spend =
     CALCULATE(
         [Total Spend EUR],
         fact_epi_score[score] >= 60,
-        gold_dim_indicator[indicator_source] = "EPI"
+        gold_dim_indicator[abbrev] = "EPI"
     )
 ```
 

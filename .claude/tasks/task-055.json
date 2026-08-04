@@ -1,0 +1,102 @@
+{
+  "id": "task-055",
+  "title": "task-054 follow-ups: FR-050 DAX-doc column-name fix, countries_with_epi abbrev filter, Weighted EPI Score SUMX double-count fix",
+  "description": "Three non-blocking follow-ups surfaced by task-054's verification + AC5 attestation. (1) FR-050 (vocab_drift, open): dax_measure_library.md and rls_security_strategy.md reference gold_dim_indicator[indicator_source], a column that does not exist in the TMDL (gold_dim_indicator.tmdl columns are source_system, abbrev, type, indicator_code, weight, ...). The deployed measures use source_system (EPI vs WB source family) and abbrev (the indicator abbreviation; 'EPI' = overall composite). Each doc reference must be corrected to the column matching its deployed intent — NOT a blanket find-and-replace. (2) countries_with_epi query (silver-to-gold2.Notebook:3242-3246): after task-054 widened fact_epi_score to country×indicator×year, 'SELECT DISTINCT country_key WHERE score IS NOT NULL' now includes countries with any non-null sub-indicator, not just the overall EPI composite. Filter to abbrev='EPI' via join to gold_dim_indicator for parity with the TMDL 'Countries with EPI Data' measure (which uses gold_dim_indicator[abbrev]='EPI'). Stale comment updated. (3) Weighted EPI Score SUMX double-count: the deployed measure (fact_epi_score.tmdl) iterates ALL fact rows in the numerator (EPI composite + 30+ EPI sub-indicators + WGI indicators) but the denominator sums only EPI weights (source_system='EPI') — WGI rows pollute the numerator (source mismatch) and the overall EPI composite + sub-indicators double-count (the composite is itself a weighted aggregate of the sub-indicators). Fix: filter the numerator to EPI sub-indicators only (source_system='EPI' AND abbrev<>'EPI'), excluding WGI and the composite; denominator matches. Apply to both the deployed TMDL and the DAX library doc. No src/ mirror binds these (DAX library is a reference doc; TMDL is the deployed source of truth; the notebook SQL is Fabric-run).",
+  "status": "Finished",
+  "priority": "medium",
+  "difficulty": 4,
+  "owner": "both",
+  "phase": "2",
+  "phase_name": "Silver / Gold Transformations & Data Quality",
+  "spec_section": "Semantic Model & Reporting",
+  "spec_fingerprint": "sha256:a85ec535307845e5576f8bf8da66afae20d3bdd4a2f31ebd363f8ab6e3dabf2c",
+  "spec_version": "1",
+  "section_fingerprint": "sha256:a45cbb778326932ffe2f273ff5df968661abb39b54fe8ce23a2d64bf65e1bc1f",
+  "section_snapshot_ref": "",
+  "estimated_hours": 2,
+  "files_affected": [
+    ".claude/support/documents/dax_measure_library.md",
+    ".claude/support/documents/rls_security_strategy.md",
+    "fabric/silver-to-gold2.Notebook/notebook-content.py",
+    "fabric/OEMInsightBI_v2.SemanticModel/definition/tables/fact_epi_score.tmdl"
+  ],
+  "acceptanceCriteria": [
+    "FR-050 closed: zero remaining references to gold_dim_indicator[indicator_source] in dax_measure_library.md or rls_security_strategy.md. Each former reference is replaced with the column matching its deployed intent — abbrev='EPI' for per-country overall-composite filters (Avg EPI Score, Countries with EPI Data, % Spend - High/Medium/Low EPI, and the §10.3 filter-context example that mirrors them); source_system='EPI' for EPI source-family filters (Weighted EPI Score denominator); source_system='WB' for WGI (Avg WGI Score); source_system for the RLS 'Indicator Type' segmentation (EPI vs WGI). Changes align with the deployed fact_epi_score.tmdl + gold_dim_indicator.tmdl.",
+    "countries_with_epi query (silver-to-gold2.Notebook:3242-3246) filters to the overall EPI composite by joining gold_dim_indicator on indicator_key with abbrev='EPI', so the country set matches the TMDL 'Countries with EPI Data' measure (gold_dim_indicator[abbrev]='EPI') rather than 'any non-null sub-indicator'. The stale 'using the main EPI indicator / ANY EPI score' comment is rewritten to state the abbrev='EPI' filter and the task-054 grain reason. SQL is syntactically valid against the lakehouse schema.",
+    "Weighted EPI Score double-count fixed in BOTH fact_epi_score.tmdl (deployed measure) AND dax_measure_library.md § 5.1: the SUMX numerator is filtered to EPI sub-indicators only (source_system='EPI' AND abbrev<>'EPI'), excluding WGI rows (source mismatch fixed) and the overall EPI composite row (composite double-count fixed). The TotalWeights denominator uses the same EPI-sub-indicator filter. The corrected DAX is identical between TMDL and doc. A note documents that the EPI composite is excluded because it is itself a weighted aggregate of the sub-indicators, and that EPI data is single-year (2024) so the country×indicator×year grain does not inflate the weight sum.",
+    "Erik-gated Fabric check (AC4): after the TMDL change is published, confirm the Weighted EPI Score measure deploys without error and renders a sensible value (0-100, not inflated vs Avg EPI Score). No live report visual currently depends on it (task-054 notes: the three live visuals consume Avg EPI Score / Countries with EPI Data), so this is a spot-check, not a non-regression gate. countries_with_epi query correctness is confirmed by the next gold run producing an EPI Coverage figure consistent with the TMDL 'Countries with EPI Data' measure."
+  ],
+  "dependencies": [],
+  "decision_dependencies": [],
+  "notes": [
+    "CREATED 2026-08-04 (/work, Erik-directed) to absorb the three task-054 follow-ups the user asked to work directly: FR-050 (DAX-doc column-name fix), countries_with_epi query cleanup, Weighted EPI Score SUMX double-count review+fix.",
+    "FR-050 SCOPE (verified): grep found 9 indicator_source refs — 8 in dax_measure_library.md (L338, L356, L397, L448, L465, L480, L830, L841) and 1 in rls_security_strategy.md (L44). gold_dim_indicator.tmdl confirms the real columns: source_system (string, EPI vs WB), abbrev (string, 'EPI'=composite), type, indicator_code, variable_name, policyobjective, issuecategory, description, parent_indicator, weight (double). indicator_source is not among them. The deployed fact_epi_score.tmdl uses abbrev='EPI' for Avg EPI Score + Countries with EPI Data, and source_system='EPI' for the Weighted EPI Score denominator — these are the canonical post-task-054 choices the doc must match.",
+    "WHY owner=both AND Claude can act first: ACs 1-3 are local edits to docs + TMDL + notebook SQL — no Fabric access needed. Only AC4 is Erik-gated (redeploy + spot-check). Same shape as task-054 / task-053.",
+    "WEIGHTED EPI SCORE SEMANTICS (the double-count finding): the EPI 2024 overall composite is itself a weighted aggregate of the issue-category + sub-indicator scores using the methodology weights in gold_dim_indicator[weight]. Including both the composite row AND the sub-indicator rows in SUMX counts each sub-indicator's contribution twice (once inside the composite, once standalone). Separately, the unfiltered numerator also summed WGI rows × WGI weights while the denominator summed only EPI weights — a source mismatch that inflated the numerator. Fix = restrict the SUMX iteration to EPI sub-indicators (source_system='EPI' AND abbrev<>'EPI'); the denominator uses the same filter so numerator/denominator are consistent. This is a semantic change to a deployed measure — flagged for Erik's AC4 spot-check; no live visual depends on the prior (buggy) value.",
+    "LOCAL VERIFICATION CEILING: DAX (TMDL) and the notebook SQL are runtime-verified in Fabric (Power BI / Spark respectively), not locally. ACs 1-3 are verified by inspection + cross-reference against the deployed TMDL schema; AC4 is Erik-gated.",
+    "[IMPLEMENTED 2026-08-04 inline by orchestrator] 4 files modified. (1) dax_measure_library.md: Weighted EPI Score block rewritten (EpiSubIndicators FILTER source_system='EPI' AND abbrev<>'EPI', SUMX wrapped in CALCULATE with that filter, TotalWeights same filter) + business-logic note; 6 indicator_source='EPI' refs → abbrev='EPI' (Avg EPI Score L338, % Spend High/Med/Low L448/465/480, §10.3 Bad/Good L830/841); 1 indicator_source='WB' → source_system='WB' (Avg WGI Score L397). (2) rls_security_strategy.md L44: indicator_source → source_system. (3) silver-to-gold2.Notebook:3246 countries_with_epi query now JOINs gold_dim_indicator on indicator_key + filters abbrev='EPI'; comment rewritten. (4) fact_epi_score.tmdl: Weighted EPI Score measure rewritten identically to the doc (EpiSubIndicators filter, CALCULATE-wrapped SUMX), lineageTag 8fe5ba8b preserved. grep confirms 0 indicator_source refs remain repo-wide. AC4 (Erik-gated redeploy + spot-check) stays open."
+  ],
+  "user_feedback": "",
+  "created_date": "2026-08-04",
+  "updated_date": "2026-08-04",
+  "completion_date": "2026-08-04",
+  "verification_attempts": 1,
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-08-04T04:50:00Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [],
+      "notes": "ACs 1-3 PASS (AC4 Erik-gated, out of scope this round — same shape as task-054 AC5). AC1: grep confirms zero indicator_source refs repo-wide in dax_measure_library.md + rls_security_strategy.md; 8 former refs replaced with intent-matching columns (Avg EPI Score, % Spend High/Med/Low, §10.3 Bad/Good -> abbrev='EPI'; Avg WGI Score -> source_system='WB'; Weighted EPI Score denominator rewritten into EpiSubIndicators filter; RLS L44 -> source_system). No measure switched to the wrong column. AC2: countries_with_epi SQL JOINs gold_dim_indicator on indicator_key + filters abbrev='EPI', matching the TMDL 'Countries with EPI Data' measure; comment rewritten; SQL syntactically valid. AC3: Weighted EPI Score identical between TMDL and DAX library doc (EpiSubIndicators FILTER source_system='EPI' && abbrev<>'EPI', CALCULATE-wrapped SUMX, TotalWeights same filter); lineageTag 8fe5ba8b preserved; Avg EPI Score + Countries with EPI Data unaltered. DAX semantics sound: composite exclusion prevents double-count, WGI exclusion fixes source mismatch, single-year (2024) grain means no weight inflation. Scope: git diff shows exactly 4 declared files, no undeclared modifications."
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-08-04T04:50:00Z",
+    "attempt": 1,
+    "scope": "ACs 1-3 (Claude-owned half: FR-050 doc column-name fixes, countries_with_epi query filter, Weighted EPI Score double-count fix in TMDL + DAX library doc). AC4 (Fabric redeploy + spot-check) is Erik-gated, not verified this round.",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "not_applicable",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "ACs 1-3 PASS by inspection + cross-reference against deployed TMDL schema (gold_dim_indicator.tmdl). AC1 zero indicator_source refs remain; each ref matched to deployed intent. AC2 countries_with_epi aligned to TMDL 'Countries with EPI Data' (abbrev='EPI'). AC3 Weighted EPI Score TMDL==doc, double-count + source-mismatch fixed, lineageTag preserved, other measures unaltered. AC4 Erik-gated (Finished + user_review_pending=true, FB-100 both-owned; AC4 is pure Erik-attestation — redeploy + spot-check — no further Claude work depends on it).",
+    "issues": [],
+    "evidence": []
+  },
+  "test_protocol": {
+    "summary": "Erik-gated AC4: publish the semantic model and spot-check Weighted EPI Score; confirm countries_with_epi / EPI Coverage on the next gold run.",
+    "steps": [
+      {
+        "instruction": "After the TMDL change is published (next fabric-cicd deploy or manual), open the report and spot-check the Weighted EPI Score measure renders without error and yields a sensible 0-100 value (not inflated relative to Avg EPI Score).",
+        "expected": "Weighted EPI Score deploys cleanly; value in 0-100 range and <= Avg EPI Score is not structurally required, but should not be obviously inflated by WGI/composite double-counting.",
+        "type": "visual"
+      },
+      {
+        "instruction": "On the next gold pipeline run, confirm the EPI Coverage figure (which consumes countries_with_epi) is consistent with the 'Countries with EPI Data' measure on the report (both now filter abbrev='EPI').",
+        "expected": "EPI Coverage country count matches the Countries with EPI Data measure count (same abbrev='EPI' filter).",
+        "type": "command",
+        "command": "/run-gold"
+      }
+    ],
+    "automated_results": "ACs 1-3 verified by inspection (column-name correctness vs TMDL, SQL join correctness, DAX semantics). AC4 Erik-gated.",
+    "estimated_time": "10 minutes"
+  },
+  "out_of_spec": false,
+  "absorbed_into": "",
+  "user_review_pending": true,
+  "interaction_hint": "dashboard"
+}
