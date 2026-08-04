@@ -1,232 +1,161 @@
-# Semantic Model - OEMMatInsightBI
+# Semantic Model — OEMMatInsightBI
 
 ## Overview
 
-**Model Name:** `OEMInsightBI_v2`
-**Mode:** DirectLake (direct query to Delta tables in Fabric Lakehouse)
-**Schema:** Star Schema (3 fact tables + 5 dimension tables)
-**Refresh:** Automatic (no manual refresh needed with DirectLake)
+**Model:** `OEMInsightBI_v2.SemanticModel`
+**Mode:** DirectLake (queries run directly against Delta tables in the `oem_lh` lakehouse)
+**Schema:** Star schema — 3 fact tables + 5 dimension tables + 1 derived gold table (`gold_supply_risk`)
+**Relationships:** 10, all active, single-direction (dimension → fact)
+**DAX measures:** 45 across 8 measure-bearing tables — see `dax_measure_library.md` for the full as-built catalogue
+**Refresh:** DirectLake auto-refreshes when the underlying lakehouse tables change (no scheduled refresh needed)
 
-## Star Schema Design
+## DirectLake configuration
+
+The model reads from the **`oem_lh` lakehouse**, not a warehouse. The single source expression (`expressions.tmdl`) is:
 
 ```
-                    gold_dim_date
-                         |
-                         | date_key
-                         |
-    gold_dim_material ───┼─── fact_procurement ─── gold_dim_country
-                         |         |                      |
-                         |         |                      | (role: supplier_hq)
-                  material_key  date_key            country_key
-                                                           |
-                                                           | (role: production)
-                                                      country_key
-
-
-    gold_dim_indicator ───── fact_epi_score ───── gold_dim_country
-          |                       |                     |
-    indicator_key            country_key          country_key
-
-
-    gold_dim_material ───┐
-                          ├─ fact_supply_share ─── gold_dim_country
-    gold_dim_stage ──────┘           |                  |
-                                  year              country_key
+expression 'DirectLake - oem_lh' =
+    let
+        Source = AzureStorage.DataLake("https://onelake.dfs.fabric.microsoft.com/99e4cc6d-6ec3-49a7-aed9-b69b04a97aa9/488fb9f8-e635-4683-90c4-ba4fee9dfadb", [HierarchicalNavigation=true])
+    in
+        Source
 ```
 
-## Tables
+The GUIDs are the workspace ID and the `oem_lh` lakehouse ID. There is no warehouse, no `copyjob1`, and no SQL endpoint in the path — DirectLake binds to the lakehouse's Delta tables directly. (An earlier version of this doc named `oem_wh` as the source; that was wrong.)
 
-### Fact Tables
+`PBI_IncludeFutureArtifacts = False` plus the `PBI_RemovedChildren` annotation pins the model to an explicit allowlist of 14 tables — bronze/silver tables and helper/lookup tables that exist in the lakehouse are deliberately excluded from the model so they don't surface in the report field list.
 
-**1. fact_procurement**
-- **Grain:** One row per procurement transaction
-- **Measures:** quantity_base (kg), unitprice_eur, spend_eur, data_quality_score
-- **Foreign Keys:** date_key, material_key, supplier_hq_country_key, production_country_key
-- **Source:** silver_procurement (via silver-to-gold2 notebook)
-- **Row Count:** ~100,000-200,000 (dynamic)
+### Benefits / limitations
 
-**2. fact_supply_share**
-- **Grain:** One row per material × stage × country × year
-- **Measures:** share_pct (0-100), data_quality_score
-- **Foreign Keys:** material_key, stage_key, country_key, year
-- **Source:** silver_globalsupplyshares
-- **Row Count:** ~5,000-15,000
+**Benefits:** near-real-time data (no import lag); queries run directly on Delta/parquet; automatic refresh on lakehouse table update; lower memory footprint than Import mode.
 
-**3. fact_epi_score**
-- **Grain:** One row per country × indicator × year
-- **Measures:** score (indicator value)
-- **Foreign Keys:** country_key, indicator_key, year
-- **Source:** silver_epi2024results (pivoted from wide format)
-- **Row Count:** ~3,000-10,000
+**Limitations:** calculated tables and some DAX features are not supported in DirectLake; performance depends on the underlying Delta layout (V-Order is recommended — see `performance_optimized.md`); falls back to DirectQuery automatically for unsupported operations.
 
-### Dimension Tables
+## Star schema
 
-**1. gold_dim_country**
-- **Grain:** One row per country
-- **Attributes:** iso3, iso_numeric, wb_code, country_name_std, region, is_placeholder
-- **Key:** country_key (BIGINT - xxhash64)
-- **Row Count:** ~186 real + 6 placeholders = ~192
+```
+                       gold_dim_date
+                            │ date_key
+                            │
+  gold_dim_material ─── fact_procurement ─── gold_dim_country
+        │ material_key         │                  ▲ production_country_key
+        │                      │ date_key
+        │
+        ├────────────── fact_supply_share ─── gold_dim_country
+        │                │ material_key          │ country_key
+   gold_dim_stage ───────┘ │ stage_key
+        │                    │ country_key
+        │
+   gold_dim_indicator ── fact_epi_score ─── gold_dim_country
+        │ indicator_key        │ country_key
 
-**2. gold_dim_date**
-- **Grain:** One row per day
-- **Attributes:** date, year, month, day, month_name, quarter, day_of_week, week_of_year
-- **Key:** date_key (INTEGER - yyyyMMdd format)
-- **Row Count:** Dynamic (min to max procurement date, ~365-3650 rows)
-
-**3. gold_dim_material**
-- **Grain:** One row per unique material
-- **Attributes:** material_name_std, commodity_group (13 categories), unit_base, is_placeholder
-- **Key:** material_key (BIGINT - xxhash64)
-- **Row Count:** ~50-200 materials
-
-**4. gold_dim_indicator**
-- **Grain:** One row per EPI/WGI indicator
-- **Attributes:** source_system, abbrev, variable_name, indicator_code, weight, description
-- **Key:** indicator_key (BIGINT - xxhash64)
-- **Row Count:** ~30-50 indicators
-
-**5. gold_dim_stage**
-- **Grain:** One row per production stage
-- **Attributes:** stage_code ("E" or "P"), stage_name ("Extraction" or "Processing")
-- **Key:** stage_key (BIGINT - xxhash64)
-- **Row Count:** 2 (fixed)
-
-## Relationships
-
-All relationships are **many-to-one** with **single direction** filtering (dimension → fact).
-
-### Date Relationships
-- `gold_dim_date[date_key]` (1) → `fact_procurement[date_key]` (*)
-- **Note:** fact_epi_score and fact_supply_share use year column, not date_key
-
-### Country Relationships
-- `gold_dim_country[country_key]` (1) → `fact_procurement[supplier_hq_country_key]` (*)
-- `gold_dim_country[country_key]` (1) → `fact_procurement[production_country_key]` (*)
-- `gold_dim_country[country_key]` (1) → `fact_epi_score[country_key]` (*)
-- `gold_dim_country[country_key]` (1) → `fact_supply_share[country_key]` (*)
-
-**Role-Playing Dimension:** gold_dim_country plays two roles in fact_procurement (HQ and production)
-
-### Material Relationships
-- `gold_dim_material[material_key]` (1) → `fact_procurement[material_key]` (*)
-- `gold_dim_material[material_key]` (1) → `fact_supply_share[material_key]` (*)
-
-### Indicator Relationship
-- `gold_dim_indicator[indicator_key]` (1) → `fact_epi_score[indicator_key]` (*)
-
-### Stage Relationship
-- `gold_dim_stage[stage_key]` (1) → `fact_supply_share[stage_key]` (*)
-
-## DAX Measures (Planned - Task 02)
-
-### Core Measures
-```dax
-Total Spend = SUM(fact_procurement[spend_eur])
-Total Quantity = SUM(fact_procurement[quantity_base])
-Avg Unit Price = DIVIDE([Total Spend], [Total Quantity], 0)
-Supplier Count = DISTINCTCOUNT(fact_procurement[supplier_hq_country_key])
-Material Count = DISTINCTCOUNT(fact_procurement[material_key])
+   gold_supply_risk ─── gold_dim_material  (material_key)
+        │             └── gold_dim_stage    (stage_key)
 ```
 
-### Time Intelligence
-```dax
-Total Spend LY = CALCULATE([Total Spend], SAMEPERIODLASTYEAR(gold_dim_date[date]))
-YoY Spend Growth = DIVIDE([Total Spend] - [Total Spend LY], [Total Spend LY], 0)
-```
+## Tables (14)
 
-### Sustainability Metrics
-```dax
-Avg EPI Score = AVERAGE(fact_epi_score[score])
-Weighted EPI Score = SUMX(fact_epi_score, fact_epi_score[score] * RELATED(gold_dim_indicator[weight]))
-```
+### Fact tables
 
-### Risk Metrics
-```dax
-Max Supply Concentration = MAX(fact_supply_share[share_pct])
-High Risk Material Count = CALCULATE(DISTINCTCOUNT(fact_supply_share[material_key]), fact_supply_share[share_pct] > 50)
-```
+**`fact_procurement`** — one row per procurement transaction
+- Columns: `date_key`, `material_key`, `supplier_hq_country_key`, `production_country_key`, `quantity_base`, `unitprice_eur`, `spend_eur`, `data_quality_score`, `quality_category`, `source_row_id`
+- Foreign keys: `date_key` → `gold_dim_date`, `material_key` → `gold_dim_material`, `production_country_key` → `gold_dim_country`
+- `supplier_hq_country_key` is an attribute column (counted by the `Supplier Countries Count` measure) — it is **not** a relationship path
+- Source: built by `silver-to-gold2` from `silver_procurement`
+- Measures: 5 (`Total Spend EUR`, `Transaction Count`, `Materials Count`, `Supplier Countries Count`, `Total Spend by Country`)
 
-**Current Status:** No custom DAX measures in git-synced files (Task 09: Document existing measures)
+**`fact_supply_share`** — one row per material × stage × country × year × supply mix
+- Columns: `material_key`, `stage_key`, `country_key`, `year`, `share_pct`, `data_quality_score`, `quality_category`, `has_unmapped_material`, `has_unmapped_country`, `unmapped_impact_score`, `source_row_id`, `supply_mix`, `t`, `wgi_year`, `wgi_weight`
+- Foreign keys: `material_key`, `stage_key`, `country_key`
+- Source: built by `silver-to-gold2` from `silver_globalsupplyshares` / `silver_eusupplyshares`
+- Measures: 1 (`Supply Concentration Index`)
 
-## DirectLake Configuration
+**`fact_epi_score`** — one row per country × indicator × year
+- Columns: `country_key`, `indicator_key`, `year`, `score`
+- Foreign keys: `country_key` → `gold_dim_country`, `indicator_key` → `gold_dim_indicator`
+- Source: built by `silver-to-gold2` from `silver_epi2024results` (pivoted from wide to long)
+- Measures: 3 (`Avg EPI Score`, `Countries with EPI Data`, `Weighted EPI Score`)
 
-**Connection:**
-- **Source:** oem_wh warehouse
-- **Endpoint:** `2BINPJYTVAEEVEF26XKMILPX4E-NXGOJGODN2TUTLWZW2NQJKL2VE.datawarehouse.fabric.microsoft.com`
-- **Database ID:** `b1cb7506-8d2d-4e4a-97cc-2b580da8eda0`
+### Dimension tables
 
-**Benefits:**
-- Real-time data (no import/refresh delay)
-- Queries run directly on parquet files
-- Automatic refresh when lakehouse tables update
-- Lower memory footprint vs Import mode
+**`gold_dim_country`** — `country_key`, `iso3`, `iso_numeric`, `wb_code`, `country_name_std`, `region`, `is_placeholder`
+**`gold_dim_date`** — `date_key`, `date`, `year`, `month`, `day`, `month_name`, `quarter`, `day_of_week`, `week_of_year`
+**`gold_dim_material`** — `material_key`, `material_name_std`, `commodity_group`, `unit_base`, `is_placeholder`
+**`gold_dim_indicator`** — `indicator_key`, `source_system`, `type`, `abbrev`, `variable_name`, `policyobjective`, `issuecategory`, `indicator_code`, `description`, `parent_indicator`, `weight`
+**`gold_dim_stage`** — `stage_key`, `stage_code`, `stage_name`
 
-**Limitations:**
-- Must use Fabric warehouse (not external SQL)
-- Some DAX features not supported (e.g., calculated tables)
-- Performance depends on underlying data format (V-Order recommended)
+Surrogate keys (`country_key`, `material_key`, `indicator_key`, `stage_key`) are deterministic `xxhash64` values; `date_key` is an `yyyyMMdd` integer.
 
-## Model Optimization
+### Derived gold table
 
-### Current State
-- ✅ Star schema implemented
-- ✅ DirectLake mode configured
-- ✅ Relationships defined correctly
-- ❌ No custom DAX measures (Task 02)
-- ❌ No V-Order optimization (Task 12)
-- ❌ No Row-Level Security (Task 04)
+**`gold_supply_risk`** — precomputed HHI concentration per material × stage × year
+- Columns: `material_key`, `stage_key`, `year`, `hhi_global`, `hhi_eu_sourcing`, `contrast_ratio`, `is_bottleneck`, `incomplete_wgi_coverage`
+- Foreign keys: `material_key` → `gold_dim_material`, `stage_key` → `gold_dim_stage`
+- Measures: 3 (`Supply Risk (Global)`, `Supply Risk (EU Sourcing)`, `Supply Risk Contrast`)
 
-### Planned Optimizations (Task 12)
-- Enable V-Order on warehouse tables
-- Add partitioning to large fact tables
-- Optimize relationship cardinality
-- Review relationship bi-directionality (currently all single-direction)
+### Observability tables (gold, no relationships)
 
-## Row-Level Security (Planned - Task 04)
+Four gold tables carry the data-quality observability surface. They are modelled (DirectLake entities) but carry no outbound relationships — they're consumed directly by report visuals.
 
-**Roles to Implement:**
-- Global Executive (all data)
-- Regional Manager - Americas (filter: gold_dim_country[region] = "Americas")
-- Regional Manager - Europe (filter: gold_dim_country[region] = "Europe")
-- Material Category Manager - Battery (filter: gold_dim_material[commodity_group] = "Battery metals")
+- `gold_data_gaps` — EPI/WGI coverage per procurement country (16 measures)
+- `gold_gap_registry` — tracked gaps with Open→Resolved lifecycle (7 measures)
+- `gold_quality_history` — per-run quality metrics (5 measures)
+- `gold_low_confidence_audit` — alias matches below the confidence threshold (5 measures)
+- `gold_data_gaps_summary` — long-form metric rollup (`category`, `metric_name`, `metric_value`, `description`, `calculated_at`); no measures
 
-**Implementation:** Apply DAX filters to dimensions that cascade to facts via relationships
+See `dax_measure_library.md` §2.5–2.8 and `data_quality_architecture.md` for the full surface.
 
-## Model Files
+## Relationships (10, all active, single-direction)
 
-**Location:** `/fabric/OEMInsightBI_v2.SemanticModel/definition/`
+| Fact table | Dimension | Join key |
+|---|---|---|
+| `fact_procurement` | `gold_dim_date` | `date_key` |
+| `fact_procurement` | `gold_dim_material` | `material_key` |
+| `fact_procurement` | `gold_dim_country` | `production_country_key` |
+| `fact_epi_score` | `gold_dim_country` | `country_key` |
+| `fact_epi_score` | `gold_dim_indicator` | `indicator_key` |
+| `fact_supply_share` | `gold_dim_country` | `country_key` |
+| `fact_supply_share` | `gold_dim_material` | `material_key` |
+| `fact_supply_share` | `gold_dim_stage` | `stage_key` |
+| `gold_supply_risk` | `gold_dim_material` | `material_key` |
+| `gold_supply_risk` | `gold_dim_stage` | `stage_key` |
 
-**Files:**
-- `database.tmdl` - Model metadata
-- `expressions.tmdl` - Connection expressions (currently only DB connection)
-- `model.tmdl` - Model-level settings
-- `relationships.tmdl` - Relationship definitions
-- `tables/*.tmdl` - Individual table definitions (8 files)
+`gold_dim_country` is shared across `fact_procurement` (via `production_country_key`), `fact_epi_score`, and `fact_supply_share`. `gold_dim_material` is shared across both procurement and supply-share facts.
 
-**Sync:** Git-tracked, can be edited via Tabular Editor or Power BI Desktop
+> **Country relationship on `fact_procurement`.** The model defines **one** country relationship on `fact_procurement` — via `production_country_key`. `supplier_hq_country_key` exists as a column and is consumed by `DISTINCTCOUNT` in the `Supplier Countries Count` measure, but it is not a relationship path (no second, inactive relationship is defined). Earlier drafts described both as relationships; that was wrong.
 
-## Troubleshooting
+## DAX measures
 
-**Model Not Refreshing:**
-- Check lakehouse tables are updated (run pipeline)
-- Verify warehouse sync completed (copyjob1)
-- DirectLake should auto-refresh, but can manually trigger if needed
+The model ships **45 measures** across 8 tables — the as-built catalogue is in `dax_measure_library.md`. Headline measures:
 
-**Relationships Not Working:**
-- Verify surrogate keys match (country_key, material_key, etc.)
-- Check for NULL foreign keys (should be assigned to placeholders)
-- Validate cardinality is correct (1:many, not many:many)
+- `Total Spend EUR` = `SUM(fact_procurement[spend_eur])`
+- `Weighted EPI Score` — `SUMX` over `fact_epi_score` weighted by `RELATED(gold_dim_indicator[weight])`, restricted to EPI sub-indicators; renders 0–100 once the EPI weights table is loaded
+- `Supply Risk (Global)` / `Supply Risk (EU Sourcing)` / `Supply Risk Contrast` — HHI concentration from `gold_supply_risk`
+- 16 coverage measures on `gold_data_gaps` (EPI/WGI coverage by country and spend)
+- 17 observability measures across `gold_gap_registry`, `gold_quality_history`, `gold_low_confidence_audit`
 
-**Performance Issues:**
-- Check underlying table size (>1GB may be slow)
-- Enable V-Order optimization (Task 12)
-- Review DAX measure complexity
-- Consider aggregations for large facts
+Patterns in use: `DIVIDE(..., 0)` safe division, `VAR`/`RETURN`, `CALCULATE` boolean filters, `RELATED` inside `SUMX`, `MAXX`-isolated latest-run metrics, display folders (`Data Gaps`, `Quality Observability`).
 
-## Related Files
+## Row-level security
 
-- `/fabric/OEMInsightBI_v2.SemanticModel/` - Model definition
-- `/.claude/tasks/02_redesign_semantic_model.md` - DAX measures implementation
-- `/.claude/tasks/04_design_rls_security.md` - RLS implementation
-- `/.claude/tasks/09_document_dax_measures.md` - Measure documentation
-- `/project_definition.md` - Lines 719-836 (Semantic Model & Reporting)
+**Not implemented in the model.** No roles are defined in the TMDL. The six-role design (Global Executive, Regional Manager ×2, Material Category Manager, etc.) lives in `rls_security_strategy.md` as a design (unimplemented) artifact — see that doc and Phase 6 spec reconciliation for status.
+
+## Model files
+
+Location: `fabric/OEMInsightBI_v2.SemanticModel/definition/`
+
+- `database.tmdl` — database metadata (compatibility level)
+- `expressions.tmdl` — the `DirectLake - oem_lh` source expression + `PBI_RemovedChildren` allowlist
+- `model.tmdl` — model-level settings
+- `relationships.tmdl` — the 10 relationships
+- `tables/*.tmdl` — 14 table definitions
+
+Git-tracked; editable via Tabular Editor or Power BI Desktop and re-synced to Fabric.
+
+## Related docs
+
+- `dax_measure_library.md` — full as-built measure catalogue
+- `star-schema-erd.md` — ER diagram
+- `data_quality_architecture.md` — observability surface
+- `rls_security_strategy.md` — RLS design (unimplemented)
+- `performance_optimized.md` — V-Order / DirectLake optimization notes

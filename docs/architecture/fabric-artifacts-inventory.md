@@ -1,108 +1,92 @@
 # Fabric Artifacts Inventory
 
-## Active Artifacts (In Use)
+As-built inventory of Fabric artifacts in the `oem_lh` workspace. Mirrors what is tracked in `fabric/` in this repo (the source `fabric-cicd` deploys from).
 
-### 🔄 Data Pipelines
-| Artifact | Type | Purpose | Status |
-|----------|------|---------|--------|
-| `orchestrator_pipeline_bronze_to_gold` | DataPipeline | Main orchestration pipeline | ✅ Active |
+## Active artifacts
 
-### 📥 Data Flows (Bronze Layer)
-| Artifact | Type | Purpose | Status |
-|----------|------|---------|--------|
-| ~~`bronze_azureSQLdb2table`~~ | Dataflow | Ingested procurement data from Azure SQL | ❌ Retired 2026-07-31 — replaced by Copy activities `bronzecopy_procurement_transactional` + `bronzecopy_supplier_ref` ([manifest](../../.claude/support/retired/bronze-azuresqldb2table-dataflow/manifest.json)) |
-| `EPI_file2table` | Dataflow | Was the EPI ingestion mechanism before task-035 | ⚠️ Workspace item only — NOT on the pipeline path (task-035 moved EPI to the `bronze_ingest_epi` TridentNotebook activity) |
-| `WGI_file2table` | Dataflow | Was the WGI ingestion mechanism before task-035 | ⚠️ Workspace item only — NOT on the pipeline path (task-035 moved WGI to the `bronze_ingest_wgi` TridentNotebook activity) |
+### 🔄 Pipeline
 
-### 📓 Notebooks (Transformations)
 | Artifact | Type | Purpose | Status |
-|----------|------|---------|--------|
-| `bronze_ingest_epi` | Notebook | EPI ingestion from Yale (since task-035) | ✅ Active |
-| `bronze_ingest_wgi` | Notebook | WGI ingestion from World Bank API (since task-035) | ✅ Active |
-| `bronze-to-silver` | Notebook | Bronze → Silver cleaning transformations | ✅ Active |
-| `silver-to-gold2` | Notebook | Silver → Gold star schema creation | ✅ Active |
-| `data_quality_analysis` | Notebook | Data quality monitoring and reporting | ✅ Active |
-| `data_quality_checks` | Notebook | Pipeline data quality checks (on the pipeline path) | ✅ Active |
-| `pipeline_error_handler` | Notebook | Error categorisation + execution-log write | ✅ Active |
+|---|---|---|---|
+| `orchestrator_pipeline_bronze_to_gold` | DataPipeline | Main orchestration (10 activities: 4 Copy + 6 Notebook) | ✅ Active |
 
-### 💾 Storage
+### 📓 Notebooks
+
+| Artifact (repo dir) | Pipeline activity | Purpose | Status |
+|---|---|---|---|
+| `bronze_ingest_epi` | `bronze_EPI` | EPI ingestion from Yale (since task-035) | ✅ Active |
+| `bronze_ingest_wgi` | `bronze_WGI` | WGI ingestion from World Bank API (since task-035) | ✅ Active |
+| `bronze-to-silver` | `bronze-to-silver data cleaning` | Bronze → Silver cleaning + alias resolution | ✅ Active |
+| `silver-to-gold2` | `silver-to-gold` | Silver → Gold star schema (facts, dims, observability) | ✅ Active |
+| `data_quality_checks` | `data_quality_checks` | Pipeline data-quality gate | ✅ Active |
+| `pipeline_error_handler` | `pipeline_error_handler` | Error categorisation + execution-log write; runs on **every** outcome | ✅ Active |
+| `data_quality_analysis` | — | DQ analysis (manual run, not on pipeline path) | ✅ Active (manual) |
+| `sample-quality-data` | — | Demo-seed notebook for sample DQ rows | ⚠️ Demo seed — not part of the production pipeline path |
+
+### 💾 Storage & serving
+
 | Artifact | Type | Purpose | Status |
-|----------|------|---------|--------|
-| `oem_lh` | Lakehouse | Medallion architecture storage (Bronze/Silver/Gold) | ✅ Active |
-| `oem_wh` | Warehouse | SQL serving layer for Power BI | ✅ Active |
+|---|---|---|---|
+| `oem_lh` | Lakehouse | Medallion storage (Bronze/Silver/Gold Delta tables); **DirectLake source for the semantic model** | ✅ Active |
+| `oem_wh` | Warehouse | SQL analytics endpoint over the lakehouse | Exists — but **not** in the semantic-model path (the model reads `oem_lh` directly, see `semantic_model.md`) |
 
 ### 📊 Analytics
+
 | Artifact | Type | Purpose | Status |
-|----------|------|---------|--------|
-| `OEMInsightBI_v2` | SemanticModel | Star schema with 18 DAX measures | ✅ Active |
-| `report2` | Report | Power BI report (to be developed) | 🚧 In Progress |
+|---|---|---|---|
+| `OEMInsightBI_v2` | SemanticModel | Star schema, DirectLake on `oem_lh`, **45 measures** across 8 tables / 10 relationships | ✅ Active |
+| `report2` | Report | Power BI report over the semantic model | ✅ Active |
 
----
+### 📥 Dataflows (retired / orphan)
 
-## Removed Artifacts (Archived 2025-12-15)
+| Artifact | Type | Purpose | Status |
+|---|---|---|---|
+| `EPI_file2table` | Dataflow | EPI ingestion mechanism before task-035 | ❌ Orphan — replaced by `bronze_ingest_epi` notebook (task-035); still a workspace item, not on the pipeline path |
+| `WGI_file2table` | Dataflow | WGI ingestion mechanism before task-035 | ❌ Orphan — replaced by `bronze_ingest_wgi` notebook (task-035); still a workspace item, not on the pipeline path |
 
-### ❌ Auto-Generated/Staging
-| Artifact | Type | Reason for Removal | Backup Location |
-|----------|------|-------------------|-----------------|
+> The retired dataflows are slated for removal via `fabric-cicd`'s `unpublish_all_orphan_items()` in a later cleanup pass. They have no consumers — the EPI/WGI notebooks write `bronze_epi2024results` / `bronze_WGI` directly.
+
+## Previously removed (archived 2025-12-15)
+
+| Artifact | Type | Reason | Backup |
+|---|---|---|---|
+| `bronze_azureSQLdb2table` | Dataflow | Replaced by Copy activities `bronzecopy_procurement_transactional` + `bronzecopy_supplier_ref` (2026-07-31) | `.claude/support/retired/bronze-azuresqldb2table-dataflow/manifest.json` |
 | `StagingLakehouseForDataflows_20250822093021` | SemanticModel | Auto-generated staging model | `.archive/fabric-cleanup-20251215-132143/` |
 | `StagingWarehouseForDataflows_20250822093045` | SemanticModel | Auto-generated staging model | `.archive/fabric-cleanup-20251215-132143/` |
-
-### ❌ Empty/Unused
-| Artifact | Type | Reason for Removal | Backup Location |
-|----------|------|-------------------|-----------------|
-| `oem_wh.SemanticModel` | SemanticModel | Empty model (only 3 TMDL files), superseded by `OEMInsightBI_v2` | `.archive/fabric-cleanup-20251215-132143/` |
-| `oem_lh.SemanticModel` | SemanticModel | Auto-generated from lakehouse (only 2 TMDL files) | `.archive/fabric-cleanup-20251215-132143/` |
+| `oem_wh.SemanticModel` | SemanticModel | Empty model superseded by `OEMInsightBI_v2` | `.archive/fabric-cleanup-20251215-132143/` |
+| `oem_lh.SemanticModel` | SemanticModel | Auto-generated from lakehouse | `.archive/fabric-cleanup-20251215-132143/` |
 | `copyjob1.CopyJob` | CopyJob | Experimental/unused copy operation | `.archive/fabric-cleanup-20251215-132143/` |
 
----
-
-## Artifact Naming Conventions
-
-### ✅ Good Naming (Current)
-- `OEMInsightBI_v2` - Clear purpose and project name
-- `orchestrator_pipeline_bronze_to_gold` - Descriptive flow
-- `bronze_azureSQLdb2table` - Layer + source + operation *(artifact retired 2026-07-31; kept here as a naming example)*
-
-### ⚠️ Areas for Improvement
-- `silver-to-gold2` → Consider renaming to `transform_silver_to_gold`
-- `clean_columnsAndHeaders` → Consider `transform_bronze_to_silver` _(update: renamed to `bronze-to-silver` since this note was written)_
-
----
-
-## Artifact Dependencies
+## Artifact dependencies
 
 ```mermaid
 graph TD
     Pipeline[orchestrator_pipeline_bronze_to_gold]
 
-    Bronze1[bronzecopy_procurement_transactional<br/>+ bronzecopy_supplier_ref]
-    Bronze2[EPI_file2table]
-    Bronze3[WGI_file2table]
+    BC1[bronzecopy_procurement_transactional<br/>+ bronzecopy_supplier_ref]
+    BE[bronze_ingest_epi / bronze_EPI]
+    BW[bronze_ingest_wgi / bronze_WGI]
 
-    Silver[bronze-to-silver]
-    Gold[silver-to-gold2]
-    DQ[data_quality_analysis]
+    BS[bronze-to-silver]
+    SG[silver-to-gold2]
+    DQ[data_quality_checks]
+    EH[pipeline_error_handler]
 
     LH[oem_lh.Lakehouse]
-    WH[oem_wh.Warehouse]
-    SM[OEMInsightBI_v2]
+    SM[OEMInsightBI_v2.SemanticModel]
     Report[report2.Report]
 
-    Pipeline --> Bronze1
-    Pipeline --> Bronze2
-    Pipeline --> Bronze3
+    Pipeline --> BC1 & BE & BW & BS & SG & DQ
+    BC1 --> LH
+    BE --> LH
+    BW --> LH
+    BS --> LH
+    SG --> LH
+    DQ --> LH
+    Pipeline -.every outcome.-> EH
+    EH --> LH
 
-    Bronze1 --> LH
-    Bronze2 --> LH
-    Bronze3 --> LH
-
-    LH --> Silver
-    Silver --> Gold
-    Gold --> WH
-
-    LH --> DQ
-
-    WH --> SM
+    LH --> SM
     SM --> Report
 
     style Pipeline fill:#e3f2fd
@@ -110,37 +94,26 @@ graph TD
     style Report fill:#ffebee
 ```
 
----
+The model's DirectLake source is `oem_lh`; `oem_wh` is intentionally absent from this graph (the model does not read it). EPI/WGI ingestion is via notebooks, not the orphan dataflows.
 
-## Storage Impact
+## Naming-convention status
 
-### Before Cleanup
-- **Total Fabric Artifacts**: 16
-- **Semantic Models**: 5 (3 unused)
-- **Git Repository Size**: Larger due to tracking auto-generated files
+- ✅ `orchestrator_pipeline_bronze_to_gold` — clear, snake_case
+- ✅ `oem_lh`, `oem_wh` — short, lowercase
+- ⚠️ `silver-to-gold2` — carries a version stamp; Phase 5 rename targets `silver_to_gold`
+- ⚠️ `OEMInsightBI_v2`, `report2` — version suffix / placeholder name; Phase 5 rename targets `OEMInsightBI` / `oem_report`
+- ⚠️ Bronze Copy activities (`bronzecopy_*`) and PascalCase bronze activities (`bronze_EPI`, `bronze_WGI`) deviate from snake_case; Phase 4–5 naming sweep targets these
 
-### After Cleanup
-- **Total Fabric Artifacts**: 11 (-31% reduction)
-- **Semantic Models**: 1 (only the active one)
-- **Benefit**: Cleaner repository, no confusion about which artifacts are active
+See `standards/naming_standards.md` for the canonical convention (snake_case, layer-prefixed) and the planned reconciliations.
 
----
+## Maintenance guidelines
 
-## Maintenance Guidelines
+**Remove when:** auto-generated `Staging*` models; empty semantic models with no business logic; experimental artifacts not referenced by the pipeline; artifacts superseded by a replacement (with a retirement manifest under `.claude/support/retired/`).
 
-### When to Remove Artifacts
-1. **Auto-generated models** from dataflows (prefix: `Staging*`)
-2. **Empty semantic models** with < 5 TMDL files
-3. **Experimental artifacts** not referenced in pipelines
-4. **Duplicate models** superseded by newer versions
+**Keep when:** referenced by the pipeline; carries business logic (DAX, transforms); part of the medallion; required by the report.
 
-### When to Keep Artifacts
-1. **Referenced in pipelines** even if not currently active
-2. **Contains business logic** (DAX measures, transformations)
-3. **Part of medallion architecture** (bronze/silver/gold)
-4. **Required for Power BI** reports
+## Related docs
 
----
-
-*Last Updated: 2025-12-15*
-*Next Review: After Task 014 completion (Power BI development)*
+- `semantic_model.md` — semantic model detail (DirectLake on `oem_lh`)
+- `orchestration.md` — pipeline activity detail
+- `standards/naming_standards.md` — naming conventions + planned renames

@@ -1,223 +1,172 @@
-# Star Schema Entity Relationship Diagram
+# Star Schema ERD — OEMMatInsightBI
 
-## Semantic Model Overview
+The as-built semantic model (`OEMInsightBI_v2`, DirectLake on `oem_lh`) is a star schema of 3 fact tables + 5 dimension tables + 1 derived gold table, connected by 10 active single-direction relationships. This diagram mirrors `fabric/OEMInsightBI_v2.SemanticModel/definition/relationships.tmdl`.
+
+## Entity-relationship diagram
 
 ```mermaid
 erDiagram
-    fact_transactions ||--o{ dim_country : "country_key"
-    fact_transactions ||--o{ dim_material : "material_key"
-    fact_transactions ||--o{ dim_supplier : "supplier_key"
-    fact_transactions ||--o{ dim_date : "date_key"
-    fact_transactions ||--o{ dim_product : "product_key"
+    gold_dim_date           ||--o{ fact_procurement   : "date_key"
+    gold_dim_material       ||--o{ fact_procurement   : "material_key"
+    gold_dim_country        ||--o{ fact_procurement   : "production_country_key"
+    gold_dim_country        ||--o{ fact_epi_score      : "country_key"
+    gold_dim_indicator      ||--o{ fact_epi_score      : "indicator_key"
+    gold_dim_country        ||--o{ fact_supply_share   : "country_key"
+    gold_dim_material       ||--o{ fact_supply_share   : "material_key"
+    gold_dim_stage          ||--o{ fact_supply_share   : "stage_key"
+    gold_dim_material       ||--o{ gold_supply_risk    : "material_key"
+    gold_dim_stage          ||--o{ gold_supply_risk    : "stage_key"
 
-    fact_supply_share ||--o{ dim_country : "country_key"
-    fact_supply_share ||--o{ dim_material : "material_key"
-
-    fact_sustainability ||--o{ dim_country : "country_key"
-    fact_sustainability ||--o{ dim_date : "date_key"
-
-    fact_transactions {
-        string transaction_key PK
-        string country_key FK
-        string material_key FK
-        string supplier_key FK
-        string date_key FK
-        string product_key FK
-        decimal quantity
-        decimal total_price
-        decimal unit_price
-        string currency_code
-        string order_type
+    fact_procurement {
+        int64  date_key FK
+        int64  material_key FK
+        int64  supplier_hq_country_key
+        int64  production_country_key FK
+        double quantity_base
+        double unitprice_eur
+        double spend_eur
+        double data_quality_score
+        string quality_category
     }
-
+    fact_epi_score {
+        int64  country_key FK
+        int64  indicator_key FK
+        int64  year
+        double score
+    }
     fact_supply_share {
-        string supply_share_key PK
-        string country_key FK
-        string material_key FK
-        decimal extraction_percent
-        decimal processing_percent
-        decimal production_percent
-        decimal supply_risk_index
+        int64  material_key FK
+        int64  stage_key FK
+        int64  country_key FK
+        int64  year
+        double share_pct
+        string supply_mix
+        double data_quality_score
     }
-
-    fact_sustainability {
-        string sustainability_key PK
-        string country_key FK
-        string date_key FK
-        decimal epi_score
-        decimal air_quality_score
-        decimal water_resources_score
-        decimal wgi_control_corruption
-        decimal wgi_govt_effectiveness
-        decimal wgi_regulatory_quality
-        decimal composite_esg_score
+    gold_supply_risk {
+        int64  material_key FK
+        int64  stage_key FK
+        int64  year
+        double hhi_global
+        double hhi_eu_sourcing
+        double contrast_ratio
+        bool   is_bottleneck
     }
-
-    dim_country {
-        string country_key PK
-        string country_code
-        string country_name
+    gold_dim_country {
+        int64  country_key PK
+        string iso3
+        int64  iso_numeric
+        string wb_code
+        string country_name_std
         string region
-        string sub_region
-        decimal gdp_usd
-        int population
-        string income_level
+        bool   is_placeholder
     }
-
-    dim_material {
-        string material_key PK
-        string material_id
-        string material_name
-        string material_category
-        string material_type
-        string unit_of_measure
-        boolean is_critical_raw
-        boolean is_hazardous
-    }
-
-    dim_supplier {
-        string supplier_key PK
-        string supplier_id
-        string supplier_name
-        string supplier_country
-        string supplier_type
-        string payment_terms
-        decimal reliability_score
-    }
-
-    dim_date {
-        string date_key PK
-        date date_value
-        int year
-        int quarter
-        int month
-        int week
+    gold_dim_date {
+        int64  date_key PK
+        date   date
+        int64  year
+        int64  month
+        int64  day
         string month_name
-        string day_name
-        boolean is_weekend
+        int64  quarter
+        int64  day_of_week
+        int64  week_of_year
     }
-
-    dim_product {
-        string product_key PK
-        string product_id
-        string product_name
-        string product_category
-        string product_line
-        decimal weight_kg
-        string bom_level
+    gold_dim_material {
+        int64  material_key PK
+        string material_name_std
+        string commodity_group
+        string unit_base
+        bool   is_placeholder
+    }
+    gold_dim_indicator {
+        int64  indicator_key PK
+        string source_system
+        string type
+        string abbrev
+        string variable_name
+        string indicator_code
+        double weight
+        string description
+    }
+    gold_dim_stage {
+        int64  stage_key PK
+        string stage_code
+        string stage_name
     }
 ```
 
-## Measure Table Structure
+## Relationship cardinality
 
-```mermaid
-graph TB
-    subgraph Measures["📊 _Measures Table"]
-        subgraph Procurement["💰 Procurement Metrics"]
-            M1[Total Spend]
-            M2[Total Quantity]
-            M3[Transaction Count]
-            M4[Avg Unit Price]
-            M5[Avg Spend per Transaction]
-            M6[Unique Suppliers Count]
-            M7[Supplier Countries Count]
-        end
+All relationships are many-to-one (fact `*` → dimension `1`), single-direction filtering (dimension filters fact, not the reverse), and active.
 
-        subgraph Sustainability["🌱 Sustainability Metrics"]
-            M8[Avg EPI Score]
-            M9[Latest EPI Score]
-            M10[EPI YoY Change]
-            M11[Avg WGI Effectiveness]
-        end
+| Fact table | Dimension | Join key | Cardinality |
+|---|---|---|---|
+| `fact_procurement` | `gold_dim_date` | `date_key` | M:1 |
+| `fact_procurement` | `gold_dim_material` | `material_key` | M:1 |
+| `fact_procurement` | `gold_dim_country` | `production_country_key` | M:1 |
+| `fact_epi_score` | `gold_dim_country` | `country_key` | M:1 |
+| `fact_epi_score` | `gold_dim_indicator` | `indicator_key` | M:1 |
+| `fact_supply_share` | `gold_dim_country` | `country_key` | M:1 |
+| `fact_supply_share` | `gold_dim_material` | `material_key` | M:1 |
+| `fact_supply_share` | `gold_dim_stage` | `stage_key` | M:1 |
+| `gold_supply_risk` | `gold_dim_material` | `material_key` | M:1 |
+| `gold_supply_risk` | `gold_dim_stage` | `stage_key` | M:1 |
 
-        subgraph Risk["⚠️ Risk Metrics"]
-            M12[HHI Index]
-            M13[Material Risk Index]
-            M14[Spend Exposure at Risk]
-            M15[Top 3 Countries Spend %]
-            M16[Diversification Score]
-            M17[Materials Count]
-            M18[Risk-Adjusted Spend]
-        end
-    end
+`gold_dim_country` is shared across three facts (`fact_procurement` via `production_country_key`, `fact_epi_score`, `fact_supply_share`). `gold_dim_material` is shared across `fact_procurement`, `fact_supply_share`, and `gold_supply_risk`.
 
-    style Procurement fill:#e3f2fd
-    style Sustainability fill:#e8f5e9
-    style Risk fill:#fff3e0
-```
+> `fact_procurement.supplier_hq_country_key` is **not** a relationship — it is an attribute column counted by the `Supplier Countries Count` measure. Only `production_country_key` joins to `gold_dim_country`.
 
-## Relationship Cardinality
+## Surrogate key generation
 
-| From Table | To Table | Relationship Type | Cardinality | Active |
-|------------|----------|-------------------|-------------|---------|
-| fact_transactions | dim_country | Many-to-One | M:1 | ✅ Yes |
-| fact_transactions | dim_material | Many-to-One | M:1 | ✅ Yes |
-| fact_transactions | dim_supplier | Many-to-One | M:1 | ✅ Yes |
-| fact_transactions | dim_date | Many-to-One | M:1 | ✅ Yes |
-| fact_transactions | dim_product | Many-to-One | M:1 | ✅ Yes |
-| fact_supply_share | dim_country | Many-to-One | M:1 | ✅ Yes |
-| fact_supply_share | dim_material | Many-to-One | M:1 | ✅ Yes |
-| fact_sustainability | dim_country | Many-to-One | M:1 | ✅ Yes |
-| fact_sustainability | dim_date | Many-to-One | M:1 | ❌ No (avoid ambiguity) |
-
-## Key Generation Pattern
+Surrogate keys (`country_key`, `material_key`, `indicator_key`, `stage_key`) are deterministic `xxhash64` hashes of the natural key, produced in the silver→gold transform. `date_key` is an `yyyyMMdd` integer, not a hash.
 
 ```mermaid
 flowchart LR
-    subgraph Input["Input Columns"]
-        C1[country_code]
-        C2[supplier_id]
-        C3[material_id]
+    subgraph Input["Natural key"]
+        C1[country_name_std / iso3]
     end
-
-    subgraph Process["stable_key() Function"]
-        P1[Concatenate]
-        P2[Add Separator]
-        P3[SHA-256 Hash]
-        P4[Base64 Encode]
+    subgraph Process["xxhash64"]
+        P1[Concat stable natural key]
+        P2[xxhash64 → int64]
     end
-
-    subgraph Output["Surrogate Key"]
-        K1[country_key<br/>e.g., 'Zm9vYmFy...']
+    subgraph Output["Surrogate key"]
+        K1[country_key BIGINT]
     end
-
-    C1 --> P1
-    C2 --> P1
-    C3 --> P1
-    P1 --> P2
-    P2 --> P3
-    P3 --> P4
-    P4 --> K1
-
-    style Input fill:#bbdefb
-    style Process fill:#c5e1a5
-    style Output fill:#ffe082
+    C1 --> P1 --> P2 --> K1
 ```
 
-## Data Volume Estimates
+Deterministic hashing means the same natural key produces the same key across runs, so Delta `MERGE` joins on the key without re-deriving it. (An earlier draft described SHA-256 + base64 keys; the as-built keys are `xxhash64` integers.)
 
-```mermaid
-pie title "Data Distribution by Table"
-    "fact_transactions" : 45
-    "fact_supply_share" : 5
-    "fact_sustainability" : 5
-    "dim_country" : 10
-    "dim_material" : 15
-    "dim_supplier" : 10
-    "dim_date" : 5
-    "dim_product" : 5
-```
+## Measure placement
 
-### Row Count Estimates
-- **fact_transactions**: ~50,000 rows (2 years of data)
-- **fact_supply_share**: ~5,000 rows (country-material combinations)
-- **fact_sustainability**: ~400 rows (200 countries × 2 years)
-- **dim_country**: ~200 rows
-- **dim_material**: ~1,000 rows
-- **dim_supplier**: ~500 rows
-- **dim_date**: ~730 rows (2 years)
-- **dim_product**: ~100 rows
+Measures live on the table that owns their grain — there is **no `_Measures` table**. They are grouped with display folders:
 
----
+| Table | Folder | Measures |
+|---|---|---|
+| `fact_procurement` | — | 5 procurement measures |
+| `fact_epi_score` | — | 3 EPI measures |
+| `fact_supply_share` | — | 1 concentration measure |
+| `gold_supply_risk` | — | 3 HHI measures |
+| `gold_data_gaps` | `Data Gaps` | 16 coverage measures |
+| `gold_gap_registry` | `Quality Observability` | 7 gap-lifecycle measures |
+| `gold_quality_history` | `Quality Observability` | 5 run-history measures |
+| `gold_low_confidence_audit` | `Quality Observability` | 5 confidence measures |
 
-*Last Updated: 2025-12-15*
+See `dax_measure_library.md` for the full catalogue.
+
+## Observability tables
+
+Four gold tables carry no outbound relationships — they back report visuals directly:
+
+- `gold_data_gaps` — EPI/WGI coverage per procurement country
+- `gold_gap_registry` — tracked gaps (Open→Resolved lifecycle)
+- `gold_quality_history` — per-run quality metrics
+- `gold_low_confidence_audit` — low-confidence alias matches
+- `gold_data_gaps_summary` — long-form metric rollup (no measures)
+
+## Related docs
+
+- `semantic_model.md` — model overview and DirectLake configuration
+- `dax_measure_library.md` — as-built measure catalogue
+- `data_quality_architecture.md` — observability surface design
