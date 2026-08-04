@@ -222,7 +222,7 @@ The project implements a **medallion architecture** (bronze → silver → gold)
 - `gold_gap_registry` - Lifecycle tracking of distinct unmapped values
 - `gold_low_confidence_audit` - Matches that succeeded below 0.95 confidence
 
-**Notebook:** `silver-to-gold2.Notebook`
+**Notebook:** `silver_to_gold.Notebook`
 
 **Commands:** `/run-gold`
 
@@ -252,13 +252,13 @@ The project implements a **medallion architecture** (bronze → silver → gold)
    (TridentNotebook).
 2. **Silver (Sequential):** `bronze_to_silver_cleaning` — depends on all five
    bronze activities succeeding.
-3. **Gold (Sequential):** `silver-to-gold` — depends on silver.
+3. **Gold (Sequential):** `silver_to_gold` — depends on silver.
 4. **Data Quality (Sequential):** `data_quality_checks` — depends on gold. Raises the
    blocking gate; see `data_quality_framework.md § 6`.
 
 **Pipeline parameters:** `p_full_load`, `p_from_date`, `p_epi_year`. `p_epi_year` is
 single-sourced to both EPI-aware notebooks; `p_full_load` / `p_from_date` drive the
-incremental window in `bronze_to_silver` and `silver-to-gold`.
+incremental window in `bronze_to_silver` and `silver_to_gold`.
 
 **Runtime:** ~20-30 minutes end-to-end (estimate)
 
@@ -295,7 +295,7 @@ pipeline activity does this today
 ## Related Files
 
 - `/fabric/bronze_to_silver.Notebook/` - Silver transformation
-- `/fabric/silver-to-gold2.Notebook/` - Gold transformation
+- `/fabric/silver_to_gold.Notebook/` - Gold transformation
 - `/fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/` - Orchestration
 - `/.claude/commands/run-bronze.md` - Bronze ingestion guide
 - `/.claude/commands/run-silver.md` - Silver transformation guide

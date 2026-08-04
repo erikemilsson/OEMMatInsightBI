@@ -5,7 +5,7 @@
 **Business Value:** Actionable insights like "Contact suppliers in these countries for sustainability data" and "€X spend is at risk due to missing indicator data."
 
 **Prerequisites:**
-- Pipeline run complete (`silver-to-gold2.Notebook` executed)
+- Pipeline run complete (`silver_to_gold.Notebook` executed)
 - Semantic model synced with `gold_data_gaps` and `gold_data_gaps_summary` tables visible
 - `_Measures` table showing new "Data Gaps" folder measures
 
@@ -244,7 +244,7 @@ Based on your current data, you should see:
 
 | Issue | Solution |
 |-------|----------|
-| All measures show BLANK | Re-run `silver-to-gold2.Notebook` and refresh semantic model |
+| All measures show BLANK | Re-run `silver_to_gold.Notebook` and refresh semantic model |
 | Table shows no countries | Check filter is set to `has_epi_score = FALSE` |
 | Coverage % shows 100% | All procurement countries have EPI data - great! Consider showing materials instead |
 | Donut chart shows only 1 segment | Either all data is present or all is missing - check the filter |

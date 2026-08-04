@@ -9,7 +9,7 @@ last SUCCESSful run's max date and `update_load_metadata` appends a new row.
 REFERENCE IMPLEMENTATION — NOT IMPORTED BY THE NOTEBOOKS (task-032)
 ------------------------------------------------------------------
 The Fabric notebooks do NOT import this package; both `bronze_to_silver.Notebook`
-and `silver-to-gold2.Notebook` define these functions inline. The mirror is
+and `silver_to_gold.Notebook` define these functions inline. The mirror is
 enforced, not trusted — `tests/test_watermark.py::TestNotebookParity` parses
 each notebook, extracts its own definitions, and asserts they produce identical
 results to these functions over a fixture. Divergence fails CI.
@@ -33,10 +33,10 @@ for the full contract. Summary:
     `p_full_load=true` is the "load from epoch" case. This avoids a three-way
     ambiguity between "default", "explicit full", and "explicit override".
 
-  * Gold coordination: silver-to-gold2 calls `get_last_load_date` with the SAME
+  * Gold coordination: silver_to_gold calls `get_last_load_date` with the SAME
     `source_table` key, but excludes the CURRENT run's execution_id so it reads
     the PREVIOUS run's watermark (bronze_to_silver has already written its SUCCESS
-    row by the time silver-to-gold2 starts). Both layers therefore window on the
+    row by the time silver_to_gold starts). Both layers therefore window on the
     same effective watermark for a given run — no second watermark mechanism.
 """
 
@@ -148,7 +148,7 @@ def get_last_load_date(
         metadata_df: the bronze_load_metadata table (or a fixture DataFrame).
         source_table: the source_table key to filter on.
         exclude_execution_id: if non-empty, exclude rows with this execution_id.
-            Used by silver-to-gold2 to skip the CURRENT run's SUCCESS row
+            Used by silver_to_gold to skip the CURRENT run's SUCCESS row
             (bronze_to_silver writes it before gold starts) and read the
             PREVIOUS run's watermark — so both layers window on the same value.
 

@@ -1091,8 +1091,8 @@ WHERE  entity = 'gate'
 
 **Column conventions on `gold_quality_history`** (both added by task-040):
 
-- `status` — `'pass' | 'fail' | 'warning'` on per-check rows; `'n/a'` on rows that are not a single check result (dimension/overall aggregates, silver-to-gold2's coverage metrics, the gate's evaluated-count row); **NULL only on rows written before task-040**, which are deliberately not backfilled because their gate outcome was never recorded.
-- `producer` — `'data_quality_checks'` or `'silver-to-gold2'`. Both notebooks append to this table on every pipeline run, each with its own `refresh_timestamp`, so `COUNT(DISTINCT refresh_timestamp)` over the whole table double-counts runs. Filter by `producer` first.
+- `status` — `'pass' | 'fail' | 'warning'` on per-check rows; `'n/a'` on rows that are not a single check result (dimension/overall aggregates, silver_to_gold's coverage metrics, the gate's evaluated-count row); **NULL only on rows written before task-040**, which are deliberately not backfilled because their gate outcome was never recorded.
+- `producer` — `'data_quality_checks'` or `'silver_to_gold'`. Both notebooks append to this table on every pipeline run, each with its own `refresh_timestamp`, so `COUNT(DISTINCT refresh_timestamp)` over the whole table double-counts runs. Filter by `producer` first.
 
 ---
 

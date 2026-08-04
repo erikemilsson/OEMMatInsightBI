@@ -442,7 +442,7 @@ class TestNotebookParity:
     Criterion 6 — parity guard for the reference-implementation contract (DEC-002).
 
     src/transformations/supply_risk.py mirrors logic that
-    fabric/silver-to-gold2.Notebook defines inline. These tests load the notebook's own
+    fabric/silver_to_gold.Notebook defines inline. These tests load the notebook's own
     FunctionDefs and prove the two agree, so a change to either side without the other
     fails CI by design.
     """

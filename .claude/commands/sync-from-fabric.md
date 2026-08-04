@@ -62,7 +62,7 @@ Expected output:
 ```
 Updating abc1234..def5678
 Fast-forward
- fabric/silver-to-gold2.Notebook/notebook-content.py | 45 ++++++++++++++-
+ fabric/silver_to_gold.Notebook/notebook-content.py | 45 ++++++++++++++-
  fabric/OEMInsightBI_v2.SemanticModel/definition/tables/fact_procurement.tmdl | 23 ++++++++
  2 files changed, 68 insertions(+), 5 deletions(-)
 ```

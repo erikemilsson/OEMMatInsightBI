@@ -61,7 +61,7 @@ The **Data Quality Analysis Notebook** (`fabric/data_quality_analysis.Notebook`)
 
 2. **As Part of Pipeline:**
    - Add the notebook to your `orchestrator_pipeline_bronze_to_gold` pipeline
-   - Run it after the `silver-to-gold` transformation
+   - Run it after the `silver_to_gold` transformation
    - Creates audit trail of data quality over time
 
 3. **Ad-Hoc Analysis:**
@@ -85,7 +85,7 @@ The **Data Quality Analysis Notebook** (`fabric/data_quality_analysis.Notebook`)
 ### Acting on Recommendations
 
 #### To Add Country Aliases:
-1. Open `fabric/silver-to-gold2.Notebook/notebook-content.py`
+1. Open `fabric/silver_to_gold.Notebook/notebook-content.py`
 2. Find `country_aliases_with_confidence` DataFrame creation (around line 106)
 3. Add new row:
    ```python
@@ -238,4 +238,4 @@ After reviewing the data quality dashboard:
 For questions about data quality metrics or alias resolution, refer to:
 - `src/transformations/data_quality.py` - Quality check functions
 - `src/transformations/key_generation.py` - Surrogate key logic
-- `fabric/silver-to-gold2.Notebook` - Main transformation logic
+- `fabric/silver_to_gold.Notebook` - Main transformation logic

@@ -61,19 +61,19 @@ The GUIDs are the workspace ID and the `oem_lh` lakehouse ID. There is no wareho
 - Columns: `date_key`, `material_key`, `supplier_hq_country_key`, `production_country_key`, `quantity_base`, `unitprice_eur`, `spend_eur`, `data_quality_score`, `quality_category`, `source_row_id`
 - Foreign keys: `date_key` → `gold_dim_date`, `material_key` → `gold_dim_material`, `production_country_key` → `gold_dim_country`
 - `supplier_hq_country_key` is an attribute column (counted by the `Supplier Countries Count` measure) — it is **not** a relationship path
-- Source: built by `silver-to-gold2` from `silver_procurement`
+- Source: built by `silver_to_gold` from `silver_procurement`
 - Measures: 5 (`Total Spend EUR`, `Transaction Count`, `Materials Count`, `Supplier Countries Count`, `Total Spend by Country`)
 
 **`fact_supply_share`** — one row per material × stage × country × year × supply mix
 - Columns: `material_key`, `stage_key`, `country_key`, `year`, `share_pct`, `data_quality_score`, `quality_category`, `has_unmapped_material`, `has_unmapped_country`, `unmapped_impact_score`, `source_row_id`, `supply_mix`, `t`, `wgi_year`, `wgi_weight`
 - Foreign keys: `material_key`, `stage_key`, `country_key`
-- Source: built by `silver-to-gold2` from `silver_globalsupplyshares` / `silver_eusupplyshares`
+- Source: built by `silver_to_gold` from `silver_globalsupplyshares` / `silver_eusupplyshares`
 - Measures: 1 (`Supply Concentration Index`)
 
 **`fact_epi_score`** — one row per country × indicator × year
 - Columns: `country_key`, `indicator_key`, `year`, `score`
 - Foreign keys: `country_key` → `gold_dim_country`, `indicator_key` → `gold_dim_indicator`
-- Source: built by `silver-to-gold2` from `silver_epi2024results` (pivoted from wide to long)
+- Source: built by `silver_to_gold` from `silver_epi2024results` (pivoted from wide to long)
 - Measures: 3 (`Avg EPI Score`, `Countries with EPI Data`, `Weighted EPI Score`)
 
 ### Dimension tables

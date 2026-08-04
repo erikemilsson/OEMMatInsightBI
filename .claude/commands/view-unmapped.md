@@ -282,9 +282,9 @@ new_country_alias.write \
 print("✓ New country aliases added!")
 ```
 
-### Option 2: Update in silver-to-gold2 Notebook
+### Option 2: Update in silver_to_gold Notebook
 
-Modify the alias mapping dictionaries in `silver-to-gold2.Notebook`:
+Modify the alias mapping dictionaries in `silver_to_gold.Notebook`:
 
 ```python
 # Add to country alias mapping
@@ -335,7 +335,7 @@ After adding aliases, re-run gold transformation: `/run-gold`
 
 ## Related Files
 
-- `/fabric/silver-to-gold2.Notebook/` - Contains alias mapping logic
+- `/fabric/silver_to_gold.Notebook/` - Contains alias mapping logic
 - `/docs/transformations/alias_mappings.md` - Alias documentation
 - `/.claude/tasks/01_enhance_data_quality_visibility.md`
 - `/.claude/commands/check-quality.md`

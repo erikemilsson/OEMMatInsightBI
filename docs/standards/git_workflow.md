@@ -111,7 +111,7 @@ git pull origin main
 
 # Stage changes
 git add .claude/tasks/01_enhance_data_quality.md
-git add fabric/silver-to-gold2.Notebook/
+git add fabric/silver_to_gold.Notebook/
 
 # Commit with message
 git commit -m "feat: Add country alias for Turkey encoding variants"
@@ -129,7 +129,7 @@ git log --oneline -10
 git show HEAD
 
 # View file history
-git log --follow fabric/silver-to-gold2.Notebook/notebook-content.py
+git log --follow fabric/silver_to_gold.Notebook/notebook-content.py
 ```
 
 ### Undoing Changes
@@ -187,7 +187,7 @@ git branch -d feature/task-01-dq-dashboard
 ```bash
 # Pull with conflict
 git pull origin main
-# Error: Conflict in fabric/silver-to-gold2.Notebook/
+# Error: Conflict in fabric/silver_to_gold.Notebook/
 
 # View conflicting files
 git status
@@ -196,8 +196,8 @@ git status
 # Look for markers: <<<<<<<, =======, >>>>>>>
 
 # After resolving
-git add fabric/silver-to-gold2.Notebook/
-git commit -m "fix: Resolve merge conflict in silver-to-gold"
+git add fabric/silver_to_gold.Notebook/
+git commit -m "fix: Resolve merge conflict in silver_to_gold"
 git push origin main
 ```
 

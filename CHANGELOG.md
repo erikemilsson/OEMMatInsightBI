@@ -27,7 +27,7 @@ Notable changes to the OEMMatInsightBI project. The project does not cut version
 ### Added
 - **EPI/WGI ingestion notebooks** (`bronze_ingest_epi`, `bronze_ingest_wgi`) replacing the retired `EPI_file2table` / `WGI_file2table` dataflows (task-035).
 - **Azure SQL Copy activities** (`bronzecopy_procurement_transactional`, `bronzecopy_supplier_ref`) replacing the retired `bronze_azureSQLdb2table` dataflow.
-- **Data-quality observability layer** — `gold_data_gaps`, `gold_gap_registry`, `gold_quality_history`, `gold_low_confidence_audit`, populated by `silver-to-gold2` and `data_quality_checks`; blocking DQ gate.
+- **Data-quality observability layer** — `gold_data_gaps`, `gold_gap_registry`, `gold_quality_history`, `gold_low_confidence_audit`, populated by `silver_to_gold` and `data_quality_checks`; blocking DQ gate.
 - **45 DAX measures** in the `OEMInsightBI_v2` semantic model (DirectLake on `oem_lh`), including the weighted EPI score (task-056 weight ingestion), HHI supply risk, and the 33-measure coverage/observability set.
 - **Parity contract** (task-032) — `tests/` load notebook functions and pin parity against `src/`; semantic gaps asserted, not fixed.
 - **`fabric-cicd` deploy** via GitHub Actions; `pipeline_error_handler` wired to run on every pipeline outcome.

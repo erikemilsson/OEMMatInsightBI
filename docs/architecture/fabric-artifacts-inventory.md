@@ -17,7 +17,7 @@ As-built inventory of Fabric artifacts in the `oem_lh` workspace. Mirrors what i
 | `bronze_ingest_epi` | `bronze_EPI` | EPI ingestion from Yale (since task-035) | ✅ Active |
 | `bronze_ingest_wgi` | `bronze_WGI` | WGI ingestion from World Bank API (since task-035) | ✅ Active |
 | `bronze_to_silver` | `bronze_to_silver_cleaning` | Bronze → Silver cleaning + alias resolution | ✅ Active |
-| `silver-to-gold2` | `silver-to-gold` | Silver → Gold star schema (facts, dims, observability) | ✅ Active |
+| `silver_to_gold` | `silver_to_gold` | Silver → Gold star schema (facts, dims, observability) | ✅ Active |
 | `data_quality_checks` | `data_quality_checks` | Pipeline data-quality gate | ✅ Active |
 | `pipeline_error_handler` | `pipeline_error_handler` | Error categorisation + execution-log write; runs on **every** outcome | ✅ Active |
 | `data_quality_analysis` | — | DQ analysis (manual run, not on pipeline path) | ✅ Active (manual) |
@@ -68,7 +68,7 @@ graph TD
     BW[bronze_ingest_wgi / bronze_WGI]
 
     BS[bronze_to_silver]
-    SG[silver-to-gold2]
+    SG[silver_to_gold]
     DQ[data_quality_checks]
     EH[pipeline_error_handler]
 
@@ -100,7 +100,7 @@ The model's DirectLake source is `oem_lh`; `oem_wh` is intentionally absent from
 
 - ✅ `orchestrator_pipeline_bronze_to_gold` — clear, snake_case
 - ✅ `oem_lh`, `oem_wh` — short, lowercase
-- ⚠️ `silver-to-gold2` — carries a version stamp; Phase 5 rename targets `silver_to_gold`
+- ✅ `silver_to_gold` — renamed from `silver-to-gold2` in Phase 5 (snake_case, dropped the version stamp)
 - ⚠️ `OEMInsightBI_v2`, `report2` — version suffix / placeholder name; Phase 5 rename targets `OEMInsightBI` / `oem_report`
 - ⚠️ Bronze Copy activities (`bronzecopy_*`) and PascalCase bronze activities (`bronze_EPI`, `bronze_WGI`) deviate from snake_case; Phase 4–5 naming sweep targets these
 

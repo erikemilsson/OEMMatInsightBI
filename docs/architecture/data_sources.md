@@ -182,7 +182,7 @@ two silver tables carry the same column contract and the gold union needs no spe
   load-bearing input to the Supply Risk model (DEC-001). It was dropped here until
   task-038_1 on the basis of stale documentation calling it an unused field.
 - Gold: Convert "<1%" to 0.5%, cast to numeric, assign year=2023. The censored-share
-  convention lives **only** in `silver-to-gold2`'s `fact_supply_share` build (task-028) —
+  convention lives **only** in `silver_to_gold`'s `fact_supply_share` build (task-028) —
   `share` stays a raw string through silver; do not fork the conversion upstream.
 
 **Automation:** ✅ Already automated (HTTP source in pipeline)

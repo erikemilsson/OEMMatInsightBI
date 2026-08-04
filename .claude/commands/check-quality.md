@@ -241,7 +241,7 @@ null_counts_material.show()
 4. Re-run gold transformation: `/run-gold`
 
 **If Low Quality Scores:**
-1. Review confidence scoring thresholds in `silver-to-gold2.Notebook`
+1. Review confidence scoring thresholds in `silver_to_gold.Notebook`
 2. Consider adjusting alias matching rules
 3. Add more alias variants to lookup tables
 
@@ -261,5 +261,5 @@ null_counts_material.show()
 
 - `/.claude/tasks/01_enhance_data_quality_visibility.md`
 - `/.claude/tasks/07_add_data_quality_checks.md`
-- `/fabric/silver-to-gold2.Notebook/` - Quality scoring logic
+- `/fabric/silver_to_gold.Notebook/` - Quality scoring logic
 - `/docs/transformations/alias_mappings.md`

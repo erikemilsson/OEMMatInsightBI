@@ -42,7 +42,7 @@ git status
 git add fabric/
 
 # Or stage specific files
-git add fabric/silver-to-gold2.Notebook/notebook-content.py
+git add fabric/silver_to_gold.Notebook/notebook-content.py
 git add fabric/OEMInsightBI_v2.SemanticModel/definition/tables/
 
 # Commit with descriptive message

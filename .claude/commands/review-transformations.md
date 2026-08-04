@@ -166,11 +166,11 @@ silver_proc.write.mode("overwrite").saveAsTable("oem_lh.silver_procurement")
 
 ## Review Silver → Gold Transformations
 
-### Notebook: `silver-to-gold2.Notebook`
+### Notebook: `silver_to_gold.Notebook`
 
 **Purpose:** Create business-ready star schema with dimensional modeling
 
-**Location:** `/fabric/silver-to-gold2.Notebook/notebook-content.py`
+**Location:** `/fabric/silver_to_gold.Notebook/notebook-content.py`
 
 #### Key Functions:
 
@@ -377,7 +377,7 @@ After reviewing transformations:
 ## Related Files
 
 - `/fabric/bronze_to_silver.Notebook/` - Bronze → Silver
-- `/fabric/silver-to-gold2.Notebook/` - Silver → Gold
+- `/fabric/silver_to_gold.Notebook/` - Silver → Gold
 - `/docs/architecture/medallion_architecture.md`
 - `/docs/transformations/` - Transformation documentation
 - `/.claude/tasks/08_create_unit_tests.md` - Add tests for transformations

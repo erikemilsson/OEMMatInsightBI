@@ -66,7 +66,7 @@ Weighted EPI Score = Σ (Indicator Score × Indicator Weight) / Σ (Indicator We
 13. **Placeholder:** Unknown Material (for unmapped values)
 
 ### Mapping Logic
-- Hardcoded in `silver-to-gold2.Notebook`
+- Hardcoded in `silver_to_gold.Notebook`
 - Dictionary: `grp_map = {"Lithium": "Battery metals", ...}`
 - Case-insensitive matching
 - Unknown materials → "Other/Unknown" group

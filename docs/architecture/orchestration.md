@@ -38,7 +38,7 @@ START
   │                      ▼                                 │
   ├──[STAGE 3: Gold Transformation - SEQUENTIAL]──────────┤
   │   │                                                    │
-  │   └─ silver-to-gold                       (Notebook)  │
+  │   └─ silver_to_gold                       (Notebook)  │
   │                      ▼                                 │
   ├──[STAGE 4: Data Quality - SEQUENTIAL]─────────────────┤
   │   │                                                    │
@@ -123,15 +123,15 @@ to retry 0.**
 
 **Depends On:** bronze_to_silver_cleaning (Succeeded)
 
-#### 8. silver-to-gold
+#### 8. silver_to_gold
 - **Type:** Notebook Activity
-- **Notebook:** `silver-to-gold2.Notebook`
+- **Notebook:** `silver_to_gold.Notebook`
 - **Output:** Gold fact and dimension tables (8 tables + supporting tables)
 - **Timeout:** 12 hours — **Retry:** 2 / 120s — **Runtime:** 488s (measured; the slowest activity)
 
 ### Stage 4: Data Quality (Sequential)
 
-**Depends On:** silver-to-gold (Succeeded)
+**Depends On:** silver_to_gold (Succeeded)
 
 #### 9. data_quality_checks
 - **Type:** Notebook Activity

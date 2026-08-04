@@ -1,10 +1,10 @@
 # Run Gold Layer Transformation
 
-Execute the silver-to-gold business logic transformations to create dimensional model.
+Execute the silver_to_gold business logic transformations to create dimensional model.
 
 ## What This Command Does
 
-This command runs the `silver-to-gold2.Notebook` which creates the star schema:
+This command runs the `silver_to_gold.Notebook` which creates the star schema:
 - 3 fact tables (procurement, supply_share, epi_score)
 - 5 dimension tables (country, date, indicator, material, stage)
 - Alias resolution for country and material names
@@ -28,12 +28,12 @@ This command runs the `silver-to-gold2.Notebook` which creates the star schema:
 1. Navigate to Fabric workspace
 2. Open pipeline: `orchestrator_pipeline_bronze_to_gold`
 3. Run full pipeline (gold is stage 3, runs after silver)
-4. Monitor "silver-to-gold" notebook activity
+4. Monitor "silver_to_gold" notebook activity
 
 ### Option 2: Run Notebook Directly (Recommended for development)
 
 1. Navigate to Fabric workspace
-2. Open notebook: `silver-to-gold2`
+2. Open notebook: `silver_to_gold`
 3. Review configuration cell (top of notebook):
    ```python
    DB = "oem_lh"
@@ -192,7 +192,7 @@ After gold transformation succeeds:
 
 ## Related Files
 
-- `/fabric/silver-to-gold2.Notebook/`
+- `/fabric/silver_to_gold.Notebook/`
 - `/docs/architecture/medallion_architecture.md`
 - `/docs/schemas/gold_tables.md`
 - `/docs/transformations/alias_mappings.md`

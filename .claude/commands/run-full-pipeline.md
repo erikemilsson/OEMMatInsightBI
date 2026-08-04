@@ -115,7 +115,7 @@ orchestrator_pipeline_bronze_to_gold
 │   └── bronze_to_silver_cleaning (Notebook)
 │                                                     │
 ├─[3] Gold Layer (Sequential) ───────────────────────┤
-│   └── silver-to-gold (Notebook)                    │
+│   └── silver_to_gold (Notebook)                    │
 │                                                     │
 ├─[4] Data Quality (Sequential) ─────────────────────┤
 │   └── data_quality_checks (Notebook)               │

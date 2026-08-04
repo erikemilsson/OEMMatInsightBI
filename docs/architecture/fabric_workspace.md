@@ -95,7 +95,7 @@ All PySpark, all attached to the `oem_lh` lakehouse.
 1. **bronze_ingest_epi.Notebook** — downloads the EPI CSV → `bronze_epi{year}results`, parameterised on `p_epi_year`
 2. **bronze_ingest_wgi.Notebook** — World Bank API v2 → `bronze_WGI`
 3. **bronze_to_silver.Notebook** — Bronze → Silver transformation
-4. **silver-to-gold2.Notebook** — Silver → Gold transformation
+4. **silver_to_gold.Notebook** — Silver → Gold transformation
 5. **data_quality_checks.Notebook** — post-gold DQ checks; raises the blocking gate
 
 **Not in the pipeline (run on demand):**
@@ -261,7 +261,7 @@ triggers it. See `docs/architecture/fabric-artifacts-inventory.md`.
    - Verify lakehouse is online (not paused)
    - Restart Spark session in notebook
 
-2. **Pipeline halts after `silver-to-gold`:**
+2. **Pipeline halts after `silver_to_gold`:**
    - The `data_quality_checks` activity raised the **blocking gate** — a check in
      `BLOCKING_CHECKS` returned `status = 'fail'`
    - Read the failing check from `gold_quality_history` (`producer = 'data_quality_checks'`,

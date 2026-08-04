@@ -13,8 +13,8 @@ parity tests rather than by convention. See `key_generation.py`'s module docstri
 for why option (i) (notebooks importing `src/`) was rejected.
 
 Production counterparts, per function:
-  - check_unmapped            -> fabric/silver-to-gold2.Notebook (inline, ~L95)
-  - categorize_quality        -> fabric/silver-to-gold2.Notebook `quality_category`
+  - check_unmapped            -> fabric/silver_to_gold.Notebook (inline, ~L95)
+  - categorize_quality        -> fabric/silver_to_gold.Notebook `quality_category`
                                  CASE ladder (~L1230); thresholds match exactly
   - count_out_of_range_dates  -> fabric/data_quality_checks.Notebook
                                  `validate_date_range`

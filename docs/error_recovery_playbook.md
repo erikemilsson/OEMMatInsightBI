@@ -21,7 +21,7 @@ All 10 pipeline activities, as configured in `pipeline-content.json` (`policy.re
 | bronze_EPI | 2 | 30 s | 1 min |
 | bronze_WGI | 2 | 30 s | 1 min |
 | bronze_to_silver_cleaning | 2 | 2 min | 4 min |
-| silver-to-gold | 2 | 2 min | 4 min |
+| silver_to_gold | 2 | 2 min | 4 min |
 | data_quality_checks | 1 | 2 min | 2 min |
 | pipeline_error_handler | 0 | — | none (runs on every outcome, never retried) |
 
@@ -116,7 +116,7 @@ unreachable, schema changed at source, or resource contention on the Fabric capa
 4. If schema changed at source: update the ingest notebook's parsing logic (the dataflows
    no longer map source columns — they are retired from the pipeline path)
 
-### 4. Spark Session Failure (bronze_to_silver, silver-to-gold)
+### 4. Spark Session Failure (bronze_to_silver, silver_to_gold)
 
 **Symptoms:** "Spark session failed to start", "executor lost", or out-of-memory errors.
 
@@ -126,7 +126,7 @@ unreachable, schema changed at source, or resource contention on the Fabric capa
 3. If the notebook code itself has an error: check the notebook output in Fabric
 4. For schema mismatches after source changes: update the transformation logic in the notebook
 
-### 5. Delta Table Write Failure (silver-to-gold)
+### 5. Delta Table Write Failure (silver_to_gold)
 
 **Symptoms:** MERGE/write fails on a gold Delta table.
 

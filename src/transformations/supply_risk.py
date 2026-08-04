@@ -22,7 +22,7 @@ documented REFERENCE implementation and the duplication is guarded by parity
 tests rather than by convention.
 
 Production counterparts, per function — all in
-`fabric/silver-to-gold2.Notebook/notebook-content.py`, in the cell that builds
+`fabric/silver_to_gold.Notebook/notebook-content.py`, in the cell that builds
 `fact_supply_share`:
 
   - wgi_weight_expr              -> inline, same name
@@ -288,7 +288,7 @@ def attach_wgi_weight(fact_df: DataFrame, wgi_by_country_key: DataFrame) -> Data
 # per-country weight WGIᶜ is task-038_3 (above); this consumes it from
 # fact_supply_share and never recomputes it.
 #
-# MIRRORED IN fabric/silver-to-gold2.Notebook (DEC-002). tests/test_supply_risk.py
+# MIRRORED IN fabric/silver_to_gold.Notebook (DEC-002). tests/test_supply_risk.py
 # loads the notebook's own FunctionDefs and pins them against these src/
 # versions — editing one side without the other fails CI by design.
 #

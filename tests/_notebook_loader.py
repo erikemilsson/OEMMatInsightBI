@@ -19,7 +19,7 @@ from pathlib import Path
 from pyspark.sql import functions as F
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-GOLD_NOTEBOOK = REPO_ROOT / "fabric" / "silver-to-gold2.Notebook" / "notebook-content.py"
+GOLD_NOTEBOOK = REPO_ROOT / "fabric" / "silver_to_gold.Notebook" / "notebook-content.py"
 BRONZE_NOTEBOOK = REPO_ROOT / "fabric" / "bronze_to_silver.Notebook" / "notebook-content.py"
 
 

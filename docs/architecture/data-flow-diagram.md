@@ -98,7 +98,7 @@ flowchart TB
 
     BS[bronze_to_silver<br/>data cleaning notebook]
     DQ[data_quality_checks notebook]
-    SG[silver-to-gold2 notebook]
+    SG[silver_to_gold notebook]
     EH[pipeline_error_handler<br/>runs on every outcome]
     End([Pipeline complete])
 
@@ -127,7 +127,7 @@ sequenceDiagram
     Pipeline->>Silver: bronze_to_silver transform
     Silver->>Silver: alias resolution + DQ checks
     Silver-->>Pipeline: cleaned rows
-    Pipeline->>Gold: silver-to-gold2: xxhash64 keys
+    Pipeline->>Gold: silver_to_gold: xxhash64 keys
     Gold->>Lakehouse: Delta MERGE on surrogate key
     alt key exists
         Lakehouse->>Lakehouse: UPDATE changed cols

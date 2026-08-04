@@ -55,7 +55,7 @@ The model has one canonical version (`OEMInsightBI_v2`, DirectLake on `oem_lh`).
 |---|---|---|
 | Semantic model (TMDL) | `fabric/OEMInsightBI_v2.SemanticModel/definition/` | Model-as-code: 14 tables, 10 relationships, 45 measures, DirectLake expression |
 | Pipeline | `fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/` | 10-activity orchestration (Copy + Notebook) with per-activity retry policy |
-| Silver→Gold notebook | `fabric/silver-to-gold2.Notebook/` | Star-schema build + observability tables + Delta MERGE |
+| Silver→Gold notebook | `fabric/silver_to_gold.Notebook/` | Star-schema build + observability tables + Delta MERGE |
 | Parity contract | `tests/test_notebook_parity.py`, `src/transformations/` | `src/` is a tested mirror of notebook logic; CI pins parity (Task-032) |
 | Data quality | `fabric/data_quality_checks.Notebook/`, `src/transformations/data_quality.py` | Blocking DQ gate + observability population |
 | EPI/WGI ingestion | `fabric/bronze_ingest_epi.Notebook/`, `fabric/bronze_ingest_wgi.Notebook/` | Automated HTTP/API ingestion of real public datasets |

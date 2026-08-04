@@ -116,7 +116,7 @@ def download_epi_data():
 > downloads **both** `epi{year}results.csv` (→ `bronze_epi{year}results`) **and**
 > `epi{year}weights.csv` (→ `bronze_epi{year}weights`). The `variables` URL above is
 > still **not** ingested — the weights file alone provides the hierarchy + absolute
-> `EPI Percent` weights that `silver-to-gold2.Notebook` builds `silver_epi{year}variables`
+> `EPI Percent` weights that `silver_to_gold.Notebook` builds `silver_epi{year}variables`
 > from (mapped `weight` ← `EPI Percent`). The `bronze_epi_{name}` table-naming shown
 > in this sketch is illustrative; the live notebook uses `bronze_epi{year}results` /
 > `bronze_epi{year}weights` (year-suffixed, per task-028's parameterised coupling).
@@ -619,7 +619,7 @@ https://www.worldbank.org/en/publication/worldwide-governance-indicators
   - Writes to `bronze_epi{YYYY}results` Delta table (overwrite)
   - **task-056 (2026-08-04):** also downloads `epi{YYYY}weights.csv` → `bronze_epi{YYYY}weights`,
     preserving the `Type`/`Abbreviation`/`Variable`/`Weight`/`NextLevel`/`IssueCategory`/
-    `PolicyObjective`/`EPI Percent` columns. `silver-to-gold2.Notebook` builds
+    `PolicyObjective`/`EPI Percent` columns. `silver_to_gold.Notebook` builds
     `silver_epi{YYYY}variables` from this (mapping `weight` ← `EPI Percent`), which
     `gold_dim_indicator`'s primary path selects from — so `Weighted EPI Score` renders
     a 0-100 value instead of BLANK.

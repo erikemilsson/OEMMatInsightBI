@@ -106,7 +106,7 @@ flowchart LR
 
 > **Status sweep 2026-07-26 (task-033).** [3b], [5] and [6] were still marked PLANNED
 > although all three are created and written on every pipeline run by
-> `silver-to-gold2.Notebook` (`gold_low_confidence_audit`, `gold_quality_history`,
+> `silver_to_gold.Notebook` (`gold_low_confidence_audit`, `gold_quality_history`,
 > `gold_gap_registry`); `gold_quality_history` additionally receives per-check rows from
 > `data_quality_checks.Notebook`. [2] was marked PARTIAL for "missing lifecycle fields" —
 > those fields are not missing, they live on `gold_gap_registry` by design (see [2]
@@ -231,7 +231,7 @@ END
 | **Status** | IMPLEMENTED |
 | **Layer** | Gold |
 | **Purpose** | Capture matches below 0.95 confidence for review |
-| **Written by** | `silver-to-gold2.Notebook` — `populate_low_confidence_audit()` |
+| **Written by** | `silver_to_gold.Notebook` — `populate_low_confidence_audit()` |
 
 **Rationale:** The alias system may auto-match values like "Singpaore" → "Singapore" with 0.85 confidence. These matches are "good enough" but should be surfaced for verification.
 
@@ -302,7 +302,7 @@ gold_data_gaps_summary
 | **Status** | IMPLEMENTED |
 | **Layer** | Observability |
 | **Purpose** | Append-only storage of quality metrics per pipeline run |
-| **Written by** | **Both** `silver-to-gold2.Notebook` (coverage/match metrics) and `data_quality_checks.Notebook` (per-check results). The `producer` column is what tells the two apart — without it, `COUNT(DISTINCT refresh_timestamp)` over the whole table double-counts runs. |
+| **Written by** | **Both** `silver_to_gold.Notebook` (coverage/match metrics) and `data_quality_checks.Notebook` (per-check results). The `producer` column is what tells the two apart — without it, `COUNT(DISTINCT refresh_timestamp)` over the whole table double-counts runs. |
 
 **Schema:**
 ```sql
@@ -317,7 +317,7 @@ gold_quality_history
 ├── status                -- per-check verdict 'pass'/'fail'/'warning'; 'n/a' on
 │                            non-check rows; NULL only pre-task-040. THIS is the
 │                            field the blocking gate reads.
-└── producer              -- 'data_quality_checks' | 'silver-to-gold2'
+└── producer              -- 'data_quality_checks' | 'silver_to_gold'
 ```
 
 **Business Value:**
@@ -336,7 +336,7 @@ gold_quality_history
 | **Status** | IMPLEMENTED |
 | **Layer** | Observability |
 | **Purpose** | SCD tracking of unmapped values with lifecycle management |
-| **Written by** | `silver-to-gold2.Notebook` — `populate_gap_registry()` (this table is **not** written by `data_quality_checks.Notebook`) |
+| **Written by** | `silver_to_gold.Notebook` — `populate_gap_registry()` (this table is **not** written by `data_quality_checks.Notebook`) |
 
 **Schema:**
 ```sql
@@ -374,9 +374,9 @@ gold_gap_registry
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| [6] Gap Registry | ✅ Built | `populate_gap_registry()` in `silver-to-gold2` |
-| [5] Quality History | ✅ Built | Appended by `silver-to-gold2` **and** `data_quality_checks`; `status` is the field the blocking gate reads |
-| [3b] Low Confidence Audit | ✅ Built | `populate_low_confidence_audit()` in `silver-to-gold2` |
+| [6] Gap Registry | ✅ Built | `populate_gap_registry()` in `silver_to_gold` |
+| [5] Quality History | ✅ Built | Appended by `silver_to_gold` **and** `data_quality_checks`; `status` is the field the blocking gate reads |
+| [3b] Low Confidence Audit | ✅ Built | `populate_low_confidence_audit()` in `silver_to_gold` |
 | [2] Orphan Tables | ✅ Built | Lifecycle fields live on [6] by design — not a gap |
 | [1] Silver Join Metrics | 📋 Not built | Only remaining item. `gold_join_metrics` exists nowhere in `fabric/` or `src/`; joins run but match rates are never captured |
 
@@ -437,7 +437,7 @@ CREATE TABLE gold_low_confidence_audit (
 ## Related Files
 
 **Existing Implementation:**
-- `fabric/silver-to-gold2.Notebook` - Quality scoring; creates and populates [2], [3], [3b], [4], [5], [6]
+- `fabric/silver_to_gold.Notebook` - Quality scoring; creates and populates [2], [3], [3b], [4], [5], [6]
 - `fabric/data_quality_checks.Notebook` - Per-check results into [5]; owns the blocking gate
 - `src/transformations/data_quality.py` - Quality functions (tested mirror of the notebook logic)
 

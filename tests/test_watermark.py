@@ -7,7 +7,7 @@ Covers three layers:
   3. Read path (`get_last_load_date`) — Spark DataFrame fixture substituting for
      the Delta `bronze_load_metadata` table (delta-spark is not installed locally;
      the genuine Delta write path is Erik's Fabric-side test, criterion 5).
-  4. Notebook parity: both `bronze_to_silver.Notebook` and `silver-to-gold2.Notebook`
+  4. Notebook parity: both `bronze_to_silver.Notebook` and `silver_to_gold.Notebook`
      define these functions inline; this test parses each notebook, extracts its
      own definitions, and asserts they produce identical results to
      `src/transformations/watermark.py` over the same fixtures — divergence fails
@@ -214,7 +214,7 @@ class TestGetLastLoadDate:
 
 
 # ---------------------------------------------------------------------------
-# 4. Notebook parity — bronze_to_silver + silver-to-gold2
+# 4. Notebook parity — bronze_to_silver + silver_to_gold
 # ---------------------------------------------------------------------------
 
 class TestNotebookParity:
@@ -241,7 +241,7 @@ class TestNotebookParity:
         required = {"resolve_effective_watermark", "metadata_row", "get_last_load_date"}
         missing = required - names
         assert not missing, (
-            f"silver-to-gold2.Notebook is missing {missing}; the watermark "
+            f"silver_to_gold.Notebook is missing {missing}; the watermark "
             f"system cannot run without them."
         )
 

@@ -322,7 +322,7 @@ class TestNotebookParity:
 
     The Fabric notebooks cannot import `src/`, so `src.transformations.key_generation`
     is documented as the REFERENCE implementation of logic that lives inline in
-    `fabric/silver-to-gold2.Notebook`. These tests parse the notebook, run its own
+    `fabric/silver_to_gold.Notebook`. These tests parse the notebook, run its own
     definitions, and require identical output — so silent divergence fails CI
     instead of being discovered as unmatched relationships in Power BI.
     """
@@ -372,7 +372,7 @@ class TestNotebookParity:
 
         assert not mismatches, (
             "src/transformations/key_generation.generate_country_key has drifted "
-            f"from fabric/silver-to-gold2.Notebook: {mismatches}. Align src TO the "
+            f"from fabric/silver_to_gold.Notebook: {mismatches}. Align src TO the "
             "notebook — never the reverse; the notebook's keys are already "
             "materialized in the gold Delta tables."
         )

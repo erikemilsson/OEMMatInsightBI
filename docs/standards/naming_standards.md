@@ -4,7 +4,7 @@
 
 ### Inconsistencies Identified
 - **Table prefixes:** Mix of bronze_/silver_/gold_dim_
-- **Notebook names:** Mix of underscores and hyphens (`data_quality_checks` vs `silver-to-gold2`)
+- **Notebook names:** Mix of underscores and hyphens (`data_quality_checks` vs `sample-quality-data`)
 - **Column names:** Inconsistent (Date vs date, MaterialName vs materialname)
 - **Artifact names:** Mix of camelCase and underscores (`bronze_azureSQLdb2table` vs `orchestrator_pipeline_bronze_to_gold`) — *`bronze_azureSQLdb2table` was retired 2026-07-31; kept here as a naming example only*
 
@@ -78,7 +78,7 @@ data_quality_checks.Notebook
 ```
 data_quality_checks.Notebook   (underscores)
 bronze_ingest_wgi.Notebook     (underscores)
-silver-to-gold2.Notebook       (hyphens — inconsistent with the above)
+silver_to_gold.Notebook       (underscores)
 bronze_to_silver.Notebook      (underscores)
 sample-quality-data.Notebook   (hyphens)
 ```

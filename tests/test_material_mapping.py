@@ -34,7 +34,7 @@ import pytest
 from pyspark.sql import functions as F
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-GOLD_NOTEBOOK = REPO_ROOT / "fabric" / "silver-to-gold2.Notebook" / "notebook-content.py"
+GOLD_NOTEBOOK = REPO_ROOT / "fabric" / "silver_to_gold.Notebook" / "notebook-content.py"
 
 
 def _notebook_tree():

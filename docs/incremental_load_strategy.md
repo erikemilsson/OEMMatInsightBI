@@ -8,7 +8,7 @@
 
 This document defines the incremental load strategy for the OEMMatInsightBI data pipeline. It focuses on **procurement transactional data** for incremental loading while maintaining full refresh for reference and external data sources.
 
-`p_full_load` and `p_from_date` are wired end to end and **the load logic exists** (task-024): both `bronze_to_silver` and `silver-to-gold2` branch on `p_full_load` and window on `p_from_date`. The *watermark source* landed in task-029: `bronze_load_metadata` records one row per pipeline run per tracked source, `get_last_load_date` auto-retrieves the last SUCCESSful run's max date, and `update_load_metadata` writes a SUCCESS or FAILED row after each procurement load. The effective watermark is resolved once per run and consumed by both silver and gold (one mechanism, one value per run — § 4-5).
+`p_full_load` and `p_from_date` are wired end to end and **the load logic exists** (task-024): both `bronze_to_silver` and `silver_to_gold` branch on `p_full_load` and window on `p_from_date`. The *watermark source* landed in task-029: `bronze_load_metadata` records one row per pipeline run per tracked source, `get_last_load_date` auto-retrieves the last SUCCESSful run's max date, and `update_load_metadata` writes a SUCCESS or FAILED row after each procurement load. The effective watermark is resolved once per run and consumed by both silver and gold (one mechanism, one value per run — § 4-5).
 
 **Key Decisions:**
 - ✅ **Incremental:** Procurement transactional data (daily growth)
@@ -340,7 +340,7 @@ plain **`mode("overwrite")` with `overwriteSchema`**. The SCD Type 1 MERGE desig
 
 #### fact_procurement (Incremental — delete-insert, IMPLEMENTED)
 
-**Implemented behavior** — `silver-to-gold2.Notebook`, cell "gold.fact_procurement":
+**Implemented behavior** — `silver_to_gold.Notebook`, cell "gold.fact_procurement":
 
 ```python
 _is_full_load = p_full_load.strip().lower() == "true"
@@ -561,7 +561,7 @@ no prior SUCCESS row exists) to whatever max date the first run loaded.
 One `source_table` key per tracked source. The procurement pipeline uses a single key,
 `"bronze_procurement_transactional"`, shared by both the silver and gold layers — that
 gives ONE watermark mechanism and ONE effective watermark value per run, consumed
-identically by `bronze_to_silver` (which writes the metadata row) and `silver-to-gold2`
+identically by `bronze_to_silver` (which writes the metadata row) and `silver_to_gold`
 (which reads it). There is no second watermark for gold.
 
 ### Effective-watermark precedence (criterion 3)
@@ -600,7 +600,7 @@ def get_last_load_date(metadata_df, source_table, exclude_execution_id=None):
     """Return the last SUCCESSful load's last_load_date for source_table, or None.
 
     exclude_execution_id: if non-empty, rows with this execution_id are excluded.
-        silver-to-gold2 passes the current run's execution_id so it reads the
+        silver_to_gold passes the current run's execution_id so it reads the
         PREVIOUS run's watermark (bronze_to_silver has already written its SUCCESS
         row by the time gold starts), keeping both layers on the same effective
         watermark for a given run.
@@ -664,13 +664,13 @@ except Exception as e:
 
 ### Gold coordination (criterion 4)
 
-`silver-to-gold2` runs AFTER `bronze_to_silver` in the pipeline, so bronze_to_silver's
+`silver_to_gold` runs AFTER `bronze_to_silver` in the pipeline, so bronze_to_silver's
 SUCCESS row for the current run is already in the table when gold starts. To use the SAME
 effective watermark silver used (the PREVIOUS run's watermark), gold passes its own
 `p_execution_id` to `get_last_load_date` as `exclude_execution_id`:
 
 ```python
-# silver-to-gold2: same mechanism, same source_table key, exclude the current run
+# silver_to_gold: same mechanism, same source_table key, exclude the current run
 _metadata_df = (spark.table("oem_lh.bronze_load_metadata")
                 if spark.catalog.tableExists("oem_lh.bronze_load_metadata") else None)
 _last_load_date = (get_last_load_date(_metadata_df, "bronze_procurement_transactional",
@@ -729,7 +729,7 @@ Pipeline Parameters
   │
   └─ p_execution_id → Notebook activities (via widget)
                        └─ bronze_to_silver: stamps the SUCCESS/FAILED metadata row
-                       └─ silver-to-gold2: excludes the current run's row so it
+                       └─ silver_to_gold: excludes the current run's row so it
                           reads the PREVIOUS run's watermark (gold coordination)
 ```
 
@@ -792,7 +792,7 @@ effective_from_date = resolve_effective_watermark(p_full_load, p_from_date, _las
 # ... 7-day look-back window keys off effective_from_date, not the raw p_from_date ...
 ```
 
-`silver-to-gold2.Notebook` resolves its effective watermark the same way, passing
+`silver_to_gold.Notebook` resolves its effective watermark the same way, passing
 `exclude_execution_id=p_execution_id` so it reads the previous run's watermark.
 
 ---
@@ -1098,7 +1098,7 @@ load_all_layers()
 - [ ] Validate merge behavior (UPDATE + INSERT)
 
 ### Phase 3: Gold Layer (1 day)
-- [ ] Update `silver-to-gold2.Notebook` with incremental logic
+- [ ] Update `silver_to_gold.Notebook` with incremental logic
 - [ ] Implement fact table merge operations
 - [ ] Implement SCD Type 1 for dimensions
 - [ ] Test end-to-end incremental load

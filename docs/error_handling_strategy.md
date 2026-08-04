@@ -231,7 +231,7 @@ def should_retry(error_message: str, retry_attempt: int, max_retries: int) -> bo
 > (`bronze_copy_procurement_transactional`, `bronze_copy_supplier_ref`). The live retry
 > configuration is in `fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/pipeline-content.json`
 > (Copy retry=3/300s, EPI/WGI TridentNotebook retry=2/30s, bronze_to_silver_cleaning retry=2/120s,
-> silver-to-gold2 retry=2/120s, data_quality_checks retry=1/120s, pipeline_error_handler
+> silver_to_gold retry=2/120s, data_quality_checks retry=1/120s, pipeline_error_handler
 > retry=0/30s) and summarised in `.claude/support/documents/architecture/orchestration.md`.
 > The "Recommended Retries" column below is what task-011 shipped.
 
@@ -244,7 +244,7 @@ def should_retry(error_message: str, retry_attempt: int, max_retries: int) -> bo
 | **bronze_procurement** | RefreshDataflow | 0 | 3 | 5 min | 2 hours | Azure SQL may timeout, highest priority data source |
 | **bronze_EPI** | RefreshDataflow | 0 | 2 | 3 min | 2 hours | Dataflow refresh may have resource contention, Yale server reliable |
 | **bronze_to_silver_cleaning** | Notebook | 0 | 2 | 2 min | 4 hours | Spark session may fail to start, transformation logic stable |
-| **silver-to-gold2** | Notebook | 0 | 2 | 2 min | 4 hours | Spark session may fail to start, joins may cause resource issues |
+| **silver_to_gold** | Notebook | 0 | 2 | 2 min | 4 hours | Spark session may fail to start, joins may cause resource issues |
 | **copyjob1** | CopyJob | 0 | 1 | 5 min | 1 hour | Warehouse sync may have lock contention, rare failures |
 
 ### Retry Interval Strategy
@@ -1084,7 +1084,7 @@ Thank you for your patience.
 ```json
 // Only fail pipeline if critical activity fails
 {
-  "name": "silver-to-gold2",
+  "name": "silver_to_gold",
   "dependsOn": [
     {
       "activity": "bronze_to_silver_cleaning",
@@ -1255,7 +1255,7 @@ def run_health_checks():
     last_load = spark.sql("""
         SELECT MAX(end_time) as last_load
         FROM gold_pipeline_execution_log
-        WHERE status = 'Succeeded' AND activity_name = 'silver-to-gold2'
+        WHERE status = 'Succeeded' AND activity_name = 'silver_to_gold'
     """).collect()[0]["last_load"]
 
     if datetime.now() - last_load > timedelta(hours=24):

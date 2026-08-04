@@ -7,7 +7,7 @@ pipeline to create stable, reproducible dimension and fact table keys.
 
 REFERENCE IMPLEMENTATION — NOT IMPORTED BY THE NOTEBOOKS (task-032)
 ------------------------------------------------------------------
-The Fabric notebooks do NOT import this package; `fabric/silver-to-gold2.Notebook`
+The Fabric notebooks do NOT import this package; `fabric/silver_to_gold.Notebook`
 defines `stable_key` / `generate_country_key` inline. Two structural options were
 weighed for closing that gap (task-032 acceptance criterion 3):
 
@@ -25,7 +25,7 @@ weighed for closing that gap (task-032 acceptance criterion 3):
 
 So: production truth lives in the notebook; this module mirrors it. The mirror is
 enforced, not trusted — `tests/test_key_generation.py::TestNotebookParity` parses
-`fabric/silver-to-gold2.Notebook/notebook-content.py`, extracts the notebook's own
+`fabric/silver_to_gold.Notebook/notebook-content.py`, extracts the notebook's own
 `stable_key` / `generate_country_key` definitions, and asserts they produce
 identical keys to these functions over a fixture. Divergence fails CI. The same
 class also pins golden key values, so a change made to BOTH implementations at
@@ -107,7 +107,7 @@ def generate_country_key(iso3_col: str, name_col: str) -> F.Column:
     ISO3 *alone* and the country name does not participate. Only when ISO3 is
     null does the name become the hashed business key.
 
-    Mirrors `generate_country_key` in `fabric/silver-to-gold2.Notebook`:
+    Mirrors `generate_country_key` in `fabric/silver_to_gold.Notebook`:
 
         F.when(F.col(iso3_col).isNotNull(), stable_key([iso3_col]))
          .otherwise(stable_key([name_col]))

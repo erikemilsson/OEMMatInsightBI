@@ -55,7 +55,7 @@ dataflow is retired and deleted.)
 
 ### Issue: Gold layer creation fails - MERGE operation error
 
-**Symptoms:** `silver-to-gold2.Notebook` fails with "MERGE not supported" error
+**Symptoms:** `silver_to_gold.Notebook` fails with "MERGE not supported" error
 
 **Diagnosis:** Check if tables are Delta format (not Parquet)
 
@@ -127,7 +127,7 @@ RETURN
 **Solution:**
 1. Review aliases: [`docs/transformations/alias_mappings.md`](../transformations/alias_mappings.md)
 2. Add missing aliases to lookup tables
-3. Re-run silver-to-gold transformation
+3. Re-run silver_to_gold transformation
 
 ---
 
