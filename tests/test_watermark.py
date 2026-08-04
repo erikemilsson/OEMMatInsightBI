@@ -7,7 +7,7 @@ Covers three layers:
   3. Read path (`get_last_load_date`) — Spark DataFrame fixture substituting for
      the Delta `bronze_load_metadata` table (delta-spark is not installed locally;
      the genuine Delta write path is Erik's Fabric-side test, criterion 5).
-  4. Notebook parity: both `bronze-to-silver.Notebook` and `silver-to-gold2.Notebook`
+  4. Notebook parity: both `bronze_to_silver.Notebook` and `silver-to-gold2.Notebook`
      define these functions inline; this test parses each notebook, extracts its
      own definitions, and asserts they produce identical results to
      `src/transformations/watermark.py` over the same fixtures — divergence fails
@@ -184,7 +184,7 @@ class TestGetLastLoadDate:
     @pytest.mark.unit
     def test_exclude_execution_id_skips_current_run(self, spark):
         """Gold coordination: exclude the current run's row to read the PREVIOUS
-        watermark — bronze-to-silver has already written its SUCCESS row by the
+        watermark — bronze_to_silver has already written its SUCCESS row by the
         time gold starts, so gold must skip it to use the same watermark silver used."""
         rows = [
             metadata_row(DEFAULT_SOURCE_TABLE, date(2024, 6, 1), 100, "SUCCESS",
@@ -214,7 +214,7 @@ class TestGetLastLoadDate:
 
 
 # ---------------------------------------------------------------------------
-# 4. Notebook parity — bronze-to-silver + silver-to-gold2
+# 4. Notebook parity — bronze_to_silver + silver-to-gold2
 # ---------------------------------------------------------------------------
 
 class TestNotebookParity:
@@ -229,7 +229,7 @@ class TestNotebookParity:
                     "get_last_load_date", "update_load_metadata"}
         missing = required - names
         assert not missing, (
-            f"bronze-to-silver.Notebook is missing {missing}; the watermark "
+            f"bronze_to_silver.Notebook is missing {missing}; the watermark "
             f"system cannot run without them."
         )
 
@@ -261,7 +261,7 @@ class TestNotebookParity:
         for pfl, pfd, lld in cases:
             assert nb["resolve_effective_watermark"](pfl, pfd, lld) == \
                    resolve_effective_watermark(pfl, pfd, lld), (
-                       f"bronze-to-silver diverges from src/ on "
+                       f"bronze_to_silver diverges from src/ on "
                        f"({pfl!r}, {pfd!r}, {lld!r})"
                    )
 

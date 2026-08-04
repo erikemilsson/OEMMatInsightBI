@@ -5,7 +5,7 @@ Unit tests for the procurement date correction relocated by task-048.
 day/year transposition during ingestion. That dataflow is retired — an SPN
 cannot refresh it and every `fabric-cicd` publish strips its credentials — and
 its Copy-activity replacement cannot transform. The correction therefore moved
-into `bronze-to-silver`.
+into `bronze_to_silver`.
 
 task-048 acceptance criterion 4 requires *proof* that silver `Date` values are
 unchanged versus the pre-migration behaviour. That is what
@@ -358,14 +358,14 @@ class TestIncrementalWindowEquivalence:
 # ---------------------------------------------------------------------------
 
 class TestNotebookParity:
-    """bronze-to-silver defines `correct_procurement_date` inline; it must match src/."""
+    """bronze_to_silver defines `correct_procurement_date` inline; it must match src/."""
 
     @pytest.mark.unit
     def test_notebook_defines_the_function(self):
         tree = ast.parse(BRONZE_NOTEBOOK.read_text(encoding="utf-8"))
         names = {n.name for n in tree.body if isinstance(n, ast.FunctionDef)}
         assert "correct_procurement_date" in names, (
-            "bronze-to-silver.Notebook no longer defines correct_procurement_date; "
+            "bronze_to_silver.Notebook no longer defines correct_procurement_date; "
             "the source date correction relocated by task-048 would be silently lost "
             "and every silver transaction date would be wrong."
         )
@@ -410,7 +410,7 @@ class TestNotebookParity:
         call_at = source.find("correct_procurement_date(\n"
                               "    spark.sql(\"SELECT * FROM oem_lh.bronze_procurement_transactional\")")
         assert call_at != -1, (
-            "bronze-to-silver no longer wraps the bronze_procurement_transactional read "
+            "bronze_to_silver no longer wraps the bronze_procurement_transactional read "
             "in correct_procurement_date — the correction must be applied at the read, "
             "before the look-back window."
         )

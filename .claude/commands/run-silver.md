@@ -4,7 +4,7 @@ Execute the bronze_to_silver_cleaning and standardization transformations.
 
 ## What This Command Does
 
-This command runs the `bronze-to-silver.Notebook` which performs:
+This command runs the `bronze_to_silver.Notebook` which performs:
 - Column name standardization (lowercase with underscores)
 - Data type conversions and casting
 - Deduplication to a declared grain (WGI: country × indicator × year)
@@ -34,7 +34,7 @@ This command runs the `bronze-to-silver.Notebook` which performs:
 ### Option 2: Run Notebook Directly (Recommended for development)
 
 1. Navigate to Fabric workspace
-2. Open notebook: `bronze-to-silver`
+2. Open notebook: `bronze_to_silver`
 3. Click "Run all" button
 4. Monitor cell execution progress
 5. Check outputs in lakehouse
@@ -46,7 +46,7 @@ This command runs the `bronze-to-silver.Notebook` which performs:
 # Currently a manual process - see /sync-from-fabric command
 
 # After syncing notebook locally:
-# 1. Open bronze-to-silver.Notebook/notebook-content.py
+# 1. Open bronze_to_silver.Notebook/notebook-content.py
 # 2. Execute cells in Python environment with PySpark
 ```
 
@@ -194,5 +194,5 @@ After silver transformation succeeds:
 
 ## Related Files
 
-- `/fabric/bronze-to-silver.Notebook/`
+- `/fabric/bronze_to_silver.Notebook/`
 - `/docs/architecture/medallion_architecture.md`

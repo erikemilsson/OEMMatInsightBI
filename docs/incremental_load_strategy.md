@@ -8,7 +8,7 @@
 
 This document defines the incremental load strategy for the OEMMatInsightBI data pipeline. It focuses on **procurement transactional data** for incremental loading while maintaining full refresh for reference and external data sources.
 
-`p_full_load` and `p_from_date` are wired end to end and **the load logic exists** (task-024): both `bronze-to-silver` and `silver-to-gold2` branch on `p_full_load` and window on `p_from_date`. The *watermark source* landed in task-029: `bronze_load_metadata` records one row per pipeline run per tracked source, `get_last_load_date` auto-retrieves the last SUCCESSful run's max date, and `update_load_metadata` writes a SUCCESS or FAILED row after each procurement load. The effective watermark is resolved once per run and consumed by both silver and gold (one mechanism, one value per run — § 4-5).
+`p_full_load` and `p_from_date` are wired end to end and **the load logic exists** (task-024): both `bronze_to_silver` and `silver-to-gold2` branch on `p_full_load` and window on `p_from_date`. The *watermark source* landed in task-029: `bronze_load_metadata` records one row per pipeline run per tracked source, `get_last_load_date` auto-retrieves the last SUCCESSful run's max date, and `update_load_metadata` writes a SUCCESS or FAILED row after each procurement load. The effective watermark is resolved once per run and consumed by both silver and gold (one mechanism, one value per run — § 4-5).
 
 **Key Decisions:**
 - ✅ **Incremental:** Procurement transactional data (daily growth)
@@ -40,7 +40,7 @@ This document defines the incremental load strategy for the OEMMatInsightBI data
 | **bronze_epi{year}results** | Bronze | N/A | 🔁 Full Refresh | Annual | Annual snapshot; a new vintage lands in its own table (`p_epi_year`) |
 | **bronze_WGI** | Bronze | N/A | 🔁 Full Refresh | Annual | Annual snapshot, World Bank API provides the full dataset |
 | **bronze_GlobalSupplyShares** | Bronze | N/A | 🔁 Full Refresh | Annual | Static material shares, rarely updated |
-| **bronze_EUSupplyShares** | Bronze | N/A | 🔁 Full Refresh | Annual | EU-scope companion to the global shares; consumed by `bronze-to-silver` since task-038_1 |
+| **bronze_EUSupplyShares** | Bronze | N/A | 🔁 Full Refresh | Annual | EU-scope companion to the global shares; consumed by `bronze_to_silver` since task-038_1 |
 | **silver_procurement** | Silver | `date` | 🔄 **Incremental** | Daily | Derived from bronze procurement (delete-insert) |
 | **silver_epi{year}results** | Silver | N/A | 🔁 Full Refresh | Annual | Cleaned EPI data |
 | **silver_wgi** | Silver | N/A | 🔁 Full Refresh | Annual | Cleaned WGI data (long format) |
@@ -200,7 +200,7 @@ df_suppliers.write.format("delta").mode("overwrite").saveAsTable("bronze_supplie
 > version as a *rejected design*, because the reason it was rejected is the load-bearing
 > part.
 
-**Implemented behavior** — `bronze-to-silver.Notebook`, cell "Write silver_procurement":
+**Implemented behavior** — `bronze_to_silver.Notebook`, cell "Write silver_procurement":
 
 ```python
 # is_full_load / the 7-day look-back window are derived earlier in the notebook.
@@ -346,7 +346,7 @@ plain **`mode("overwrite")` with `overwriteSchema`**. The SCD Type 1 MERGE desig
 _is_full_load = p_full_load.strip().lower() == "true"
 _fact_exists = spark.catalog.tableExists(f"{DB}.fact_procurement")
 
-# Read window: mirror bronze-to-silver's 7-day look-back, or the whole table on a
+# Read window: mirror bronze_to_silver's 7-day look-back, or the whole table on a
 # full/first load.
 if _is_full_load or not _fact_exists:
     proc = spark.table(f"{DB}.silver_procurement")
@@ -561,7 +561,7 @@ no prior SUCCESS row exists) to whatever max date the first run loaded.
 One `source_table` key per tracked source. The procurement pipeline uses a single key,
 `"bronze_procurement_transactional"`, shared by both the silver and gold layers — that
 gives ONE watermark mechanism and ONE effective watermark value per run, consumed
-identically by `bronze-to-silver` (which writes the metadata row) and `silver-to-gold2`
+identically by `bronze_to_silver` (which writes the metadata row) and `silver-to-gold2`
 (which reads it). There is no second watermark for gold.
 
 ### Effective-watermark precedence (criterion 3)
@@ -601,7 +601,7 @@ def get_last_load_date(metadata_df, source_table, exclude_execution_id=None):
 
     exclude_execution_id: if non-empty, rows with this execution_id are excluded.
         silver-to-gold2 passes the current run's execution_id so it reads the
-        PREVIOUS run's watermark (bronze-to-silver has already written its SUCCESS
+        PREVIOUS run's watermark (bronze_to_silver has already written its SUCCESS
         row by the time gold starts), keeping both layers on the same effective
         watermark for a given run.
     """
@@ -637,7 +637,7 @@ def update_load_metadata(source_table, last_load_date, rows_loaded, status,
     df.write.format("delta").mode("append").saveAsTable("oem_lh.bronze_load_metadata")
 ```
 
-### Usage pattern (bronze-to-silver)
+### Usage pattern (bronze_to_silver)
 
 ```python
 # Resolve the effective watermark for THIS run (auto-retrieve if p_from_date is the sentinel)
@@ -664,7 +664,7 @@ except Exception as e:
 
 ### Gold coordination (criterion 4)
 
-`silver-to-gold2` runs AFTER `bronze-to-silver` in the pipeline, so bronze-to-silver's
+`silver-to-gold2` runs AFTER `bronze_to_silver` in the pipeline, so bronze_to_silver's
 SUCCESS row for the current run is already in the table when gold starts. To use the SAME
 effective watermark silver used (the PREVIOUS run's watermark), gold passes its own
 `p_execution_id` to `get_last_load_date` as `exclude_execution_id`:
@@ -728,7 +728,7 @@ Pipeline Parameters
   │                   └─ 7-day look-back window applied to the silver + gold reads
   │
   └─ p_execution_id → Notebook activities (via widget)
-                       └─ bronze-to-silver: stamps the SUCCESS/FAILED metadata row
+                       └─ bronze_to_silver: stamps the SUCCESS/FAILED metadata row
                        └─ silver-to-gold2: excludes the current run's row so it
                           reads the PREVIOUS run's watermark (gold coordination)
 ```
@@ -756,13 +756,13 @@ enhancement but is **not** the live behavior.
 
 ### Notebook Parameter Passing
 
-**In Pipeline Activity (bronze-to-silver):**
+**In Pipeline Activity (bronze_to_silver):**
 ```json
 {
-  "name": "bronze-to-silver data cleaning",
+  "name": "bronze_to_silver_cleaning",
   "type": "TridentNotebook",
   "typeProperties": {
-    "notebook": "bronze-to-silver",
+    "notebook": "bronze_to_silver",
     "parameters": {
       "p_full_load":   { "value": "@string(pipeline().parameters.p_full_load)", "type": "Expression" },
       "p_from_date":   { "value": "@pipeline().parameters.p_from_date",         "type": "Expression" },
@@ -773,7 +773,7 @@ enhancement but is **not** the live behavior.
 }
 ```
 
-**In Notebook (bronze-to-silver.Notebook) — parameters cell:**
+**In Notebook (bronze_to_silver.Notebook) — parameters cell:**
 ```python
 p_full_load = "false"          # overridden by pipeline
 p_from_date = "1900-01-01"     # sentinel: "not set" -> auto-retrieve
@@ -781,7 +781,7 @@ p_epi_year  = "2024"
 p_execution_id = ""            # overridden by pipeline (@pipeline().RunId)
 ```
 
-**In Notebook (bronze-to-silver.Notebook) — watermark resolution:**
+**In Notebook (bronze_to_silver.Notebook) — watermark resolution:**
 ```python
 # Resolve effective watermark once, early in the run
 _metadata_df = (spark.table("oem_lh.bronze_load_metadata")
@@ -862,7 +862,7 @@ INCREMENTAL branch, not the full-overwrite branch).
 **`p_from_date` is in corrected-date space.** The raw
 `bronze_procurement_transactional.Date` column is day/year-transposed with a ±2000 epoch
 (task-048 `correct_procurement_date`). The SQL-endpoint values you see
-(e.g. `2028-02-24 … 2031-12-24`) are **transposed**; `bronze-to-silver` applies the
+(e.g. `2028-02-24 … 2031-12-24`) are **transposed**; `bronze_to_silver` applies the
 correction *before* the window filter, so the window and the watermark are in
 **corrected (actual) date space** (`2024-02-28 … 2024-12-31`). **Specify `p_from_date`
 in corrected space** — a value derived from the raw column (e.g. `2031-12-24`) is in the
@@ -1091,7 +1091,7 @@ load_all_layers()
 - [ ] Implement `get_last_load_date()` and `update_load_metadata()` functions
 
 ### Phase 2: Silver Layer (1 day)
-- [ ] Update `bronze-to-silver.Notebook` with incremental logic
+- [ ] Update `bronze_to_silver.Notebook` with incremental logic
 - [ ] Implement merge operation using Delta Lake MERGE
 - [ ] Add deduplication logic
 - [ ] Test with sample incremental data

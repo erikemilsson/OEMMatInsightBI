@@ -50,7 +50,7 @@ az datafactory pipeline create-run \
 2. Run the Copy activities `bronze_copy_procurement_transactional` and
    `bronze_copy_supplier_ref` (connection `oem_azuresql_procurement`)
 3. Outputs: `bronze_procurement_transactional`, `bronze_supplier_ref` — with the
-   source's RAW day/year-transposed dates; the correction runs in `bronze-to-silver`
+   source's RAW day/year-transposed dates; the correction runs in `bronze_to_silver`
 
 > The `bronze_azureSQLdb2table` dataflow was retired and deleted 2026-07-31 (task-048).
 > EPI/WGI ingestion is also via TridentNotebook activities (`bronze_ingest_epi`,

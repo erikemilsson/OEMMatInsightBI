@@ -19,14 +19,14 @@ net in-place replacement that preserved column order.
 That dataflow is retired (task-048): a service principal cannot refresh a
 Dataflow Gen2, and every `fabric-cicd` publish strips its credentials. It is
 replaced by a Copy activity, and **a Copy activity cannot transform**. The
-correction therefore moves *down* one layer, into `bronze-to-silver`: bronze now
+correction therefore moves *down* one layer, into `bronze_to_silver`: bronze now
 lands the source's raw (malformed) `Date`, and silver corrects it. Keeping
 bronze byte-faithful to the source is also better medallion practice than
 folding the fix into the Copy activity's source query.
 
 REFERENCE IMPLEMENTATION — NOT IMPORTED BY THE NOTEBOOKS (task-032)
 ------------------------------------------------------------------
-The Fabric notebooks do NOT import this package; `fabric/bronze-to-silver.Notebook`
+The Fabric notebooks do NOT import this package; `fabric/bronze_to_silver.Notebook`
 defines `correct_procurement_date` inline. The mirror is enforced, not trusted —
 `tests/test_procurement_dates.py::TestNotebookParity` parses the notebook,
 extracts its own definition, and asserts it produces identical dates to this
@@ -36,7 +36,7 @@ function over a fixture. Divergence fails CI by design.
 
 WHERE IT MUST BE APPLIED (load-bearing ordering)
 ------------------------------------------------
-`bronze-to-silver` applies the correction **immediately after reading bronze and
+`bronze_to_silver` applies the correction **immediately after reading bronze and
 before the incremental look-back filter**, not at the end of the procurement
 block. Two things downstream are expressed in *corrected*-date space and would
 silently break otherwise:

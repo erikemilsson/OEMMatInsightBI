@@ -79,7 +79,7 @@ data_quality_checks.Notebook
 data_quality_checks.Notebook   (underscores)
 bronze_ingest_wgi.Notebook     (underscores)
 silver-to-gold2.Notebook       (hyphens — inconsistent with the above)
-bronze-to-silver.Notebook      (hyphens)
+bronze_to_silver.Notebook      (underscores)
 sample-quality-data.Notebook   (hyphens)
 ```
 

@@ -71,7 +71,7 @@ Write mode is `overwrite` with `overwriteSchema` — WGI is a full snapshot refr
 > `WGI_file2table.Dataflow` — are **retired and no longer exist**. That dataflow emitted a
 > different and incompatible shape: four columns (`Country Name`, `Country Code`,
 > `Series Name`, `Percentile Rank 2023`) holding 2023 **percentile ranks (0–100)**, not
-> estimates. `bronze-to-silver` therefore **hard-fails** with an actionable message if
+> estimates. `bronze_to_silver` therefore **hard-fails** with an actionable message if
 > `bronze_WGI` is missing `Indicator Code` / `Year` / `Value`, rather than falling back —
 > a percentile rank landing in `value` under the same column name would silently change
 > what `WGIᶜ` means in the DEC-001 supply-risk formula.
@@ -94,7 +94,7 @@ t                           STRING (the EU CRM trade parameter; RETAINED through
 Source: EU CRM CSV over HTTP — Copy activity `bronzecopy_EUSupplyShares`
 Grain: One row per material × stage × country (EU-scope companion to the global file)
 
-**Consumed since task-038_1 (2026-07-29):** `bronze-to-silver` builds `silver_eusupplyshares`
+**Consumed since task-038_1 (2026-07-29):** `bronze_to_silver` builds `silver_eusupplyshares`
 from this table, applying the same header normalisation the global table gets and retaining
 `t`. The notebook asserts that both silver tables carry the same column set, so this table's
 schema is pinned to the global one:
@@ -107,5 +107,5 @@ Share                       STRING (percentage with % symbol)
 t                           STRING (trade parameter; ~0.8 for EU-sourced)
 ```
 
-If the live table diverges from this shape, the bronze-to-silver run fails fast with a
+If the live table diverges from this shape, the bronze_to_silver run fails fast with a
 "silver supply-share column contract mismatch" error naming the differing columns.

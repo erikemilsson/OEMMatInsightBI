@@ -116,7 +116,7 @@ unreachable, schema changed at source, or resource contention on the Fabric capa
 4. If schema changed at source: update the ingest notebook's parsing logic (the dataflows
    no longer map source columns — they are retired from the pipeline path)
 
-### 4. Spark Session Failure (bronze-to-silver, silver-to-gold)
+### 4. Spark Session Failure (bronze_to_silver, silver-to-gold)
 
 **Symptoms:** "Spark session failed to start", "executor lost", or out-of-memory errors.
 

@@ -96,7 +96,7 @@ flowchart TB
         BW[bronze_WGI notebook]
     end
 
-    BS[bronze-to-silver<br/>data cleaning notebook]
+    BS[bronze_to_silver<br/>data cleaning notebook]
     DQ[data_quality_checks notebook]
     SG[silver-to-gold2 notebook]
     EH[pipeline_error_handler<br/>runs on every outcome]
@@ -124,7 +124,7 @@ sequenceDiagram
     User->>Pipeline: Trigger (p_full_load=false, p_from_date='2024-01-01')
     Pipeline->>Bronze: watermark from bronze_load_metadata
     Bronze-->>Pipeline: new/changed rows only
-    Pipeline->>Silver: bronze-to-silver transform
+    Pipeline->>Silver: bronze_to_silver transform
     Silver->>Silver: alias resolution + DQ checks
     Silver-->>Pipeline: cleaned rows
     Pipeline->>Gold: silver-to-gold2: xxhash64 keys

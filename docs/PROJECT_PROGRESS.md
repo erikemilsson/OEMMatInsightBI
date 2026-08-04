@@ -66,7 +66,7 @@
 | task-039 | Finished | Designate real Fabric parameter cells — pipeline notebook parameters have never been injected |  |
 | task-040 | Finished | Make the DQ gate outcome durably observable — gold_quality_history cannot answer 'did the gate pass on run X' |  |
 | task-041 | Finished | Wire pipeline_error_handler into the orchestrator — the execution log exists but no pipeline run has ever written to it |  |
-| task-042 | Finished | Single-source the EPI vintage — bronze-to-silver still hardcodes bronze_epi2024results while both ends now derive the year |  |
+| task-042 | Finished | Single-source the EPI vintage — bronze_to_silver still hardcodes bronze_epi2024results while both ends now derive the year |  |
 | task-043 | Finished | Register Azure AD app and grant the Service Principal Fabric workspace access |  |
 | task-044 | Finished | Author parameter.yml for fabric-cicd environment-specific configuration |  |
 | task-045 | Finished | Author the GitHub Actions workflow that deploys Fabric artifacts via fabric-cicd on merge to main |  |

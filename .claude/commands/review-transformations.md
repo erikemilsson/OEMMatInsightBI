@@ -18,11 +18,11 @@ This command helps you understand and review the transformation logic in the med
 
 ## Review Bronze → Silver Transformations
 
-### Notebook: `bronze-to-silver.Notebook`
+### Notebook: `bronze_to_silver.Notebook`
 
 **Purpose:** Standardize and clean raw bronze data
 
-**Location:** `/fabric/bronze-to-silver.Notebook/notebook-content.py`
+**Location:** `/fabric/bronze_to_silver.Notebook/notebook-content.py`
 
 #### Key Transformations:
 
@@ -376,7 +376,7 @@ After reviewing transformations:
 
 ## Related Files
 
-- `/fabric/bronze-to-silver.Notebook/` - Bronze → Silver
+- `/fabric/bronze_to_silver.Notebook/` - Bronze → Silver
 - `/fabric/silver-to-gold2.Notebook/` - Silver → Gold
 - `/docs/architecture/medallion_architecture.md`
 - `/docs/transformations/` - Transformation documentation

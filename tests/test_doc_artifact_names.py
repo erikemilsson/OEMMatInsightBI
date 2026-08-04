@@ -8,6 +8,7 @@ them. This test prevents recurrence on the recruiter-facing surfaces.
 Renames (old -> new; new is canonical on disk):
   semantic_model_oeminsightbi      -> OEMInsightBI_v2
   clean_columnsAndHeaders.Notebook -> bronze-to-silver.Notebook
+  bronze-to-silver.Notebook        -> bronze_to_silver.Notebook   (Phase 5, 2026-08-04)
   report.Report                    -> report2.Report
 
 Scope note: this guard only covers surfaces that have NO legitimate historical/example
@@ -37,6 +38,7 @@ OLD_NAMES = (
     "semantic_model_oeminsightbi",
     "clean_columnsAndHeaders",
     "report.Report",
+    "bronze-to-silver",
 )
 
 # Recruiter-facing / guide surfaces with no legitimate old-name occurrence.
@@ -68,7 +70,7 @@ def test_no_stale_fabric_artifact_names(rel):
         pytest.skip(f"{rel} not present")
     assert not hits, (
         f"{rel} reintroduced pre-rename Fabric artifact name(s): {hits}. "
-        "Use OEMInsightBI_v2 / bronze-to-silver.Notebook / report2.Report "
+        "Use OEMInsightBI_v2 / bronze_to_silver.Notebook / report2.Report "
         "(audit C-01, task-021)."
     )
 

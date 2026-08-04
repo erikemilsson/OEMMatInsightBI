@@ -176,7 +176,7 @@ The project implements a **medallion architecture** (bronze → silver → gold)
   `year`, `value`
 - `silver_globalsupplyshares` - Cleaned supply shares
 
-**Notebook:** `bronze-to-silver.Notebook`
+**Notebook:** `bronze_to_silver.Notebook`
 
 **Commands:** `/run-silver`
 
@@ -258,7 +258,7 @@ The project implements a **medallion architecture** (bronze → silver → gold)
 
 **Pipeline parameters:** `p_full_load`, `p_from_date`, `p_epi_year`. `p_epi_year` is
 single-sourced to both EPI-aware notebooks; `p_full_load` / `p_from_date` drive the
-incremental window in `bronze-to-silver` and `silver-to-gold`.
+incremental window in `bronze_to_silver` and `silver-to-gold`.
 
 **Runtime:** ~20-30 minutes end-to-end (estimate)
 
@@ -294,7 +294,7 @@ pipeline activity does this today
 
 ## Related Files
 
-- `/fabric/bronze-to-silver.Notebook/` - Silver transformation
+- `/fabric/bronze_to_silver.Notebook/` - Silver transformation
 - `/fabric/silver-to-gold2.Notebook/` - Gold transformation
 - `/fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/` - Orchestration
 - `/.claude/commands/run-bronze.md` - Bronze ingestion guide

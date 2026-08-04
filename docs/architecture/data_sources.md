@@ -37,7 +37,7 @@ This project integrates data from 4 primary sources: 1 transactional database + 
 `bronze_copy_supplier_ref`, via Fabric connection `oem_azuresql_procurement`.
 (Was `bronze_azureSQLdb2table.Dataflow` / activity `bronze_procurement` — retired 2026-07-31.)
 **Note:** bronze holds the source's RAW day/year-transposed dates; the correction runs in
-`bronze-to-silver`. Read silver for usable dates.
+`bronze_to_silver`. Read silver for usable dates.
 **Frequency:** (TBD - currently manual/on-demand)
 **Load Type:** Full refresh at bronze. **Incremental starts at silver** — `silver_procurement`
 and `fact_procurement` load via delete-insert over a 7-day look-back window driven by
@@ -136,7 +136,7 @@ unchanged for every downstream layer.
 > with `y_2000 … y_2023` year columns plus a separate `Topic` metadata table, filtered to
 > 2020, written to `silver_WB` — no longer exist. The retired dataflow emitted 2023
 > **percentile ranks (0-100)**, which are not interchangeable with the API's estimates, so
-> `bronze-to-silver` **hard-fails** if `bronze_WGI` is missing `Indicator Code` / `Year` /
+> `bronze_to_silver` **hard-fails** if `bronze_WGI` is missing `Indicator Code` / `Year` /
 > `Value` rather than silently falling back.
 
 **Automation:** ✅ Automated (notebook in the pipeline)
@@ -168,8 +168,8 @@ unchanged for every downstream layer.
 
 | Copy activity | Target table | Consumed downstream? |
 |---|---|---|
-| `bronze_copy_global_supply_shares` | `bronze_GlobalSupplyShares` | ✅ Yes — `bronze-to-silver` builds `silver_globalsupplyshares` from it |
-| `bronze_copy_eu_supply_shares` | `bronze_EUSupplyShares` | ✅ Yes — `bronze-to-silver` builds `silver_eusupplyshares` from it (task-038_1, 2026-07-29) |
+| `bronze_copy_global_supply_shares` | `bronze_GlobalSupplyShares` | ✅ Yes — `bronze_to_silver` builds `silver_globalsupplyshares` from it |
+| `bronze_copy_eu_supply_shares` | `bronze_EUSupplyShares` | ✅ Yes — `bronze_to_silver` builds `silver_eusupplyshares` from it (task-038_1, 2026-07-29) |
 
 **Frequency:** (TBD - currently on-demand)
 **Load Type:** Full replacement (`OverwriteSchema` table action)
@@ -260,12 +260,12 @@ EU CRM HTTP ───────────> bronze_GlobalSupplyShares        
 ### WGI fetch returns no data / fewer than 6 indicators
 - `bronze_ingest_wgi` raises outright if zero records come back — check network access to
   `api.worldbank.org` from the Fabric capacity
-- `bronze-to-silver` warns when `silver_wgi` carries fewer than 6 distinct indicators;
+- `bronze_to_silver` warns when `silver_wgi` carries fewer than 6 distinct indicators;
   the gold coverage rule requires all six, so WGI coverage reads 0 when one is missing.
   Check the ingest fetch log for an indicator that 404'd (the World Bank archives series
   periodically — see the code-mapping note in § 3)
 
-### `bronze-to-silver` fails with "bronze_WGI is missing ['Indicator Code', 'Year', 'Value']"
+### `bronze_to_silver` fails with "bronze_WGI is missing ['Indicator Code', 'Year', 'Value']"
 - **Obsolete since task-035 (2026-07-26):** `bronze_WGI` is now written by the
   `bronze_ingest_wgi` TridentNotebook activity, not by the retired `WGI_file2table.Dataflow`,
   so the pipeline can no longer overwrite bronze from the dataflow. The error can still

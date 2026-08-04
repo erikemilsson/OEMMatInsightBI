@@ -94,7 +94,7 @@ All PySpark, all attached to the `oem_lh` lakehouse.
 **In the orchestrator pipeline:**
 1. **bronze_ingest_epi.Notebook** — downloads the EPI CSV → `bronze_epi{year}results`, parameterised on `p_epi_year`
 2. **bronze_ingest_wgi.Notebook** — World Bank API v2 → `bronze_WGI`
-3. **bronze-to-silver.Notebook** — Bronze → Silver transformation
+3. **bronze_to_silver.Notebook** — Bronze → Silver transformation
 4. **silver-to-gold2.Notebook** — Silver → Gold transformation
 5. **data_quality_checks.Notebook** — post-gold DQ checks; raises the blocking gate
 
@@ -118,7 +118,7 @@ All PySpark, all attached to the `oem_lh` lakehouse.
 3. **WGI_file2table.Dataflow** — ⚠️ retired
    - Superseded by `bronze_ingest_wgi.Notebook`. It wrote `bronze_WB_ESGCSV` +
      `bronze_WB_ESGSeries` (wide Excel extract, 2023 percentile ranks); those tables no
-     longer exist and `bronze-to-silver` hard-fails if `bronze_WGI` still carries that
+     longer exist and `bronze_to_silver` hard-fails if `bronze_WGI` still carries that
      shape. See `schemas/bronze_tables.md`.
 
 ### Pipelines (1)

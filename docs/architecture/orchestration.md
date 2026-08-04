@@ -89,7 +89,7 @@ in the Pipeline"*.
 
 **Bronze is deliberately raw here.** The retired dataflow corrected the source's
 day/year-transposed dates during ingestion; a Copy activity cannot transform, so
-that correction now lives in `bronze-to-silver` as `correct_procurement_date`, and
+that correction now lives in `bronze_to_silver` as `correct_procurement_date`, and
 bronze holds the source's malformed dates verbatim. This is better medallion
 practice, but it means **bronze `Date` values are not directly usable** — read
 silver instead.
@@ -107,7 +107,7 @@ to retry 0.**
 
 #### 7. bronze_to_silver_cleaning
 - **Type:** Notebook Activity
-- **Notebook:** `bronze-to-silver.Notebook`
+- **Notebook:** `bronze_to_silver.Notebook`
 - **Output:** `silver_epi2024results`, `silver_globalsupplyshares`, `silver_wgi`, `silver_procurement`
 - **Timeout:** 12 hours — **Retry:** 2 / 120s — **Runtime:** 141s (measured)
 - **Owns the procurement date correction** (task-048): `correct_procurement_date`
@@ -161,12 +161,12 @@ to retry 0.**
 ### p_full_load (Boolean)
 - **Default:** false
 - **Purpose:** Force a full reload rather than the incremental path
-- **Usage:** Read by `bronze-to-silver`; when true, silver reads all of bronze
+- **Usage:** Read by `bronze_to_silver`; when true, silver reads all of bronze
 
 ### p_from_date (String)
 - **Default:** "1900-01-01"
 - **Purpose:** Start date driving the incremental look-back
-- **Usage:** Read by `bronze-to-silver`, which applies a **7-day look-back** window
+- **Usage:** Read by `bronze_to_silver`, which applies a **7-day look-back** window
   (`Date >= p_from_date − 7 days`) against the **corrected** silver dates. The
   default `1900-01-01` yields a look-back of 1899-12-25, i.e. effectively a full
   load.

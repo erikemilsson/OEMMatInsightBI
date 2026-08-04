@@ -121,7 +121,7 @@ This shipped architecture implements the six-dimension framework defined in `dat
 
 | Dimension | What it checks | Where it lives in this pipeline |
 |---|---|---|
-| **Completeness** | Null rate, row-count actual vs expected, field population | [4] Coverage tracking; bronze schema gate in `bronze-to-silver` |
+| **Completeness** | Null rate, row-count actual vs expected, field population | [4] Coverage tracking; bronze schema gate in `bronze_to_silver` |
 | **Accuracy** | Range/format validation (e.g. EPI 0–100, ISO3 codes), cross-source agreement | [3] Quality scoring; `data_quality_checks` |
 | **Consistency** | Referential integrity, cross-layer agreement | [1] Join metrics (planned), [2] Orphan-table detection |
 | **Timeliness** | Freshness vs watermark, run cadence | [5] Quality history (`refresh_timestamp`) |

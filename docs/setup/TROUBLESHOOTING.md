@@ -40,7 +40,7 @@ dataflow is retired and deleted.)
 
 ### Issue: Silver transformation notebook fails - Spark session error
 
-**Symptoms:** `bronze-to-silver.Notebook` fails to start Spark session
+**Symptoms:** `bronze_to_silver.Notebook` fails to start Spark session
 
 **Diagnosis:**
 - Check Fabric capacity usage (may be at limit)

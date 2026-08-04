@@ -44,7 +44,7 @@ fabric/                 # All Fabric artifacts
 │                                        # Copy activities in the pipeline
 ├── bronze_ingest_epi.Notebook/           # EPI HTTP/API ingestion (replaces EPI_file2table)
 ├── bronze_ingest_wgi.Notebook/           # WGI HTTP/API ingestion (replaces WGI_file2table)
-├── bronze-to-silver.Notebook/           # Bronze → Silver transformation
+├── bronze_to_silver.Notebook/           # Bronze → Silver transformation
 ├── silver-to-gold2.Notebook/            # Silver → Gold: star schema + observability + Delta MERGE
 ├── data_quality_checks.Notebook/        # Terminal blocking DQ gate
 ├── pipeline_error_handler.Notebook/     # Runs on every pipeline outcome

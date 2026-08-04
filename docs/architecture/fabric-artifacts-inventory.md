@@ -16,7 +16,7 @@ As-built inventory of Fabric artifacts in the `oem_lh` workspace. Mirrors what i
 |---|---|---|---|
 | `bronze_ingest_epi` | `bronze_EPI` | EPI ingestion from Yale (since task-035) | ✅ Active |
 | `bronze_ingest_wgi` | `bronze_WGI` | WGI ingestion from World Bank API (since task-035) | ✅ Active |
-| `bronze-to-silver` | `bronze_to_silver_cleaning` | Bronze → Silver cleaning + alias resolution | ✅ Active |
+| `bronze_to_silver` | `bronze_to_silver_cleaning` | Bronze → Silver cleaning + alias resolution | ✅ Active |
 | `silver-to-gold2` | `silver-to-gold` | Silver → Gold star schema (facts, dims, observability) | ✅ Active |
 | `data_quality_checks` | `data_quality_checks` | Pipeline data-quality gate | ✅ Active |
 | `pipeline_error_handler` | `pipeline_error_handler` | Error categorisation + execution-log write; runs on **every** outcome | ✅ Active |
@@ -67,7 +67,7 @@ graph TD
     BE[bronze_ingest_epi / bronze_EPI]
     BW[bronze_ingest_wgi / bronze_WGI]
 
-    BS[bronze-to-silver]
+    BS[bronze_to_silver]
     SG[silver-to-gold2]
     DQ[data_quality_checks]
     EH[pipeline_error_handler]
