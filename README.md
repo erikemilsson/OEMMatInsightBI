@@ -12,43 +12,62 @@ A portfolio project by Erik Emilsson, built while preparing for a data engineeri
 
 Companion project: [nordgrid-data-engineering](https://github.com/erikemilsson/nordgrid-data-engineering) — SQL/dbt depth training with 60 progressive exercises covering MERGE, stored procedures, SCD patterns, and Airflow orchestration.
 
+> **Honesty frame:** the procurement ledger is **synthetic**; the external data (Yale EPI, World Bank WGI, EU CRM supply shares) is **real**. The project demonstrates *method and engineering*, not discovered business facts. See [`docs/portfolio/CASE_STUDY.md`](docs/portfolio/CASE_STUDY.md) for the full provenance statement.
+
 ## Overview
 
-A Microsoft Fabric solution demonstrating how OEM databases can be integrated with material databases and ESG datasets to provide real-time insights into the environmental and social impacts of materials used in products.
+A Microsoft Fabric solution demonstrating how OEM procurement data can be integrated with material supply-share and ESG datasets to provide insights into the environmental, social, and supply-risk dimensions of sourced materials.
 
-**Key Technologies:** Azure SQL Database, Fabric Lakehouse & Warehouse, PySpark 3.4+, Power BI, Microsoft.Build.Sql 0.1.19-preview, pytest
+**Key Technologies:** Microsoft Fabric (Lakehouse, Pipelines, Notebooks), PySpark 3.4+, Delta Lake, Power BI / DAX / TMDL (DirectLake), Azure SQL, GitHub Actions, pytest
+
+## What this demonstrates
+
+| Area | What's here | Evidence |
+|------|-------------|----------|
+| Medallion lakehouse | Bronze → Silver → Gold with PySpark + Delta MERGE and an incremental-load strategy (`p_full_load` / `p_from_date` watermark) | [`docs/architecture/`](docs/architecture/), [`docs/incremental_load_strategy.md`](docs/incremental_load_strategy.md) |
+| Measured performance | 3-run warm-cache baseline — functional total **17m 40s** (Bronze 74 s, Silver 142 s, Gold 844 s; pipeline ~19.7 min) — not guessed | [`docs/performance_baseline.md`](docs/performance_baseline.md) |
+| Honest null-result | Taiwan has no WGI data (World Bank non-member, permanent). Surfaced as a gap, never coerced to 0 — coercing would understate supply concentration where Taiwan supplies | [`docs/portfolio/CASE_STUDY.md`](docs/portfolio/CASE_STUDY.md) |
+| Parity contract | `src/transformations/` is a tested mirror of notebook logic; `tests/` load the notebook's own functions and pin parity against `src/`; intentional semantic gaps are *asserted*, not fixed | [`tests/`](tests/) (via `_notebook_loader.py`), [DEC-002](.claude/support/decisions/decision-002-src-reference-implementation.md) |
+| Data-quality observability | A gold observability surface (`gold_data_gaps`, `gold_gap_registry`, `gold_quality_history`, `gold_low_confidence_audit`) plus a *blocking* DQ gate (`data_quality_checks`, 13-entry `BLOCKING_CHECKS`) | [`docs/data_quality_architecture.md`](docs/data_quality_architecture.md) |
+| Defended decisions | 6 engineering decisions written up for interview discussion (governance-weight inversion, fixed-bound rescaling, blocking DQ gate, etc.) | [`docs/portfolio/CASE_STUDY.md`](docs/portfolio/CASE_STUDY.md) § "decisions worth defending" |
+| Model-as-code | Semantic model defined as TMDL — 14 tables, 10 relationships, 45 measures, DirectLake expression — diffable in git, deployed by `fabric-cicd` | [`fabric/OEMInsightBI_v2.SemanticModel/`](fabric/OEMInsightBI_v2.SemanticModel/), [`docs/dax_measure_library.md`](docs/dax_measure_library.md) |
 
 ## Project Structure
 
 ```
-azure/                  # SQL scripts for Azure SQL Database setup
-data/                   # Sample data files
 fabric/                 # All Fabric artifacts
 ├── oem_lh.Lakehouse/                    # Medallion architecture (bronze/silver/gold)
-├── oem_wh.Warehouse/                    # Dimensional model (facts + dims)
-│   └── oem_wh.sqlproj                   # Microsoft.Build.Sql project
-├── orchestrator_pipeline_bronze_to_gold.DataPipeline  # Main orchestration
-│                                        # Azure SQL ingestion is Copy activities in
-│                                        # the pipeline
-├── *_file2table.Dataflow                # Legacy file ingestion — superseded by
-│                                        # notebooks; items still exist
-├── bronze-to-silver.Notebook            # Bronze → Silver transformation
-├── silver-to-gold2.Notebook             # Silver → Gold transformation
-├── OEMInsightBI_v2.SemanticModel
-└── report2.Report
-src/transformations/    # Reusable PySpark functions (key generation, data quality)
-tests/                  # Unit tests with pytest (requires Python 3.12+, Java 11+)
+├── oem_wh.Warehouse/                    # Secondary SQL-project warehouse (oem_wh.sqlproj);
+│                                        # NOT the DirectLake serving path (see OEMInsightBI_v2)
+├── orchestrator_pipeline_bronze_to_gold.DataPipeline  # 10-activity orchestration
+│                                        # (4 Copy + 6 Notebook); Azure SQL ingestion is
+│                                        # Copy activities in the pipeline
+├── bronze_ingest_epi.Notebook/           # EPI HTTP/API ingestion (replaces EPI_file2table)
+├── bronze_ingest_wgi.Notebook/           # WGI HTTP/API ingestion (replaces WGI_file2table)
+├── bronze-to-silver.Notebook/           # Bronze → Silver transformation
+├── silver-to-gold2.Notebook/            # Silver → Gold: star schema + observability + Delta MERGE
+├── data_quality_checks.Notebook/        # Terminal blocking DQ gate
+├── pipeline_error_handler.Notebook/     # Runs on every pipeline outcome
+├── OEMInsightBI_v2.SemanticModel/       # DirectLake on oem_lh — 45 measures, TMDL
+├── report2.Report/                       # 2-page portfolio report
+├── EPI_file2table.Dataflow/             # Legacy file ingestion — superseded by notebooks
+├── WGI_file2table.Dataflow/             # (items retained, not in the pipeline path)
+├── dax/                                  # Reference-only DAX sketches — not deployed
+└── sql/                                  # Warehouse SQL (e.g. warehouse_indexes.sql)
+src/transformations/    # Tested PySpark mirror of notebook logic (key generation, data quality)
+tests/                  # 235 pytest tests (parity contract + transform units)
+docs/                   # Canonical documentation surface (architecture, schemas, guides)
 ```
 
-**Local Development:** Clone repo, install `requirements-test.txt`, run `pytest tests/` to validate transformation logic before deploying to Fabric notebooks.
+**Local development:** Clone, install `requirements-test.txt`, run `pytest tests/` to validate transformation logic locally before deploying to Fabric notebooks. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full setup and [`docs/setup/TROUBLESHOOTING.md`](docs/setup/TROUBLESHOOTING.md) for common issues.
 
 ## Use Case
 
-**SwiftBike Tech** (fictional) manufactures electric scooters and bikes with manufacturing plants in Europe and Asia. This project demonstrates how to integrate their ERP data (Azure SQL Database) with external ESG datasets to enable procurement teams to minimize environmental and social impacts.
+**SwiftBike Tech** (fictional) manufactures electric scooters and bikes with manufacturing plants in Europe and Asia. This project demonstrates how to integrate their ERP data (Azure SQL Database) with external ESG and supply-share datasets to enable procurement teams to understand environmental, social, and supply-concentration risk across sourced materials.
 
 **Data Sources:**
 -   **ESG Indicators:** [Yale Environmental Performance Index](https://epi.yale.edu/), [World Bank Worldwide Governance Indicators](https://www.worldbank.org/en/publication/worldwide-governance-indicators)
--   **Material Data:** Country-level material use-shares at different production stages
+-   **Material Supply:** Country-level material use-shares at different production stages (EU CRM critical-materials list + global supply shares)
 -   **Synthetic ERP:** Bill of Materials (BOMs), procurement records, sales tracking
 
 ## Architecture
@@ -62,7 +81,7 @@ flowchart LR
         CRM[📄 EU CRM List<br/>Critical Materials]
     end
 
-    subgraph Bronze["🥉 Bronze Layer"]
+    subgraph Bronze["🥉 Bronze Layer (oem_lh)"]
         B1[bronze_procurement]
         B2[bronze_suppliers]
         B3[bronze_materials]
@@ -70,7 +89,7 @@ flowchart LR
         B5[bronze_wgi]
     end
 
-    subgraph Silver["🥈 Silver Layer"]
+    subgraph Silver["🥈 Silver Layer (oem_lh)"]
         S1[silver_procurement]
         S2[silver_suppliers]
         S3[silver_materials]
@@ -78,15 +97,19 @@ flowchart LR
         S5[silver_wgi]
     end
 
-    subgraph Gold["🥇 Gold Layer"]
+    subgraph Gold["🥇 Gold Layer (oem_lh)"]
         F1[fact_procurement]
         F2[fact_supply_share]
-        D1[dim_country]
-        D2[dim_material]
-        D3[dim_supplier]
-        D4[dim_date]
+        F3[fact_epi_score]
+        D1[gold_dim_country]
+        D2[gold_dim_material]
+        D3[gold_dim_date]
+        D4[gold_dim_indicator]
+        D5[gold_dim_stage]
+        SR[gold_supply_risk]
         QH[gold_quality_history]
         GR[gold_gap_registry]
+        DG[gold_data_gaps]
     end
 
     AZ --> B1 & B2 & B3
@@ -101,86 +124,97 @@ flowchart LR
     B5 --> S5
 
     S1 & S2 & S3 --> F1
+    S3 --> F2
     S4 & S5 --> D1
-    S3 --> D2
+    S4 --> F3
 
-    Gold --> WH[(oem_wh<br/>Warehouse)]
-    WH --> PBI[📊 Power BI<br/>DirectLake]
+    Gold -->|DirectLake| PBI[📊 Power BI<br/>DirectLake on oem_lh]
 ```
 
 ### Medallion Lakehouse (bronze → silver → gold)
 
-**Bronze:** Raw ingestion from Azure SQL (procurement data) and files (ESG indicators)
-**Silver:** Cleaned, standardized PySpark transformations with schema enforcement
-**Gold:** Business-ready data loaded into `oem_wh.Warehouse` dimensional model
+All three layers live as Delta tables in the `oem_lh` lakehouse.
+
+- **Bronze:** Raw ingestion from Azure SQL (Copy activities) and EPI/WGI HTTP endpoints (notebooks)
+- **Silver:** Cleaned, standardized PySpark transformations with schema enforcement
+- **Gold:** Business-ready star schema (3 facts + 5 dimensions + derived supply-risk table) and a data-quality observability surface — served to Power BI via DirectLake
 
 ### Pipeline Orchestration
 
-The `orchestrator_pipeline_bronze_to_gold.DataPipeline` manages the full data flow with parameterized incremental loading:
+The `orchestrator_pipeline_bronze_to_gold.DataPipeline` manages the full data flow with parameterized incremental loading across 10 activities (4 Copy + 6 Notebook). `pipeline_error_handler` runs on every outcome.
 
 **Key Pipeline Parameters**
 
-| Name | Type | Default Value | Example Value | Consumed in | Purpose |
-|--------|--------|--------------------------------|--------|--------|--------|
-| procurement_array | Array | \[{"source":"dbo.Suppliers","sink":"bronze_suppliers"},{"source":"dbo.Materials","sink":"bronze_materials","translator":{"type":"TabularTranslator","mappings":\[{"source":{"name":"Material ID","type":"String","physicalType":"String"},"sink":{"name":"Material_ID","physicalType":"string"}},{"source":{"name":"Short Name","type":"String","physicalType":"String"},"sink":{"name":"Short_Name","physicalType":"string"}}\]}},{"source":"dbo.Purchases","sink":"bronze_purchases"}\] | \[{"source":"dbo.Procurement"},{"source":"dbo.Suppliers"}\] | Copy activities | Controls which source tables to ingest for procurement-related data. Useful if you want to add/remove sources without editing activity code. |
-| p_full_load | Bool | FALSE | true / false | All Silver notebooks | Full refresh vs. incremental merge |
-| p_from_date | String | "1900-01-01" | "2024-01-01" | Silver notebooks | Watermark for incremental loads (filters `order_date >= p_from_date`) |
+| Name | Type | Default | Purpose |
+|--------|--------|---------|--------|
+| `procurement_array` | Array | dbo.Suppliers / dbo.Materials / dbo.Purchases mappings | Controls which source tables the Copy activities ingest |
+| `p_full_load` | Bool | `false` | Full refresh vs. incremental Delta MERGE |
+| `p_from_date` | String | `1900-01-01` | Incremental-load watermark (filters `order_date >= p_from_date`) |
 
-**Usage:** First run with `p_full_load=true`, subsequent runs with `p_full_load=false` and `p_from_date` set to last successful run timestamp.
+**Usage:** First run with `p_full_load=true`; subsequent runs with `p_full_load=false` and `p_from_date` set to the last successful run timestamp. Per-activity retry policy is documented in [`docs/error_recovery_playbook.md`](docs/error_recovery_playbook.md).
 
-### Data Warehouse (oem_wh.Warehouse)
+### Semantic Model (OEMInsightBI_v2 — DirectLake)
 
-Dimensional model using **Microsoft.Build.Sql 0.1.19-preview** with SqlDwUnifiedDatabaseSchemaProvider and Latin1_General_100_BIN2_UTF8 collation.
+The semantic model is defined as **TMDL** (model-as-code) and serves from the `oem_lh` lakehouse via **DirectLake** — no warehouse in the serving path, no scheduled refresh needed. (`oem_wh.Warehouse` exists as a secondary SQL-project artifact but is not the model source.)
 
-**Dimensions:** `dim_country` (ESG indicators), `dim_material`, `dim_supplier`, `dim_date`, `dim_product` (BOM hierarchy)
-**Facts:** Procurement transactions, material usage, ESG impact measurements
+- **Facts:** `fact_procurement`, `fact_supply_share`, `fact_epi_score`
+- **Dimensions:** `gold_dim_country`, `gold_dim_material`, `gold_dim_date`, `gold_dim_indicator`, `gold_dim_stage`
+- **Derived:** `gold_supply_risk` (governance- and trade-weighted HHI per material × stage × year)
+- **Observability:** `gold_data_gaps`, `gold_gap_registry`, `gold_quality_history`, `gold_low_confidence_audit`
+- **Measures:** 45 DAX measures across 8 tables, grouped with display folders (no `_Measures` table). Full catalogue: [`docs/dax_measure_library.md`](docs/dax_measure_library.md).
 
 **Key Design Decisions:**
-- Deterministic hash-based surrogate keys (`stable_key()` function in `src/transformations/key_generation.py`)
+- Deterministic `xxhash64`-based surrogate keys (`stable_key()` in `src/transformations/key_generation.py`)
 - SCD Type 1 (current-state tracking)
-- Power BI semantic model with DAX measures and star schema relationships
+- DirectLake on `oem_lh` (not a warehouse import mode)
+
+### Architecture Decision Records (ADRs)
+
+Thirteen decisions are captured under [`.claude/support/decisions/`](.claude/support/decisions/). Five most relevant to the portfolio:
+
+- [DEC-001 — Supply Risk gold-model fidelity (EU CRM methodology)](.claude/support/decisions/decision-001-sr-gold-model.md)
+- [DEC-002 — `src/` reference implementation guarded by parity tests](.claude/support/decisions/decision-002-src-reference-implementation.md)
+- [DEC-005 — Gap-registry lifecycle semantics](.claude/support/decisions/decision-005-gap-registry-lifecycle-semantics.md)
+- [DEC-006 — Watermark gold coordination (incremental MERGE)](.claude/support/decisions/decision-006-watermark-gold-coordination.md)
+- [DEC-011 — V-Order scope: gold notebook only](.claude/support/decisions/decision-011-vorder-scope-gold-only.md)
 
 ## Testing
 
 Unit tests validate transformation functions locally before deployment to Fabric notebooks.
 
-**Test Coverage:**
-- `tests/test_key_generation.py`: Surrogate key consistency and uniqueness (`stable_key`, `generate_*_key` functions)
-- `tests/test_data_quality.py`: Null checks, duplicate detection, schema validation
+**Coverage:**
+- `tests/test_key_generation.py`: surrogate-key consistency and uniqueness (`stable_key`, `generate_*_key`)
+- `tests/test_data_quality.py`: null checks, duplicate detection, schema validation
+- `tests/test_supply_risk.py`, `tests/test_watermark.py`, `tests/test_procurement_dates.py`: transform logic + the parity contract — notebook functions loaded via `_notebook_loader.py` and pinned against `src/` (Task-032)
 
-**Quick Start:**
+**Quick start:**
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-test.txt
-pytest tests/ -v                          # Run all tests
-pytest tests/ --cov=src --cov-report=html # With coverage report
+pytest tests/ -v                          # 235 tests
+pytest tests/ --cov=src --cov-report=html # with coverage
 ```
 
-**Requirements:** Python 3.12+, Java 11+ (for PySpark). Tests use markers: `@pytest.mark.unit`, `@pytest.mark.integration`, `@pytest.mark.slow`.
+**Requirements:** Python 3.12+, Java 11+ (for PySpark). Tests run on Python 3.10, 3.11, and 3.12 in CI.
 
 ## CI/CD Pipeline
 
-This project uses GitHub Actions for continuous integration and quality assurance:
+GitHub Actions for continuous integration and `fabric-cicd` for deployment:
 
-**Automated Checks:**
-- ✅ **Unit Tests:** 235 tests run on Python 3.10, 3.11, and 3.12 (matrix testing)
-- ✅ **Code Quality:** Black formatting, Flake8 linting, Pylint analysis
-- ✅ **Fabric Validation:** JSON schema validation for all pipeline configurations
-- ✅ **Documentation:** Link checking and statistics tracking
+- ✅ **Unit tests:** 235 tests, matrix-tested on Python 3.10 / 3.11 / 3.12
+- ✅ **Code quality:** Black formatting, Flake8 / Pylint
+- ✅ **Fabric validation:** JSON schema validation for pipeline configurations
+- ✅ **Deploy:** `fabric-cicd` publishes the workspace from `fabric/` on merge
 
-**Test Results:**
-- Current Status: **235 tests passing** (100% success rate)
-- Coverage: Core transformation modules (`src/transformations/`)
+View runs in the [Actions tab](https://github.com/erikemilsson/OEMMatInsightBI/actions).
 
-View test results and reports in the [Actions tab](https://github.com/erikemilsson/OEMMatInsightBI/actions).
+## Portfolio
 
-## Common Issues
+- **Case study:** [`docs/portfolio/CASE_STUDY.md`](docs/portfolio/CASE_STUDY.md) — the portfolio centerpiece (problem, medallion build, DQ observability, HHI methodology, honest null-result, 6 defended decisions)
+- **Report design:** [`docs/portfolio/PORTFOLIO_DESIGN.md`](docs/portfolio/PORTFOLIO_DESIGN.md) — 2-page Power BI report spec for `report2.Report`
+- **Assets index:** [`docs/portfolio/PORTFOLIO_ASSETS_README.md`](docs/portfolio/PORTFOLIO_ASSETS_README.md) — code samples, interview narrative, honest-framing LinkedIn template
 
-**Surrogate keys changing between runs:** Ensure input columns are trimmed and null-free before calling `stable_key()` from `src/transformations/key_generation.py`.
-
-**Incremental load not working:** Verify `p_full_load=false` and `p_from_date` is set to last successful run timestamp. Check filter uses `>=` not `>`.
-
-**Warehouse build fails:** Ensure `ProjectGuid` exists in `oem_wh.sqlproj` and Microsoft.Build.Sql version matches (0.1.19-preview).
+> **Visual assets** (dashboard screenshots, PDF export) are generated on demand from the live `report2.Report` — see the assets index. They are not committed to the repo.
 
 ## License
 
@@ -191,5 +225,4 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 **Erik Emilsson**
 
 -   [LinkedIn Profile](https://www.linkedin.com/in/erikemilsson/)
-
 -   [GitHub Profile](https://github.com/erikemilsson)

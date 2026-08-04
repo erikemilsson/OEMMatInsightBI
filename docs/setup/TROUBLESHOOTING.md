@@ -229,7 +229,7 @@ echo "*.ipynb_checkpoints" >> .gitignore
 
 **Symptoms:** End-to-end runtime higher than the measured baseline.
 
-**Diagnosis:** Compare against the measured 3-run baseline in [`performance_baseline.md`](../performance_baseline.md) (functional total ~16.6 min: Bronze ~1.4 min, Silver ~2.8 min, Gold ~12.4 min).
+**Diagnosis:** Compare against the measured 3-run warm-cache baseline in [`performance_baseline.md`](../performance_baseline.md) — functional total 17m 40s (Bronze 74 s, Silver 142 s, Gold 844 s; pipeline total ~19.7 min with handler + ramp).
 
 **Solution (Priority Order):**
 1. **Confirm incremental load** is active (`p_full_load=false`) — full loads reprocess everything
