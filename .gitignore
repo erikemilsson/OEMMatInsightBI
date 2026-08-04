@@ -83,9 +83,23 @@ Desktop.ini
 # Transient machine/session state (template treats these as ignore-category)
 .claude/.sync-state.json
 .claude/tasks/.handoff.json
+.claude/tasks/.last-clean-exit.json
+
+# Task workbench — terminal task records archived locally (readable summary in docs/PROJECT_PROGRESS.md)
+.claude/tasks/archive/
 
 # Dashboard — generated HTML render target (derived, regenerated each /work) — DEC-024
 .claude/dashboard.html
+.claude/dashboard-state.json
+
+# Transient/derived .claude state (workbench, not portfolio artifacts)
+.claude/drift-deferrals.json
+.claude/sync-manifest.json
+.claude/spec_v1.index.json
+.claude/version.json
+.claude/support/friction.jsonl
+.claude/support/feedback/
+.claude/support/audits/
 
 # Spec merge queue (re-entry transport) — DEC-023
 .claude/support/.spec-merge-queue.jsonl
