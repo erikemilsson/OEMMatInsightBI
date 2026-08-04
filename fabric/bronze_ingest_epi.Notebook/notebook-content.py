@@ -227,7 +227,7 @@ display(null_counts)
 # `PolicyObjective`, `EPI Percent` (absolute contribution to the EPI composite — this is
 # the value `gold_dim_indicator.weight` needs for leaf indicators).
 # # task-056: this file was previously listed as unimplemented in
-# `external_data_automation.md`'s `download_epi_data()` design. Without it,
+# `epi_wgi_ingestion.md`'s `download_epi_data()` design. Without it,
 # `silver-to-gold2.Notebook` fell back to a NULL-weight fallback path that left
 # `gold_dim_indicator.weight` NULL for all 73 rows, which made the `Weighted EPI Score`
 # DAX measure render BLANK.

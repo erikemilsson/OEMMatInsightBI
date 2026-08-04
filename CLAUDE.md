@@ -68,7 +68,7 @@ Located in `docs/`:
 - `data_quality_framework.md` - ISO 25012 quality checks
 - `data_quality_architecture.md` - Quality observability tables
 - `incremental_load_strategy.md` - Delta MERGE patterns
-- `external_data_automation.md` - EPI/WGI automation
+- `epi_wgi_ingestion.md` - EPI/WGI automation
 
 ## Gotchas
 

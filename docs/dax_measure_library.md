@@ -115,7 +115,7 @@ VAR TotalWeights =
 RETURN
     DIVIDE(WeightedScores, TotalWeights, 0)
 ```
-Weighted by `gold_dim_indicator[weight]` (sourced from EPI's `epi2024weights.csv`; see `external_data_automation.md` / the Weighted EPI Score note in the root `CLAUDE.md`). The filter excludes the parent `EPI` row and the `Index`/`Objective` rollups so only `type = "Indicator"` sub-indicators contribute — this is why the measure renders a 0–100 score only after the weights table is loaded (a `NULL` weight collapses it to 0 via the `DIVIDE(..., 0)` fallback).
+Weighted by `gold_dim_indicator[weight]` (sourced from EPI's `epi2024weights.csv`; see `epi_wgi_ingestion.md` / the Weighted EPI Score note in the root `CLAUDE.md`). The filter excludes the parent `EPI` row and the `Index`/`Objective` rollups so only `type = "Indicator"` sub-indicators contribute — this is why the measure renders a 0–100 score only after the weights table is loaded (a `NULL` weight collapses it to 0 via the `DIVIDE(..., 0)` fallback).
 
 ### 2.3 `fact_supply_share` — supply share (1)
 

@@ -111,8 +111,8 @@ Bronze (Raw) ──► Silver (Cleaned) ──► Gold (Analytics)
 ## Related Documentation
 
 - [Data Quality Framework](./data_quality_framework.md) - Quality dimensions and checks
-- [External Data Automation](./external_data_automation.md) - EPI/WGI source details
-- [Business Requirements](./business_requirements.md) - Stakeholder expectations
+- [EPI/WGI Ingestion](./epi_wgi_ingestion.md) - EPI/WGI source details
+- [Business Context](./business_context.md) - Stakeholder expectations and business questions
 
 ---
 

@@ -14,7 +14,6 @@ Welcome! This guide will help you set up your development environment and contri
 ### Recommended Tools
 - **VS Code** with Python and Jupyter extensions
 - **Azure Data Studio** (for SQL development)
-- **Claude Code CLI** (for task management)
 
 ## 🚀 Quick Start
 
@@ -68,15 +67,15 @@ pytest tests/test_key_generation.py -v
 pytest tests/ -k "test_stable_key" -v
 ```
 
-Expected output: **33 tests passing** in ~11 seconds
+Expected output: **235 tests passing** in under a minute
 
 ## 📁 Project Structure
 
 ```
 OEMMatInsightBI/
 ├── .github/workflows/    # CI/CD pipelines
-├── .claude/              # Claude Code task management
-├── docs/                 # Project documentation
+├── .claude/              # Spec, decisions, and agent environment (mostly gitignored)
+├── docs/                 # Project documentation (canonical)
 │   ├── architecture/     # System diagrams
 │   ├── guides/          # User guides
 │   ├── portfolio/       # Portfolio assets
@@ -179,8 +178,6 @@ Common fixtures in `tests/conftest.py`:
 ```bash
 # Run tests by marker
 pytest -m unit
-pytest -m integration
-pytest -m slow
 
 # Run with verbose output
 pytest -v --tb=short
@@ -188,33 +185,6 @@ pytest -v --tb=short
 # Run until first failure
 pytest -x
 ```
-
-## 📊 Task Management
-
-This project uses Claude Code task management:
-
-### View Tasks
-```bash
-# View current status and action items
-cat MISSION_CONTROL.md
-
-# View specific task
-cat .claude/tasks/task-014.json
-```
-
-### Work on a Task
-```bash
-# Use Claude Code CLI
-/complete-task task-014
-
-# Or manually update task status
-# Edit .claude/tasks/task-014.json
-```
-
-### Task Priorities
-- **P1**: Portfolio showcase features
-- **P2**: Technical depth demonstrations
-- **P3**: Infrastructure improvements
 
 ## 🐛 Debugging Tips
 
@@ -283,9 +253,10 @@ Before submitting a PR, ensure:
 ## 📚 Additional Resources
 
 ### Documentation
-- [Project Definition](./project_definition.md) - Complete project specification
-- [Architecture Diagrams](./docs/architecture/) - System design visuals
-- [DAX Measure Guide](./docs/guides/MEASURE_GUIDE.md) - All measures explained
+- [README](./README.md) - Project overview and what it demonstrates
+- [Architecture](./docs/architecture/) - System design docs
+- [DAX Measure Guide](./docs/guides/dax_measure_guide.md) - Measures explained
+- [DAX Measure Library](./docs/dax_measure_library.md) - As-built measure catalogue (45 measures)
 
 ### External Resources
 - [Microsoft Fabric Documentation](https://learn.microsoft.com/fabric/)
