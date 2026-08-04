@@ -38,7 +38,9 @@
     "INHERITED SCOPE (surfaced 2026-07-29): DEC-004 deferred its criterion 5 (failure notification) with \"no on-demand-firing sink exists until task-010 (scheduling) lands ... Revisit at task-010.\" This task's AC4 (\"Notifications working\") is where that deferral comes due. Note notifyOption='MailOnFailure' covers only 1/8 activities after the EPI/WGI repoint — the handler-based signal in gold_pipeline_execution_log is the real failure channel.",
     "DRIFT-RECONCILE 2026-08-02 (/work, [A] Apply): ## Orchestration section_fingerprint 14923ee -> 317baa48; spec_fingerprint b966 -> 3696. Drift source = 2026-07-31 bronze_azureSQLdb2table retirement (5 -> 6 bronze activities; RefreshDataflow -> two Copy activities). Scheduling ACs intact. Non-Finished (On Hold) task: status + criterion-3 verification retained (reset-to-Pending applies only to Finished tasks).",
     "RUNBOOK FOLLOW-UP 2026-08-02: docs/guides/pipeline_schedule.md was updated for the retirement (Copy activities named, 'No RefreshDataflow activities remain') but says 'four Bronze activities' (lines 11,14) while the spec now documents six — minor count staleness in this task's criterion-3 deliverable. FIXED 2026-08-02 (same session): runbook updated to list all six Bronze activities (added bronzecopy_GlobalSupplyShares) and corrected 'four'->'six' on both lines; now matches the spec ## Orchestration activity table.",
-    "PROVENANCE REFRESH 2026-08-03 (/work, Erik-approved): spec_fingerprint 3696c931 -> 0e1cb6c1 (commit 7fc5ff6). Full-spec fingerprint only — section_fingerprint is UNCHANGED because ## Orchestration is byte-identical across that commit. No requirements changed for this task; the refresh exists so Step 1b stops re-running granular analysis that narrows to nothing."
+    "PROVENANCE REFRESH 2026-08-03 (/work, Erik-approved): spec_fingerprint 3696c931 -> 0e1cb6c1 (commit 7fc5ff6). Full-spec fingerprint only — section_fingerprint is UNCHANGED because ## Orchestration is byte-identical across that commit. No requirements changed for this task; the refresh exists so Step 1b stops re-running granular analysis that narrows to nothing.",
+    "PROVENANCE REFRESH 2026-08-04 (/work, Erik-approved 'handle the follow-ups'): spec_fingerprint 0e1cb6c1 -> a85ec535; section_fingerprint 317baa48 -> 87ecb4a6 (## Orchestration). Section change = commit 97dd3d3 (task-051 final-attempt failure semantics: handler re-raises only on final-attempt FAILED; retried-into-success = recovered, not a run failure). Consistent with this task's AC4 notification framing (MailOnFailure + gold_pipeline_execution_log as the genuine-failure channel -- a retried-into-success activity should not trigger failure notifications). ACs intact. Task remains On Hold; only Erik can move it to Pending.",
+    "PROVENANCE REFRESH 2026-08-04 (second hop, same session -- FR-051 spec edit): spec_fingerprint a85ec535 -> 6d611c63. FR-051 reconciliation edited ## Data Transformations (gold_dim_indicator source + parent_indicator attribution), changing the full-spec fingerprint; this task's own section (Orchestration) is byte-identical across that edit, so section_fingerprint remains current. Task status and ACs unchanged."
   ],
   "phase": "3",
   "spec_section": "Orchestration",
@@ -47,7 +49,7 @@
     "docs/guides/pipeline_schedule.md"
   ],
   "created_date": "",
-  "updated_date": "2026-08-03",
+  "updated_date": "2026-08-04",
   "task_verification": {
     "result": "pass",
     "attempt_number": 2,
@@ -122,6 +124,6 @@
   "subtasks": [],
   "progress": "Not started",
   "spec_version": "1",
-  "spec_fingerprint": "sha256:0e1cb6c1bbfcc356721b8b7ad47b1a6083b49882154ca4219a6b88276228498b",
-  "section_fingerprint": "sha256:317baa48f168d3c18e541f60bae2e642f8ebf35f89bf9f26be7c4ec8b285357d"
+  "spec_fingerprint": "sha256:6d611c630bbad0f511430446d96c0db6b1fa80dace66133af7f97966583666f5",
+  "section_fingerprint": "sha256:87ecb4a6283051d67474bac3eef55813998ec140df203ca0e7aaaebba01a142b"
 }

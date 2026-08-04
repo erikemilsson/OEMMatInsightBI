@@ -1,6 +1,6 @@
 {
   "spec_file": "spec_v1.md",
-  "spec_fingerprint": "sha256:a85ec535307845e5576f8bf8da66afae20d3bdd4a2f31ebd363f8ab6e3dabf2c",
+  "spec_fingerprint": "sha256:6d611c630bbad0f511430446d96c0db6b1fa80dace66133af7f97966583666f5",
   "section_count": 18,
   "sections": [
     {
@@ -31,8 +31,8 @@
       "heading": "## Data Transformations",
       "line_start": 338,
       "line_end": 614,
-      "char_count": 14440,
-      "fingerprint": "sha256:cd52ee78fbb79a6881198981728b368767f3de25ff702414fca0d26b7df75102",
+      "char_count": 15263,
+      "fingerprint": "sha256:59ad378dde3b5e991b0ba53549a16f08bdd5704d1d7cca14d17482f49c1fec7a",
       "synopsis": "**Notebook:** `bronze-to-silver.Notebook`"
     },
     {

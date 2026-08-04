@@ -9,7 +9,7 @@
   "phase": "2",
   "phase_name": "Silver / Gold Transformations & Data Quality",
   "spec_section": "Data Quality & Validation",
-  "spec_fingerprint": "sha256:0e1cb6c1bbfcc356721b8b7ad47b1a6083b49882154ca4219a6b88276228498b",
+  "spec_fingerprint": "sha256:6d611c630bbad0f511430446d96c0db6b1fa80dace66133af7f97966583666f5",
   "spec_version": "1",
   "section_fingerprint": "sha256:ab8feb951cd64aefdb8d8ecd1f5c7a4a64a7233e21ccd44a873422cc7735e0da",
   "section_snapshot_ref": "",
@@ -35,11 +35,13 @@
     "DO NOT assume the optimization caused this. task-012_3 changed silver-to-gold (V-Order, broadcast hints, caching) and bronze-to-silver (caching); it did not touch data_quality_checks. A confident-sounding causal story here would be exactly the kind of unfounded attribution the retest write-up deliberately avoided.",
     "URGENCY LINK: task-010 (pipeline scheduling) makes this worse if the hypothesis holds — a daily scheduled run adds history every day, so an unbounded scan degrades without bound.",
     "[PHASE A COMPLETE 2026-08-03 via implement-agent] AC1 static analysis done: exactly ONE unbounded data read of gold_quality_history (validate_historical_trend / Check 12 trend_validation — spark.table filtered by metric_name only, distinct+orderBy+limit(2) bounds output not scan, O(total rows)); plus 2 metadata-only probes (tableExists/.columns) and 2 appends. The \"26 references\" were comment/print mentions, not data scans. Schema finding: gold_quality_history has no run_id, is unpartitioned, run id = refresh_timestamp (two writers stamp separately) -> any AC4 fix must filter on refresh_timestamp. AC2-prep: 5 queries for Erik + 3-test correlation framework (size refutation / per-check exec_ms / growth consistency). Framed as falsifiable hypothesis, NOT a conclusion; live alternative suspect = gold-fact scans task-012_3 modified, if refuted. Full analysis persisted to .claude/support/workspace/task-053_AC1_analysis.md. REMAINING (Erik-gated): AC2 = Erik runs the row-count queries; AC3-5 gated on that data. No files modified in fabric/.",
-    "[VERIFIED 2026-08-03 attempt 1 — PASS (Phase A increment)] AC1 static analysis + AC2-prep independently confirmed. STATUS -> Blocked on Erik's AC2 data: run the row-count queries in .claude/support/workspace/task-053_AC1_analysis.md § AC2-prep (queries #1-#4, plus #5 if baseline date known) against the oem_lh SQL endpoint, then /work re-dispatches Claude for AC3 (conclude) / AC4 (fix if confirmed) / AC5 (write-back to performance_optimized.md). Blocked (not Finished) because ACs 2-5 are incomplete; not In Progress because it is Erik's turn, not Claude's."
+    "[VERIFIED 2026-08-03 attempt 1 — PASS (Phase A increment)] AC1 static analysis + AC2-prep independently confirmed. STATUS -> Blocked on Erik's AC2 data: run the row-count queries in .claude/support/workspace/task-053_AC1_analysis.md § AC2-prep (queries #1-#4, plus #5 if baseline date known) against the oem_lh SQL endpoint, then /work re-dispatches Claude for AC3 (conclude) / AC4 (fix if confirmed) / AC5 (write-back to performance_optimized.md). Blocked (not Finished) because ACs 2-5 are incomplete; not In Progress because it is Erik's turn, not Claude's.",
+    "PROVENANCE REFRESH 2026-08-04 (/work, Erik-approved 'handle the follow-ups'): spec_fingerprint 0e1cb6c1 -> a85ec535. Section 'Data Quality & Validation' section_fingerprint ab8feb95 UNCHANGED (byte-identical across this span, so section-level not touched). Cosmetic refresh: stops Step 1b re-running granular drift analysis that narrows to nothing. Task remains Blocked on Erik's AC2 row-count queries (see .claude/support/workspace/task-053_AC1_analysis.md).",
+    "PROVENANCE REFRESH 2026-08-04 (second hop, same session -- FR-051 spec edit): spec_fingerprint a85ec535 -> 6d611c63. FR-051 reconciliation edited ## Data Transformations (gold_dim_indicator source + parent_indicator attribution), changing the full-spec fingerprint; this task's own section (Data Quality & Validation) is byte-identical across that edit, so section_fingerprint remains current. Task status and ACs unchanged."
   ],
   "user_feedback": "",
   "created_date": "2026-08-03",
-  "updated_date": "2026-08-03",
+  "updated_date": "2026-08-04",
   "completion_date": "2026-08-03",
   "verification_attempts": 0,
   "verification_history": [

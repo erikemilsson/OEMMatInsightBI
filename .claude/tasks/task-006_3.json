@@ -9,9 +9,9 @@
   "parent_task": "task-006",
   "phase": "2",
   "spec_section": "Orchestration",
-  "spec_fingerprint": "sha256:0e1cb6c1bbfcc356721b8b7ad47b1a6083b49882154ca4219a6b88276228498b",
+  "spec_fingerprint": "sha256:6d611c630bbad0f511430446d96c0db6b1fa80dace66133af7f97966583666f5",
   "spec_version": "1",
-  "section_fingerprint": "sha256:317baa48f168d3c18e541f60bae2e642f8ebf35f89bf9f26be7c4ec8b285357d",
+  "section_fingerprint": "sha256:87ecb4a6283051d67474bac3eef55813998ec140df203ca0e7aaaebba01a142b",
   "section_snapshot_ref": "",
   "files_affected": [],
   "acceptanceCriteria": [
@@ -39,10 +39,12 @@
     "RE-FLIP 2026-08-02 (/work, Erik-approved): Pending -> Blocked. Note 38 was correct that all three formal deps are Finished, but it re-armed the FB-100 foot-gun: owner=both + empty files_affected + 'Erik runs the pipeline, Claude reviews results' means Claude cannot act first, yet routing case 10 (pending, owner!=human, deps Finished -> dispatch implement-agent) fires regardless of user_review_pending. The physical-world prereq from notes 34/37 (Erik must run the full+incremental pair in Fabric before Claude has anything to review) still stands. user_review_pending does NOT block case 10 — only Blocked/On Hold does. Handoff 2026-08-02 claimed this was 'held via user_review_pending + cli_direct' but the task file was actually Pending + review_pending=false (the foot-gun, live). Return to Pending when Erik is ready to run the pair.",
     "DRIFT-RECONCILE 2026-08-02 (/work, [A] Apply): ## Orchestration section_fingerprint 14923ee -> 317baa48; spec_fingerprint b966 -> 3696. Drift source = 2026-07-31 bronze_azureSQLdb2table retirement (RefreshDataflow -> two Copy activities; bronze now full load; incrementality in bronze-to-silver 7-day look-back on p_from_date). ACs intact — spec now clarifies what notes 30/35/38 already document re: p_full_load. Non-Finished task: status (Blocked) + verification (absent) unchanged.",
     "AC4 REWRITE 2026-08-02 (Erik-approved, /work task review): the old criterion read 'Performance improvement measured (target: >50% time reduction for incremental)'. That threshold is now unachievable by construction, and would have failed this test for a reason that is not a defect. After task-048 retired bronze_azureSQLdb2table, BRONZE IS ALWAYS A FULL LOAD (two Copy activities); incrementality survives only as the 7-day look-back on p_from_date inside bronze-to-silver. So the incremental saving can only ever accrue to the silver/gold stages, and a >50% reduction on TOTAL pipeline runtime is arithmetically out of reach. Same defect class the /work coherence audit already removed from sibling task-012_5 on 2026-07-29 — an unsourced SLA threshold contradicting spec § Performance Optimization ('Not benchmarked... No production load or SLA requirements'). Criterion is now measure-and-record with a stage breakdown, so the honest result (bronze flat, silver/gold reduced) reads as a finding rather than a failure.",
-    "PROVENANCE REFRESH 2026-08-03 (/work, Erik-approved): spec_fingerprint 3696c931 -> 0e1cb6c1 (commit 7fc5ff6). Full-spec fingerprint only — section_fingerprint is UNCHANGED because ## Orchestration is byte-identical across that commit. No requirements changed for this task; the refresh exists so Step 1b stops re-running granular analysis that narrows to nothing."
+    "PROVENANCE REFRESH 2026-08-03 (/work, Erik-approved): spec_fingerprint 3696c931 -> 0e1cb6c1 (commit 7fc5ff6). Full-spec fingerprint only — section_fingerprint is UNCHANGED because ## Orchestration is byte-identical across that commit. No requirements changed for this task; the refresh exists so Step 1b stops re-running granular analysis that narrows to nothing.",
+    "PROVENANCE REFRESH 2026-08-04 (/work, Erik-approved 'handle the follow-ups'): spec_fingerprint 0e1cb6c1 -> a85ec535; section_fingerprint 317baa48 -> 87ecb4a6 (## Orchestration). Section change = commit 97dd3d3 (task-051 final-attempt failure semantics: handler re-raises only on an activity's final-attempt FAILED; a retried-into-success activity is recovered, not a run failure). ACs unaffected -- this task measures incremental-load dedup + stage-breakdown performance, not failure classification. Task remains Blocked on Erik running the full+incremental pipeline pair in Fabric (empty files_affected, Claude cannot act first).",
+    "PROVENANCE REFRESH 2026-08-04 (second hop, same session -- FR-051 spec edit): spec_fingerprint a85ec535 -> 6d611c63. FR-051 reconciliation edited ## Data Transformations (gold_dim_indicator source + parent_indicator attribution), changing the full-spec fingerprint; this task's own section (Orchestration) is byte-identical across that edit, so section_fingerprint remains current. Task status and ACs unchanged."
   ],
   "created_date": "2026-04-05",
-  "updated_date": "2026-08-03",
+  "updated_date": "2026-08-04",
   "task_verification": {},
   "verification_attempts": 0,
   "verification_history": [],

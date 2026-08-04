@@ -568,9 +568,9 @@ Power BI Reports
         -   `indicator_code` (STRING) - World Bank indicator code
         -   `weight` (FLOAT) - EPI indicator weight
         -   `description` (STRING) - Indicator description
-        -   `parent_indicator` (BIGINT) - Parent indicator key (currently NULL)
+        -   `parent_indicator` (BIGINT) - Parent indicator key, resolved from EPI `NextLevel` via a self-join on the parent indicator's abbreviation (NULL for the EPI composite root and for WB indicators; populated for EPI indicators with a non-empty `NextLevel`). *(Prior "(currently NULL)" wording stale since task-056 shipped the NextLevel self-join.)*
     -   **Source:**
-        -   EPI: `silver_epi2024variables2024-12-11` table
+        -   EPI: `silver_epi{EPI_YEAR}variables` — built by `silver-to-gold2` from bronze EPI weights (Yale `epi2024weights.csv`, ingested by `bronze_ingest_epi`); `NextLevel` is carried through so `parent_indicator` can be resolved. If the silver table is absent, an empty EPI indicator DataFrame is emitted (the gap is visible in `gold_dim_indicator`) — no NULL-weight fallback. *(Prior "`silver_epi2024variables2024-12-11`" wording stale since task-056 built `silver_epi{EPI_YEAR}variables` from bronze weights; the pre-task-056 "no silver_epi2024variables table / weights always NULL" gap is closed.)*
         -   WB: **none currently** — `silver-to-gold2.Notebook:883` builds an *empty* WB-indicator DataFrame for schema compatibility, so no WB-sourced indicator rows exist. WGI reaches gold as country **coverage flags**, not as indicator rows.
 4.  **`gold_dim_material`**
     -   **Surrogate Key:** `material_key` (BIGINT) - xxhash64 of material_name_std
