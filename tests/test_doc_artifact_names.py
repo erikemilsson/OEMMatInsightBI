@@ -12,7 +12,7 @@ Renames (old -> new; new is canonical on disk):
 
 Scope note: this guard only covers surfaces that have NO legitimate historical/example
 occurrence of the old names. It deliberately does NOT cover:
-  - .claude/support/documents/standards/naming_standards.md   (retains one legitimate
+  - docs/standards/naming_standards.md   (retains one legitimate
     `semantic_model_oeminsightbi` naming-convention example)
   - docs/architecture/fabric-artifacts-inventory.md           (L64 "Consider renaming" discussion)
   - fabric/archive/**, .claude/tasks/**, .claude/support/{audits,friction.jsonl,feedback/archive.md}
@@ -48,8 +48,8 @@ CLEAN_SURFACES = (
     "docs/setup/TROUBLESHOOTING.md",
     "docs/architecture/data-flow-diagram.md",
     # Cleaned by FR-003 (2026-07-20) — see module docstring.
-    ".claude/support/documents/error_handling_strategy.md",
-    ".claude/support/documents/incremental_load_strategy.md",
+    "docs/error_handling_strategy.md",
+    "docs/incremental_load_strategy.md",
 )
 
 

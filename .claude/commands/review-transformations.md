@@ -378,6 +378,6 @@ After reviewing transformations:
 
 - `/fabric/bronze-to-silver.Notebook/` - Bronze → Silver
 - `/fabric/silver-to-gold2.Notebook/` - Silver → Gold
-- `/.claude/support/documents/architecture/medallion_architecture.md`
-- `/.claude/support/documents/transformations/` - Transformation documentation
+- `/docs/architecture/medallion_architecture.md`
+- `/docs/transformations/` - Transformation documentation
 - `/.claude/tasks/08_create_unit_tests.md` - Add tests for transformations

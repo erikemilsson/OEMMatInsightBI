@@ -101,6 +101,17 @@ Desktop.ini
 .claude/support/feedback/
 .claude/support/audits/
 
+# Domain docs migrated to docs/ (decision B) — working dir now empty
+.claude/support/documents/
+
+# Reference docs — keep only the 5 project-specific tracked; template-meta untracked
+.claude/support/reference/*
+!.claude/support/reference/task-schema.md
+!.claude/support/reference/decisions.md
+!.claude/support/reference/shared-definitions.md
+!.claude/support/reference/paths.md
+!.claude/support/reference/project-friction-conventions.md
+
 # Spec merge queue (re-entry transport) — DEC-023
 .claude/support/.spec-merge-queue.jsonl
 

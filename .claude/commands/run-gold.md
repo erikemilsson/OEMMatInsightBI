@@ -193,7 +193,7 @@ After gold transformation succeeds:
 ## Related Files
 
 - `/fabric/silver-to-gold2.Notebook/`
-- `/.claude/support/documents/architecture/medallion_architecture.md`
-- `/.claude/support/documents/schemas/gold_tables.md`
-- `/.claude/support/documents/transformations/alias_mappings.md`
+- `/docs/architecture/medallion_architecture.md`
+- `/docs/schemas/gold_tables.md`
+- `/docs/transformations/alias_mappings.md`
 - `/.claude/tasks/01_enhance_data_quality_visibility.md`

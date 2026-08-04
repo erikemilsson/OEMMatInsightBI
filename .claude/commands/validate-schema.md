@@ -13,7 +13,7 @@ This command validates:
 ## Prerequisites
 
 - Tables exist in lakehouse `oem_lh`
-- Reference schemas documented (see `/.claude/support/documents/schemas/`)
+- Reference schemas documented (see `/docs/schemas/`)
 
 ## Quick Schema Validation
 
@@ -379,12 +379,12 @@ for table in tables_to_export:
 - If schemas valid: Proceed with confidence
 - If issues found: Review transformation notebooks
 - If drift detected: Update reference documentation and transformations
-- Document baseline schemas: See `/.claude/support/documents/schemas/`
+- Document baseline schemas: See `/docs/schemas/`
 
 ## Related Files
 
-- `/.claude/support/documents/schemas/bronze_tables.md`
-- `/.claude/support/documents/schemas/silver_tables.md`
-- `/.claude/support/documents/schemas/gold_tables.md`
+- `/docs/schemas/bronze_tables.md`
+- `/docs/schemas/silver_tables.md`
+- `/docs/schemas/gold_tables.md`
 - `/fabric/bronze-to-silver.Notebook/` - Silver transformations
 - `/fabric/silver-to-gold2.Notebook/` - Gold transformations

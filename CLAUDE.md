@@ -57,7 +57,7 @@ OEMMatInsightBI/
 
 ## Domain Knowledge
 
-Located in `.claude/support/documents/`:
+Located in `docs/`:
 - `architecture/` - Medallion layers, semantic model, data sources, orchestration
 - `schemas/` - Bronze and gold table schemas
 - `standards/` - Coding, SQL, naming, git workflow
