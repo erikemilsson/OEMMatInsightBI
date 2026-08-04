@@ -196,4 +196,3 @@ After silver transformation succeeds:
 
 - `/fabric/bronze-to-silver.Notebook/`
 - `/docs/architecture/medallion_architecture.md`
-- `/docs/schemas/silver_tables.md`

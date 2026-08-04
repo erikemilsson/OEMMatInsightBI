@@ -384,7 +384,6 @@ for table in tables_to_export:
 ## Related Files
 
 - `/docs/schemas/bronze_tables.md`
-- `/docs/schemas/silver_tables.md`
 - `/docs/schemas/gold_tables.md`
 - `/fabric/bronze-to-silver.Notebook/` - Silver transformations
 - `/fabric/silver-to-gold2.Notebook/` - Gold transformations
