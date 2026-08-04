@@ -295,6 +295,20 @@ if len(weights_pdf) < 50:
     print(f"  WARNING: Only {len(weights_pdf)} rows — expected ~73. Data may be incomplete.")
 
 weights_spark_df = spark.createDataFrame(weights_pdf)
+
+# Delta Lake rejects column names containing ' ,;{}()\n\t=' unless Column Mapping
+# is enabled on the table. Yale's header "EPI Percent" (space) violates this — the
+# bronze write fails with DELTA_INVALID_CHARACTERS_IN_COLUMN_NAMES at saveAsTable.
+# The other 7 source columns (Type, Abbreviation, Variable, Weight, NextLevel,
+# IssueCategory, PolicyObjective) are Delta-valid (no spaces). Rename only the
+# offender to snake_case; the validation above still gates against Yale's real
+# header (the external contract), and silver-to-gold2 references this renamed
+# column as `epi_percent`. Surfaced by Erik's 2026-08-04 pipeline run — local
+# verification couldn't catch it (Delta writes are the documented local ceiling:
+# delta-spark is not installed, so local tests ran the DataFrame logic in-memory
+# and never invoked a Delta writer).
+weights_spark_df = weights_spark_df.withColumnRenamed("EPI Percent", "epi_percent")
+
 weights_spark_df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(weights_table)
 
 weights_row_count = spark.sql(f"SELECT COUNT(*) as cnt FROM oem_lh.{weights_table}").first()["cnt"]

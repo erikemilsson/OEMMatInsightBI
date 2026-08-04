@@ -1151,16 +1151,18 @@ _epi_weights_src = (
         F.col("IssueCategory").alias("issuecategory"),
         F.col("NextLevel").alias("nextlevel"),
         F.col("Weight").cast(FloatType()).alias("weight_relative"),
-        # `EPI Percent` is the absolute leaf-indicator contribution to the EPI composite.
-        # Source stores it as a STRING ("3.00%"); strip the "%" suffix then cast to float.
-        # Only leaf indicators (Type=Indicator) carry a weight; EPI composite,
-        # PolicyObjective, and IssueCategory rows get NULL explicitly — the real CSV has
-        # non-null EPI Percent on IC rows (BDH=25.00%, etc.), so the NULL must be imposed
-        # by this mapping, not assumed from the source. The measure's `type='Indicator'`
-        # filter (fact_epi_score.tmdl) is the belt; this NULL-IC-weight is the suspenders.
+        # `epi_percent` (renamed from Yale's "EPI Percent" at bronze write for Delta
+        # column-name safety — Delta rejects spaces) is the absolute leaf-indicator
+        # contribution to the EPI composite. Source stores it as a STRING ("3.00%");
+        # strip the "%" suffix then cast to float. Only leaf indicators (Type=Indicator)
+        # carry a weight; EPI composite, PolicyObjective, and IssueCategory rows get
+        # NULL explicitly — the real CSV has non-null epi_percent on IC rows
+        # (BDH=25.00%, etc.), so the NULL must be imposed by this mapping, not assumed
+        # from the source. The measure's `type='Indicator'` filter (fact_epi_score.tmdl)
+        # is the belt; this NULL-IC-weight is the suspenders.
         F.when(
             F.col("Type") == "Indicator",
-            F.regexp_replace(F.col("`EPI Percent`"), "%", "").cast(FloatType())
+            F.regexp_replace(F.col("epi_percent"), "%", "").cast(FloatType())
         ).otherwise(F.lit(None).cast(FloatType())).alias("weight"),
         # Use the human-readable `Variable` name as description (the results-derived
         # fallback previously used abbreviation as name; Variable carries full labels).
