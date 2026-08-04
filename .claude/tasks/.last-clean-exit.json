@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-04T04:26:26Z",
+  "timestamp": "2026-08-04T10:49:32Z",
   "in_progress": [],
-  "trigger": "work_auto_detect_clean_exit"
+  "trigger": "work_pause_clean_exit"
 }
