@@ -884,7 +884,7 @@ The report was redesigned and rebuilt from scratch after the semantic model was 
 
 -   [x] 8 relationships configured (all active, single-direction)
 
--   [x] Connection to Fabric warehouse established
+-   [x] Connection to Fabric lakehouse (`oem_lh`) established
 
 -   [x] 40+ DAX measures (documented in `.claude/support/documents/dax_measure_library.md`)
 
@@ -1178,7 +1178,7 @@ Synthetic dataset — exact counts depend on Azure SQL seed scripts in `/azure/`
 
 **Warehouse Name:** `oem_wh`
 
-**Warehouse ID:** b1cb7506-8d2d-4e4a-97cc-2b580da8eda0 (from expressions.tmdl)
+**Warehouse ID:** b1cb7506-8d2d-4e4a-97cc-2b580da8eda0 (from `fabric/oem_wh.Warehouse/.platform`)
 
 **Purpose:** SQL-queryable analytics layer with business-logic transformations. Combines mirrored gold tables from the Lakehouse with native SQL views and stored procedures.
 
@@ -1188,7 +1188,7 @@ Synthetic dataset — exact counts depend on Azure SQL seed scripts in `/azure/`
 
 -   Schema: dbo (default schema)
 
--   DirectLake queries these tables directly from parquet files
+-   The semantic model does not query this warehouse — its DirectLake mode reads the `oem_lh` lakehouse's Delta/parquet tables directly (see § Semantic Model & Reporting)
 
 **SQL Business Logic Objects (in `oem_wh`):**
 
@@ -1597,7 +1597,7 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
 
 Four tasks remain, all gated on Fabric-UI execution by the project owner. They are not sequential — they collapse into a single Fabric session:
 
-**Prerequisites (must precede the measured runs):** `OPTIMIZE` on gold tables (task-012_3 AC2); deploy `fabric/sql/warehouse_indexes.sql` (task-012_4 AC5). Running the retest before these invalidates the comparison.
+**Prerequisites (must precede the measured runs):** `OPTIMIZE` on gold tables (task-012_3 AC2); ~~deploy `fabric/sql/warehouse_indexes.sql` (task-012_4 AC5)~~ — retired DEC-012 (file is now a finding document, not deployable DDL). Running the retest before OPTIMIZE invalidates the comparison.
 
 1. **task-036** — external-data e2e: satisfied by any complete pipeline run (EPI/WGI ingest identically in both parameter modes).
 2. **task-006_3** — incremental load: one full-load run (`p_full_load=true`, which must log FULL LOAD — the runtime proof for task-039's parameters cell) plus one incremental run, then the duplicate check.

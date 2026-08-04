@@ -1,8 +1,7 @@
 # Row-Level Security (RLS) Strategy - OEMMatInsightBI
 
-**Status:** Design Complete
-**Last Updated:** 2025-11-03
-**Owner:** Claude Code
+**Status:** Design (Unimplemented) — no RLS roles exist in the shipped semantic model (verified against `fabric/OEMInsightBI_v2.SemanticModel/` TMDL, 2026-08-04)
+**Last Updated:** 2026-08-04
 
 ## Executive Summary
 
@@ -857,6 +856,8 @@ RETURN
 
 ## 10. Portfolio Demonstration
 
+> **Note:** RLS is a **design, not a shipped feature** — no roles exist in the semantic model TMDL. The screenshots and talking points below describe what the design *would* produce if implemented (§9 Implementation Checklist, Phases 2–4 remain unchecked); they are not artifacts of the current build. Presenting them as implemented work would misrepresent the project.
+
 ### Screenshots to Capture
 
 **Screenshot 1: Role Management UI**
@@ -879,13 +880,13 @@ RETURN
 ### Talking Points for Portfolio
 
 **Security Design:**
-"Implemented enterprise-grade Row-Level Security with 6 role-based access patterns covering regional and category-based segmentation. Used DAX security filters on dimension tables to efficiently cascade restrictions to fact tables via star schema relationships."
+"Designed (not yet deployed) enterprise-grade Row-Level Security with 6 role-based access patterns covering regional and category-based segmentation. DAX security filters on dimension tables would cascade restrictions to fact tables via star schema relationships."
 
 **Dynamic Security:**
 "Designed dynamic security framework using `USERPRINCIPALNAME()` and security mapping table, enabling centralized role management without creating new Power BI roles for every user. This pattern supports organizational hierarchy and time-based access expiration."
 
 **Testing & Validation:**
-"Comprehensive testing strategy using Power BI's 'View as Role' feature, validating 5+ scenarios including multi-role users and cross-filter testing to ensure no data leakage. Performance benchmarked with <2 second report load times across all roles."
+"Planned testing strategy using Power BI's 'View as Role' feature, validating 5+ scenarios including multi-role users and cross-filter testing to ensure no data leakage."
 
 ---
 
@@ -922,9 +923,8 @@ RETURN
 
 ---
 
-**Document Status:** Design complete and ready for implementation
-**Implementation Effort:** 4 days (setup to final testing)
-**Next Task:** Task 07 (Data Quality Framework Design)
+**Document Status:** Design (Unimplemented) — not built in the shipped semantic model; retained as a portfolio-ready security pattern
+**Implementation Effort:** ~4 days (setup to final testing), if implemented
 
 ---
 
