@@ -224,7 +224,28 @@ def clean_and_rename(df):
 df_cleaned = clean_and_rename(df)
 
 df_multi_casted = df_cleaned.withColumn("code", F.col("code").cast(IntegerType())) # cast code as integer
-df_selected = df_multi_casted.select("code", "iso", "country", "EPI")
+
+# task-054 (FB-001): keep ALL 30+ EPI sub-indicator columns into silver, not just
+# the overall EPI composite. The previous select("code", "iso", "country", "EPI")
+# dropped every sub-indicator right after clean_and_rename (L211-222) had carefully
+# preserved them, so silver-to-gold2's wide→long unpivot had nothing to unpivot and
+# fact_epi_score landed 180 rows of overall-EPI-only against a spec / gold_tables.md
+# / DAX library / live TMDL that ALL specify grain = country × indicator × year.
+#
+# Cast every non-identity column to DOUBLE so silver carries a uniform score type
+# regardless of whether bronze_ingest_epi (pandas→spark, DOUBLE) or the retired
+# EPI_file2table dataflow (text) wrote the bronze row — matches the
+# `overwriteSchema` migration comment in the saveAsTable cell below. `code` is
+# already cast to INTEGER above; iso/country stay STRING. clean_and_rename's
+# .old-drop / .new-strip vintage handling is unchanged — it runs BEFORE this select.
+_id_cols = {"code", "iso", "country"}
+_indicator_cols = [c for c in df_multi_casted.columns if c not in _id_cols]
+df_selected = df_multi_casted.select(
+    "code", "iso", "country",
+    *[F.col(c).cast(DoubleType()).alias(c) for c in _indicator_cols]
+)
+print(f"[epi] silver_epi{p_epi_year}results: {len(_indicator_cols)} "
+      f"indicator columns preserved ({len(_id_cols)} identity cols + {len(_indicator_cols)} scores)")
 display(df_selected)
 
 

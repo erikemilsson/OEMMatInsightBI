@@ -2,18 +2,35 @@ table fact_epi_score
 	lineageTag: 8d0f0830-d118-46d6-9be3-ef290927d429
 	sourceLineageTag: [dbo].[fact_epi_score]
 
-	measure 'Avg EPI Score' = AVERAGE(fact_epi_score[score])
+	measure 'Avg EPI Score' = CALCULATE(AVERAGE(fact_epi_score[score]), gold_dim_indicator[abbrev] = "EPI")
 		lineageTag: d6921160-8e35-4fc6-9d37-257c3e55f2a6
 
 		changedProperty = Name
 
 		annotation PBI_FormatHint = {"isGeneralNumber":true}
 
-	measure 'Countries with EPI Data' = DISTINCTCOUNT(fact_epi_score[country_key])
+	measure 'Countries with EPI Data' = CALCULATE(DISTINCTCOUNT(fact_epi_score[country_key]), gold_dim_indicator[abbrev] = "EPI")
 		formatString: 0
 		lineageTag: ed48c5d2-d338-4916-a358-61d35f2d5f49
 
 		changedProperty = Name
+
+	measure 'Weighted EPI Score' =
+			VAR WeightedScores =
+			    SUMX(
+			        fact_epi_score,
+			        fact_epi_score[score] * RELATED(gold_dim_indicator[weight])
+			    )
+			VAR TotalWeights =
+			    CALCULATE(
+			        SUM(gold_dim_indicator[weight]),
+			        gold_dim_indicator[source_system] = "EPI"
+			    )
+			RETURN
+			    DIVIDE(WeightedScores, TotalWeights, 0)
+		lineageTag: 8fe5ba8b-02a5-41a3-b604-5c3cc91c4171
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
 
 	column country_key
 		dataType: int64
@@ -61,4 +78,3 @@ table fact_epi_score
 		source
 			entityName: fact_epi_score
 			expressionSource: 'DirectLake - oem_lh'
-

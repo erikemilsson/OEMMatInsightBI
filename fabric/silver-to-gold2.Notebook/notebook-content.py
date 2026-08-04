@@ -1388,6 +1388,24 @@ if not metric_cols:
 
 print(f"Processing {len(metric_cols)} EPI indicators")
 
+# task-054 (FB-001): bronze-to-silver now preserves all 30+ EPI sub-indicator columns
+# into silver_epi{year}results (previously it dropped everything except the overall
+# EPI composite, so this unpivot had only one column to work with and fact_epi_score
+# landed 180 rows of overall-EPI-only against a spec / gold_tables.md / DAX library /
+# TMDL that all specify grain = country × indicator × year). With the 30+ columns
+# now reaching silver, this unpivot produces ~180 countries × ~30+ indicators.
+#
+# Overall EPI composite handling (AC2): the `EPI` column — the overall composite
+# score — is INCLUDED as one indicator row (abbrev="EPI") alongside the 30+
+# sub-indicators. It is NOT excluded. This preserves the pre-task-054 per-country
+# overall-EPI row that the live report visuals consume (Avg EPI Score / Countries
+# with EPI Data, both filtered to abbrev="EPI" in the TMDL so the sub-indicator
+# rows do not pollute the per-country average), AND makes the sub-indicators
+# available to the Weighted EPI Score measure. The composite is its own row, not
+# a derived aggregate over the sub-indicators — consistent with how the EPI
+# source ships it (one column among many) and with gold_dim_indicator, which
+# carries the EPI composite as one indicator with its own weight.
+#
 # Pivot to long format
 epi_long = (
     epi_res.select(
