@@ -2,7 +2,7 @@
 version: 1
 status: active
 created: 2025-11-14
-updated: 2026-08-03
+updated: 2026-08-04
 ---
 
 # OEMMatInsightBI - Project Definition for Claude Code
@@ -353,7 +353,7 @@ Power BI Reports
 
 -   Cast `code` column to INTEGER
 
--   Select only: code, iso, country, EPI columns
+-   Select identity columns (code, iso, country) plus all 30+ EPI sub-indicator score columns (AIR, BIO, CLI, ECO, …, and the overall EPI composite), each cast to DOUBLE — preserving the full wide indicator set so silver-to-gold2 can unpivot it into `fact_epi_score` at country × indicator × year grain (task-054)
 
 -   Write to: `silver_epi2024results`
 
