@@ -115,6 +115,21 @@ flowchart LR
 
 ---
 
+## Design context — ISO 25012 dimensions
+
+This shipped architecture implements the six-dimension framework defined in `data_quality_framework.md` (the design-rationale companion). Each touchpoint below maps to one or more ISO 25012 quality dimensions:
+
+| Dimension | What it checks | Where it lives in this pipeline |
+|---|---|---|
+| **Completeness** | Null rate, row-count actual vs expected, field population | [4] Coverage tracking; bronze schema gate in `bronze-to-silver` |
+| **Accuracy** | Range/format validation (e.g. EPI 0–100, ISO3 codes), cross-source agreement | [3] Quality scoring; `data_quality_checks` |
+| **Consistency** | Referential integrity, cross-layer agreement | [1] Join metrics (planned), [2] Orphan-table detection |
+| **Timeliness** | Freshness vs watermark, run cadence | [5] Quality history (`refresh_timestamp`) |
+| **Validity** | Values in allowed sets, alias resolution success | [3] Quality scoring; [3b] Low-confidence audit |
+| **Uniqueness** | Duplicate keys/rows | `data_quality_checks` duplicate checks; `gold_*_audit` unmapped registries |
+
+The framework doc carries the full dimension definitions, acceptance criteria, and scoring weights (0–100, weighted by dimension); this doc covers how those checks are wired into the medallion pipeline and the gold observability tables. See `data_quality_framework.md` for the rationale.
+
 ## Quality Touchpoints
 
 ### [1] Silver Join Metrics
@@ -422,18 +437,13 @@ CREATE TABLE gold_low_confidence_audit (
 ## Related Files
 
 **Existing Implementation:**
-- `/fabric/silver-to-gold2.Notebook` - Quality scoring; creates and populates [2], [3], [3b], [4], [5], [6]
-- `/fabric/data_quality_checks.Notebook` - Per-check results into [5]; owns the blocking gate
-- `/fabric/create_quality_views.sql` - 8 monitoring views
-- `/src/transformations/data_quality.py` - Quality functions (tested mirror of the notebook logic)
+- `fabric/silver-to-gold2.Notebook` - Quality scoring; creates and populates [2], [3], [3b], [4], [5], [6]
+- `fabric/data_quality_checks.Notebook` - Per-check results into [5]; owns the blocking gate
+- `src/transformations/data_quality.py` - Quality functions (tested mirror of the notebook logic)
 
-**Design Documents:**
-- `/.claude/support/documents/data_coverage_flow.md` - Coverage dashboard
-- `/.claude/support/documents/data_quality_framework.md` - Check catalogue, scoring, and the blocking gate
-
-**Tasks:**
-- Task 001 - Enhance Data Quality Visibility
-- Task 017 - Populate Quality History & Gap Registry with Sample Data
+**Design documents:**
+- `data_quality_framework.md` - ISO 25012 dimension definitions, check catalogue, scoring weights (design rationale for this architecture)
+- `data_coverage_flow.md` - Coverage dashboard
 
 ---
 

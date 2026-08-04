@@ -30,7 +30,7 @@ The pipeline accepts three parameters: `p_full_load` (bool, default `false`), `p
 | **Time zone** | Europe/Stockholm (Central European [Summer] Time) |
 | **Schedule type** | Fixed |
 | **Parameters** | Defaults (`p_full_load = false`, incremental load) |
-| **Expected runtime** | 15–30 minutes (typical end-to-end ~15–20 min — see [performance-baselines.md](./performance-baselines.md)) |
+| **Expected runtime** | 15–30 minutes (measured functional total ~16.6 min — see [performance_baseline.md](../performance_baseline.md)) |
 | **Pausable?** | Yes — disable via the Schedule pane toggle for maintenance windows |
 
 ### Why daily at 06:00 Europe/Stockholm?
@@ -181,7 +181,7 @@ Microsoft Learn documentation used to ground the Fabric configuration steps in t
 
 Related project documents:
 
-- [performance-baselines.md](./performance-baselines.md) — pipeline runtime baselines and SLAs.
+- [performance_baseline.md](../performance_baseline.md) — measured pipeline runtimes (3-run baseline).
 - [TROUBLESHOOTING.md](../setup/TROUBLESHOOTING.md) — common pipeline issues.
 
 ---

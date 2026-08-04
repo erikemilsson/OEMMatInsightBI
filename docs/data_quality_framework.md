@@ -1,12 +1,11 @@
 # Data Quality Framework - OEMMatInsightBI
 
-**Status:** Design Complete
-**Last Updated:** 2025-11-03
-**Owner:** Claude Code
+**Role:** Design rationale (ISO 25012 dimensions, check catalogue, scoring weights) for the shipped DQ architecture.
+**As-built companion:** `data_quality_architecture.md` — that doc covers how these checks are wired into the medallion pipeline and the gold observability tables (`gold_quality_history`, `gold_gap_registry`, `gold_low_confidence_audit`, `gold_data_gaps`).
 
 ## Executive Summary
 
-This document defines the comprehensive Data Quality (DQ) framework for the OEMMatInsightBI data pipeline. Currently, quality checks exist only at the gold layer (alias matching, confidence scoring). This design implements a multi-layer quality framework covering bronze, silver, and gold layers with automated validation, scoring, monitoring, and alerting.
+This document defines the Data Quality (DQ) framework for the OEMMatInsightBI data pipeline: a multi-layer quality framework covering bronze, silver, and gold layers with automated validation, scoring, monitoring, and alerting. The framework is implemented — see `data_quality_architecture.md` for the touchpoints, the blocking gate, and the observability tables that surface these metrics to the report.
 
 **Key Decisions:**
 - ✅ **Layered Quality Checks:** Bronze (schema, completeness), Silver (referential integrity, business rules), Gold (aggregate reconciliation)

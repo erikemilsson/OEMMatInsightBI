@@ -10,17 +10,22 @@
 
 ### Retry Configuration
 
+All 10 pipeline activities, as configured in `pipeline-content.json` (`policy.retry` / `policy.retryIntervalInSeconds`):
+
 | Activity | Retries | Interval | Total Wait |
 |----------|---------|----------|------------|
 | bronzecopy_procurement_transactional | 3 | 5 min | 15 min |
 | bronzecopy_supplier_ref | 3 | 5 min | 15 min |
 | bronzecopy_EUSupplyShares | 3 | 5 min | 15 min |
-| bronze_WGI | 2 | 3 min | 6 min |
-| bronze_EPI | 2 | 3 min | 6 min |
+| bronzecopy_GlobalSupplyShares | 3 | 5 min | 15 min |
+| bronze_EPI | 2 | 30 s | 1 min |
+| bronze_WGI | 2 | 30 s | 1 min |
 | bronze-to-silver data cleaning | 2 | 2 min | 4 min |
 | silver-to-gold | 2 | 2 min | 4 min |
+| data_quality_checks | 1 | 2 min | 2 min |
+| pipeline_error_handler | 0 | — | none (runs on every outcome, never retried) |
 
-**Rationale:** Bronze ingestion activities (especially procurement and EU supply) have higher retry counts because they depend on external sources prone to transient outages. Transformation notebooks get fewer retries since Spark failures are typically not resolved by retrying alone.
+**Rationale:** Bronze ingestion activities (procurement, EU and global supply) have the highest retry counts because they depend on external sources prone to transient outages. EPI/WGI notebooks retry quickly (30 s) — the source APIs either respond fast or fail fast. Transformation notebooks get fewer retries since Spark failures are typically not resolved by retrying alone. `pipeline_error_handler` is the terminal observer — it runs on every pipeline outcome (success or failure) to record the run and must not itself retry, or duplicate run-records would be written. `data_quality_checks` retries once: a second transient failure usually means a real data problem, not a flake.
 
 ---
 

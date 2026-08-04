@@ -126,12 +126,7 @@ OEM manufacturers need visibility into their supply chain's environmental and go
 
 ## Glossary
 
-- **OEM:** Original Equipment Manufacturer
-- **EPI:** Environmental Performance Index (Yale University)
-- **WGI:** World Governance Indicators (World Bank)
-- **ESG:** Environmental, Social, and Governance
-- **CRM:** Critical Raw Materials (EU classification)
-- **Supply Concentration:** % of global supply from single country/source
+Domain and technical terms are defined once in [glossary.md](glossary.md) (OEM, EPI, WGI, ESG, CRM, supply concentration risk, and the medallion / star-schema / DQ vocabulary). Formulas live in [calculations.md](calculations.md).
 
 ## References
 
