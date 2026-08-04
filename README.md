@@ -29,9 +29,9 @@ fabric/                 # All Fabric artifacts
 │   └── oem_wh.sqlproj                   # Microsoft.Build.Sql project
 ├── orchestrator_pipeline_bronze_to_gold.DataPipeline  # Main orchestration
 │                                        # Azure SQL ingestion is Copy activities in
-│                                        # the pipeline (task-048 retired the dataflow)
+│                                        # the pipeline
 ├── *_file2table.Dataflow                # Legacy file ingestion — superseded by
-│                                        # notebooks (task-035); items still exist
+│                                        # notebooks; items still exist
 ├── bronze-to-silver.Notebook            # Bronze → Silver transformation
 ├── silver-to-gold2.Notebook             # Silver → Gold transformation
 ├── OEMInsightBI_v2.SemanticModel
@@ -163,14 +163,13 @@ pytest tests/ --cov=src --cov-report=html # With coverage report
 This project uses GitHub Actions for continuous integration and quality assurance:
 
 **Automated Checks:**
-- ✅ **Unit Tests:** 33 tests run on Python 3.10, 3.11, and 3.12 (matrix testing)
+- ✅ **Unit Tests:** 235 tests run on Python 3.10, 3.11, and 3.12 (matrix testing)
 - ✅ **Code Quality:** Black formatting, Flake8 linting, Pylint analysis
 - ✅ **Fabric Validation:** JSON schema validation for all pipeline configurations
 - ✅ **Documentation:** Link checking and statistics tracking
 
 **Test Results:**
-- Current Status: **33 tests passing** (100% success rate)
-- Execution Time: ~11 seconds
+- Current Status: **235 tests passing** (100% success rate)
 - Coverage: Core transformation modules (`src/transformations/`)
 
 View test results and reports in the [Actions tab](https://github.com/erikemilsson/OEMMatInsightBI/actions).

@@ -15,7 +15,6 @@ occurrence of the old names. It deliberately does NOT cover:
   - .claude/support/documents/standards/naming_standards.md   (retains one legitimate
     `semantic_model_oeminsightbi` naming-convention example)
   - docs/architecture/fabric-artifacts-inventory.md           (L64 "Consider renaming" discussion)
-  - project_definition.md                                     (L1031 naming-convention example)
   - fabric/archive/**, .claude/tasks/**, .claude/support/{audits,friction.jsonl,feedback/archive.md}
 Adding a broad allowlist for those would make the guard fragile; keeping it to clean
 surfaces keeps it robust.

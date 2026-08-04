@@ -106,8 +106,15 @@ Applied in `fact_procurement.quantity_base` calculation.
 
 ### Formula
 ```
-spend_eur = quantity_base (kg) × unitprice_eur (EUR/kg)
+spend_eur = quantity_original × unitprice_eur      (per_row_unit basis)
 ```
+
+Spend is the plain line total and is **deliberately independent of `quantity_base`.**
+A non-mass unit like `pcs` has `quantity_base = NULL` (no kg equivalent) but a
+perfectly real `spend_eur`. The earlier `per_kg` form
+`spend_eur = quantity_base × unitprice_eur` tied the two together and collapsed
+every `pcs` row's spend to NULL. For a `kg` row, `quantity_original == quantity_base`,
+so the two forms agree there. See `calculations.md` (authoritative formulas).
 
 ### Business Rules
 - Spend is always in EUR (no currency conversion in current implementation)

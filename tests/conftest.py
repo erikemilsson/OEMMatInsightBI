@@ -7,7 +7,7 @@ including SparkSession setup and sample data generators.
 
 import pytest
 from pyspark.sql import SparkSession
-from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType, DateType
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, DateType
 from datetime import date
 
 
@@ -120,73 +120,3 @@ def sample_material_data(spark):
     ]
 
     return spark.createDataFrame(data, schema)
-
-
-@pytest.fixture
-def sample_epi_scores(spark):
-    """
-    Create sample EPI (Environmental Performance Index) scores for testing.
-
-    Returns:
-        DataFrame with columns: country_key, indicator_key, year, score
-    """
-    schema = StructType([
-        StructField("country_key", IntegerType(), False),
-        StructField("indicator_key", IntegerType(), False),
-        StructField("year", IntegerType(), False),
-        StructField("score", DoubleType(), False)
-    ])
-
-    data = [
-        (1, 1, 2024, 85.5),
-        (1, 2, 2024, 72.3),
-        (2, 1, 2024, 45.2),
-        (2, 2, 2024, 38.9),
-        (3, 1, 2024, 90.1)
-    ]
-
-    return spark.createDataFrame(data, schema)
-
-
-@pytest.fixture
-def sample_country_aliases(spark):
-    """
-    Create sample country alias lookup data for testing.
-
-    Returns:
-        DataFrame with columns: alias, country_name_std, iso3, confidence
-    """
-    schema = StructType([
-        StructField("alias", StringType(), False),
-        StructField("country_name_std", StringType(), False),
-        StructField("iso3", StringType(), False),
-        StructField("confidence", DoubleType(), False)
-    ])
-
-    data = [
-        ("USA", "United States", "USA", 1.0),
-        ("United States", "United States", "USA", 1.0),
-        ("United States of America", "United States", "USA", 1.0),
-        ("US", "United States", "USA", 0.95),
-        ("China", "China", "CHN", 1.0),
-        ("People's Republic of China", "China", "CHN", 0.95),
-        ("PRC", "China", "CHN", 0.85)
-    ]
-
-    return spark.createDataFrame(data, schema)
-
-
-@pytest.fixture
-def empty_dataframe(spark):
-    """
-    Create an empty DataFrame for testing edge cases.
-
-    Returns:
-        Empty DataFrame with string columns: col1, col2
-    """
-    schema = StructType([
-        StructField("col1", StringType(), True),
-        StructField("col2", StringType(), True)
-    ])
-
-    return spark.createDataFrame([], schema)

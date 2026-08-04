@@ -24,7 +24,7 @@ from src.transformations.data_quality import (
     count_incomplete_rows,
     find_unreachable_initcap_keys,
 )
-from tests.test_key_generation import load_notebook_functions
+from tests._notebook_loader import load_notebook_functions, GOLD_NOTEBOOK
 
 
 class TestCheckUnmapped:
@@ -592,6 +592,7 @@ class TestNotebookParity:
     def test_check_unmapped_count_parity_with_notebook(self, spark):
         """src.check_unmapped returns the same count as the notebook's version."""
         nb = load_notebook_functions(
+            GOLD_NOTEBOOK,
             ["check_unmapped"],
             extra_globals={"LOG_UNMAPPED": False, "FAIL_ON_UNMAPPED": False},
         )
@@ -615,6 +616,7 @@ class TestNotebookParity:
     def test_check_unmapped_zero_parity_with_notebook(self, spark):
         """Both versions agree when nothing is unmapped."""
         nb = load_notebook_functions(
+            GOLD_NOTEBOOK,
             ["check_unmapped"],
             extra_globals={"LOG_UNMAPPED": False, "FAIL_ON_UNMAPPED": False},
         )

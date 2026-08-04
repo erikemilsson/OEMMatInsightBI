@@ -32,7 +32,7 @@ from src.transformations.supply_risk import (
     supply_risk_contribution,
     compute_gold_supply_risk,
 )
-from tests.test_key_generation import load_notebook_functions
+from tests._notebook_loader import load_notebook_functions, GOLD_NOTEBOOK
 
 # The notebook FunctionDefs under parity, in dependency order (compute_wgi_weight
 # calls wgi_weight_expr; compute_gold_supply_risk calls supply_risk_contribution).
@@ -449,7 +449,7 @@ class TestNotebookParity:
 
     @staticmethod
     def notebook():
-        return load_notebook_functions(NOTEBOOK_FUNCTIONS)
+        return load_notebook_functions(GOLD_NOTEBOOK, NOTEBOOK_FUNCTIONS)
 
     @pytest.mark.unit
     def test_notebook_defines_all_six_functions(self):
@@ -1046,7 +1046,7 @@ class TestSupplyRiskNotebookParity:
 
     @staticmethod
     def notebook():
-        return load_notebook_functions(NOTEBOOK_FUNCTIONS)
+        return load_notebook_functions(GOLD_NOTEBOOK, NOTEBOOK_FUNCTIONS)
 
     @pytest.mark.unit
     def test_supply_risk_contribution_parity(self, spark):

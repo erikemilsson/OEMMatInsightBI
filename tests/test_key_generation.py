@@ -9,11 +9,7 @@ declared in src/transformations/key_generation.py: the Fabric notebooks duplicat
 this logic inline, so the two must be proven identical rather than assumed so.
 """
 
-import ast
-from pathlib import Path
-
 import pytest
-from pyspark.sql import functions as F
 from pyspark.sql.types import StructType, StructField, StringType, DateType, IntegerType
 from datetime import date
 
@@ -23,59 +19,7 @@ from src.transformations.key_generation import (
     generate_material_key,
     generate_date_key
 )
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-GOLD_NOTEBOOK = REPO_ROOT / "fabric" / "silver-to-gold2.Notebook" / "notebook-content.py"
-
-
-def load_notebook_functions(names, extra_globals=None):
-    """
-    Extract named top-level functions from a Fabric notebook's source, without
-    executing the notebook.
-
-    The notebook file is valid Python (markdown cells are comments), so it can be
-    parsed with `ast` and only the requested FunctionDef nodes compiled. That
-    keeps the parity check bound to the *live* notebook text — if someone edits
-    the notebook's key logic, these tests fail on the next run, which is the
-    whole point of the reference-implementation contract.
-
-    Args:
-        names: Function names to extract, in dependency order (a function that
-            calls another must come after it).
-        extra_globals: Optional module-level names the extracted function reads
-            from the notebook's global scope (e.g. the LOG_UNMAPPED /
-            FAIL_ON_UNMAPPED config flags), since only the FunctionDefs are
-            compiled.
-
-    Returns:
-        dict[str, callable]: the extracted functions, sharing one namespace so
-        inter-function calls resolve to the notebook's own definitions.
-    """
-    assert GOLD_NOTEBOOK.exists(), f"Notebook not found: {GOLD_NOTEBOOK}"
-
-    tree = ast.parse(GOLD_NOTEBOOK.read_text(encoding="utf-8"), filename=str(GOLD_NOTEBOOK))
-    found = {
-        node.name: node
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef) and node.name in set(names)
-    }
-
-    missing = [n for n in names if n not in found]
-    assert not missing, (
-        f"Notebook no longer defines {missing} at top level — the parity harness "
-        f"cannot verify src/ against production. Update the harness (or restore "
-        f"the notebook definitions) rather than deleting this test."
-    )
-
-    module = ast.Module(body=[found[n] for n in names], type_ignores=[])
-    ast.fix_missing_locations(module)
-
-    namespace = {"F": F}
-    if extra_globals:
-        namespace.update(extra_globals)
-    exec(compile(module, str(GOLD_NOTEBOOK), "exec"), namespace)  # noqa: S102
-
-    return {n: namespace[n] for n in names}
+from tests._notebook_loader import load_notebook_functions, GOLD_NOTEBOOK
 
 
 def country_fixture(spark):
@@ -386,7 +330,7 @@ class TestNotebookParity:
     @pytest.mark.unit
     def test_stable_key_parity_with_notebook(self, spark):
         """src.stable_key matches the notebook's inline stable_key."""
-        nb = load_notebook_functions(["stable_key"])
+        nb = load_notebook_functions(GOLD_NOTEBOOK, ["stable_key"])
         nb_stable_key = nb["stable_key"]
 
         df = country_fixture(spark)
@@ -411,7 +355,7 @@ class TestNotebookParity:
         This is the test that would have caught the original defect: src hashed
         iso3 AND name together while production hashed iso3 alone.
         """
-        nb = load_notebook_functions(["stable_key", "generate_country_key"])
+        nb = load_notebook_functions(GOLD_NOTEBOOK, ["stable_key", "generate_country_key"])
         nb_country_key = nb["generate_country_key"]
 
         df = country_fixture(spark)

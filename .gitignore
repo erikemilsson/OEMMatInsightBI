@@ -94,3 +94,19 @@ Desktop.ini
 spark-warehouse/
 derby.log
 metastore_db/
+
+# ===================================
+# IDE & editor workspaces
+# ===================================
+*.code-workspace
+
+# ===================================
+# Notebook snapshots & scratch output
+# ===================================
+nb-*.png
+nb-*-snapshot.md
+
+# ===================================
+# Playwright MCP scratch
+# ===================================
+.playwright-mcp/

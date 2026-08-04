@@ -16,10 +16,9 @@ Covers three layers:
 
 import ast
 from datetime import date, datetime
-from pathlib import Path
 
 import pytest
-from pyspark.sql import SparkSession, functions as F
+from pyspark.sql import SparkSession
 from pyspark.sql.types import (
     StructType, StructField, StringType, DateType, TimestampType, LongType,
 )
@@ -32,44 +31,7 @@ from src.transformations.watermark import (
     metadata_row,
     get_last_load_date,
 )
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-BRONZE_NOTEBOOK = REPO_ROOT / "fabric" / "bronze-to-silver.Notebook" / "notebook-content.py"
-GOLD_NOTEBOOK = REPO_ROOT / "fabric" / "silver-to-gold2.Notebook" / "notebook-content.py"
-
-
-# ---------------------------------------------------------------------------
-# Notebook-function extractor — mirrors tests/test_key_generation.py
-# ---------------------------------------------------------------------------
-
-def _load_notebook_functions(notebook_path, names, extra_globals=None):
-    """Extract named top-level functions from a Fabric notebook's source.
-
-    Same approach as test_key_generation.load_notebook_functions: parse the
-    notebook as Python (markdown cells are `# MARKDOWN` comments), compile only
-    the requested FunctionDefs, and return them in a shared namespace so
-    inter-function calls resolve to the notebook's own definitions.
-    """
-    assert notebook_path.exists(), f"Notebook not found: {notebook_path}"
-    tree = ast.parse(notebook_path.read_text(encoding="utf-8"), filename=str(notebook_path))
-    found = {
-        node.name: node
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef) and node.name in set(names)
-    }
-    missing = [n for n in names if n not in found]
-    assert not missing, (
-        f"Notebook {notebook_path.name} no longer defines {missing} at top level — "
-        f"the parity harness cannot verify src/ against production. Update the "
-        f"harness (or restore the notebook definitions) rather than deleting this test."
-    )
-    module = ast.Module(body=[found[n] for n in names], type_ignores=[])
-    ast.fix_missing_locations(module)
-    namespace = {"F": F}
-    if extra_globals:
-        namespace.update(extra_globals)
-    exec(compile(module, str(notebook_path), "exec"), namespace)  # noqa: S102
-    return {n: namespace[n] for n in names}
+from tests._notebook_loader import load_notebook_functions, BRONZE_NOTEBOOK, GOLD_NOTEBOOK
 
 
 def _metadata_fixture(spark, rows):
@@ -285,7 +247,7 @@ class TestNotebookParity:
 
     @pytest.mark.unit
     def test_resolve_effective_watermark_parity_bronze(self):
-        nb = _load_notebook_functions(BRONZE_NOTEBOOK, ["resolve_effective_watermark"],
+        nb = load_notebook_functions(BRONZE_NOTEBOOK, ["resolve_effective_watermark"],
                                        extra_globals={"DEFAULT_WATERMARK": DEFAULT_WATERMARK})
         cases = [
             ("true", "2024-06-01", date(2024, 5, 1)),
@@ -305,7 +267,7 @@ class TestNotebookParity:
 
     @pytest.mark.unit
     def test_resolve_effective_watermark_parity_gold(self):
-        nb = _load_notebook_functions(GOLD_NOTEBOOK, ["resolve_effective_watermark"],
+        nb = load_notebook_functions(GOLD_NOTEBOOK, ["resolve_effective_watermark"],
                                        extra_globals={"DEFAULT_WATERMARK": DEFAULT_WATERMARK})
         cases = [
             ("true", "2024-06-01", date(2024, 5, 1)),
@@ -320,7 +282,7 @@ class TestNotebookParity:
 
     @pytest.mark.unit
     def test_metadata_row_parity_bronze(self):
-        nb = _load_notebook_functions(BRONZE_NOTEBOOK, ["metadata_row"],
+        nb = load_notebook_functions(BRONZE_NOTEBOOK, ["metadata_row"],
                                        extra_globals={"datetime": datetime})
         now = datetime(2026, 7, 28, 12, 0, 0)
         assert (nb["metadata_row"]("t", date(2024, 6, 1), 100, "SUCCESS",
@@ -334,7 +296,7 @@ class TestNotebookParity:
 
     @pytest.mark.unit
     def test_metadata_row_parity_gold(self):
-        nb = _load_notebook_functions(GOLD_NOTEBOOK, ["metadata_row"],
+        nb = load_notebook_functions(GOLD_NOTEBOOK, ["metadata_row"],
                                        extra_globals={"datetime": datetime})
         now = datetime(2026, 7, 28, 12, 0, 0)
         assert (nb["metadata_row"]("t", date(2024, 6, 1), 100, "SUCCESS",
@@ -344,7 +306,7 @@ class TestNotebookParity:
 
     @pytest.mark.unit
     def test_get_last_load_date_parity_bronze(self, spark):
-        nb = _load_notebook_functions(BRONZE_NOTEBOOK, ["get_last_load_date"],
+        nb = load_notebook_functions(BRONZE_NOTEBOOK, ["get_last_load_date"],
                                        extra_globals={"datetime": datetime})
         rows = [
             metadata_row(DEFAULT_SOURCE_TABLE, date(2024, 6, 1), 100, "SUCCESS",
@@ -362,7 +324,7 @@ class TestNotebookParity:
 
     @pytest.mark.unit
     def test_get_last_load_date_parity_gold(self, spark):
-        nb = _load_notebook_functions(GOLD_NOTEBOOK, ["get_last_load_date"],
+        nb = load_notebook_functions(GOLD_NOTEBOOK, ["get_last_load_date"],
                                        extra_globals={"datetime": datetime})
         rows = [
             metadata_row(DEFAULT_SOURCE_TABLE, date(2024, 6, 1), 100, "SUCCESS",

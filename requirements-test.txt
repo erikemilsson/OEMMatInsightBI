@@ -3,24 +3,15 @@
 
 # Core Testing Framework
 pytest>=8.0.0
-pytest-cov>=4.1.0
-pytest-xdist>=3.5.0  # Parallel test execution
 
-# PySpark (match Fabric runtime version — Fabric uses 3.x, PySpark 4.x requires Java 17+)
-pyspark>=3.4.0,<4.0.0
+# PySpark — match the local verification runtime (pyspark 4.0.1 + JDK 17, see root
+# CLAUDE.md "Gotchas"). CI sets up Java 17 too, so CI and local run the SAME major,
+# keeping cast/ANSI semantics aligned (spark.sql.ansi.enabled=false everywhere).
+pyspark>=4.0.0,<5.0.0
 
-# Code Quality
-# pytest-flake8 removed: registers pytest_collect_file hook incompatible with modern pytest 8.x
-# (PluginValidationError at collection). flake8 runs as a standalone lint step in test.yml instead.
-pytest-mypy>=0.10.3
+# HTML test reports — used by the CI `--html` step in .github/workflows/test.yml
+pytest-html>=4.1.0
 
-# Test Utilities
-pytest-mock>=3.12.0
-pytest-timeout>=2.2.0
-pytest-html>=4.1.0  # HTML test reports
-
-# Coverage Reporting
-coverage[toml]>=7.4.0
-
-# Optional: Pretty test output
-pytest-sugar>=1.0.0
+# NOTE: black / flake8 / pylint are installed separately in the code-quality job
+# (test.yml), not from this file. Coverage, xdist, mock, timeout, sugar, and mypy
+# plugins are intentionally absent — none are wired into the CI invocation.

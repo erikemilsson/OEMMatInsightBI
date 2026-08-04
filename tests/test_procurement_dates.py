@@ -34,7 +34,6 @@ Also covered:
 
 import ast
 from datetime import date
-from pathlib import Path
 
 import pytest
 from pyspark.sql import functions as F
@@ -47,48 +46,11 @@ from src.transformations.procurement_dates import (
     PROCUREMENT_DATE_COLUMN,
     correct_procurement_date,
 )
+from tests._notebook_loader import load_notebook_functions, BRONZE_NOTEBOOK
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-BRONZE_NOTEBOOK = REPO_ROOT / "fabric" / "bronze-to-silver.Notebook" / "notebook-content.py"
-
-
-# ---------------------------------------------------------------------------
-# Notebook-function extractor — mirrors tests/test_key_generation.py
-# ---------------------------------------------------------------------------
-
-def load_notebook_functions(names, extra_globals=None):
-    """Extract named top-level functions from the bronze notebook's source.
-
-    The notebook file is valid Python (markdown cells are comments), so it can be
-    parsed with `ast` and only the requested FunctionDef nodes compiled. That keeps
-    the parity check bound to the *live* notebook text.
-    """
-    assert BRONZE_NOTEBOOK.exists(), f"Notebook not found: {BRONZE_NOTEBOOK}"
-
-    tree = ast.parse(BRONZE_NOTEBOOK.read_text(encoding="utf-8"),
-                     filename=str(BRONZE_NOTEBOOK))
-    found = {
-        node.name: node
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef) and node.name in set(names)
-    }
-
-    missing = [n for n in names if n not in found]
-    assert not missing, (
-        f"Notebook no longer defines {missing} at top level — the parity harness "
-        f"cannot verify src/ against production. Update the harness (or restore "
-        f"the notebook definitions) rather than deleting this test."
-    )
-
-    module = ast.Module(body=[found[n] for n in names], type_ignores=[])
-    ast.fix_missing_locations(module)
-
-    namespace = {"F": F, "DATE_SWAP_EPOCH": DATE_SWAP_EPOCH}
-    if extra_globals:
-        namespace.update(extra_globals)
-    exec(compile(module, str(BRONZE_NOTEBOOK), "exec"), namespace)  # noqa: S102
-
-    return {n: namespace[n] for n in names}
+# correct_procurement_date reads the notebook-global DATE_SWAP_EPOCH; only the
+# FunctionDef is compiled by the harness, so it must be injected per call.
+_EPOCH_GLOBALS = {"DATE_SWAP_EPOCH": DATE_SWAP_EPOCH}
 
 
 # ---------------------------------------------------------------------------
@@ -410,20 +372,26 @@ class TestNotebookParity:
 
     @pytest.mark.unit
     def test_parity_on_valid_dates(self, spark, raw_bronze_df):
-        nb = load_notebook_functions(["correct_procurement_date"])
+        nb = load_notebook_functions(
+            BRONZE_NOTEBOOK, ["correct_procurement_date"], extra_globals=_EPOCH_GLOBALS,
+        )
         assert _dates(nb["correct_procurement_date"](raw_bronze_df)) == \
                _dates(correct_procurement_date(raw_bronze_df))
 
     @pytest.mark.unit
     def test_parity_on_invalid_and_null_dates(self, spark):
-        nb = load_notebook_functions(["correct_procurement_date"])
+        nb = load_notebook_functions(
+            BRONZE_NOTEBOOK, ["correct_procurement_date"], extra_globals=_EPOCH_GLOBALS,
+        )
         raws = [c[0] for c in INVALID_RAW_CASES] + [None, date(2015, 1, 24)]
         df = spark.createDataFrame(_bronze_rows(raws), schema=BRONZE_SCHEMA_DATE)
         assert _dates(nb["correct_procurement_date"](df)) == _dates(correct_procurement_date(df))
 
     @pytest.mark.unit
     def test_parity_on_string_typed_dates(self, spark):
-        nb = load_notebook_functions(["correct_procurement_date"])
+        nb = load_notebook_functions(
+            BRONZE_NOTEBOOK, ["correct_procurement_date"], extra_globals=_EPOCH_GLOBALS,
+        )
         raws = [c[0].isoformat() for c in VALID_RAW_CASES]
         df = spark.createDataFrame(_bronze_rows(raws), schema=BRONZE_SCHEMA_STRING_DATE)
         assert _dates(nb["correct_procurement_date"](df)) == _dates(correct_procurement_date(df))
