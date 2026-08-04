@@ -1,7 +1,7 @@
 # Incremental Load Strategy - OEMMatInsightBI
 
 **Status:** Implemented — silver/gold load mechanics shipped (task-024); high-water-mark tracking (§ 4-5) shipped (task-029). Dataflow-side pushdown deferred (criterion 6, § 5).
-**Last Updated:** 2026-07-28 (task-029: § 4-5 rewritten to match the shipped watermark system — `bronze_load_metadata` + `get_last_load_date` + `update_load_metadata` + auto-retrieve sentinel + gold coordination via `exclude_execution_id`)
+**Last Updated:** 2026-08-04 (task-006_3: § 6 actual full-vs-incremental timings measured and recorded; corrected-date-space `p_from_date` gotcha documented). Previously 2026-07-28 (task-029: § 4-5 rewritten to match the shipped watermark system — `bronze_load_metadata` + `get_last_load_date` + `update_load_metadata` + auto-retrieve sentinel + gold coordination via `exclude_execution_id`)
 **Owner:** Claude Code
 
 ## Executive Summary
@@ -20,7 +20,9 @@ This document defines the incremental load strategy for the OEMMatInsightBI data
 - ✅ **High-Water Mark:** Metadata table tracks last successful load dates
 
 **Expected Benefits:**
-- **Performance:** 70-90% reduction in load time for incremental runs
+- **Performance:** 70-90% reduction in load time for incremental runs *(projected; the
+  measured 2026-08-04 result is more modest — −9% total, concentrated in silver, gold
+  full-scope-bound — see § 6)*
 - **Scalability:** Handles growing data volume without linear time increase
 - **Freshness:** Daily incremental loads vs weekly full refreshes
 - **Cost:** Reduced compute resource consumption
@@ -60,7 +62,8 @@ This document defines the incremental load strategy for the OEMMatInsightBI data
 - **🔁 Full Refresh (14 tables):** Reference data, external data, small dimensions
 - **⚠️ SCD Type 1 rows are design-only.** `gold_dim_country` and `gold_dim_material` are
   written today by `write_tbl()` — a plain overwrite. No SCD merge is implemented.
-- **Expected Time Savings:** Incremental run ~5 min vs Full load ~30 min (83% faster).
+- **Expected Time Savings:** Incremental run ~5 min vs Full load ~30 min (83% faster)
+  *(projection; measured 2026-08-04 is −9% total — see § 6 for why the saving is modest)*.
   **Now realisable:** with high-water-mark tracking (§ 4, task-029 shipped), a second
   consecutive incremental run auto-retrieves the last SUCCESS watermark and reads only the
   7-day look-back window — the silver/gold delete-insert becomes truly incremental rather
@@ -812,20 +815,61 @@ effective_from_date = resolve_effective_watermark(p_full_load, p_from_date, _las
 | **Gold Merge** | 240 sec | 15 sec | 94% |
 | **Total Pipeline** | **540 sec (9 min)** | **30 sec** | **94%** |
 
-**Actual Performance (Measure After Implementation):**
-```python
-# Add timing to notebook
-import time
+**Actual Performance — measured 2026-08-04 (task-006_3, full vs incremental run)**
 
-start_time = time.time()
-incremental_load_silver_procurement(p_full_load, p_from_date)
-elapsed_time = time.time() - start_time
+The projected table above assumed 100k rows/year (≈275/day) and a 500k-row history. The
+demo dataset is far smaller — **132 procurement rows** spanning 2024-02-28 → 2024-12-31
+(corrected-date space; see "p_from_date is in corrected-date space" below). Measured
+full-vs-incremental stage wall-clock (parallel bronze = slowest activity; one full load
+vs one incremental with a 22-row window, `p_from_date=2024-12-01`):
 
-print(f"Execution Time: {elapsed_time:.2f} seconds")
+| Stage | Full load (132 rows) | Incremental (22-row window) | Δ | Interpretation |
+|-------|----------------------|------------------------------|---|-----------------|
+| Bronze (parallel) | 4m 46s | 1m 42s | −3m 04s (−64%) | **warm-cache artifact, not incremental** — bronze is always a full load (the 6 Copy activities copy the same source regardless of `p_full_load`); the full load ran first from a cold Spark pool, the incremental reused a warm pool |
+| Silver | 4m 08s | 3m 37s | −0m 31s (−12%) | the procurement delete-insert path is a small fraction of silver runtime (supplier_ref join + notebook overhead dominate) |
+| Gold | 9m 40s | 11m 08s | +1m 28s (+15%) | **gold is full-scope-bound** — `fact_supply_share` (rollup + territory merge over 3,468 records), the dimensions, and the quality metrics process the full dataset regardless of `p_from_date`; the 22-row procurement window is a negligible fraction, so incremental procurement loads cannot speed up gold |
+| DQ | 3m 51s | 3m 52s | +0m 01s | flat |
+| **Data wall-clock** | **22m 25s** | **20m 19s** | **−2m 06s (−9%)** | |
 
-# Log to performance table
-log_performance_metric("silver_procurement", elapsed_time, rows_processed)
-```
+**Honest read (task-006_3 AC4):** the incremental saving is **modest and concentrated
+in silver**, not the 94% across-the-board win the projection implied. Two findings:
+
+1. **Bronze shows no incremental saving.** Bronze is a full extract by design (task-048
+   retired the parameterized dataflow; the replacement Copy activities take no source
+   query). The measured −64% is a **warm-pool artifact** — cold full load vs warm
+   incremental. This is the bronze-no-saving case the task anticipated; the measured
+   delta is environmental, not incremental.
+2. **Gold shows no saving (slightly slower).** Only `fact_procurement` is incremental in
+   the gold notebook; everything else gold does (`fact_supply_share` rollup, dimensions,
+   quality metrics) is full-scope on every run and dominates gold runtime. Incremental
+   procurement loads therefore cannot shrink gold. The architectural implication:
+   **incrementality at gold would require windowing `fact_supply_share` too**, which is
+   not currently done.
+
+**Warm-cache-isolated signal.** A second incremental run with an *empty* procurement
+window (both runs warm, only the window differs) measured silver 2m 35s (0 rows) vs
+3m 37s (22 rows) and gold 10m 38s vs 11m 08s — i.e. the 22-row delete-insert itself
+costs **~1m 02s in silver and ~30s in gold**, confirming the window-dependent cost is
+small and gold is full-scope-bound (not window-bound).
+
+**Correctness (task-006_3 AC1–3):** the 22-row delete-insert was idempotent —
+`bronze == silver == fact == 132` held before and after (delete-insert deletes the
+window and re-inserts the same rows; net zero), and the content-hash duplicate check
+showed `rows == distinct_content` on both silver and fact → no duplicates introduced.
+`p_full_load=false` reached both notebooks (task-039 AC4 runtime proof — both took the
+INCREMENTAL branch, not the full-overwrite branch).
+
+**`p_from_date` is in corrected-date space.** The raw
+`bronze_procurement_transactional.Date` column is day/year-transposed with a ±2000 epoch
+(task-048 `correct_procurement_date`). The SQL-endpoint values you see
+(e.g. `2028-02-24 … 2031-12-24`) are **transposed**; `bronze-to-silver` applies the
+correction *before* the window filter, so the window and the watermark are in
+**corrected (actual) date space** (`2024-02-28 … 2024-12-31`). **Specify `p_from_date`
+in corrected space** — a value derived from the raw column (e.g. `2031-12-24`) is in the
+wrong calendar and yields an empty window. The watermark
+(`bronze_load_metadata.last_load_date`) is likewise stored in corrected space, so the
+auto-retrieve path is already correct; only explicit manual `p_from_date` overrides are
+at risk of this footgun.
 
 ### Optimization Techniques
 
@@ -1069,7 +1113,7 @@ load_all_layers()
 
 ### Phase 5: Validation & Performance (0.5 days)
 - [ ] Run all test scenarios (4 scenarios above)
-- [ ] Measure performance (full vs incremental)
+- [x] Measure performance (full vs incremental) — **measured 2026-08-04 (task-006_3); see § 6**
 - [ ] Implement data quality checks
 - [ ] Create monitoring dashboard for load metrics
 - [ ] Document rollback procedures

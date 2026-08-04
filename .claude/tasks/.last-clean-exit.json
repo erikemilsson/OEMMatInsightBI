@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-04T13:24:04Z",
+  "timestamp": "2026-08-04T13:49:25Z",
   "in_progress": [],
-  "trigger": "clean_exit"
+  "trigger": "user_pause"
 }
