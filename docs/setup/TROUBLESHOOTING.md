@@ -8,7 +8,7 @@ Common issues and their solutions for the OEMMatInsightBI project.
 
 ### Issue: Bronze ingestion fails - Azure SQL connection timeout
 
-**Symptoms:** `bronzecopy_procurement_transactional` or `bronzecopy_supplier_ref`
+**Symptoms:** `bronze_copy_procurement_transactional` or `bronze_copy_supplier_ref`
 fails. (Before 2026-07-31 this was a `bronze_procurement` dataflow refresh; that
 dataflow is retired and deleted.)
 

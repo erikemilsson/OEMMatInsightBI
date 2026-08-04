@@ -104,15 +104,15 @@ If pipeline scheduling is configured (see Task 10):
 orchestrator_pipeline_bronze_to_gold
 │
 ├─[1] Bronze Layer (Parallel — 6 activities)
-│   ├── bronzecopy_EUSupplyShares (Copy) ───────────┐
-│   ├── bronzecopy_GlobalSupplyShares (Copy) ───────┤
-│   ├── bronzecopy_procurement_transactional (Copy) ┤
-│   ├── bronzecopy_supplier_ref (Copy) ─────────────┤
+│   ├── bronze_copy_eu_supply_shares (Copy) ───────────┐
+│   ├── bronze_copy_global_supply_shares (Copy) ───────┤
+│   ├── bronze_copy_procurement_transactional (Copy) ┤
+│   ├── bronze_copy_supplier_ref (Copy) ─────────────┤
 │   ├── bronze_WGI (Notebook) ─────────────────────┤
 │   └── bronze_EPI (Notebook) ─────────────────────┤
 │                                                     ▼
 ├─[2] Silver Layer (Sequential) ────────────── [Wait for all 6 Bronze]
-│   └── bronze-to-silver data cleaning (Notebook)
+│   └── bronze_to_silver_cleaning (Notebook)
 │                                                     │
 ├─[3] Gold Layer (Sequential) ───────────────────────┤
 │   └── silver-to-gold (Notebook)                    │

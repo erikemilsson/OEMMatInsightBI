@@ -45,7 +45,7 @@
 ```mermaid
 flowchart LR
     subgraph BRONZE["Bronze"]
-        B1[("bronze_procurement")]
+        B1[("bronze_procurement_transactional")]
         B2[("bronze_epi")]
         B3[("bronze_wgi")]
     end

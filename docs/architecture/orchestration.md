@@ -23,10 +23,10 @@ START
   │
   ├──[STAGE 1: Bronze Ingestion - PARALLEL]──────────────┐
   │   │                                                    │
-  │   ├─ bronzecopy_EUSupplyShares            (Copy)      │
-  │   ├─ bronzecopy_GlobalSupplyShares        (Copy)      │
-  │   ├─ bronzecopy_procurement_transactional (Copy)      │
-  │   ├─ bronzecopy_supplier_ref              (Copy)      │
+  │   ├─ bronze_copy_eu_supply_shares            (Copy)      │
+  │   ├─ bronze_copy_global_supply_shares        (Copy)      │
+  │   ├─ bronze_copy_procurement_transactional (Copy)      │
+  │   ├─ bronze_copy_supplier_ref              (Copy)      │
   │   ├─ bronze_WGI                           (Notebook)  │
   │   └─ bronze_EPI                           (Notebook)  │
   │                                                        │
@@ -34,7 +34,7 @@ START
   │                      ▼                                 │
   ├──[STAGE 2: Silver Transformation - SEQUENTIAL]────────┤
   │   │                                                    │
-  │   └─ bronze-to-silver data cleaning       (Notebook)  │
+  │   └─ bronze_to_silver_cleaning       (Notebook)  │
   │                      ▼                                 │
   ├──[STAGE 3: Gold Transformation - SEQUENTIAL]──────────┤
   │   │                                                    │
@@ -69,10 +69,10 @@ task-011; runtimes are measured from run `b56a43b9` (2026-07-31).
 
 | # | Activity | Type | Source → Output | Retry | Runtime |
 |---|----------|------|-----------------|-------|---------|
-| 1 | `bronzecopy_EUSupplyShares` | Copy | HTTP (GitHub CSV) → `bronze_EUSupplyShares` | 3 / 300s | 28s |
-| 2 | `bronzecopy_GlobalSupplyShares` | Copy | HTTP (GitHub CSV) → `bronze_GlobalSupplyShares` | 3 / 300s | 25s |
-| 3 | `bronzecopy_procurement_transactional` | Copy | Azure SQL `dbo.procurement_transactional` → `bronze_procurement_transactional` | 3 / 300s | 27s |
-| 4 | `bronzecopy_supplier_ref` | Copy | Azure SQL `dbo.supplier_ref` → `bronze_supplier_ref` | 3 / 300s | 25s |
+| 1 | `bronze_copy_eu_supply_shares` | Copy | HTTP (GitHub CSV) → `bronze_EUSupplyShares` | 3 / 300s | 28s |
+| 2 | `bronze_copy_global_supply_shares` | Copy | HTTP (GitHub CSV) → `bronze_GlobalSupplyShares` | 3 / 300s | 25s |
+| 3 | `bronze_copy_procurement_transactional` | Copy | Azure SQL `dbo.procurement_transactional` → `bronze_procurement_transactional` | 3 / 300s | 27s |
+| 4 | `bronze_copy_supplier_ref` | Copy | Azure SQL `dbo.supplier_ref` → `bronze_supplier_ref` | 3 / 300s | 25s |
 | 5 | `bronze_WGI` | Notebook | World Bank API → `bronze_WGI` | 2 / 30s | 119s |
 | 6 | `bronze_EPI` | Notebook | Yale EPI CSV → `bronze_epi2024results` + related | 2 / 30s | 104s |
 
@@ -105,7 +105,7 @@ to retry 0.**
 
 **Depends On:** All **6** bronze activities (Succeeded)
 
-#### 7. bronze-to-silver data cleaning
+#### 7. bronze_to_silver_cleaning
 - **Type:** Notebook Activity
 - **Notebook:** `bronze-to-silver.Notebook`
 - **Output:** `silver_epi2024results`, `silver_globalsupplyshares`, `silver_wgi`, `silver_procurement`
@@ -121,7 +121,7 @@ to retry 0.**
 
 ### Stage 3: Gold Transformation (Sequential)
 
-**Depends On:** bronze-to-silver data cleaning (Succeeded)
+**Depends On:** bronze_to_silver_cleaning (Succeeded)
 
 #### 8. silver-to-gold
 - **Type:** Notebook Activity

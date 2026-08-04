@@ -105,8 +105,8 @@ All PySpark, all attached to the `oem_lh` lakehouse.
 
 ### Dataflows (0 live, 3 retired)
 1. **bronze_azureSQLdb2table.Dataflow** — ❌ RETIRED 2026-07-31 (deleted from the workspace)
-   - Replaced by Copy activities `bronzecopy_procurement_transactional` +
-     `bronzecopy_supplier_ref`, reading Azure SQL via connection `oem_azuresql_procurement`
+   - Replaced by Copy activities `bronze_copy_procurement_transactional` +
+     `bronze_copy_supplier_ref`, reading Azure SQL via connection `oem_azuresql_procurement`
    - Retired because an SPN cannot refresh a Dataflow Gen2 (`SPNBasedRefreshNotAllowed`)
      and every `fabric-cicd` publish strips its credentials
    - Snapshot: `.claude/support/retired/bronze-azuresqldb2table-dataflow/manifest.json`

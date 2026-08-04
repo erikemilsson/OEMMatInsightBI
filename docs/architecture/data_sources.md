@@ -33,8 +33,8 @@ This project integrates data from 4 primary sources: 1 transactional database + 
   - `ProductionCountry` (NVARCHAR(100)) - Production location
   - `Region` (NVARCHAR(100)) - Geographic region
 
-**Ingestion:** Copy activities `bronzecopy_procurement_transactional` and
-`bronzecopy_supplier_ref`, via Fabric connection `oem_azuresql_procurement`.
+**Ingestion:** Copy activities `bronze_copy_procurement_transactional` and
+`bronze_copy_supplier_ref`, via Fabric connection `oem_azuresql_procurement`.
 (Was `bronze_azureSQLdb2table.Dataflow` / activity `bronze_procurement` — retired 2026-07-31.)
 **Note:** bronze holds the source's RAW day/year-transposed dates; the correction runs in
 `bronze-to-silver`. Read silver for usable dates.
@@ -168,8 +168,8 @@ unchanged for every downstream layer.
 
 | Copy activity | Target table | Consumed downstream? |
 |---|---|---|
-| `bronzecopy_GlobalSupplyShares` | `bronze_GlobalSupplyShares` | ✅ Yes — `bronze-to-silver` builds `silver_globalsupplyshares` from it |
-| `bronzecopy_EUSupplyShares` | `bronze_EUSupplyShares` | ✅ Yes — `bronze-to-silver` builds `silver_eusupplyshares` from it (task-038_1, 2026-07-29) |
+| `bronze_copy_global_supply_shares` | `bronze_GlobalSupplyShares` | ✅ Yes — `bronze-to-silver` builds `silver_globalsupplyshares` from it |
+| `bronze_copy_eu_supply_shares` | `bronze_EUSupplyShares` | ✅ Yes — `bronze-to-silver` builds `silver_eusupplyshares` from it (task-038_1, 2026-07-29) |
 
 **Frequency:** (TBD - currently on-demand)
 **Load Type:** Full replacement (`OverwriteSchema` table action)
@@ -247,7 +247,7 @@ EU CRM HTTP ───────────> bronze_GlobalSupplyShares        
 - Check firewall rules (allow Fabric IP addresses)
 - Verify the Fabric connection `oem_azuresql_procurement` is bound (Manage connections and
   gateways → Connections) — procurement ingestion is via the Copy activities
-  `bronzecopy_procurement_transactional` and `bronzecopy_supplier_ref` (task-048 retired
+  `bronze_copy_procurement_transactional` and `bronze_copy_supplier_ref` (task-048 retired
   the `bronze_azureSQLdb2table` dataflow; the dataflow workspace item is deleted)
 - Test the connection from its context menu in Manage connections and gateways
 

@@ -121,12 +121,12 @@ The project implements a **medallion architecture** (bronze → silver → gold)
 
 | Table | Contents | Ingested by |
 |---|---|---|
-| `bronze_procurement_transactional` | Procurement transactions (RAW dates — see note) | Copy activity `bronzecopy_procurement_transactional` |
-| `bronze_supplier_ref` | Supplier reference data | Copy activity `bronzecopy_supplier_ref` |
+| `bronze_procurement_transactional` | Procurement transactions (RAW dates — see note) | Copy activity `bronze_copy_procurement_transactional` |
+| `bronze_supplier_ref` | Supplier reference data | Copy activity `bronze_copy_supplier_ref` |
 | `bronze_epi{year}results` | Environmental Performance Index (e.g. `bronze_epi2024results`) | `bronze_ingest_epi.Notebook`, parameterised on `p_epi_year` |
 | `bronze_WGI` | World Bank governance indicators, long format | `bronze_ingest_wgi.Notebook` (World Bank API v2) |
-| `bronze_GlobalSupplyShares` | Global supply concentration | Copy activity `bronzecopy_GlobalSupplyShares` (HTTP) |
-| `bronze_EUSupplyShares` | EU supply concentration | Copy activity `bronzecopy_EUSupplyShares` (HTTP) |
+| `bronze_GlobalSupplyShares` | Global supply concentration | Copy activity `bronze_copy_global_supply_shares` (HTTP) |
+| `bronze_EUSupplyShares` | EU supply concentration | Copy activity `bronze_copy_eu_supply_shares` (HTTP) |
 
 > **Retired lineage.** `bronze_WB_ESGCSV`, `bronze_WB_ESGSeries` and the
 > `WGI_file2table.Dataflow` that produced them are retired; those tables no longer exist
@@ -247,10 +247,10 @@ The project implements a **medallion architecture** (bronze → silver → gold)
 **Stages** (8 activities — grounded against `pipeline-content.json`):
 
 1. **Bronze (Parallel):** 5 activities with no interdependencies —
-   `bronzecopy_GlobalSupplyShares` and `bronzecopy_EUSupplyShares` (Copy),
-   `bronzecopy_procurement_transactional` + `bronzecopy_supplier_ref` (Copy), `bronze_WGI` and `bronze_EPI`
+   `bronze_copy_global_supply_shares` and `bronze_copy_eu_supply_shares` (Copy),
+   `bronze_copy_procurement_transactional` + `bronze_copy_supplier_ref` (Copy), `bronze_WGI` and `bronze_EPI`
    (TridentNotebook).
-2. **Silver (Sequential):** `bronze-to-silver data cleaning` — depends on all five
+2. **Silver (Sequential):** `bronze_to_silver_cleaning` — depends on all five
    bronze activities succeeding.
 3. **Gold (Sequential):** `silver-to-gold` — depends on silver.
 4. **Data Quality (Sequential):** `data_quality_checks` — depends on gold. Raises the

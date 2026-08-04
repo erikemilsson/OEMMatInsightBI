@@ -47,8 +47,8 @@ az datafactory pipeline create-run \
 
 **Bronze Procurement (Azure SQL):**
 1. Open the pipeline `orchestrator_pipeline_bronze_to_gold`
-2. Run the Copy activities `bronzecopy_procurement_transactional` and
-   `bronzecopy_supplier_ref` (connection `oem_azuresql_procurement`)
+2. Run the Copy activities `bronze_copy_procurement_transactional` and
+   `bronze_copy_supplier_ref` (connection `oem_azuresql_procurement`)
 3. Outputs: `bronze_procurement_transactional`, `bronze_supplier_ref` — with the
    source's RAW day/year-transposed dates; the correction runs in `bronze-to-silver`
 
@@ -69,7 +69,7 @@ az datafactory pipeline create-run \
 3. Outputs: `bronze_WGI` (six World Bank indicators, long format)
 
 **Bronze EU Supply Shares:**
-1. Run copy activity: `bronzecopy_EUSupplyShares` from pipeline
+1. Run copy activity: `bronze_copy_eu_supply_shares` from pipeline
 2. Outputs: `bronze_GlobalSupplyShares`
 
 ## Validation
@@ -109,7 +109,7 @@ for table in tables:
 - Check firewall rules allow Fabric IP addresses
 - Verify the Fabric connection `oem_azuresql_procurement` is bound (Manage connections
   and gateways → Connections) — procurement ingestion is via the Copy activities
-  `bronzecopy_procurement_transactional` and `bronzecopy_supplier_ref` (task-048 retired
+  `bronze_copy_procurement_transactional` and `bronze_copy_supplier_ref` (task-048 retired
   the `bronze_azureSQLdb2table` dataflow; the dataflow workspace item is deleted)
 - Test the connection from its context menu in Manage connections and gateways
 

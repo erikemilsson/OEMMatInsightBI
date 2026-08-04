@@ -132,7 +132,7 @@
           "secureInput": false,
           "secureOutput": false
         },
-        "name": "bronzecopy_EUSupplyShares",
+        "name": "bronze_copy_eu_supply_shares",
         "description": "Copy EU CRM github repo csv file",
         "dependsOn": []
       },
@@ -267,7 +267,7 @@
           "secureInput": false,
           "secureOutput": false
         },
-        "name": "bronzecopy_GlobalSupplyShares",
+        "name": "bronze_copy_global_supply_shares",
         "description": "Copy Global CRM github repo csv file (fact_GlobalSupplyShares&t.csv). ACTION before first run: point this activity's source connection to the GLOBAL csv — it currently inherits the EU connection (97124587), which would load EU data (907 rows) into bronze_GlobalSupplyShares instead of Global (2561 rows). Replaces the legacy 22x-duplicated load (task-022 / FR-004).",
         "dependsOn": []
       },
@@ -314,40 +314,40 @@
           "secureInput": false,
           "secureOutput": false
         },
-        "name": "bronze-to-silver data cleaning",
+        "name": "bronze_to_silver_cleaning",
         "dependsOn": [
           {
-            "activity": "bronzecopy_EUSupplyShares",
+            "activity": "bronze_copy_eu_supply_shares",
             "dependencyConditions": [
               "Succeeded"
             ]
           },
           {
-            "activity": "bronzecopy_GlobalSupplyShares",
+            "activity": "bronze_copy_global_supply_shares",
             "dependencyConditions": [
               "Succeeded"
             ]
           },
           {
-            "activity": "bronze_WGI",
+            "activity": "bronze_wgi",
             "dependencyConditions": [
               "Succeeded"
             ]
           },
           {
-            "activity": "bronze_EPI",
+            "activity": "bronze_epi",
             "dependencyConditions": [
               "Succeeded"
             ]
           },
           {
-            "activity": "bronzecopy_procurement_transactional",
+            "activity": "bronze_copy_procurement_transactional",
             "dependencyConditions": [
               "Succeeded"
             ]
           },
           {
-            "activity": "bronzecopy_supplier_ref",
+            "activity": "bronze_copy_supplier_ref",
             "dependencyConditions": [
               "Succeeded"
             ]
@@ -397,10 +397,10 @@
           "secureInput": false,
           "secureOutput": false
         },
-        "name": "silver-to-gold",
+        "name": "silver_to_gold",
         "dependsOn": [
           {
-            "activity": "bronze-to-silver data cleaning",
+            "activity": "bronze_to_silver_cleaning",
             "dependencyConditions": [
               "Succeeded"
             ]
@@ -433,7 +433,7 @@
         "description": "Task 026: run the data-quality framework after gold is built, so quality history is populated every orchestrated run. Blocking check failures (schema, procurement completeness, procurement duplicates, referential integrity, lookup/grain uniqueness) raise DataQualityException and fail this activity, halting the pipeline; advisory checks are logged/scored to gold_quality_history only.",
         "dependsOn": [
           {
-            "activity": "silver-to-gold",
+            "activity": "silver_to_gold",
             "dependencyConditions": [
               "Succeeded"
             ]
@@ -453,7 +453,7 @@
           "secureInput": false,
           "secureOutput": false
         },
-        "name": "bronze_WGI",
+        "name": "bronze_wgi",
         "dependsOn": []
       },
       {
@@ -478,7 +478,7 @@
           "secureInput": false,
           "secureOutput": false
         },
-        "name": "bronze_EPI",
+        "name": "bronze_epi",
         "dependsOn": []
       },
       {
@@ -580,7 +580,7 @@
           "secureInput": false,
           "secureOutput": false
         },
-        "name": "bronzecopy_procurement_transactional",
+        "name": "bronze_copy_procurement_transactional",
         "dependsOn": []
       },
       {
@@ -647,7 +647,7 @@
           "secureInput": false,
           "secureOutput": false
         },
-        "name": "bronzecopy_supplier_ref",
+        "name": "bronze_copy_supplier_ref",
         "dependsOn": []
       }
     ],

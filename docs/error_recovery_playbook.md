@@ -14,13 +14,13 @@ All 10 pipeline activities, as configured in `pipeline-content.json` (`policy.re
 
 | Activity | Retries | Interval | Total Wait |
 |----------|---------|----------|------------|
-| bronzecopy_procurement_transactional | 3 | 5 min | 15 min |
-| bronzecopy_supplier_ref | 3 | 5 min | 15 min |
-| bronzecopy_EUSupplyShares | 3 | 5 min | 15 min |
-| bronzecopy_GlobalSupplyShares | 3 | 5 min | 15 min |
+| bronze_copy_procurement_transactional | 3 | 5 min | 15 min |
+| bronze_copy_supplier_ref | 3 | 5 min | 15 min |
+| bronze_copy_eu_supply_shares | 3 | 5 min | 15 min |
+| bronze_copy_global_supply_shares | 3 | 5 min | 15 min |
 | bronze_EPI | 2 | 30 s | 1 min |
 | bronze_WGI | 2 | 30 s | 1 min |
-| bronze-to-silver data cleaning | 2 | 2 min | 4 min |
+| bronze_to_silver_cleaning | 2 | 2 min | 4 min |
 | silver-to-gold | 2 | 2 min | 4 min |
 | data_quality_checks | 1 | 2 min | 2 min |
 | pipeline_error_handler | 0 | — | none (runs on every outcome, never retried) |
@@ -76,21 +76,21 @@ Errors that do not match known patterns. Treated conservatively (1 retry, then f
 
 ## Resolution Steps by Scenario
 
-### 1. Azure SQL Connection Failure (bronzecopy_procurement_transactional / bronzecopy_supplier_ref)
+### 1. Azure SQL Connection Failure (bronze_copy_procurement_transactional / bronze_copy_supplier_ref)
 
-**Symptoms:** Timeout, connection refused, or authentication error on the procurement Copy activities (`bronzecopy_procurement_transactional`, `bronzecopy_supplier_ref`).
+**Symptoms:** Timeout, connection refused, or authentication error on the procurement Copy activities (`bronze_copy_procurement_transactional`, `bronze_copy_supplier_ref`).
 
 **Resolution:**
 1. Open Azure Portal > SQL Server > check server status
 2. Verify the Fabric connection `oem_azuresql_procurement` (Manage connections and
    gateways → Connections). The `bronze_azureSQLdb2table` dataflow was retired
    2026-07-31 — procurement ingestion is now the Copy activities
-   `bronzecopy_procurement_transactional` and `bronzecopy_supplier_ref`.
+   `bronze_copy_procurement_transactional` and `bronze_copy_supplier_ref`.
 3. Check if the SQL Server firewall allows Fabric IPs
 4. If credentials expired: update the connection in Fabric workspace > Manage connections
 5. Re-run pipeline after fixing
 
-### 2. HTTP Endpoint Unavailable (bronzecopy_EUSupplyShares)
+### 2. HTTP Endpoint Unavailable (bronze_copy_eu_supply_shares)
 
 **Symptoms:** HTTP 404, 500, or timeout when fetching the EU Critical Raw Materials CSV from GitHub.
 

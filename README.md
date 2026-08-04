@@ -82,7 +82,7 @@ flowchart LR
     end
 
     subgraph Bronze["🥉 Bronze Layer (oem_lh)"]
-        B1[bronze_procurement]
+        B1[bronze_procurement_transactional]
         B2[bronze_suppliers]
         B3[bronze_materials]
         B4[bronze_epi]

@@ -113,13 +113,18 @@ oem_lh (lakehouse)
 oem_wh (warehouse)
 ```
 
-### Semantic Model Naming
+### Semantic Model & Report Naming
 
-**Pattern:** `semantic_model_[project]`
+Semantic models and reports are Fabric-facing artifacts that follow Fabric's
+display-name conventions (PascalCase, project-prefixed), **not** the snake_case
+`[layer]_[entity]` pattern used for lakehouse tables, notebooks, and pipelines.
+Applying the snake pattern here produces a name no Fabric artifact actually
+carries (the prior `semantic_model_oeminsightbi` recommendation was just such a
+fictional example — the live model is `OEMInsightBI_v2`, slated to drop the
+`_v2` suffix).
 
-```
-Example: semantic_model_oeminsightbi
-```
+**Semantic model:** `OEMInsightBI`
+**Report:** project-prefixed, co-named with its semantic model so the pair reads as one brand (e.g. `oem_report`)
 
 ## File & Directory Standards
 

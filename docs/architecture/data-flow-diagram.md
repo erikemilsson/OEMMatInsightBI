@@ -88,10 +88,10 @@ flowchart TB
     Params[p_full_load: bool<br/>p_from_date: string<br/>procurement_array: JSON]
 
     subgraph Bronze["Bronze ingestion (6 activities)"]
-        BC1[bronzecopy_EUSupplyShares]
-        BC2[bronzecopy_GlobalSupplyShares]
-        BC3[bronzecopy_procurement_transactional]
-        BC4[bronzecopy_supplier_ref]
+        BC1[bronze_copy_eu_supply_shares]
+        BC2[bronze_copy_global_supply_shares]
+        BC3[bronze_copy_procurement_transactional]
+        BC4[bronze_copy_supplier_ref]
         BE[bronze_EPI notebook]
         BW[bronze_WGI notebook]
     end

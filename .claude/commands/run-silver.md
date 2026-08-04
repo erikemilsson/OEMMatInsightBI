@@ -1,6 +1,6 @@
 # Run Silver Layer Transformation
 
-Execute the bronze-to-silver data cleaning and standardization transformations.
+Execute the bronze_to_silver_cleaning and standardization transformations.
 
 ## What This Command Does
 
@@ -29,7 +29,7 @@ This command runs the `bronze-to-silver.Notebook` which performs:
 3. If you want to run only silver transformation:
    - You cannot run individual stages from UI
    - Run full pipeline and monitor silver stage
-4. Silver transformation is the "bronze-to-silver data cleaning" activity
+4. Silver transformation is the "bronze_to_silver_cleaning" activity
 
 ### Option 2: Run Notebook Directly (Recommended for development)
 

@@ -11,7 +11,7 @@ flowchart LR
     end
 
     subgraph BRONZE["Bronze Layer"]
-        B1[("bronze_procurement")]
+        B1[("bronze_procurement_transactional")]
         B2[("bronze_supplier_ref")]
         B3[("bronze_epi")]
         B4[("bronze_wgi")]

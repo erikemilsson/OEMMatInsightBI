@@ -228,7 +228,7 @@ def should_retry(error_message: str, retry_attempt: int, max_retries: int) -> bo
 > column also predates two later migrations: `bronze_WGI` / `bronze_EPI` are
 > `TridentNotebook` activities since task-035 (not `RefreshDataflow`), and
 > `bronze_procurement` was retired by task-048 and replaced by two Copy activities
-> (`bronzecopy_procurement_transactional`, `bronzecopy_supplier_ref`). The live retry
+> (`bronze_copy_procurement_transactional`, `bronze_copy_supplier_ref`). The live retry
 > configuration is in `fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/pipeline-content.json`
 > (Copy retry=3/300s, EPI/WGI TridentNotebook retry=2/30s, bronze-to-silver retry=2/120s,
 > silver-to-gold2 retry=2/120s, data_quality_checks retry=1/120s, pipeline_error_handler
@@ -239,11 +239,11 @@ def should_retry(error_message: str, retry_attempt: int, max_retries: int) -> bo
 
 | Activity Name | Type | Current Retries | Recommended Retries | Retry Interval | Timeout | Rationale |
 |---------------|------|----------------|---------------------|----------------|---------|-----------|
-| **bronzecopy_EUSupplyShares** | CopyJob | 0 | 3 | 5 min | 1 hour | HTTP endpoint may be temporarily unavailable, GitHub CDN reliable |
+| **bronze_copy_eu_supply_shares** | CopyJob | 0 | 3 | 5 min | 1 hour | HTTP endpoint may be temporarily unavailable, GitHub CDN reliable |
 | **bronze_WGI** | RefreshDataflow | 0 | 2 | 3 min | 2 hours | Dataflow refresh may have resource contention, World Bank API stable |
 | **bronze_procurement** | RefreshDataflow | 0 | 3 | 5 min | 2 hours | Azure SQL may timeout, highest priority data source |
 | **bronze_EPI** | RefreshDataflow | 0 | 2 | 3 min | 2 hours | Dataflow refresh may have resource contention, Yale server reliable |
-| **bronze-to-silver data cleaning** | Notebook | 0 | 2 | 2 min | 4 hours | Spark session may fail to start, transformation logic stable |
+| **bronze_to_silver_cleaning** | Notebook | 0 | 2 | 2 min | 4 hours | Spark session may fail to start, transformation logic stable |
 | **silver-to-gold2** | Notebook | 0 | 2 | 2 min | 4 hours | Spark session may fail to start, joins may cause resource issues |
 | **copyjob1** | CopyJob | 0 | 1 | 5 min | 1 hour | Warehouse sync may have lock contention, rare failures |
 
@@ -288,7 +288,7 @@ def calculate_retry_interval(base_interval_seconds: int, retry_attempt: int) -> 
   "name": "orchestrator_pipeline_bronze_to_gold",
   "activities": [
     {
-      "name": "bronzecopy_EUSupplyShares",
+      "name": "bronze_copy_eu_supply_shares",
       "type": "Copy",
       "policy": {
         "timeout": "01:00:00",
@@ -319,7 +319,7 @@ def calculate_retry_interval(base_interval_seconds: int, retry_attempt: int) -> 
       "dependsOn": []
     },
     {
-      "name": "bronze-to-silver data cleaning",
+      "name": "bronze_to_silver_cleaning",
       "type": "TridentNotebook",
       "policy": {
         "timeout": "04:00:00",
@@ -356,7 +356,7 @@ execution_log_schema = StructType([
     StructField("log_id", StringType(), False),              # UUID for this log entry
     StructField("execution_id", StringType(), False),         # Fabric pipeline run ID
     StructField("pipeline_name", StringType(), False),        # "orchestrator_pipeline_bronze_to_gold"
-    StructField("activity_name", StringType(), False),        # "bronze_procurement", "bronze-to-silver data cleaning", etc.
+    StructField("activity_name", StringType(), False),        # "bronze_procurement", "bronze_to_silver_cleaning", etc.
     StructField("activity_type", StringType(), False),        # "RefreshDataflow", "TridentNotebook", "Copy"
     StructField("start_time", TimestampType(), False),        # When activity started
     StructField("end_time", TimestampType(), True),           # When activity completed (null if still running)
@@ -433,7 +433,7 @@ def log_activity_start(
 log_id = log_activity_start(
     execution_id=dbutils.widgets.get("execution_id"),
     pipeline_name="orchestrator_pipeline_bronze_to_gold",
-    activity_name="bronze-to-silver data cleaning",
+    activity_name="bronze_to_silver_cleaning",
     activity_type="TridentNotebook",
     retry_attempt=0,
     max_retries=2
@@ -1087,7 +1087,7 @@ Thank you for your patience.
   "name": "silver-to-gold2",
   "dependsOn": [
     {
-      "activity": "bronze-to-silver data cleaning",
+      "activity": "bronze_to_silver_cleaning",
       "dependencyConditions": ["Succeeded"]  // Must succeed
     },
     {

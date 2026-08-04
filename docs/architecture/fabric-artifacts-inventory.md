@@ -16,7 +16,7 @@ As-built inventory of Fabric artifacts in the `oem_lh` workspace. Mirrors what i
 |---|---|---|---|
 | `bronze_ingest_epi` | `bronze_EPI` | EPI ingestion from Yale (since task-035) | ✅ Active |
 | `bronze_ingest_wgi` | `bronze_WGI` | WGI ingestion from World Bank API (since task-035) | ✅ Active |
-| `bronze-to-silver` | `bronze-to-silver data cleaning` | Bronze → Silver cleaning + alias resolution | ✅ Active |
+| `bronze-to-silver` | `bronze_to_silver_cleaning` | Bronze → Silver cleaning + alias resolution | ✅ Active |
 | `silver-to-gold2` | `silver-to-gold` | Silver → Gold star schema (facts, dims, observability) | ✅ Active |
 | `data_quality_checks` | `data_quality_checks` | Pipeline data-quality gate | ✅ Active |
 | `pipeline_error_handler` | `pipeline_error_handler` | Error categorisation + execution-log write; runs on **every** outcome | ✅ Active |
@@ -50,7 +50,7 @@ As-built inventory of Fabric artifacts in the `oem_lh` workspace. Mirrors what i
 
 | Artifact | Type | Reason | Backup |
 |---|---|---|---|
-| `bronze_azureSQLdb2table` | Dataflow | Replaced by Copy activities `bronzecopy_procurement_transactional` + `bronzecopy_supplier_ref` (2026-07-31) | `.claude/support/retired/bronze-azuresqldb2table-dataflow/manifest.json` |
+| `bronze_azureSQLdb2table` | Dataflow | Replaced by Copy activities `bronze_copy_procurement_transactional` + `bronze_copy_supplier_ref` (2026-07-31) | `.claude/support/retired/bronze-azuresqldb2table-dataflow/manifest.json` |
 | `StagingLakehouseForDataflows_20250822093021` | SemanticModel | Auto-generated staging model | `.archive/fabric-cleanup-20251215-132143/` |
 | `StagingWarehouseForDataflows_20250822093045` | SemanticModel | Auto-generated staging model | `.archive/fabric-cleanup-20251215-132143/` |
 | `oem_wh.SemanticModel` | SemanticModel | Empty model superseded by `OEMInsightBI_v2` | `.archive/fabric-cleanup-20251215-132143/` |
@@ -63,7 +63,7 @@ As-built inventory of Fabric artifacts in the `oem_lh` workspace. Mirrors what i
 graph TD
     Pipeline[orchestrator_pipeline_bronze_to_gold]
 
-    BC1[bronzecopy_procurement_transactional<br/>+ bronzecopy_supplier_ref]
+    BC1[bronze_copy_procurement_transactional<br/>+ bronze_copy_supplier_ref]
     BE[bronze_ingest_epi / bronze_EPI]
     BW[bronze_ingest_wgi / bronze_WGI]
 

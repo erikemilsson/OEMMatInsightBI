@@ -22,7 +22,7 @@ surfaces keeps it robust.
 FR-003 (resolved 2026-07-20): error_handling_strategy.md and incremental_load_strategy.md
 were previously excluded because they used `clean_columnsAndHeaders` as a pipeline ACTIVITY
 identifier. Grounding against pipeline-content.json showed no such activity ever existed —
-the real one is `bronze-to-silver data cleaning`, referencing notebooks by GUID. Both files
+the real one is `bronze_to_silver_cleaning`, referencing notebooks by GUID. Both files
 were renamed accordingly and are now clean, so they are covered by this guard.
 """
 import pathlib
