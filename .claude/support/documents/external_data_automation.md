@@ -15,7 +15,7 @@ This document provides comprehensive research findings on automating the ingesti
 - 🔄 **Update Frequency:** Both annual updates (sufficient for use case)
 
 **Implementation (2026-04-05):**
-- ✅ **EPI notebook:** `fabric/bronze_ingest_epi.Notebook/` — downloads CSV via `requests`, writes to `bronze_epi2024results`
+- ✅ **EPI notebook:** `fabric/bronze_ingest_epi.Notebook/` — downloads CSV via `requests`, writes to `bronze_epi2024results` and `bronze_epi2024weights` (task-056: the weights file is the source for `silver_epi2024variables` → `gold_dim_indicator.weight`, which the `Weighted EPI Score` DAX measure consumes)
 - ✅ **WGI notebook:** `fabric/bronze_ingest_wgi.Notebook/` — calls World Bank API v2 (JSON), writes to `bronze_WGI`
 - ✅ **Pipeline wiring:** done (task-035, 2026-07-26) — `bronze_EPI` and `bronze_WGI` are
   TridentNotebook activities in `orchestrator_pipeline_bronze_to_gold`; the
@@ -111,6 +111,15 @@ def download_epi_data():
 
         print(f"✓ Downloaded {name}: {len(df)} rows")
 ```
+
+> **Implementation status (task-056, 2026-08-04):** `bronze_ingest_epi.Notebook` now
+> downloads **both** `epi{year}results.csv` (→ `bronze_epi{year}results`) **and**
+> `epi{year}weights.csv` (→ `bronze_epi{year}weights`). The `variables` URL above is
+> still **not** ingested — the weights file alone provides the hierarchy + absolute
+> `EPI Percent` weights that `silver-to-gold2.Notebook` builds `silver_epi{year}variables`
+> from (mapped `weight` ← `EPI Percent`). The `bronze_epi_{name}` table-naming shown
+> in this sketch is illustrative; the live notebook uses `bronze_epi{year}results` /
+> `bronze_epi{year}weights` (year-suffixed, per task-028's parameterised coupling).
 
 ### Data Structure
 
@@ -607,7 +616,13 @@ https://www.worldbank.org/en/publication/worldwide-governance-indicators
   - Parameterized by year (`p_epi_year`, default: 2024)
   - Schema validation (checks for `code`, `iso`, `country`, `EPI` columns)
   - Retry logic (3 attempts) with specific 404 handling
-  - Writes to `bronze_epi2024results` Delta table (overwrite)
+  - Writes to `bronze_epi{YYYY}results` Delta table (overwrite)
+  - **task-056 (2026-08-04):** also downloads `epi{YYYY}weights.csv` → `bronze_epi{YYYY}weights`,
+    preserving the `Type`/`Abbreviation`/`Variable`/`Weight`/`NextLevel`/`IssueCategory`/
+    `PolicyObjective`/`EPI Percent` columns. `silver-to-gold2.Notebook` builds
+    `silver_epi{YYYY}variables` from this (mapping `weight` ← `EPI Percent`), which
+    `gold_dim_indicator`'s primary path selects from — so `Weighted EPI Score` renders
+    a 0-100 value instead of BLANK.
 ✅ **WGI Notebook Created** - `fabric/bronze_ingest_wgi.Notebook/`
   - Calls World Bank API v2 (JSON format) for all 6 WGI indicators
   - Parameterized by date range (`p_start_year`/`p_end_year`, default: 1996-2023)

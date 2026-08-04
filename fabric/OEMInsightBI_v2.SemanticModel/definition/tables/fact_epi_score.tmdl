@@ -21,6 +21,7 @@ table fact_epi_score
 			        gold_dim_indicator,
 			        gold_dim_indicator[source_system] = "EPI"
 			            && gold_dim_indicator[abbrev] <> "EPI"
+			            && gold_dim_indicator[type] = "Indicator"
 			    )
 			VAR WeightedScores =
 			    CALCULATE(

@@ -216,3 +216,94 @@ display(null_counts)
 # META   "language": "python",
 # META   "language_group": "synapse_pyspark"
 # META }
+
+# MARKDOWN ********************
+
+# ## Download EPI weights CSV (indicator hierarchy + absolute weights)
+# # Yale also publishes `epi{epi_year}weights.csv` — a small (~5 KB) metadata table with the
+# full indicator hierarchy: one row per node (EPI composite, 2 PolicyObjective, 11
+# IssueCategory, ~58 Indicator), columns `Type`, `Abbreviation`, `Variable`, `Weight`
+# (relative within parent), `NextLevel` (parent abbrev pointer), `IssueCategory`,
+# `PolicyObjective`, `EPI Percent` (absolute contribution to the EPI composite — this is
+# the value `gold_dim_indicator.weight` needs for leaf indicators).
+# # task-056: this file was previously listed as unimplemented in
+# `external_data_automation.md`'s `download_epi_data()` design. Without it,
+# `silver-to-gold2.Notebook` fell back to a NULL-weight fallback path that left
+# `gold_dim_indicator.weight` NULL for all 73 rows, which made the `Weighted EPI Score`
+# DAX measure render BLANK.
+
+# CELL ********************
+
+# Download the weights file using the same year parameter, URL pattern, and retry/error
+# handling as the results download above. The bronze table name mirrors the results
+# naming: bronze_epi{epi_year}weights.
+weights_url = f"https://epi.yale.edu/downloads/epi{epi_year}weights.csv"
+weights_table = f"bronze_epi{epi_year}weights"
+
+print(f"\nEPI Weights Ingestion: Downloading {epi_year} weights")
+print(f"  URL: {weights_url}")
+print(f"  Target table: {weights_table}")
+
+weights_response = None
+for attempt in range(1, max_retries + 1):
+    try:
+        weights_response = requests.get(
+            weights_url,
+            timeout=60,
+            headers={"User-Agent": "OEMMatInsightBI-Pipeline/1.0"}
+        )
+        weights_response.raise_for_status()
+        print(f"  Download succeeded (attempt {attempt}, {len(weights_response.content):,} bytes)")
+        break
+    except requests.exceptions.HTTPError as e:
+        if weights_response is not None and weights_response.status_code == 404:
+            raise ValueError(
+                f"EPI {epi_year} weights file not found at {weights_url}. "
+                f"Check if the year is correct or if Yale has changed the URL pattern."
+            ) from e
+        if attempt == max_retries:
+            raise RuntimeError(f"EPI weights download failed after {max_retries} attempts: {e}") from e
+        print(f"  Attempt {attempt} failed ({e}), retrying...")
+    except requests.exceptions.RequestException as e:
+        if attempt == max_retries:
+            raise RuntimeError(f"EPI weights download failed after {max_retries} attempts: {e}") from e
+        print(f"  Attempt {attempt} failed ({e}), retrying...")
+
+# Parse CSV — preserve the source columns as-is (bronze is the raw landing zone;
+# silver-to-gold2.Notebook maps them to the silver_epi{EPI_YEAR}variables shape the
+# gold_dim_indicator primary path selects from).
+weights_pdf = pd.read_csv(io.StringIO(weights_response.text))
+print(f"  Parsed {len(weights_pdf)} rows, {len(weights_pdf.columns)} columns")
+print(f"  Columns: {list(weights_pdf.columns)}")
+
+# Validate expected weights columns. The header is the load-bearing contract for
+# silver-to-gold2's column mapping — if Yale renames a column, the silver build silently
+# NPEs and gold_dim_indicator goes empty, so fail loudly here at the bronze gate.
+required_weights_columns = [
+    "Type", "Abbreviation", "Variable", "Weight",
+    "NextLevel", "IssueCategory", "PolicyObjective", "EPI Percent"
+]
+missing_weights = [c for c in required_weights_columns if c not in weights_pdf.columns]
+if missing_weights:
+    raise ValueError(
+        f"EPI weights CSV schema mismatch — missing required columns: {missing_weights}. "
+        f"Available columns: {list(weights_pdf.columns)}"
+    )
+
+# Validate row count: ~73 rows (1 EPI + 2 PolicyObjective + 11 IssueCategory + ~58 Indicator).
+if len(weights_pdf) < 50:
+    print(f"  WARNING: Only {len(weights_pdf)} rows — expected ~73. Data may be incomplete.")
+
+weights_spark_df = spark.createDataFrame(weights_pdf)
+weights_spark_df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(weights_table)
+
+weights_row_count = spark.sql(f"SELECT COUNT(*) as cnt FROM oem_lh.{weights_table}").first()["cnt"]
+print(f"  Written to {weights_table}: {weights_row_count} rows")
+print(f"  Weights ingestion complete at {datetime.now().isoformat()}")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }

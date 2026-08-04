@@ -1115,14 +1115,83 @@ assert _dup_material_n == 0, (
 
 # MARKDOWN ********************
 
+# ## silver.epi{EPI_YEAR}variables (built from bronze weights)
+# # task-056: the primary `gold_dim_indicator` path selects from
+# `silver_epi{EPI_YEAR}variables`, but that table was never built — `bronze_ingest_epi`
+# previously downloaded only the results CSV, so `silver-to-gold2` fell back to a
+# NULL-weight fallback that hardcoded `weight=F.lit(None)` and flattened `type` to
+# 'indicator' for all rows. This cell builds the silver variables table from the
+# ingested `bronze_epi{EPI_YEAR}weights` table (AC1) so the primary path runs against
+# real data.
+# # Load-bearing mapping: `weight` ← `EPI Percent` (the ABSOLUTE contribution to the EPI
+# composite), NOT the relative `Weight` column. The source CSV stores `EPI Percent` as
+# a STRING like "3.00%" / "25.00%" (pd.read_csv keeps it StringType at bronze), so the
+# silver build must (a) strip the "%" suffix before casting to float and (b) NULL the
+# weight for non-leaf rows explicitly via F.when(Type=='Indicator', ...).otherwise(NULL).
+# The real Yale CSV has NON-NULL `EPI Percent` on all 11 IssueCategory rows (BDH=25.00%,
+# ECS=5.00%, ...) — aggregates are NOT excluded by NULL source data. They are excluded
+# from `Weighted EPI Score` by (i) the explicit `.otherwise(NULL)` weight mapping here
+# AND (ii) the measure's `type='Indicator'` filter (fact_epi_score.tmdl, task-056 AC3
+# harden). Belt-and-suspenders: the NULL weight drops aggregates from SUMX numerator and
+# SUM(weight) denominator; the type filter drops them from the filter context entirely.
+# The relative `Weight` column is preserved as `weight_relative` for traceability but is
+# NOT consumed downstream.
+
+# CELL ********************
+
+_bronze_weights_tbl = f"bronze_epi{EPI_YEAR}weights"
+
+_epi_weights_src = (
+    spark.table(f"{DB}.{_bronze_weights_tbl}")
+    .select(
+        F.col("Type").alias("type"),
+        F.col("Abbreviation").alias("abbreviation"),
+        F.col("Variable").alias("variable"),
+        F.col("PolicyObjective").alias("policyobjective"),
+        F.col("IssueCategory").alias("issuecategory"),
+        F.col("NextLevel").alias("nextlevel"),
+        F.col("Weight").cast(FloatType()).alias("weight_relative"),
+        # `EPI Percent` is the absolute leaf-indicator contribution to the EPI composite.
+        # Source stores it as a STRING ("3.00%"); strip the "%" suffix then cast to float.
+        # Only leaf indicators (Type=Indicator) carry a weight; EPI composite,
+        # PolicyObjective, and IssueCategory rows get NULL explicitly — the real CSV has
+        # non-null EPI Percent on IC rows (BDH=25.00%, etc.), so the NULL must be imposed
+        # by this mapping, not assumed from the source. The measure's `type='Indicator'`
+        # filter (fact_epi_score.tmdl) is the belt; this NULL-IC-weight is the suspenders.
+        F.when(
+            F.col("Type") == "Indicator",
+            F.regexp_replace(F.col("`EPI Percent`"), "%", "").cast(FloatType())
+        ).otherwise(F.lit(None).cast(FloatType())).alias("weight"),
+        # Use the human-readable `Variable` name as description (the results-derived
+        # fallback previously used abbreviation as name; Variable carries full labels).
+        F.col("Variable").alias("description"),
+    )
+)
+
+# Persist as the silver variables table the primary path selects from.
+write_tbl(_epi_weights_src, f"silver_epi{EPI_YEAR}variables")
+print(f"✓ Built silver_epi{EPI_YEAR}variables from {_bronze_weights_tbl}")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
 # ## gold.dim_indicator
 
 # CELL ********************
 
 # EPI indicators
-# NOTE: the EPI variables table may not exist in all environments. Its name is derived
-# from EPI_YEAR (task-028) for the same reason the results table is.
-# Create from EPI results columns if variables metadata table is unavailable
+# task-056: the primary path now runs against the silver variables table built above from
+# the ingested bronze weights. `nextlevel` is carried through so `parent_indicator` can be
+# resolved via a self-join (NextLevel is the parent's abbreviation). The old NULL-
+# hardcoding fallback is retired — if the silver table is genuinely absent we now warn
+# loudly and produce an EMPTY EPI df (visible breakage: zero EPI indicators) rather than
+# 73 rows with NULL weight (silent breakage: Weighted EPI Score renders BLANK).
 try:
     epi_vars = spark.table(f"{DB}.silver_epi{EPI_YEAR}variables").select(
         F.lit("EPI").alias("source_system"),
@@ -1130,31 +1199,35 @@ try:
         F.col("abbreviation").alias("abbrev"),
         F.col("variable").alias("variable_name"),
         "policyobjective","issuecategory","weight","description",
+        "nextlevel",
         F.lit(None).cast(StringType()).alias("indicator_code")
     ).withColumn("indicator_key", stable_key(["source_system","abbrev","variable_name"]))
     print(f"✓ Loaded EPI variables from silver_epi{EPI_YEAR}variables table")
 except Exception as e:
-    print(f"⚠️  EPI variables table not found, creating indicators from results columns: {e}")
-    # Derive indicator metadata from EPI results column names
-    epi_results = spark.table(f"{DB}.{EPI_SILVER_TBL}")
-    id_cols = {"code", "iso", "country"}
-    indicator_cols = [c for c in epi_results.columns if c not in id_cols]
-
+    # Loud fallback: the silver build cell above should always produce this table in a
+    # normal pipeline run. If we land here, the bronze weights table was missing or the
+    # silver build failed — do NOT paper over with fake NULL weights (the pre-task-056
+    # behaviour); emit an empty EPI df so the gap is visible in gold_dim_indicator.
+    print(
+        f"⚠️  silver_epi{EPI_YEAR}variables not found — NOT falling back to NULL weights. "
+        f"EPI indicators will be EMPTY. Root cause: {e}"
+    )
     epi_vars = spark.createDataFrame(
-        [(col,) for col in indicator_cols],
-        ["abbrev"]
-    ).select(
-        F.lit("EPI").alias("source_system"),
-        F.lit("indicator").alias("type"),
-        F.col("abbrev"),
-        F.col("abbrev").alias("variable_name"),  # Use abbreviation as name
-        F.lit(None).cast(StringType()).alias("policyobjective"),
-        F.lit(None).cast(StringType()).alias("issuecategory"),
-        F.lit(None).cast(FloatType()).alias("weight"),
-        F.lit(None).cast(StringType()).alias("description"),
-        F.lit(None).cast(StringType()).alias("indicator_code")
-    ).withColumn("indicator_key", stable_key(["source_system","abbrev","variable_name"]))
-    print(f"✓ Created {epi_vars.count()} EPI indicators from results columns")
+        [],
+        StructType([
+            StructField("source_system", StringType(), True),
+            StructField("type", StringType(), True),
+            StructField("abbrev", StringType(), True),
+            StructField("variable_name", StringType(), True),
+            StructField("policyobjective", StringType(), True),
+            StructField("issuecategory", StringType(), True),
+            StructField("weight", FloatType(), True),
+            StructField("description", StringType(), True),
+            StructField("nextlevel", StringType(), True),
+            StructField("indicator_code", StringType(), True),
+            StructField("indicator_key", LongType(), True),
+        ])
+    )
 
 # WB indicators - NOTE: silver_WB table removed (World Bank ESG data not available)
 # Create empty WB indicators DataFrame with same schema for compatibility
@@ -1175,17 +1248,43 @@ wb_vars = spark.createDataFrame(
     ])
 )
 
-# Union all indicators
+# Union all indicators. `nextlevel` (EPI only) and `parent_label` (WB only) are carried
+# through via allowMissingColumns; both are dropped after the parent_indicator self-join.
 all_indicators = epi_vars.unionByName(wb_vars, allowMissingColumns=True)
 
-# For now, set parent_indicator to NULL (can be enhanced later with proper hierarchy)
-# This avoids the flawed self-join logic
+# task-056: resolve parent_indicator from NextLevel via self-join.
+# NextLevel is the parent's abbreviation (e.g., Indicator MKP → NextLevel=BDH → parent is
+# the IssueCategory BDH). The EPI composite row's NextLevel is NULL/empty → parent_indicator
+# stays NULL (root). WB indicators have no NextLevel → parent_indicator NULL. Only EPI
+# indicators with a non-null, matching NextLevel get a parent_indicator.
+_parent_lookup = all_indicators.select(
+    F.col("abbrev").alias("_parent_abbrev"),
+    F.col("indicator_key").alias("_parent_key")
+)
+
 dim_indicator = (
-    all_indicators
-    .withColumn("parent_indicator", F.lit(None).cast("bigint"))
-    .select("indicator_key","source_system","type","abbrev","variable_name",
-            "policyobjective","issuecategory","indicator_code","weight","description",
-            "parent_indicator")
+    all_indicators.alias("a")
+    .join(
+        _parent_lookup.alias("p"),
+        (F.col("a.nextlevel").isNotNull())
+        & (F.length(F.trim(F.col("a.nextlevel"))) > 0)
+        & (F.col("a.nextlevel") == F.col("p._parent_abbrev")),
+        "left"
+    )
+    .withColumn("parent_indicator", F.col("p._parent_key"))
+    .select(
+        F.col("a.indicator_key"),
+        F.col("a.source_system"),
+        F.col("a.type"),
+        F.col("a.abbrev"),
+        F.col("a.variable_name"),
+        F.col("a.policyobjective"),
+        F.col("a.issuecategory"),
+        F.col("a.indicator_code"),
+        F.col("a.weight"),
+        F.col("a.description"),
+        F.col("parent_indicator"),
+    )
 )
 
 write_tbl(dim_indicator, "gold_dim_indicator")
@@ -1194,6 +1293,12 @@ write_tbl(dim_indicator, "gold_dim_indicator")
 print(f"\nIndicator dimension stats:")
 print(f"  EPI indicators: {dim_indicator.filter(F.col('source_system')=='EPI').count()}")
 print(f"  WB indicators: {dim_indicator.filter(F.col('source_system')=='WB').count()}")
+print(f"  EPI indicators with non-null parent_indicator: "
+      f"{dim_indicator.filter((F.col('source_system')=='EPI') & (F.col('parent_indicator').isNotNull())).count()}")
+print(f"  EPI leaf indicators (type=Indicator) with non-null weight: "
+      f"{dim_indicator.filter((F.col('source_system')=='EPI') & (F.col('type')=='Indicator') & (F.col('weight').isNotNull())).count()}")
+print(f"  Distinct EPI type values: "
+      f"{[r['type'] for r in dim_indicator.filter(F.col('source_system')=='EPI').select('type').distinct().collect()]}")
 
 # METADATA ********************
 

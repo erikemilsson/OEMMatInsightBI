@@ -350,6 +350,7 @@ VAR EpiSubIndicators =
         gold_dim_indicator,
         gold_dim_indicator[source_system] = "EPI"
             && gold_dim_indicator[abbrev] <> "EPI"
+            && gold_dim_indicator[type] = "Indicator"
     )
 VAR WeightedScores =
     CALCULATE(
@@ -364,7 +365,7 @@ VAR TotalWeights =
 RETURN
     DIVIDE(WeightedScores, TotalWeights, 0)
 ```
-**Business Logic:** EPI sub-indicator scores weighted by indicator importance (e.g., climate change 40%, biodiversity 10%). The overall EPI composite (`abbrev = "EPI"`) is excluded — it is itself a weighted aggregate of these sub-indicators, so including it would double-count. WGI indicators (`source_system = "WB"`) are excluded so the numerator and denominator stay on the same source family. EPI data is single-year (2024), so the country × indicator × year grain does not inflate the weight sum.
+**Business Logic:** EPI sub-indicator scores weighted by indicator importance (e.g., climate change 40%, biodiversity 10%). The overall EPI composite (`abbrev = "EPI"`) is excluded — it is itself a weighted aggregate of these sub-indicators, so including it would double-count. WGI indicators (`source_system = "WB"`) are excluded so the numerator and denominator stay on the same source family. EPI data is single-year (2024), so the country × indicator × year grain does not inflate the weight sum. **task-056 (2026-08-04):** the `type = "Indicator"` filter is now explicit — `gold_dim_indicator.weight` is sourced from the Yale `epi2024weights.csv` `EPI Percent` column, which is populated for leaf indicators (Type=Indicator) and NULL for aggregates (EPI composite, PolicyObjective, IssueCategory). Aggregates drop out via `RELATED(weight)=NULL` anyway, but the explicit `type` filter is safer than relying on NULL-weight exclusion. The `abbrev <> "EPI"` filter (task-055's double-count fix) is retained.
 
 ---
 
