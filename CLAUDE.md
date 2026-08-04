@@ -62,7 +62,7 @@ Located in `docs/`:
 - `schemas/` - Bronze and gold table schemas
 - `standards/` - Coding, SQL, naming, git workflow
 - `transformations/` - Country/material alias mappings
-- `glossary.md` - 98 terms defined
+- `glossary.md` - 47 terms defined
 - `dax_measure_library.md` - 40+ DAX measures
 - `rls_security_strategy.md` - 6 security roles
 - `data_quality_framework.md` - ISO 25012 quality checks

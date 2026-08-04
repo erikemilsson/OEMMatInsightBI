@@ -4,85 +4,6 @@ Common issues and their solutions for the OEMMatInsightBI project.
 
 ---
 
-## Task Management Issues
-
-### Issue: "Task must be broken down first" error
-
-**Symptoms:**
-```
-⚠️  Cannot start task-003 (Difficulty: 8)
-Reason: Task must be broken down first (difficulty ≥7)
-```
-
-**Cause:** Task has difficulty ≥7 and requires subtask decomposition before work can begin.
-
-**Solution:**
-```bash
-/breakdown task-003
-# Follow prompts to create subtasks
-# Then retry:
-/complete-task task-003
-```
-
----
-
-### Issue: Task shows as "Blocked"
-
-**Symptoms:**
-```
-❌ Cannot start task-003
-Blocked by: task-002 (In Progress)
-```
-
-**Cause:** Task has unfinished dependencies.
-
-**Solution:**
-1. Check dependencies in task JSON: `cat .claude/tasks/task-003.json | grep dependencies`
-2. Complete blocking tasks first
-3. Run `/sync-tasks` to verify unblocked
-4. Retry `/complete-task task-003`
-
-**Workaround:** If dependency is optional (not truly blocking), edit task JSON to remove dependency.
-
----
-
-### Issue: `/sync-tasks` reports JSON schema errors
-
-**Symptoms:**
-```
-❌ Validation failed for task-002.json
-Error: Missing required field 'difficulty'
-```
-
-**Cause:** Task JSON file is malformed or missing required fields.
-
-**Solution:**
-1. Open the reported file: `.claude/tasks/task-002.json`
-2. Compare against template: `.claude/templates/task-template.json`
-3. Add missing fields
-4. Run `/sync-tasks` to revalidate
-
-**Required Fields:**
-- `id`, `title`, `description`, `status`, `priority`, `difficulty`, `estimatedEffort`, `acceptanceCriteria`, `dependencies`, `subtasks`
-
----
-
-### Issue: Progress percentage not updating
-
-**Symptoms:** Completed subtasks but parent task still shows 0%
-
-**Cause:** `/sync-tasks` hasn't run recently.
-
-**Solution:**
-```bash
-/sync-tasks
-# This recalculates all progress and updates MISSION_CONTROL.md
-```
-
-**Note:** Progress is not real-time - run `/sync-tasks` after each subtask completion.
-
----
-
 ## Pipeline Issues (Fabric Workspace)
 
 ### Issue: Bronze ingestion fails - Azure SQL connection timeout
@@ -115,8 +36,6 @@ dataflow is retired and deleted.)
 - Credential problems: re-enter it on the connection, username `erikdatabase`
   (NOT `erikdatabase2`, a stale contained-DB user)
 
-**Related Task:** Task 011 (Error Handling) - designed retry logic for transient failures
-
 ---
 
 ### Issue: Silver transformation notebook fails - Spark session error
@@ -131,8 +50,6 @@ dataflow is retired and deleted.)
 - Restart Spark pool in Fabric workspace
 - Increase capacity units if at limit
 - Optimize PySpark code to reduce memory usage
-
-**Related Task:** Task 012 (Performance Optimization) - designed optimization strategies
 
 ---
 
@@ -177,8 +94,6 @@ RETURN
     IF(ISBLANK(BaseValue), "No Data", BaseValue)
 ```
 
-**Related Task:** Task 002 (DAX Measures) - comprehensive measure library design
-
 ---
 
 ### Issue: Row-Level Security not filtering correctly
@@ -199,8 +114,6 @@ RETURN
 [region] == "Americas"  // Wrong syntax!
 ```
 
-**Related Task:** Task 004 (RLS Security) - 6 roles designed with correct DAX filters
-
 ---
 
 ## Data Quality Issues
@@ -212,13 +125,9 @@ RETURN
 **Diagnosis:** Check alias resolution logic
 
 **Solution:**
-1. Review aliases: `/.claude/support/documents/transformations/alias_mappings.md`
+1. Review aliases: [`docs/transformations/alias_mappings.md`](../transformations/alias_mappings.md)
 2. Add missing aliases to lookup tables
 3. Re-run silver-to-gold transformation
-
-**Related Tasks:**
-- Task 001 (DQ Visibility) - creates dashboard to monitor
-- Task 007 (Data Quality Checks) - framework to validate
 
 ---
 
@@ -239,8 +148,6 @@ print(f"Difference: {diff}")
 - If difference > 0.01: Investigate transformation logic
 - Check for rows dropped during gold transformation
 - Verify unmapped audit tables
-
-**Related Task:** Task 007 (Data Quality) - designed aggregate reconciliation check
 
 ---
 
@@ -264,8 +171,6 @@ pip install -r requirements-test.txt
 # Run tests
 pytest tests/ -v
 ```
-
-**Related Task:** Task 008 (Unit Tests) - framework complete
 
 ---
 
@@ -305,35 +210,32 @@ echo "*.ipynb_checkpoints" >> .gitignore
 
 ---
 
-### Issue: Merge conflict in task JSON files
+### Issue: Merge conflict in `.claude/tasks/` JSON files
 
-**Symptoms:** Git conflict in `.claude/tasks/task-XXX.json`
+**Symptoms:** Git conflict in a `.claude/tasks/task-XXX.json` file.
 
 **Solution:**
 1. **Don't manually edit JSON during conflict** - corrupts structure
-2. Choose one version (local or remote)
-3. Run `/sync-tasks` to validate
-4. If needed, manually re-apply changes to chosen version
+2. Choose one version (local or remote), then re-apply the intended change by hand
+3. Validate the JSON parses before committing
 
-**Prevention:** Always run `/sync-tasks` before committing task JSON files.
+> Note: the `/complete-task` and `/sync-tasks` commands are deprecated. Task JSON is now hand-maintained against [`docs/PROJECT_PROGRESS.md`](../PROJECT_PROGRESS.md); terminal task files live under the gitignored `.claude/tasks/archive/`.
 
 ---
 
 ## Performance Issues
 
-### Issue: Pipeline takes >1 hour to complete
+### Issue: Pipeline takes longer than expected to complete
 
-**Symptoms:** End-to-end runtime very slow
+**Symptoms:** End-to-end runtime higher than the measured baseline.
 
-**Diagnosis:** Check current runtime by stage (see task-012.json notes)
+**Diagnosis:** Compare against the measured 3-run baseline in [`performance_baseline.md`](../performance_baseline.md) (functional total ~16.6 min: Bronze ~1.4 min, Silver ~2.8 min, Gold ~12.4 min).
 
 **Solution (Priority Order):**
-1. **Enable incremental load** (Task 006) - 94% time reduction expected
-2. **Implement partitioning** (Task 012) - 20-40% improvement
-3. **Enable V-Order** (Task 012) - 10-30% improvement for DirectLake
-4. **Optimize transformations** - broadcast joins, caching
-
-**Related Task:** Task 012 (Performance Optimization) - comprehensive strategy
+1. **Confirm incremental load** is active (`p_full_load=false`) — full loads reprocess everything
+2. **Check Fabric capacity utilization** — a busy capacity inflates every stage
+3. **Verify V-Order** on gold Delta tables (see `performance_optimized.md`)
+4. **Optimize transformations** — broadcast joins, caching
 
 ---
 
@@ -364,47 +266,25 @@ RETURN
     )
 ```
 
-**Related Tasks:**
-- Task 002 (DAX Measures) - designed with performance in mind
 - Task 012 (Performance) - warehouse indexing for BI queries
-
----
-
-## Common Error Messages
-
-### "Task already in progress"
-
-**Solution:** Continue current subtask or view progress with `/sync-tasks`
-
-### "Circular dependency detected"
-
-**Solution:** Edit task JSON files to remove circular references
-
-### "Invalid status transition"
-
-**Solution:** Don't reopen finished tasks - create new tasks instead
-
-### "Subtask effort doesn't match parent"
-
-**Solution:** Recalculate - subtask efforts should sum to parent estimate
 
 ---
 
 ## Getting Additional Help
 
-**For Task Management:**
-- See `/.claude/dashboard.md` for current status
-- See `/.claude/support/reference/task-workflow.md` for workflow guide
+**For pipeline / Fabric issues:**
+- [`docs/architecture/orchestration.md`](../architecture/orchestration.md) — pipeline activity detail
+- [`docs/error_recovery_playbook.md`](../error_recovery_playbook.md) — per-activity retry table and resolution steps
+- [`docs/architecture/fabric-artifacts-inventory.md`](../architecture/fabric-artifacts-inventory.md) — artifact status and dependencies
 
-**For Technical Issues:**
-- See relevant `/.claude/support/documents/` documentation
-- Check `/.claude/spec_v1.md` for architecture details
+**For data / model issues:**
+- [`docs/data_quality_architecture.md`](../data_quality_architecture.md) — DQ observability surface
+- [`docs/dax_measure_library.md`](../dax_measure_library.md) — as-built measure catalogue
+- [`docs/architecture/semantic_model.md`](../architecture/semantic_model.md) — DirectLake model on `oem_lh`
 
-**For Data Issues:**
-- See `/.claude/support/documents/data_quality_framework.md`
-- Check audit tables in gold layer
+**For the project spec:**
+- [`.claude/spec_v1.md`](../../.claude/spec_v1.md) — the project specification (source of truth)
 
 ---
 
-*Last Updated: 2025-11-16*
-*For frequently asked questions, see FAQ.md*
+*For frequently asked questions, see [`FAQ.md`](../guides/FAQ.md)*

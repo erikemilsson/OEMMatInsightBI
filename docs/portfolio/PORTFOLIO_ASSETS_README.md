@@ -1,369 +1,128 @@
-# OEMMatInsightBI - Portfolio Assets Summary
-**Project:** OEMMatInsightBI - Procurement Analytics & ESG Risk Intelligence
-**Date:** 2025-11-16
-**Status:** Design Complete, Implementation Pending Workspace Access
+# OEMMatInsightBI — Portfolio Assets
+
+**Project:** OEMMatInsightBI — Procurement Analytics & ESG Supply-Risk Intelligence
+**Stack:** Microsoft Fabric (Lakehouse, Pipelines, Notebooks) · PySpark · Delta Lake · Power BI / DAX / TMDL · Azure SQL · GitHub Actions
+**Status:** Built. Pipeline runs, semantic model ships 45 measures, report renders. Visual assets (screenshots, PDF) are generated from the live report.
+
+> **Honesty frame (read first):** the procurement ledger is **synthetic**; the external data (EPI, WGI, EU CRM supply shares) is **real**. This project demonstrates *method and engineering*, not discovered business facts. The case study states this up front, and the portfolio assets below follow the same rule — they showcase what was built and how, not fabricated "findings." See [CASE_STUDY.md](./CASE_STUDY.md) for the full provenance statement.
 
 ---
 
-## Portfolio-Ready Assets ✅
+## 1. Case study — `CASE_STUDY.md`
 
-### 1. Case Study Document
-**File:** `/docs/portfolio/CASE_STUDY.md`
-**Status:** ✅ Complete and ready to publish
+The portfolio centerpiece. Covers the problem, the medallion build, the data-quality observability layer, the HHI supply-risk methodology, the incremental-load / parity-contract engineering, and the honest null-result (Taiwan's permanent WGI gap). Suitable for a portfolio page, LinkedIn article, resume attachment, or interview discussion guide.
 
-**Highlights:**
-- **2,500 words** professional case study
-- Business challenge → solution → technical implementation → results
-- Key insights (sustainability gap, 4 high-risk materials identified)
-- Technical skills demonstrated (DAX, PySpark, data engineering)
-- Suitable for:
-  - erikemilsson.com portfolio page
-  - LinkedIn article
-  - Resume attachment
-  - Interview discussion guide
-
-**Next Steps:**
-1. Convert to PDF for professional formatting
-2. Add screenshots when available
-3. Publish to portfolio website
+**Portfolio use:** publish to `erikemilsson.com`, link from resume, walk through in interviews.
 
 ---
 
-### 2. Report Design Documentation
-**File:** `/docs/portfolio/PORTFOLIO_DESIGN.md`
-**Status:** ✅ Complete and ready for implementation
+## 2. Report design — `PORTFOLIO_DESIGN.md`
 
-**Contents:**
-- **Page 1 Design:** Executive Dashboard (full visual specifications)
-- **Page 2 Design:** Risk & Sustainability Analysis (layout, measures, colors)
-- **Theme Specification:** Color palette, typography, grid system
-- **Implementation Checklist:** Step-by-step guide for building the report
+Power BI report design specification: page layouts, measure wiring, theme, and accessibility notes. Pairs with the live `report2.Report` (built from the `OEMInsightBI_v2` semantic model).
 
-**Demonstrates:**
-- Dashboard design thinking (UX, visual hierarchy, storytelling)
-- Power BI best practices (measure organization, accessibility)
-- Professional documentation (clear specs for handoff to developer or client)
-
-**Use Cases:**
-- Show to recruiters: "Here's how I approach BI design"
-- Portfolio website: "Sample design spec from recent project"
-- Interview: "Let me walk you through my design process"
+**Demonstrates:** dashboard design thinking (visual hierarchy, storytelling), Power BI best practices (measure organization, DirectLake), and professional handoff-grade documentation.
 
 ---
 
-### 3. DAX Measure Library — Two Models, One Evolution
+## 3. DAX measure library — the as-built catalogue
 
-The semantic model went through a deliberate redesign, and the two versions tell
-complementary stories. **Both are worth showing — know which one you're demoing.**
+**Source of truth:** `fabric/OEMInsightBI_v2.SemanticModel/definition/tables/*.tmdl` (the live TMDL).
+**Readable catalogue:** [`docs/dax_measure_library.md`](../dax_measure_library.md) — 45 measures transcribed from the live model.
 
-| | **v2 — canonical** | **v1 — archived** |
+The model has one canonical version (`OEMInsightBI_v2`, DirectLake on `oem_lh`). Measures live on the table that owns their grain — there is no `_Measures` table — grouped with display folders:
+
+| Group | Table(s) | Measures | What it shows |
+|---|---|---|---|
+| Procurement | `fact_procurement` | 5 | Spend, transaction/material/country counts |
+| EPI scoring | `fact_epi_score` | 3 | Avg EPI, country coverage, weighted EPI score |
+| Supply share | `fact_supply_share` | 1 | Supply concentration index |
+| Supply risk (HHI) | `gold_supply_risk` | 3 | Global vs EU HHI + contrast |
+| Data-gap coverage | `gold_data_gaps` | 16 | EPI/WGI coverage by country and spend |
+| Quality observability | `gold_gap_registry`, `gold_quality_history`, `gold_low_confidence_audit` | 17 | Gap lifecycle, run history, low-confidence audit |
+| **Total** | **8 measure tables** | **45** | |
+
+**The interview narrative:** the model deliberately foregrounds **data-quality observability** — coverage %, gap resolution, threshold breaches, low-confidence audit — because *is the data trustworthy, and where are the holes* became the project's centre of gravity. That is a data-engineering judgment about what a model should surface, not just DAX breadth.
+
+**DAX patterns in use:** `DIVIDE(...,0)` safe division, `VAR`/`RETURN`, `CALCULATE` boolean filters, `RELATED` inside `SUMX` (weighted EPI), `MAXX`-isolated latest-run metrics, display folders.
+
+**Portfolio use:** link the specific `.tmdl` files as code samples; the catalogue doc is the readable companion.
+
+---
+
+## 4. Engineering artifacts (code samples)
+
+| Artifact | Path | Why it's worth showing |
 |---|---|---|
-| Path | `fabric/OEMInsightBI_v2.SemanticModel/definition/tables/*.tmdl` | `fabric/archive/…/definition/tables/_Measures.tmdl` |
-| Measures | 40, across per-table files | 46, in one file |
-| Emphasis | **Data-quality observability** | **Analytical BI depth** |
-| Examples | `EPI Country Coverage %`, `Gap Resolution Rate`, `Threshold Breaches` | HHI Index, Spend-Weighted EPI, YoY Growth |
-
-The redesign **foregrounded data-quality observability** — coverage tracking, gap
-resolution, gate-verdict surfacing — because that became the project's centre of
-gravity (a blocking DQ gate, a gap registry, quality-history trending). The v1
-analytical measures were preserved in the archive rather than carried forward; the two
-models share only **Total Spend EUR** and **Avg EPI Score**.
-
-**The interview narrative:** *"I redesigned the model as the project's focus shifted from
-descriptive analytics to data-quality engineering. v2 exposes the observability layer —
-coverage %, gap resolution, gate verdicts — as first-class measures; the earlier
-analytical set (HHI concentration, spend-weighted sustainability, time intelligence)
-lives in the archived v1 model and I can walk through either."* Showing the trade is the
-signal — it demonstrates judgment about what a data-engineering project should surface,
-not just breadth of DAX syntax.
-
-**Analytical showcase measures (v1 archive) — the advanced-DAX evidence:**
-1. **Total Spend EUR** — Basic aggregation *(also in v2)*
-2. **YoY Spend Growth %** — Time intelligence (`SAMEPERIODLASTYEAR`)
-3. **Avg EPI Score** — Filtered aggregation *(also in v2)*
-4. **Spend-Weighted EPI Score** — `SUMX` over `SUMMARIZE` with nested `CALCULATE`
-5. **% Spend - High EPI (>60)** — Categorization with `DIVIDE`
-6. **Max Supply Concentration %** — `MAXX`
-7. **HHI Index** — Herfindahl-Hirschman concentration (`SUMX` of squared shares)
-8. **High Risk Material Count** — Conditional distinct count
-
-**Observability measures (v2 canonical) — the data-engineering evidence:**
-coverage % by source, gap resolution rate, open/resolved gap counts, threshold breaches,
-low-confidence match tracking, pipeline-run counts — i.e. *is the data trustworthy, and
-where are the holes*, expressed in DAX.
-
-**Technical highlights (both models):**
-- ✅ Display folders for organization
-- ✅ Safe division with `DIVIDE` (handles zero denominators)
-- ✅ Variables for readability and performance
-- ✅ `SUMX` iteration for weighted calculations
-- ✅ DirectLake-compatible (no calculated columns)
-
-**Portfolio Use:**
-- Code sample for GitHub — link the specific `.tmdl` file, not a generic path
-- Interview discussion: the v1→v2 evolution *is* the story ("tell me about a design
-  decision you'd defend")
-- Evidence of both analytical DAX depth **and** data-quality engineering judgment
+| Semantic model (TMDL) | `fabric/OEMInsightBI_v2.SemanticModel/definition/` | Model-as-code: 14 tables, 10 relationships, 45 measures, DirectLake expression |
+| Pipeline | `fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/` | 10-activity orchestration (Copy + Notebook) with per-activity retry policy |
+| Silver→Gold notebook | `fabric/silver-to-gold2.Notebook/` | Star-schema build + observability tables + Delta MERGE |
+| Parity contract | `tests/test_notebook_parity.py`, `src/transformations/` | `src/` is a tested mirror of notebook logic; CI pins parity (Task-032) |
+| Data quality | `fabric/data_quality_checks.Notebook/`, `src/transformations/data_quality.py` | Blocking DQ gate + observability population |
+| EPI/WGI ingestion | `fabric/bronze_ingest_epi.Notebook/`, `fabric/bronze_ingest_wgi.Notebook/` | Automated HTTP/API ingestion of real public datasets |
 
 ---
 
-### 4. Full DAX Measure Design Document
-**File:** `/.claude/support/documents/dax_measure_library.md`
-**Status:** ✅ Design complete (40+ measures designed). **Implementation is split across
-two models** — see § 3: the 8 showcase measures are implemented in the *archived v1*
-model, while the canonical v2 model implements a different 40-measure coverage/quality
-set. This design doc describes the analytical measures, i.e. the v1 set.
+## 5. Visual assets
 
-**Contents:**
-- Star schema overview
-- Measure organization strategy
-- **30+ additional measures** designed (time intelligence, sustainability, risk, advanced)
-- Performance optimization patterns
-- Business logic documentation
+Generated from the live `report2.Report` in the Fabric workspace:
 
-**Portfolio Use:**
-- Shows ability to design comprehensive measure libraries
-- Demonstrates forward-thinking (designed 40+, prioritized a focused set for build)
-- Pairs with § 3's v1→v2 narrative: this doc is the *design* superset; the two shipped
-  models are the *implemented* subsets, each with a deliberate emphasis
+| Asset | How to produce | Use |
+|---|---|---|
+| Dashboard screenshots | Power BI Desktop → Export / OS screenshot at 1920×1080 | Portfolio hero images, LinkedIn, case-study figures |
+| PDF export | Power BI Desktop → File → Export → PDF | Email attachment, printable portfolio piece |
+| PBIX | Save from Power BI Desktop | Interactive sharing (data is synthetic/public-safe) |
+
+These are produced from the *real* report on the *real* model — no mockups or "implementation pending" placeholders.
 
 ---
 
-## Pending Assets (Require Workspace Access) ⏳
+## What recruiters / interviewers see
 
-### 5. Power BI Report Implementation
-**Status:** ⏳ Pending Fabric workspace access
+**Technical skills validated:** DAX (time intelligence, weighted aggregation, safe division, `SUMX`/`RELATED`), data modeling (star schema, DirectLake), data engineering (medallion, PySpark, Delta MERGE, incremental load), data quality (ISO 25012 framework, observability tables, blocking gate), CI/CD (`fabric-cicd` deploy, GitHub Actions), testing (235-test parity contract).
 
-**What's Needed:**
-1. Access to Fabric workspace
-2. Refresh semantic model (to load new _Measures table)
-3. Build report pages following PORTFOLIO_DESIGN.md specifications
-4. Apply theme and formatting
-
-**Estimated Time:** 2-3 hours (design is complete, just implementation)
-
-**Workaround for Portfolio:**
-- Use PORTFOLIO_DESIGN.md as evidence of design skills
-- Create mockups/wireframes using Figma or PowerPoint
-- Explain in case study: "Design complete, implementation pending workspace access"
+**Engineering judgment demonstrated:** honest null-result handling (Taiwan WGI gap surfaced, not coerced to 0), measured baselines over guessed numbers, the parity contract as deliberate drift-prevention, six defended decisions in the case study.
 
 ---
 
-### 6. Screenshots (High-Resolution)
-**Status:** ⏳ Pending report implementation
+## Recommended next actions
 
-**Required Assets:**
-- `oeminsight_page1_executive_dashboard.png` (1920×1080)
-- `oeminsight_page2_risk_sustainability.png` (1920×1080)
-
-**Use Cases:**
-- Portfolio website hero images
-- LinkedIn posts
-- Case study visual aids
-- Presentation decks
-
-**Alternative:**
-- Create mockups using design tools (Figma, Sketch, PowerPoint)
-- Use generic Power BI screenshots with annotation: "Representative design (final implementation pending)"
+1. **Publish the case study** → `erikemilsson.com` + LinkedIn (reframed around method, not "findings" — see template below).
+2. **Upload to GitHub** → the repo *is* the portfolio; the README links the case study and featured code.
+3. **Capture visual assets** → screenshots + PDF from the live report.
 
 ---
 
-### 7. PDF Export
-**Status:** ⏳ Pending report implementation
+## LinkedIn post template (honest framing)
 
-**Requirements:**
-- Export from Power BI Desktop (File → Export → PDF)
-- Vector format for crisp printing
-- Interactive links preserved if possible
-
-**Use Cases:**
-- Email attachment for recruiters
-- Printable portfolio piece
-- Archival version
-
----
-
-### 8. PBIX File
-**Status:** ⏳ Pending report implementation
-
-**Requirements:**
-- Save as `.pbix` from Power BI Desktop
-- Include semantic model + report pages
-- Test file size (should be <50 MB for easy sharing)
-
-**Use Cases:**
-- Share with recruiters who want to explore interactively
-- Upload to GitHub (if data is anonymized/public)
-- Demonstration during technical interviews
-
----
-
-## Immediate Portfolio Showcase Options
-
-### Option 1: Publish Case Study (Recommended)
-**Effort:** 30 minutes
-**Impact:** High
-
-**Steps:**
-1. Convert `CASE_STUDY.md` to PDF using Pandoc or Markdown-to-PDF tool
-2. Upload to portfolio website (erikemilsson.com/projects/oeminsightbi)
-3. Create LinkedIn post highlighting key findings
-4. Add to resume under "Featured Projects"
-
-**Template LinkedIn Post:**
-> 📊 Just completed an end-to-end BI project: OEMMatInsightBI
+> 📊 Shared a new end-to-end data-engineering project: OEMMatInsightBI — procurement analytics & supply-risk intelligence on Microsoft Fabric.
 >
-> Built a Power BI solution to help an OEM manufacturer track procurement sustainability and supply chain risk.
+> What it demonstrates:
+> ✅ A medallion lakehouse (Bronze/Silver/Gold) with PySpark + Delta MERGE and an incremental-load strategy with measured runtimes
+> ✅ A DirectLake semantic model with 45 DAX measures, including a data-quality observability layer (coverage %, gap registry, threshold breaches)
+> ✅ Real external data (Yale EPI, World Bank WGI, EU CRM supply shares) automated via HTTP/API ingestion, joined to a synthetic procurement ledger
+> ✅ A 235-test parity contract that pins notebook logic to a tested `src/` mirror, and an honest null-result (Taiwan's permanent WGI gap surfaced, not coerced to zero)
 >
-> Key results:
-> ✅ Identified 4 materials with >50% single-country supply concentration
-> ✅ Revealed sustainability gap (58.7 spend-weighted EPI vs. 62.3 unweighted)
-> ✅ Implemented 8 advanced DAX measures (time intelligence, weighted calcs, HHI index)
+> The procurement ledger is synthetic, so the project makes claims about *method and engineering*, not discovered business facts — I've written that up explicitly in the case study.
 >
-> Tech stack: Power BI, DAX, PySpark, Azure SQL, Microsoft Fabric
+> Tech: Microsoft Fabric, PySpark, Delta Lake, Power BI / DAX / TMDL, Azure SQL, GitHub Actions.
 >
-> Full case study: [link to PDF]
+> Full write-up: [link to case study]
 >
-> #PowerBI #DataAnalytics #BusinessIntelligence #ESG #SupplyChain
+> #DataEngineering #MicrosoftFabric #PowerBI #DAX #SupplyChainAnalytics
+
+> **Why this framing:** the case study states up front that the spend figures are illustrative. A LinkedIn post that claims "identified 4 high-risk materials" or quotes a spend-weighted EPI gap as a discovered finding would contradict that honesty frame and misrepresent synthetic-data output as a business result. The template above advertises the *engineering* and is explicit about the synthetic ledger.
 
 ---
 
-### Option 2: Create Design Mockups
-**Effort:** 2-4 hours
-**Impact:** Medium-High
+## File locations
 
-**Tools:**
-- Figma (free, web-based, professional mockups)
-- PowerPoint (quick, familiar, exportable to PDF)
-- Canva (templates available, easy to use)
-
-**Steps:**
-1. Use PORTFOLIO_DESIGN.md layout specifications
-2. Create 2 mockup images (Page 1 and Page 2)
-3. Use realistic data labels (€12.5M, +8.3%, etc.)
-4. Add to portfolio website with caption: "Design specifications (implementation pending)"
-
-**Why This Works:**
-- Shows design thinking even without implementation
-- Demonstrates ability to create professional specs
-- Separates "design" from "execution" (both valuable skills)
-
----
-
-### Option 3: Code Portfolio on GitHub
-**Effort:** 1 hour
-**Impact:** Medium
-
-**Steps:**
-1. Create public repo: `erikemilsson/OEMMatInsightBI`
-2. Upload key files:
-   - DAX code — v2: `OEMInsightBI_v2.SemanticModel/definition/tables/*.tmdl`; v1 showcase set: the archived model under `fabric/archive/` → `definition/tables/_Measures.tmdl`
-   - `CASE_STUDY.md` (project overview)
-   - `PORTFOLIO_DESIGN.md` (design specs)
-   - `dax_measure_library.md` (full design)
-   - Sample Python transformations (`src/transformations/`)
-3. Write README with project overview and "Featured Code" section
-4. Add to resume: "GitHub: github.com/erikemilsson/OEMMatInsightBI"
-
-**Why This Works:**
-- Recruiters can see actual code (DAX, Python, documentation)
-- Shows Git proficiency (commit messages, repo structure)
-- Demonstrates willingness to share knowledge (good culture fit signal)
-
----
-
-## What Recruiters Will See
-
-### Technical Skills Validated
-- ✅ **DAX:** Time intelligence, SUMX iteration, weighted calculations, safe division
-- ✅ **Data Modeling:** Star schema design, DirectLake optimization
-- ✅ **Dashboard Design:** UX best practices, visual hierarchy, accessibility
-- ✅ **Documentation:** Professional case studies, design specs, technical writing
-- ✅ **Data Engineering:** Medallion pattern, PySpark, data quality frameworks (see broader project)
-
-### Business Acumen Demonstrated
-- ✅ Translated business questions into analytics solutions
-- ✅ Identified actionable insights (4 high-risk materials, sustainability gap)
-- ✅ Explained technical concepts for non-technical audience (case study)
-- ✅ Prioritized features for MVP (8 measures vs. 40+ designed)
-
-### Soft Skills Evident
-- ✅ **Communication:** Case study is clear, concise, compelling
-- ✅ **Project Management:** Broke down complex task into deliverables
-- ✅ **Problem-Solving:** Data quality challenges (name matching) documented and solved
-- ✅ **Attention to Detail:** Comprehensive design specs, color palettes, typography
-
----
-
-## Recommended Next Actions
-
-### For Immediate Portfolio Use (No Workspace Needed)
-1. ✅ **Publish Case Study** → erikemilsson.com + LinkedIn (30 min)
-2. ✅ **Upload to GitHub** → Code samples + documentation (1 hour)
-3. ⚠️ **Create Mockups** → Figma or PowerPoint (2-4 hours, optional)
-
-### When Workspace Access Available
-4. ⏳ **Implement Report** → Follow PORTFOLIO_DESIGN.md (2-3 hours)
-5. ⏳ **Take Screenshots** → High-res PNG exports (15 min)
-6. ⏳ **Export PDF + PBIX** → Portfolio assets (15 min)
-7. ⏳ **Update Portfolio** → Add visual assets to website (30 min)
-
----
-
-## File Locations Summary
-
-| Asset | File Path | Status |
-|-------|-----------|--------|
-| Case Study | `/docs/portfolio/CASE_STUDY.md` | ✅ Complete |
-| Design Specs | `/docs/portfolio/PORTFOLIO_DESIGN.md` | ✅ Complete |
-| DAX Measures (v2, canonical) | `/fabric/OEMInsightBI_v2.SemanticModel/definition/tables/*.tmdl` | ✅ 40 measures — coverage/quality focus |
-| DAX Measures (v1 showcase set) | the archived model under `/fabric/archive/` → `definition/tables/_Measures.tmdl` | ⚠️ 46 measures, ARCHIVED model |
-| DAX Measures (Full Design) | `/.claude/support/documents/dax_measure_library.md` | ✅ Complete |
-| Report JSON | `/fabric/report2.Report/report.json` | ⏳ Needs update |
-| Screenshots | N/A | ⏳ Pending |
-| PDF Export | N/A | ⏳ Pending |
-| PBIX File | N/A | ⏳ Pending |
-
----
-
-## Questions for Portfolio Discussion
-
-### In Interviews, You Can Discuss:
-1. **"Walk me through your design process"**
-   → Show PORTFOLIO_DESIGN.md, explain how you structured pages for storytelling
-
-2. **"What's a challenging DAX measure you've written?"**
-   → Spend-Weighted EPI Score (SUMX + nested CALCULATE + weighted average)
-
-3. **"How do you handle data quality issues?"**
-   → Country name matching (fuzzy logic + confidence scoring + audit tables)
-
-4. **"Tell me about a project where you identified business insights"**
-   → Case study (4 high-risk materials, sustainability gap, procurement recommendations)
-
-5. **"How do you prioritize features?"**
-   → Designed 40+ measures, implemented 8 for MVP based on business value vs. effort
-
----
-
-## Portfolio Website Structure (Suggestion)
-
-```
-erikemilsson.com/projects/oeminsightbi/
-├── index.html (Overview + key highlights)
-├── case-study.pdf (Full case study)
-├── design-specs.pdf (PORTFOLIO_DESIGN.md converted)
-├── screenshots/
-│   ├── page1-dashboard.png (when available)
-│   └── page2-risk.png (when available)
-├── code-samples/
-│   ├── measures.tmdl
-│   └── fuzzy-matching.py
-└── github-link (button to repo)
-```
-
----
-
-**Status:** Portfolio assets are ready for immediate use (case study, design docs, DAX code). Visual assets (screenshots, PDF, PBIX) pending workspace access but not blockers for showcasing the project.
-
-**Next Step:** Publish case study to erikemilsson.com and LinkedIn for maximum visibility.
+| Asset | Path | Status |
+|---|---|---|
+| Case study | `docs/portfolio/CASE_STUDY.md` | ✅ Ready |
+| Report design | `docs/portfolio/PORTFOLIO_DESIGN.md` | ✅ Ready |
+| DAX measure catalogue | `docs/dax_measure_library.md` | ✅ Ready (as-built, 45 measures) |
+| Semantic model | `fabric/OEMInsightBI_v2.SemanticModel/` | ✅ Built |
+| Report | `fabric/report2.Report/` | ✅ Built |
+| Pipeline | `fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/` | ✅ Built |
+| Tests | `tests/` | ✅ 235 tests |
+| Screenshots / PDF / PBIX | produced from the live report | ⏳ Capture on demand |

@@ -1,7 +1,8 @@
 # OEMMatInsightBI - Portfolio Report Design
-**Version:** 1.0
-**Date:** 2025-11-16
-**Purpose:** Streamlined 2-page Power BI report for portfolio showcase (erikemilsson.com)
+**Version:** 1.0 (design spec for the built `report2.Report`)
+**Purpose:** 2-page Power BI report design for portfolio showcase (erikemilsson.com)
+
+> The report this spec describes is **built** (`fabric/report2.Report`) on the `OEMInsightBI_v2` semantic model. The visual specs below are the design; the as-built measure set is documented in [`docs/dax_measure_library.md`](../dax_measure_library.md) (45 measures). Where a visual below names a measure that was reframed during the model's redesign, substitute the nearest as-built measure from the catalogue — e.g. `[Supply Risk (Global)]` for HHI, `Weighted EPI Score` for the spend-weighted sustainability gauge.
 
 ---
 
@@ -227,16 +228,16 @@ These are not portfolio-appropriate and have been removed from the report.
 
 ## Technical Implementation Notes
 
-### Required Measures (8 Total)
-All measures implemented in `_Measures` table:
-- ✅ `Total Spend EUR`
-- ✅ `YoY Spend Growth %`
-- ✅ `Avg EPI Score`
-- ✅ `Spend-Weighted EPI Score`
-- ✅ `% Spend - High EPI (>60)`
-- ✅ `Max Supply Concentration %`
-- ✅ `HHI Index`
-- ✅ `High Risk Material Count`
+### As-built measure set
+
+The model ships **45 measures across 8 tables** (no `_Measures` table — measures live on the table that owns their grain, grouped with display folders). The full catalogue is in [`dax_measure_library.md`](../dax_measure_library.md). Headline measures used across the two pages:
+
+- `Total Spend EUR`, `Transaction Count`, `Materials Count`, `Supplier Countries Count` (`fact_procurement`)
+- `Avg EPI Score`, `Countries with EPI Data`, `Weighted EPI Score` (`fact_epi_score`)
+- `Supply Risk (Global)`, `Supply Risk (EU Sourcing)`, `Supply Risk Contrast` (`gold_supply_risk`)
+- `Supply Concentration Index` (`fact_supply_share`)
+- 16 coverage measures on `gold_data_gaps` (EPI/WGI coverage by country and spend)
+- 17 observability measures across `gold_gap_registry`, `gold_quality_history`, `gold_low_confidence_audit`
 
 ### Additional Calculated Columns Needed
 None - all logic in measures for performance (DirectLake compatibility).
@@ -244,8 +245,8 @@ None - all logic in measures for performance (DirectLake compatibility).
 ### Data Requirements
 - **Fact Tables:** fact_procurement, fact_epi_score, fact_supply_share
 - **Dimensions:** gold_dim_date, gold_dim_country, gold_dim_material, gold_dim_indicator, gold_dim_stage
-- **Date Range:** 2020-2023 (minimum)
-- **Data Freshness:** Highlight in report footer (e.g., "Last updated: 2025-11-16")
+- **Derived gold:** gold_supply_risk
+- **Data Freshness:** Highlight in report footer (DirectLake auto-refreshes from `oem_lh`)
 
 ---
 
@@ -308,44 +309,30 @@ Neutral:
 
 ## Implementation Steps
 
-1. ✅ **DAX Measures Created** (completed)
-2. **Report Page Redesign** (pending workspace access):
-   - Delete Page 3 (debug visuals)
-   - Redesign Page 1 following layout above
-   - Redesign Page 2 following layout above
-   - Apply theme and formatting
-3. **Testing & Validation:**
-   - Verify all measures calculate correctly
-   - Test slicers and filters
-   - Check mobile layout responsiveness
-4. **Export Portfolio Assets:**
-   - Take screenshots (hi-res PNG)
+1. ✅ **Semantic model** — `OEMInsightBI_v2` ships 45 measures (see `dax_measure_library.md`)
+2. ✅ **Report** — `report2.Report` built from the model; the two pages follow the layouts above
+3. ✅ **Theme** — applied (colors, fonts from the spec below)
+4. **Portfolio asset capture** (on demand):
+   - Take screenshots (hi-res PNG, 1920×1080)
    - Export PDF (File → Export → PDF)
    - Save PBIX file
-5. **Create Case Study Document:**
-   - Business context
-   - Key insights
-   - Technical highlights
-   - See CASE_STUDY.md
+5. ✅ **Case study** — see `CASE_STUDY.md`
 
 ---
 
 ## Next Steps
 
-**For Implementation:**
-1. Open report in Power BI Desktop or Fabric workspace
-2. Refresh semantic model (new _Measures table should appear)
-3. Follow layout specifications above to rebuild pages
-4. Apply theme (colors, fonts from specification)
-5. Test interactivity and export assets
+**For the report:**
+1. Open `report2.Report` in the Fabric workspace (or Power BI Desktop)
+2. DirectLake auto-refreshes from `oem_lh`; no manual semantic-model refresh needed
+3. Iterate on visuals against the layouts above; consult `dax_measure_library.md` for the authoritative measure list
 
-**For Portfolio:**
-1. Create case study document explaining the project
-2. Generate high-quality screenshots
-3. Write brief LinkedIn post highlighting key insights
-4. Add to erikemilsson.com portfolio page
+**For the portfolio:**
+1. Publish the case study to `erikemilsson.com` (method + engineering framing, not "findings")
+2. Generate high-quality screenshots from the live report
+3. Write a brief LinkedIn post (see `PORTFOLIO_ASSETS_README.md` for an honest-framing template)
+4. Add to the portfolio page
 
 ---
 
-**Design Status:** ✅ Complete and ready for implementation
-**Estimated Implementation Time:** 2-3 hours (given existing data connections)
+**Design Status:** ✅ Spec complete; report built (`report2.Report`)
