@@ -2,7 +2,7 @@
   "id": "task-053",
   "title": "Investigate the data_quality_checks runtime regression (+43% vs baseline)",
   "description": "task-012_5's retest measured data_quality_checks at 242 s avg against a 169 s baseline, with all four post-optimization observations (292/217/217, plus 231 at the 14:08 preliminary) above the 206 s baseline maximum and no overlap between the ranges. It is the only per-activity finding in the retest that clears a non-overlap test, and it now accounts for 21% of pipeline runtime against 17% at baseline. Causation is NOT established: task-012_3 never modified this notebook, so attributing it to V-Order or the broadcast hints is unfounded. The leading hypothesis is that gold_quality_history accumulates rows on every pipeline run — it is referenced 26 times in data_quality_checks — so if any check scans it unbounded, runtime grows monotonically with the number of runs ever executed. That would make this a design characteristic surfacing as an apparent regression rather than damage from the optimization work, and it would get worse indefinitely once task-010 puts the pipeline on a schedule.",
-  "status": "Blocked",
+  "status": "Finished",
   "priority": "P2",
   "difficulty": 3,
   "owner": "both",
@@ -37,12 +37,13 @@
     "[PHASE A COMPLETE 2026-08-03 via implement-agent] AC1 static analysis done: exactly ONE unbounded data read of gold_quality_history (validate_historical_trend / Check 12 trend_validation — spark.table filtered by metric_name only, distinct+orderBy+limit(2) bounds output not scan, O(total rows)); plus 2 metadata-only probes (tableExists/.columns) and 2 appends. The \"26 references\" were comment/print mentions, not data scans. Schema finding: gold_quality_history has no run_id, is unpartitioned, run id = refresh_timestamp (two writers stamp separately) -> any AC4 fix must filter on refresh_timestamp. AC2-prep: 5 queries for Erik + 3-test correlation framework (size refutation / per-check exec_ms / growth consistency). Framed as falsifiable hypothesis, NOT a conclusion; live alternative suspect = gold-fact scans task-012_3 modified, if refuted. Full analysis persisted to .claude/support/workspace/task-053_AC1_analysis.md. REMAINING (Erik-gated): AC2 = Erik runs the row-count queries; AC3-5 gated on that data. No files modified in fabric/.",
     "[VERIFIED 2026-08-03 attempt 1 — PASS (Phase A increment)] AC1 static analysis + AC2-prep independently confirmed. STATUS -> Blocked on Erik's AC2 data: run the row-count queries in .claude/support/workspace/task-053_AC1_analysis.md § AC2-prep (queries #1-#4, plus #5 if baseline date known) against the oem_lh SQL endpoint, then /work re-dispatches Claude for AC3 (conclude) / AC4 (fix if confirmed) / AC5 (write-back to performance_optimized.md). Blocked (not Finished) because ACs 2-5 are incomplete; not In Progress because it is Erik's turn, not Claude's.",
     "PROVENANCE REFRESH 2026-08-04 (/work, Erik-approved 'handle the follow-ups'): spec_fingerprint 0e1cb6c1 -> a85ec535. Section 'Data Quality & Validation' section_fingerprint ab8feb95 UNCHANGED (byte-identical across this span, so section-level not touched). Cosmetic refresh: stops Step 1b re-running granular drift analysis that narrows to nothing. Task remains Blocked on Erik's AC2 row-count queries (see .claude/support/workspace/task-053_AC1_analysis.md).",
-    "PROVENANCE REFRESH 2026-08-04 (second hop, same session -- FR-051 spec edit): spec_fingerprint a85ec535 -> 6d611c63. FR-051 reconciliation edited ## Data Transformations (gold_dim_indicator source + parent_indicator attribution), changing the full-spec fingerprint; this task's own section (Data Quality & Validation) is byte-identical across that edit, so section_fingerprint remains current. Task status and ACs unchanged."
+    "PROVENANCE REFRESH 2026-08-04 (second hop, same session -- FR-051 spec edit): spec_fingerprint a85ec535 -> 6d611c63. FR-051 reconciliation edited ## Data Transformations (gold_dim_indicator source + parent_indicator attribution), changing the full-spec fingerprint; this task's own section (Data Quality & Validation) is byte-identical across that edit, so section_fingerprint remains current. Task status and ACs unchanged.",
+    "[COMPLETED 2026-08-04 — Erik AC2 attestation + Claude AC3/AC4/AC5] Erik ran the AC2 row-count queries against the oem_lh SQL analytics endpoint (dbo.gold_quality_history — the oem_lh. three-part prefix is rejected by the T-SQL endpoint per the known gotcha): total_rows=2371, dq_overall_score_rows=35, runs_with_this_metric=35. Self-attested in-session 2026-08-04. TEST 1 (size refutation) was decisive: 35 rows across 35 runs -> the unbounded trend_validation scan is sub-second and cannot explain +73 s (169 s baseline mean -> ~242 s retest mean). Hypothesis REFUTED on size grounds; TEST 2 (exec_ms) and TEST 3 (growth) skipped per the AC2-prep framework (conditional — only run if TEST 1 fails to refute). AC3 conclusion: accumulated history does NOT explain the +43% regression; the cause is OPEN and no second guess is substituted (the live alternative suspect — gold-fact scans task-012_3 modified, read by the 13 non-trend checks — is flagged as a NEW follow-up task, not a conclusion of task-053). AC4 skipped: its condition 'if unbounded scans are confirmed as the cause' is NOT met, so no scan-window fix is warranted; latent risk noted (the unbounded pattern would matter at thousands of runs, not 35) but no fix implemented by design. AC5 write-back applied to .claude/support/documents/performance_optimized.md: three edits (the hypothesis paragraph ~lines 543-552, the summary sentence ~lines 607-608, and recommended follow-up #1 ~lines 625-626) now record the test result, the refutation, and the open cause. No fabric/ files modified (AC4 intentionally not implemented). Erik confirmed the three edits inline before application. STATUS -> Awaiting Verification -> Finished (verify pass, attempt 2, full-task AC1-AC5)."
   ],
   "user_feedback": "",
   "created_date": "2026-08-03",
   "updated_date": "2026-08-04",
-  "completion_date": "2026-08-03",
+  "completion_date": "2026-08-04",
   "verification_attempts": 0,
   "verification_history": [
     {
@@ -70,13 +71,30 @@
       ],
       "notes": "Phase A increment (AC1 + AC2-prep) INDEPENDENTLY VERIFIED pass. AC1 confirmed: exactly ONE unbounded data read of gold_quality_history (validate_historical_trend / Check 12, lines 1430-1455; metric_name filter is a selector not a run/window predicate; .limit(2) bounds 2-period output NOT the scan -> TakeOrderedAndProject full scan + priority queue; df reused at 1452-1455 re-filters the unbounded df -> 3 passes over all dq_overall_score rows). 2 metadata probes correctly non-row-scans; 2 appends confirmed; '26 references' = comment/print mentions; load-bearing data-read count = 1. Schema verified: no PARTITIONED BY, no run_id, run id = refresh_timestamp (silver-to-gold2 lines 3486-3496). AC2-prep: 5 queries use only schema columns, runnable against oem_lh; 3-test framework sound; TEST 2 verified (exec_ms in all_check_results/stdout but NOT in QUALITY_HISTORY_COLUMNS -> not persisted). Discipline sound: falsifiable hypothesis, not a conclusion; defers to note 35 (task-012_3 did not touch data_quality_checks); alternative suspect (gold-fact scans) flagged as follow-up, not a conclusion. No fabric/ files modified; no fabricated row count. STATUS DECISION: set to Blocked (NOT Finished) — ACs 2(run)-5 are Erik-gated and incomplete; Finished would falsely claim completion. NOT In Progress — no active Claude work, it is Erik's turn. Blocked = waiting on Erik's AC2 data dependency. Deviation from pass->Finished protocol, justified by incomplete Erik-gated ACs and corroborated by verify-agent recommendation. user_review_pending=true (both-owned; Erik's action is the gate).",
       "scope": "Phase A increment (AC1 + AC2-prep). ACs 2-5 Erik-gated, not verified this round."
+    },
+    {
+      "attempt": 2,
+      "result": "pass",
+      "timestamp": "2026-08-04T13:24:00Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [],
+      "notes": "Full-task AC1-AC5 INDEPENDENTLY VERIFIED pass by verify-agent (fresh context). AC1 re-confirmed by direct read of notebook lines 1428-1490: exactly ONE unbounded data read of gold_quality_history (spark.table L1430, metric_name filter is a selector not a run/window predicate, .limit(2) bounds 2-period output NOT the scan -> TakeOrderedAndProject full-scan + priority queue, df reused at L1452-1455 re-filters the unbounded df). Grep confirms the 26 references are comment/print/markdown mentions; metadata probes at L1754 (tableExists) and L1756 (.columns); appends at L1817 and L2027; load-bearing data-read count = 1. AC2: Erik's self-attested data (total_rows=2371, dq_overall_score_rows=35, runs_with_this_metric=35) treated as recorded evidence (no Fabric access). TEST 1 correlation sound: 35 rows << 50 threshold, sub-second scan cannot account for +73 s (169->242 s). Hypothesis REFUTED on size grounds; TEST 2/3 skipped per conditional framework. AC3: cause OPEN, no second guess; gold-fact scans flagged as new follow-up not a conclusion; no attribution to task-012_3 (note 35 honored). AC4: condition 'if confirmed as the cause' NOT met -> scan-window fix correctly skipped (conditional evaluation, not symptom suppression); no fabric/ files modified (git diff confirmed: only performance_optimized.md, task-053.json, .last-clean-exit.json touched). AC5: three edits verified landed in performance_optimized.md (L543-553, L607-610, L627-631) and align with the regression data (baseline 120/180/206, retest 292/217/217, +43%). No issues, no friction markers.",
+      "scope": "Full-task AC1-AC5 verification (second verify pass; first pass covered only the Phase A increment)."
     }
   ],
   "task_verification": {
     "result": "pass",
-    "timestamp": "2026-08-03T23:30:00Z",
-    "attempt": 1,
-    "scope": "Phase A increment (AC1 static analysis + AC2-prep). NOT full-task verification — ACs 2-5 are Erik-gated and incomplete.",
+    "timestamp": "2026-08-04T13:24:00Z",
+    "attempt": 2,
+    "scope": "Full-task AC1-AC5 verification. First pass (attempt 1, 2026-08-03) covered only the Phase A increment (AC1 + AC2-prep); this pass covers all five criteria with Erik's AC2 data and the AC5 write-back in place.",
     "checks": {
       "files_exist": "pass",
       "consistency_check": "pass",
@@ -86,22 +104,13 @@
       "integration_ready": "pass",
       "scope_validation": "pass"
     },
-    "notes": "Phase A increment (AC1 + AC2-prep) INDEPENDENTLY VERIFIED pass. AC1 confirmed: exactly ONE unbounded data read of gold_quality_history (validate_historical_trend / Check 12, lines 1430-1455; metric_name filter is a selector not a run/window predicate; .limit(2) bounds 2-period output NOT the scan -> TakeOrderedAndProject full scan + priority queue; df reused at 1452-1455 re-filters the unbounded df -> 3 passes over all dq_overall_score rows). 2 metadata probes correctly non-row-scans; 2 appends confirmed; '26 references' = comment/print mentions; load-bearing data-read count = 1. Schema verified: no PARTITIONED BY, no run_id, run id = refresh_timestamp (silver-to-gold2 lines 3486-3496). AC2-prep: 5 queries use only schema columns, runnable against oem_lh; 3-test framework sound; TEST 2 verified (exec_ms in all_check_results/stdout but NOT in QUALITY_HISTORY_COLUMNS -> not persisted). Discipline sound: falsifiable hypothesis, not a conclusion; defers to note 35 (task-012_3 did not touch data_quality_checks); alternative suspect (gold-fact scans) flagged as follow-up, not a conclusion. No fabric/ files modified; no fabricated row count. STATUS DECISION: set to Blocked (NOT Finished) — ACs 2(run)-5 are Erik-gated and incomplete; Finished would falsely claim completion. NOT In Progress — no active Claude work, it is Erik's turn. Blocked = waiting on Erik's AC2 data dependency. Deviation from pass->Finished protocol, justified by incomplete Erik-gated ACs and corroborated by verify-agent recommendation. user_review_pending=true (both-owned; Erik's action is the gate).",
-    "issues": [
-      {
-        "severity": "minor",
-        "description": "AC1 reasoning characterizes the scan as 'O(total rows in table)'; the precise cost is O(total files scanned + dq_overall_score rows read), still monotonic in run count — noting for accuracy, not a defect."
-      },
-      {
-        "severity": "minor",
-        "description": "files_affected lists the notebook, but Phase A is analysis-only and the notebook was NOT modified — the listing is the analysis subject / eventual AC4 edit target, not a Phase A edit. Cosmetic metadata mismatch; left as-is (forward-looking)."
-      }
-    ],
+    "notes": "Full-task AC1-AC5 INDEPENDENTLY VERIFIED pass by verify-agent (fresh context). AC1 re-confirmed by direct read of notebook lines 1428-1490: exactly ONE unbounded data read of gold_quality_history (spark.table L1430, metric_name filter is a selector not a run/window predicate, .limit(2) bounds 2-period output NOT the scan -> TakeOrderedAndProject full-scan + priority queue, df reused at L1452-1455 re-filters the unbounded df). 26 references = comment/print/markdown mentions; 2 metadata probes (L1754 tableExists, L1756 .columns); 2 appends (L1817, L2027); load-bearing data-read count = 1. AC2: Erik's self-attested data (total_rows=2371, dq_overall_score_rows=35, runs_with_this_metric=35) treated as recorded evidence (no Fabric access). TEST 1 correlation sound: 35 rows << 50 threshold, sub-second scan cannot account for +73 s (169->242 s). Hypothesis REFUTED on size grounds; TEST 2/3 skipped per conditional framework. AC3: cause OPEN, no second guess; gold-fact scans flagged as new follow-up not a conclusion; no attribution to task-012_3 (note 35 honored). AC4: condition 'if confirmed as the cause' NOT met -> scan-window fix correctly skipped (conditional evaluation, not symptom suppression); no fabric/ files modified (git diff confirmed). AC5: three edits verified landed in performance_optimized.md (L543-553, L607-610, L627-631) and align with the regression data (baseline 120/180/206, retest 292/217/217, +43%). No issues, no friction markers.",
+    "issues": [],
     "evidence": []
   },
   "test_protocol": null,
-  "user_review_pending": true,
-  "recovery_state": "Blocked on Erik AC2 data: run row-count queries in .claude/support/workspace/task-053_AC1_analysis.md § AC2-prep",
+  "user_review_pending": false,
+  "recovery_state": "",
   "out_of_spec": false,
   "absorbed_into": "",
   "interaction_hint": "dashboard"

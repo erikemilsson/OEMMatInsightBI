@@ -541,15 +541,16 @@ no overlap between the ranges. The baseline's own 206 s figure is the exact one 
 gap-derived), so the comparison holds against the most reliable baseline point available.
 
 **Causation is NOT established, and should not be assumed.** task-012_3 did not modify the
-`data_quality_checks` notebook. The leading hypothesis is unrelated to the optimization work:
-the three quality-observability tables **accumulate rows on every pipeline run**, so if the
-checks scan accumulated history their runtime grows monotonically with the number of runs
-ever executed — and many runs have accrued between baseline and retest. That would make this
-a *design* characteristic surfacing as an apparent regression, not damage done by V-Order.
-
-Cheap falsification, worth doing before any fix: record the row counts of the three quality
-tables and re-run the checks. If runtime tracks row count, the hypothesis holds and the fix is
-to bound the scan window rather than to touch anything task-012_3 shipped.
+`data_quality_checks` notebook. The leading hypothesis — that the quality-observability tables
+accumulate rows on every pipeline run, so the checks scan growing history — was **tested under
+task-053 and REFUTED on size grounds (2026-08-04).** `gold_quality_history` holds 2,371 total
+rows; the only unbounded read (Check 12 `trend_validation`, scanning `dq_overall_score`)
+touches 35 rows across 35 runs. That scan completes in well under a second and cannot account
+for +73 s of runtime. The read is unbounded *by construction* but harmless at this scale. **The
+cause of the +43 % regression remains open** — no second guess is substituted here (per task-053
+AC3). The next place to look is the gold-fact scans task-012_3 *did* modify (V-Order, broadcast
+hints, caching), which the 13 non-trend checks read; that is a new hypothesis for a follow-up
+task, not a conclusion of task-053.
 
 **2. Functional total — 18 % slower, ~993 s → ~1170 s.**
 
@@ -604,8 +605,9 @@ was genuinely in effect for every measurement in this document — the null resu
 runtime — came in 6 % slower than baseline, comfortably inside noise. That is the answer to
 the question task-012_5 was created to ask. Overall functional runtime is ~18 % higher
 (~16.6 → ~19.5 min), of which the only individually-defensible component is a confirmed
-`data_quality_checks` regression whose cause is more likely accumulated quality-table history
-than anything task-012_3 shipped.
+`data_quality_checks` regression whose cause is **open** — the accumulated-history hypothesis
+was tested under task-053 and refuted on size grounds (2,371 rows, sub-second scan), so it is
+not the explanation.
 
 Meanwhile **task-012_4's lever does not exist on this platform** — `CREATE INDEX` is rejected
 outright by Fabric Data Warehouse and `UPDATE STATISTICS` is a documented no-op. Its
@@ -622,8 +624,11 @@ speed-up that was never available.
 
 **Recommended follow-ups** (none urgent, none blocking):
 
-1. **Test the `data_quality_checks` hypothesis** — record quality-table row counts, correlate
-   with runtime. If it tracks, bound the scan window. This is the only actionable finding.
+1. **`data_quality_checks` hypothesis — tested and refuted (task-053, 2026-08-04).**
+   `gold_quality_history` row counts (2,371 total; 35 `dq_overall_score` rows / 35 runs)
+   cannot explain +73 s — the unbounded `trend_validation` scan is sub-second at this scale.
+   No scan-window fix is warranted. The cause remains open; the gold-fact scans task-012_3
+   modified are the next candidate, as a new follow-up.
 2. **Do not pursue further pipeline optimization at this scale.** There is no measured problem
    to solve, and the noise floor exceeds any plausible remaining gain.
 3. **Keep the Direct Lake cold-start finding visible** — ~84 s first-touch on
