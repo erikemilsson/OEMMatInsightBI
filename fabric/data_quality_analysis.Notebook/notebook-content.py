@@ -425,9 +425,9 @@ epi_countries = (spark.table(f"{DB}.silver_epi2024results")
                 .distinct())
 
 # FR-028: silver_WB (the retired World Bank ESG lineage — bronze_WB_ESGCSV /
-# bronze_WB_ESGSeries → silver_WB) has no live producer; silver-to-gold2 records the
+# bronze_WB_ESGSeries → silver_WB) has no live producer; silver_to_gold records the
 # removal and spec_v1 § Data Transformations confirms retirement. silver_wgi is the
-# live World Bank governance table (written by bronze-to-silver each run) and carries
+# live World Bank governance table (written by bronze_to_silver each run) and carries
 # the same `country_name` column, so it is a drop-in source for this coverage leg.
 wb_countries = (spark.table(f"{DB}.silver_wgi")
                .select(F.col("country_name"))

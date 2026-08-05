@@ -1730,14 +1730,14 @@ print("\n--- Persisting DQ results to gold_quality_history ---")
 #              the floor, so a past run's gate outcome could not be reconstructed
 #              from the table at all. "n/a" on rows that are not a single check
 #              result (dimension/overall aggregates, and the gate verdict rows).
-#   producer - which notebook appended the row. silver-to-gold2 also appends to this
+#   producer - which notebook appended the row. silver_to_gold also appends to this
 #              table on every pipeline run, with its own refresh_timestamp.
 #
 # breach_flag is unchanged and is NOT the gate: score < 70.0. The two diverge in
 # practice — grain_uniqueness failing on 2 duplicate grains out of 2561 rows scores
 # ~99.9, never breaches, and still halts the pipeline.
 #
-# silver-to-gold2 owns the CREATE TABLE; this helper mirrors the one there so this
+# silver_to_gold owns the CREATE TABLE; this helper mirrors the one there so this
 # notebook can also be run standalone. Explicit ALTER TABLE (not mergeSchema) because
 # the table is append-only and already holds history: pre-task-040 rows keep NULL in
 # both columns and are NOT backfilled.

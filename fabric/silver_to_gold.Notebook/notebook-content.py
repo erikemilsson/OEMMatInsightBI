@@ -3644,7 +3644,13 @@ print("✓ Created table: gold_quality_history")
 #
 # An equivalent helper lives in data_quality_checks (that notebook writes to this
 # table too and can be run standalone). Keep the two in sync.
-QUALITY_HISTORY_PRODUCER = "silver-to-gold2"
+# Phase 5 (2026-08-05): this was "silver-to-gold2" and named a notebook that no longer
+# exists after the rename. Commit 0fe8763 swept the docs to 'silver_to_gold' but missed
+# this literal, so docs and live data disagreed until now. Rows written before the fix
+# were retagged in place by a one-off UPDATE — unlike the pre-task-040 NULLs above, this
+# value is a provenance label, not a lost measurement, so it is safe to rewrite and the
+# distinct-run count at the bottom of this notebook stays contiguous across the rename.
+QUALITY_HISTORY_PRODUCER = "silver_to_gold"
 QUALITY_HISTORY_ADDED_COLUMNS = [("status", "STRING"), ("producer", "STRING")]
 
 
