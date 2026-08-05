@@ -9,13 +9,13 @@ The `orchestrator_pipeline_bronze_to_gold` pipeline (`fabric/orchestrator_pipeli
 **What this pipeline does on each run** (activity order from the pipeline definition):
 
 1. **Bronze ingestion** (six activities, run in parallel):
-   - `bronzecopy_EUSupplyShares` — `Copy` activity pulling the EU CRM supply-shares CSV over HTTP into `bronze_eu_supply_shares`.
-   - `bronzecopy_GlobalSupplyShares` — `Copy` activity pulling the global supply-shares CSV over HTTP into `bronze_global_supply_shares`.
-   - `bronze_WGI` — `Notebook` activity loading WGI governance indicators (task-035).
-   - `bronzecopy_procurement_transactional`, `bronzecopy_supplier_ref` — `Copy` activities loading the Azure SQL procurement data (task-048 replaced the `bronze_procurement` RefreshDataflow; SPN-safe). No RefreshDataflow activities remain.
-   - `bronze_EPI` — `Notebook` activity loading EPI scores (task-035).
-2. **`bronze-to-silver data cleaning`** — notebook; runs after all six Bronze activities succeed.
-3. **`silver-to-gold`** — notebook; runs after Silver succeeds. Produces the Gold dimensions, facts, and data-quality tables.
+   - `bronze_copy_eu_supply_shares` — `Copy` activity pulling the EU CRM supply-shares CSV over HTTP into `bronze_eu_supply_shares`.
+   - `bronze_copy_global_supply_shares` — `Copy` activity pulling the global supply-shares CSV over HTTP into `bronze_global_supply_shares`.
+   - `bronze_wgi` — `Notebook` activity loading WGI governance indicators (task-035).
+   - `bronze_copy_procurement_transactional`, `bronze_copy_supplier_ref` — `Copy` activities loading the Azure SQL procurement data (task-048 replaced the `bronze_procurement` RefreshDataflow; SPN-safe). No RefreshDataflow activities remain.
+   - `bronze_epi` — `Notebook` activity loading EPI scores (task-035).
+2. **`bronze_to_silver_cleaning`** — notebook; runs after all six Bronze activities succeed.
+3. **`silver_to_gold`** — notebook; runs after Silver succeeds. Produces the Gold dimensions, facts, and data-quality tables.
 
 The pipeline accepts three parameters: `p_full_load` (bool, default `false`), `p_from_date` (string, default `1900-01-01`), and `procurement_array` (the Azure SQL source→sink list). The scheduled run uses the defaults — an **incremental** load (`p_full_load = false`).
 
@@ -109,7 +109,7 @@ These steps are performed in the Fabric workspace UI by the workspace owner. The
 
 ### Step 4 — Add the downstream Power BI refresh (recommended)
 
-So the report reflects the new Gold data automatically, add a **Semantic model refresh** activity to the pipeline, chained after `silver-to-gold` (see [Downstream Power BI Refresh](#-downstream-power-bi-refresh) for details), then re-save the pipeline.
+So the report reflects the new Gold data automatically, add a **Semantic model refresh** activity to the pipeline, chained after `silver_to_gold` (see [Downstream Power BI Refresh](#-downstream-power-bi-refresh) for details), then re-save the pipeline.
 
 ### Step 5 — Verify the first scheduled run
 
@@ -148,7 +148,7 @@ The pipeline runs unattended, so an undetected failure means stale data with no 
 After a successful pipeline run, the Power BI semantic model should refresh so the report shows the new Gold data. Add a **Semantic model refresh** activity to the pipeline:
 
 1. In the pipeline editor, add a **Semantic model refresh** activity (from the Activities bar or the home-screen card).
-2. Chain it so it runs **after `silver-to-gold` succeeds** (drag the success/green output of `silver-to-gold` to the new activity). This guarantees the model only refreshes once the Gold tables are rebuilt.
+2. Chain it so it runs **after `silver_to_gold` succeeds** (drag the success/green output of `silver_to_gold` to the new activity). This guarantees the model only refreshes once the Gold tables are rebuilt.
 3. In the activity **Settings**, pick (or create) a **Power BI connection**, then select the **Workspace** and the project **semantic model** (`OEMInsightBI_v2`).
 4. Leave **Wait on completion** on (default) so the pipeline run isn't marked complete until the refresh finishes — this way a refresh failure surfaces through the same failure-notification path as the rest of the pipeline.
 5. By default this performs a **full refresh**. For this dataset's size that is fine; tables/partitions can be selected later if incremental refresh is configured.
@@ -166,7 +166,7 @@ For a portfolio reader, the scheduling design comes down to four decisions:
 1. **Daily at 06:00 local** — driven by the fastest-changing source (Azure SQL procurement, daily), placed an hour after the upstream nightly batch settles (~05:00) so it reads complete data, and early enough that the report is fresh before the working day.
 2. **One orchestrated run, cadence driven by the fastest source** — annual ESG/governance datasets (EPI, WGI, EU CRM) are piggybacked on the daily run for operational simplicity; they can be split into a weekly/manual schedule if cost or run time ever demands it.
 3. **Unattended-safe before automated** — error handling/retry (task-011) and a proven on-demand run are prerequisites; native failure notifications give a detection path; the schedule is **pausable** via toggle for maintenance.
-4. **Event-ordered downstream refresh** — the Power BI refresh is chained to `silver-to-gold` success rather than guessed by clock time, so the report never refreshes against a half-built Gold layer.
+4. **Event-ordered downstream refresh** — the Power BI refresh is chained to `silver_to_gold` success rather than guessed by clock time, so the report never refreshes against a half-built Gold layer.
 
 ---
 
@@ -186,5 +186,5 @@ Related project documents:
 
 ---
 
-*Last Updated: 2026-06-14*
+*Last Updated: 2026-08-05*
 *Status: Runbook — schedule not yet active in Fabric (pending workspace configuration). Update this line to "Active since YYYY-MM-DD" once the schedule is enabled and the first scheduled run completes.*
