@@ -40,7 +40,9 @@
     "RUNBOOK FOLLOW-UP 2026-08-02: docs/guides/pipeline_schedule.md was updated for the retirement (Copy activities named, 'No RefreshDataflow activities remain') but says 'four Bronze activities' (lines 11,14) while the spec now documents six — minor count staleness in this task's criterion-3 deliverable. FIXED 2026-08-02 (same session): runbook updated to list all six Bronze activities (added bronzecopy_GlobalSupplyShares) and corrected 'four'->'six' on both lines; now matches the spec ## Orchestration activity table.",
     "PROVENANCE REFRESH 2026-08-03 (/work, Erik-approved): spec_fingerprint 3696c931 -> 0e1cb6c1 (commit 7fc5ff6). Full-spec fingerprint only — section_fingerprint is UNCHANGED because ## Orchestration is byte-identical across that commit. No requirements changed for this task; the refresh exists so Step 1b stops re-running granular analysis that narrows to nothing.",
     "PROVENANCE REFRESH 2026-08-04 (/work, Erik-approved 'handle the follow-ups'): spec_fingerprint 0e1cb6c1 -> a85ec535; section_fingerprint 317baa48 -> 87ecb4a6 (## Orchestration). Section change = commit 97dd3d3 (task-051 final-attempt failure semantics: handler re-raises only on final-attempt FAILED; retried-into-success = recovered, not a run failure). Consistent with this task's AC4 notification framing (MailOnFailure + gold_pipeline_execution_log as the genuine-failure channel -- a retried-into-success activity should not trigger failure notifications). ACs intact. Task remains On Hold; only Erik can move it to Pending.",
-    "PROVENANCE REFRESH 2026-08-04 (second hop, same session -- FR-051 spec edit): spec_fingerprint a85ec535 -> 6d611c63. FR-051 reconciliation edited ## Data Transformations (gold_dim_indicator source + parent_indicator attribution), changing the full-spec fingerprint; this task's own section (Orchestration) is byte-identical across that edit, so section_fingerprint remains current. Task status and ACs unchanged."
+    "PROVENANCE REFRESH 2026-08-04 (second hop, same session -- FR-051 spec edit): spec_fingerprint a85ec535 -> 6d611c63. FR-051 reconciliation edited ## Data Transformations (gold_dim_indicator source + parent_indicator attribution), changing the full-spec fingerprint; this task's own section (Orchestration) is byte-identical across that edit, so section_fingerprint remains current. Task status and ACs unchanged.",
+    "PROVENANCE REFRESH 2026-08-05 (/iterate, Erik-approved [Y]): spec_fingerprint 6d611c63 -> a1d1af64; section_fingerprint 87ecb4a6 -> b0be7f18 (## Orchestration). Two hops collapsed into one refresh. Hop 1 = commit 75a8403 (Track C Phase-5 spec sweep) rewrote ## Orchestration's activity table for the snake_case notebook renames -- unlike the prior three refreshes, this task's OWN section changed. Hop 2 = this /iterate corrected § Technical Architecture line 102 and § Development Workflow (Fabric Git integration disconnected 2026-08-05; Phase 4 CI/CD 'planned' -> Complete; daily round-trip workflow rewritten), which moved the full-spec hash again but left ## Orchestration byte-identical. Naming/reconciliation only in both hops; all five scheduling ACs intact. Task remains On Hold; only Erik can move it to Pending.",
+    "AC3 DELIVERABLE DRIFT (measured 2026-08-05, NOT yet fixed): docs/guides/pipeline_schedule.md lines 12-18 name EIGHT artifacts the spec no longer uses -- bronzecopy_EUSupplyShares, bronzecopy_GlobalSupplyShares, bronze_WGI, bronzecopy_procurement_transactional, bronzecopy_supplier_ref, bronze_EPI (Phase-4 activity renames) plus 'bronze-to-silver data cleaning' and 'silver-to-gold' (Phase-5 notebook renames). Spec § Orchestration lines 627-653 carry the live names. This is criterion 3's deliverable, so AC3 is no longer satisfied as written even though it verified pass on 2026-06-14. Blocked on the open Phase-5 'Category D strong-set carve-out' decision -- pipeline_schedule.md is strong-set protected, so the fix needs an explicit carve-out first. Re-verify criterion 3 after the sweep."
   ],
   "phase": "3",
   "spec_section": "Orchestration",
@@ -49,7 +51,7 @@
     "docs/guides/pipeline_schedule.md"
   ],
   "created_date": "",
-  "updated_date": "2026-08-04",
+  "updated_date": "2026-08-05",
   "task_verification": {
     "result": "pass",
     "attempt_number": 2,
@@ -124,6 +126,6 @@
   "subtasks": [],
   "progress": "Not started",
   "spec_version": "1",
-  "spec_fingerprint": "sha256:6d611c630bbad0f511430446d96c0db6b1fa80dace66133af7f97966583666f5",
-  "section_fingerprint": "sha256:87ecb4a6283051d67474bac3eef55813998ec140df203ca0e7aaaebba01a142b"
+  "spec_fingerprint": "sha256:a1d1af6490d15334866a726c2d1bd4461758d9069e156d33d919665320604beb",
+  "section_fingerprint": "sha256:b0be7f185259ff85fc7167b7fb6b434e4d47de883d0e03821106d22a0b8ec83f"
 }

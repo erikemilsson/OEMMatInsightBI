@@ -99,7 +99,7 @@ updated: 2026-08-05
 
 -   Each Fabric artifact has `.platform` metadata
 
--   Git integration with Fabric workspace via single-developer direct commits to main
+-   Single developer, direct commits to main. The repo is the source of truth; `fabric-cicd` publishes it to the workspace on every push (§ Development Workflow). Fabric's own Git integration was disconnected 2026-08-05 and is no longer a sync path.
 
 **Azure Services:**
 
@@ -950,7 +950,7 @@ No other open issues. Previously identified gap (data quality visibility) addres
 
 ## Development Workflow
 
-### Current Git Integration
+### Source Control & Publishing
 
 **Repository Structure:**
 
@@ -963,27 +963,18 @@ No other open issues. Previously identified gap (data quality visibility) addres
   └── [Artifact].Report/
 ```
 
-**Git Status:** Repository synced with Fabric workspace via Git integration. Single developer, direct commits to main. CI/CD deployment pipeline planned (Phase 4) to formalize this with `fabric-cicd` + GitHub Actions.
+**Publish path:** The repo is the single source of truth. Pushing to `main` triggers `.github/workflows/deploy-fabric.yml`, which publishes `fabric/` to the workspace via `fabric-cicd`. Single developer, direct commits to main. DEC-007 established this as dry-run by default behind a staged gate; task-046 validated the live path and the default was flipped to real publish on 2026-08-01.
 
-**Desired Workflow with Claude Code:**
+**Fabric Git integration: disconnected (2026-08-05).** The workspace was previously *also* connected to this repo through Fabric's built-in Git integration, giving two independent publish paths. `fabric-cicd` writes items through the REST API, and those writes never register in Git integration's sync state — so it drifted on every deploy, and its *Update from Git* action failed permanently with a "reserved name" collision. Reconnecting would not have fixed it: a fresh connection re-initializes clean, then goes stale again on the next push. To capture something authored in the Fabric UI (a dataflow mashup edit, item metadata), reconnect, sync **workspace → git**, commit, then disconnect again.
 
-1.  **Morning (Claude Code):**
-    -   Pull latest from Git
-    -   Sync Fabric state (read any exported metadata)
-    -   Review tasks
-    -   Develop locally (notebooks, SQL, configs)
-    -   Push changes to feature branch
-2.  **Afternoon (Fabric UI):**
-    -   Pull feature branch in Fabric
-    -   Test notebooks with real data
-    -   Run data quality checks
-    -   Export schemas/data quality reports
-    -   Commit results back to Git
-3.  **Evening (Claude Code):**
-    -   Pull latest (includes data quality reports)
-    -   Sync state, review issues
-    -   Create tasks for any problems
-    -   Plan next day
+**Working Split with Claude Code:**
+
+1.  **Author locally (Claude Code):** notebooks, SQL, TMDL, configs, and tests in the repo. Run the pytest suite against the transformation logic before committing.
+2.  **Publish:** commit and push to `main`. The GitHub Action publishes `fabric/` to the workspace via `fabric-cicd`.
+3.  **Run and observe (Fabric UI):** trigger the orchestrator pipeline, watch the run, and read the quality tables (`gold_quality_history`, `gold_gap_registry`). Measure after the **run**, not after the deploy — a green publish says nothing about runtime behavior.
+4.  **Feed findings back (Claude Code):** file what the run surfaced as tasks, fix in the repo, push again.
+
+Fabric UI edits are not a sync path — anything changed there is overwritten by the next publish unless it is first captured back into the repo (see § Source Control & Publishing).
 
 ### Naming Conventions
 
