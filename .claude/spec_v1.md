@@ -2,7 +2,7 @@
 version: 1
 status: active
 created: 2025-11-14
-updated: 2026-08-04
+updated: 2026-08-05
 ---
 
 # OEMMatInsightBI - Project Definition for Claude Code
@@ -153,7 +153,7 @@ Power BI Reports
 
 -   Frequency: Manual — pipeline triggered on demand
 
--   Incremental vs Full Load: Parameters exist (`p_full_load`, `p_from_date`); **bronze is a full load.** `p_from_date` never reached the retired dataflow and does not reach the Copy activities; it drives a 7-day look-back in `bronze-to-silver` against corrected dates. Incrementality lives in silver, not bronze.
+-   Incremental vs Full Load: Parameters exist (`p_full_load`, `p_from_date`); **bronze is a full load.** `p_from_date` never reached the retired dataflow and does not reach the Copy activities; it drives a 7-day look-back in `bronze_to_silver` against corrected dates. Incrementality lives in silver, not bronze.
 
 **Setup Scripts:**
 
@@ -239,9 +239,9 @@ Power BI Reports
 
 -   Bronze table: `bronze_epi2024results` — derived by `bronze_ingest_epi.Notebook` from its `p_epi_year` parameter (default `"2024"`)
 
--   Silver table: `silver_epi2024results` — consumed by `silver-to-gold2.Notebook` via `EPI_YEAR` (default `2024`)
+-   Silver table: `silver_epi2024results` — consumed by `silver_to_gold.Notebook` via `EPI_YEAR` (default `2024`)
 
-**Single-vintage caveat.** The naming is parameterized at both ends but **hardcoded in the middle**: `bronze-to-silver.Notebook` names `bronze_epi2024results` and `silver_epi2024results` literally (lines 74, 108). Changing the vintage at either end therefore breaks the chain rather than moving it. A second hardcoded reference sits in `data_quality_checks.Notebook`'s `BLOCKING_CHECKS` as `("schema_validation", "oem_lh.silver_epi2024results")` — and a stale entry there does **not** error, it silently demotes that check to advisory. Only the 2024 vintage is supported today; **task-042** carries the parameterization.
+**Single-vintage caveat.** The naming is parameterized at both ends but **hardcoded in the middle**: `bronze_to_silver.Notebook` names `bronze_epi2024results` and `silver_epi2024results` literally (lines 74, 108). Changing the vintage at either end therefore breaks the chain rather than moving it. A second hardcoded reference sits in `data_quality_checks.Notebook`'s `BLOCKING_CHECKS` as `("schema_validation", "oem_lh.silver_epi2024results")` — and a stale entry there does **not** error, it silently demotes that check to advisory. Only the 2024 vintage is supported today; **task-042** carries the parameterization.
 
 **Update Frequency:** Annual (EPI releases yearly)
 
@@ -293,11 +293,11 @@ Power BI Reports
 
 | | Global supply | EU sourcing |
 |---|---|---|
-| Bronze | `bronze_GlobalSupplyShares` | `bronze_EUSupplyShares` |
+| Bronze | `bronze_global_supply_shares` | `bronze_eu_supply_shares` |
 | Silver | `silver_globalsupplyshares` | `silver_eusupplyshares` — **planned (task-038), not yet built** |
 | Measures | where a material is produced worldwide | where the EU actually sources it from |
 
-**Current-state caveat:** the EU table is orphaned at the silver boundary — `bronze-to-silver.Notebook` reads only the Global table, so `bronze_EUSupplyShares` has no silver consumer today. Wiring EU sourcing into silver is DEC-001 Option B work, tracked in task-038.
+**Current-state caveat:** the EU table is orphaned at the silver boundary — `bronze_to_silver.Notebook` reads only the Global table, so `bronze_eu_supply_shares` has no silver consumer today. Wiring EU sourcing into silver is DEC-001 Option B work, tracked in task-038.
 
 **Ingestion Method:** One copy activity per table. Each activity's source connection must point at its own CSV — conflating them produced the duplicated-load defect tracked as FR-004 / task-022.
 
@@ -339,7 +339,7 @@ Power BI Reports
 
 ### Bronze → Silver: Data Cleaning
 
-**Notebook:** `bronze-to-silver.Notebook`
+**Notebook:** `bronze_to_silver.Notebook`
 
 **Purpose:** Standardize raw data from multiple sources
 
@@ -353,11 +353,11 @@ Power BI Reports
 
 -   Cast `code` column to INTEGER
 
--   Select identity columns (code, iso, country) plus all 30+ EPI sub-indicator score columns (AIR, BIO, CLI, ECO, …, and the overall EPI composite), each cast to DOUBLE — preserving the full wide indicator set so silver-to-gold2 can unpivot it into `fact_epi_score` at country × indicator × year grain (task-054)
+-   Select identity columns (code, iso, country) plus all 30+ EPI sub-indicator score columns (AIR, BIO, CLI, ECO, …, and the overall EPI composite), each cast to DOUBLE — preserving the full wide indicator set so silver_to_gold can unpivot it into `fact_epi_score` at country × indicator × year grain (task-054)
 
 -   Write to: `silver_epi2024results`
 
-**2. Global Supply Shares (`bronze_GlobalSupplyShares` → `silver_globalsupplyshares`):**
+**2. Global Supply Shares (`bronze_global_supply_shares` → `silver_globalsupplyshares`):**
 
 -   Convert column headers to lowercase
 
@@ -367,7 +367,7 @@ Power BI Reports
 
 -   Write to: `silver_globalsupplyshares`
 
-**3. World Governance Indicators (`bronze_WGI` → `silver_wgi`):**
+**3. World Governance Indicators (`bronze_wgi` → `silver_wgi`):**
 
 -   Source: World Bank API via `bronze_ingest_wgi.Notebook` — long format, one row per country per indicator per year
 
@@ -397,11 +397,11 @@ Power BI Reports
 
 -   `bronze_epi2024results`
 
--   `bronze_GlobalSupplyShares`
+-   `bronze_global_supply_shares`
 
--   `bronze_EUSupplyShares`
+-   `bronze_eu_supply_shares`
 
--   `bronze_WGI`
+-   `bronze_wgi`
 
 -   `bronze_procurement_transactional`
 
@@ -431,7 +431,7 @@ Power BI Reports
 
 ### Silver → Gold: Business Logic & Aggregations
 
-**Notebook:** `silver-to-gold2.Notebook`
+**Notebook:** `silver_to_gold.Notebook`
 
 **Purpose:** Create business-ready fact and dimension tables with:
 
@@ -531,7 +531,7 @@ Power BI Reports
         -   `region` (STRING) - Geographic region (for placeholder countries)
         -   `is_placeholder` (BOOLEAN) - Flag for unknown/unmapped countries
     -   **Source:**
-        -   Primary: EPI (`silver_epi2024results`) only — *the World Bank ESG source was removed; `silver-to-gold2.Notebook:244` builds the primary dimension from EPI data alone*
+        -   Primary: EPI (`silver_epi2024results`) only — *the World Bank ESG source was removed; `silver_to_gold.Notebook:244` builds the primary dimension from EPI data alone*
         -   Augmented with: 8 manually added countries (North Korea, Yemen, Syria, Libya, Turkey, Kosovo, San Marino, Nauru)
         -   Placeholders: 6 unknown regions (Unknown - Africa/Asia/Europe/Americas/Oceania/Global)
     -   **SCD Type:** Type 1 (overwrite)
@@ -570,8 +570,8 @@ Power BI Reports
         -   `description` (STRING) - Indicator description
         -   `parent_indicator` (BIGINT) - Parent indicator key, resolved from EPI `NextLevel` via a self-join on the parent indicator's abbreviation (NULL for the EPI composite root and for WB indicators; populated for EPI indicators with a non-empty `NextLevel`). *(Prior "(currently NULL)" wording stale since task-056 shipped the NextLevel self-join.)*
     -   **Source:**
-        -   EPI: `silver_epi{EPI_YEAR}variables` — built by `silver-to-gold2` from bronze EPI weights (Yale `epi2024weights.csv`, ingested by `bronze_ingest_epi`); `NextLevel` is carried through so `parent_indicator` can be resolved. If the silver table is absent, an empty EPI indicator DataFrame is emitted (the gap is visible in `gold_dim_indicator`) — no NULL-weight fallback. *(Prior "`silver_epi2024variables2024-12-11`" wording stale since task-056 built `silver_epi{EPI_YEAR}variables` from bronze weights; the pre-task-056 "no silver_epi2024variables table / weights always NULL" gap is closed.)*
-        -   WB: **none currently** — `silver-to-gold2.Notebook:883` builds an *empty* WB-indicator DataFrame for schema compatibility, so no WB-sourced indicator rows exist. WGI reaches gold as country **coverage flags**, not as indicator rows.
+        -   EPI: `silver_epi{EPI_YEAR}variables` — built by `silver_to_gold` from bronze EPI weights (Yale `epi2024weights.csv`, ingested by `bronze_ingest_epi`); `NextLevel` is carried through so `parent_indicator` can be resolved. If the silver table is absent, an empty EPI indicator DataFrame is emitted (the gap is visible in `gold_dim_indicator`) — no NULL-weight fallback. *(Prior "`silver_epi2024variables2024-12-11`" wording stale since task-056 built `silver_epi{EPI_YEAR}variables` from bronze weights; the pre-task-056 "no silver_epi2024variables table / weights always NULL" gap is closed.)*
+        -   WB: **none currently** — `silver_to_gold.Notebook:883` builds an *empty* WB-indicator DataFrame for schema compatibility, so no WB-sourced indicator rows exist. WGI reaches gold as country **coverage flags**, not as indicator rows.
 4.  **`gold_dim_material`**
     -   **Surrogate Key:** `material_key` (BIGINT) - xxhash64 of material_name_std
     -   **Attributes:**
@@ -624,23 +624,23 @@ Power BI Reports
 
 | # | Activity | Type | Sink / Output | Retry |
 |---|----------|------|---------------|-------|
-| 1 | `bronze_copy_eu_supply_shares` | Copy (HTTP → Lakehouse) | `bronze_EUSupplyShares` | 3 |
-| 2 | `bronze_copy_global_supply_shares` | Copy (HTTP → Lakehouse) | `bronze_GlobalSupplyShares` | 3 |
-| 3 | `bronze_wgi` | Notebook | `bronze_WGI` | 2 |
+| 1 | `bronze_copy_eu_supply_shares` | Copy (HTTP → Lakehouse) | `bronze_eu_supply_shares` | 3 |
+| 2 | `bronze_copy_global_supply_shares` | Copy (HTTP → Lakehouse) | `bronze_global_supply_shares` | 3 |
+| 3 | `bronze_wgi` | Notebook | `bronze_wgi` | 2 |
 | 4 | `bronze_copy_procurement_transactional` | Copy (Azure SQL → Lakehouse) | `bronze_procurement_transactional` | 3 |
 | 5 | `bronze_copy_supplier_ref` | Copy (Azure SQL → Lakehouse) | `bronze_supplier_ref` | 3 |
 | 6 | `bronze_epi` | Notebook | `bronze_epi2024results` and related tables | 2 |
 
 **Retired (2026-07-31)** — row 4 was previously `bronze_procurement` / RefreshDataflow / `bronze_azureSQLdb2table`, producing both tables in one activity. It was replaced because a service principal cannot refresh a Dataflow Gen2 (`SPNBasedRefreshNotAllowed`) and every `fabric-cicd` publish strips its credentials. **No RefreshDataflow activities remain; the pipeline is SPN-safe end to end.** See `.claude/support/retired/bronze-azuresqldb2table-dataflow/manifest.json`.
 
-Bronze now holds the source's raw day/year-transposed dates — a Copy activity cannot transform, so the correction moved to `bronze-to-silver`. Read silver, not bronze, for usable dates.
+Bronze now holds the source's raw day/year-transposed dates — a Copy activity cannot transform, so the correction moved to `bronze_to_silver`. Read silver, not bronze, for usable dates.
 
 **Stage 2: Silver Transformation (Sequential)**
 
 7.  `bronze_to_silver_cleaning` (Notebook Activity)
     -   Depends on: **all 6** bronze activities (Succeeded)
 
-    -   Notebook: `bronze-to-silver.Notebook`
+    -   Notebook: `bronze_to_silver.Notebook`
 
     -   Output: Silver tables (`silver_epi2024results`, `silver_globalsupplyshares`, `silver_wgi`, `silver_procurement`)
 
@@ -653,7 +653,7 @@ Bronze now holds the source's raw day/year-transposed dates — a Copy activity 
 8.  `silver_to_gold` (Notebook Activity)
     -   Depends on: bronze_to_silver_cleaning (Succeeded)
 
-    -   Notebook: `silver-to-gold2.Notebook` — Output: Gold fact and dimension tables
+    -   Notebook: `silver_to_gold.Notebook` — Output: Gold fact and dimension tables
 
     -   Timeout: 12 hours
 
@@ -844,7 +844,7 @@ The report was redesigned and rebuilt from scratch after the semantic model was 
 
 **Silver Layer:**
 
--   [x] Cleaning notebook (`bronze-to-silver.Notebook`)
+-   [x] Cleaning notebook (`bronze_to_silver.Notebook`)
 
 -   [x] Column standardization (lowercase, underscore separation)
 
@@ -854,7 +854,7 @@ The report was redesigned and rebuilt from scratch after the semantic model was 
 
 **Gold Layer:**
 
--   [x] Business logic notebook (`silver-to-gold2.Notebook`)
+-   [x] Business logic notebook (`silver_to_gold.Notebook`)
 
 -   [x] 3 fact tables created (procurement, supply_share, epi_score)
 
@@ -997,11 +997,11 @@ No other open issues. Previously identified gap (data quality visibility) addres
 
 **Notebooks:**
 
--   `[purpose]_[source]to[target].Notebook`
+-   `[source]_to_[target].Notebook` for layer transitions; `[layer]_[verb]_[entity].Notebook` for ingestion
 
-    -   Examples: `bronze-to-silver.Notebook`, `silver-to-gold2.Notebook`
+    -   Examples: `bronze_to_silver.Notebook`, `silver_to_gold.Notebook`, `bronze_ingest_wgi.Notebook`
 
-    -   Inconsistency: Uses both underscores and hyphens
+    -   Reconciled to snake_case in Phase 5 (2026-08-04/05); the prior hyphen/underscore mix and the `2` version stamp are retired
 
 **Dataflows:**
 
@@ -1396,7 +1396,7 @@ Computed over two supply mixes and exposed in `gold_supply_risk` (**grain: one r
 
 -   Hierarchy: Single-level (no sub-categories)
 
--   Mapping: Hardcoded in silver-to-gold2.Notebook grp_map dictionary
+-   Mapping: Hardcoded in silver_to_gold.Notebook grp_map dictionary
 
 **Unit Normalization:**
 
