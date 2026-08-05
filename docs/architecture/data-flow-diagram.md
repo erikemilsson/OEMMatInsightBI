@@ -17,10 +17,10 @@ graph LR
     subgraph Bronze["🥉 Bronze"]
         B1[bronze_procurement_transactional]
         B2[bronze_supplier_ref]
-        B3[bronze_EUSupplyShares]
-        B4[bronze_GlobalSupplyShares]
+        B3[bronze_eu_supply_shares]
+        B4[bronze_global_supply_shares]
         B5[bronze_epi2024results<br/>bronze_epi{year}weights]
-        B6[bronze_WGI]
+        B6[bronze_wgi]
         B7[bronze_load_metadata]
     end
 
@@ -93,7 +93,7 @@ flowchart TB
         BC3[bronze_copy_procurement_transactional]
         BC4[bronze_copy_supplier_ref]
         BE[bronze_EPI notebook]
-        BW[bronze_WGI notebook]
+        BW[bronze_wgi notebook]
     end
 
     BS[bronze_to_silver<br/>data cleaning notebook]

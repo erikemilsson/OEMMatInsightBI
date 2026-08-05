@@ -29,7 +29,7 @@
 # silver_completeness (Silver) — see in-notebook rationale on the silver completeness cell.
 # # **Task 026 additions:** severity model with a SINGLE aggregated raise (final cell) —
 # blocking checks fail the pipeline activity, advisory checks only log/score. New checks:
-# lookup_name uniqueness (gold lookup dims), duplicate-grain (gold facts), bronze_WGI
+# lookup_name uniqueness (gold lookup dims), duplicate-grain (gold facts), bronze_wgi
 # coverage, fact_epi_score + fact_procurement.date_key referential integrity. Also fixed
 # the dead spend reconciliation and the heterogeneous-metric trend check.
 # # **Output:** Results are scored (0-100 scale), categorized (Excellent/Good/Fair/Poor/Critical),
@@ -264,10 +264,10 @@ row_count_checks = [
     ("oem_lh.bronze_procurement_transactional", 100, 500000),
     ("oem_lh.bronze_supplier_ref", 5, 10000),
     (f"oem_lh.bronze_epi{EPI_YEAR}results", 150, 250),
-    ("oem_lh.bronze_GlobalSupplyShares", 100, 100000),
-    # task-035 (FR-025): bronze_WGI — WB API long format, one row per country x indicator
+    ("oem_lh.bronze_global_supply_shares", 100, 100000),
+    # task-035 (FR-025): bronze_wgi — WB API long format, one row per country x indicator
     # x year (was: wide, one row per country). Advisory row-count guard, generous range.
-    ("oem_lh.bronze_WGI", 50, 500000),
+    ("oem_lh.bronze_wgi", 50, 500000),
 ]
 
 row_count_results = []
@@ -377,14 +377,14 @@ schema_checks = {
     f"oem_lh.silver_epi{EPI_YEAR}results": {
         "iso": "string", "country": "string", "EPI": None
     },
-    "oem_lh.bronze_GlobalSupplyShares": {
+    "oem_lh.bronze_global_supply_shares": {
         "Material": "string", "Stage": "string", "Country": "string", "Share": None
     },
-    # task-035 (FR-025): bronze_WGI schema — World Bank API LONG format written by
+    # task-035 (FR-025): bronze_wgi schema — World Bank API LONG format written by
     # bronze_ingest_wgi (one row per country x indicator x year). Advisory. Replaces the
     # retired WGI_file2table wide shape (which held "Percentile Rank 2023"); Year/Value
     # are the long-format observation columns (Value is None = presence-only, it is nullable).
-    "oem_lh.bronze_WGI": {
+    "oem_lh.bronze_wgi": {
         "Country Name": "string", "Country Code": "string",
         "Series Name": "string", "Indicator Code": "string",
         "Year": "string", "Value": None,
@@ -493,12 +493,12 @@ completeness_checks = [
     # struct navigation — the raw "EPI.new" could not be used here even if wanted.
     (f"oem_lh.silver_epi{EPI_YEAR}results",
      ["iso", "country", "EPI"]),
-    ("oem_lh.bronze_GlobalSupplyShares",
+    ("oem_lh.bronze_global_supply_shares",
      ["Material", "Stage", "Country", "Share"]),
-    # task-035 (FR-025): bronze_WGI required fields — long-format grain keys + descriptors
+    # task-035 (FR-025): bronze_wgi required fields — long-format grain keys + descriptors
     # (advisory). Value is EXCLUDED: a NULL Value is how the World Bank API encodes
     # "no observation for this country x indicator x year", so it is legitimately nullable.
-    ("oem_lh.bronze_WGI",
+    ("oem_lh.bronze_wgi",
      ["Country Name", "Country Code", "Series Name", "Indicator Code", "Year"]),
 ]
 
@@ -599,7 +599,7 @@ duplicate_checks = [
      ["SupplierName"]),
     (f"oem_lh.bronze_epi{EPI_YEAR}results",
      ["iso"]),
-    ("oem_lh.bronze_GlobalSupplyShares",
+    ("oem_lh.bronze_global_supply_shares",
      ["Material", "Stage", "Country"]),
 ]
 
@@ -1940,7 +1940,7 @@ BLOCKING_CHECKS = {
     # sync with the table name there — a stale entry here does not error, it
     # silently demotes the check to advisory.
     ("schema_validation", f"oem_lh.silver_epi{EPI_YEAR}results"),
-    ("schema_validation", "oem_lh.bronze_GlobalSupplyShares"),
+    ("schema_validation", "oem_lh.bronze_global_supply_shares"),
     # Required-field completeness on procurement (0% null tolerance).
     ("required_field_completeness", "oem_lh.bronze_procurement_transactional"),
     # Duplicate detection — genuine duplicate procurement transactions (criterion 4).

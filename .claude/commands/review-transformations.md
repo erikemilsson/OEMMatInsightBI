@@ -62,7 +62,7 @@ silver_epi.write.mode("overwrite").saveAsTable("oem_lh.silver_epi2024results")
 **2. Global Supply Shares Cleaning**
 ```python
 # Read bronze supply shares
-bronze_supply = spark.read.table("oem_lh.bronze_GlobalSupplyShares")
+bronze_supply = spark.read.table("oem_lh.bronze_global_supply_shares")
 
 # Transformation Logic:
 # - Convert headers to lowercase

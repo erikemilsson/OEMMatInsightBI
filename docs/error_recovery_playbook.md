@@ -19,7 +19,7 @@ All 10 pipeline activities, as configured in `pipeline-content.json` (`policy.re
 | bronze_copy_eu_supply_shares | 3 | 5 min | 15 min |
 | bronze_copy_global_supply_shares | 3 | 5 min | 15 min |
 | bronze_EPI | 2 | 30 s | 1 min |
-| bronze_WGI | 2 | 30 s | 1 min |
+| bronze_wgi | 2 | 30 s | 1 min |
 | bronze_to_silver_cleaning | 2 | 2 min | 4 min |
 | silver_to_gold | 2 | 2 min | 4 min |
 | data_quality_checks | 1 | 2 min | 2 min |
@@ -100,14 +100,14 @@ Errors that do not match known patterns. Treated conservatively (1 retry, then f
 3. If GitHub is down (check github.com/status), wait and retry
 4. Consider caching the CSV locally as a fallback
 
-### 3. Notebook Failure (bronze_WGI, bronze_EPI)
+### 3. Notebook Failure (bronze_wgi, bronze_EPI)
 
 **Symptoms:** TridentNotebook activity fails — World Bank API (WGI) or Yale EPI server
 unreachable, schema changed at source, or resource contention on the Fabric capacity.
 
 **Resolution:**
 1. Open Fabric workspace > the pipeline `orchestrator_pipeline_bronze_to_gold` > check
-   the `bronze_WGI` / `bronze_EPI` activity's output cell. EPI/WGI ingestion has been via
+   the `bronze_wgi` / `bronze_EPI` activity's output cell. EPI/WGI ingestion has been via
    TridentNotebook activities (`bronze_ingest_wgi`, `bronze_ingest_epi`) since task-035 —
    not dataflow refreshes; the `WGI_file2table` and `EPI_file2table` dataflow items still
    exist in the workspace but are not on the pipeline's activity path.

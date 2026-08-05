@@ -132,13 +132,13 @@ find_replace:
           DEV: "ee9dfadb-ba4f-90c4-4683-e635488fb9f8"
           # PROD: "<prod-lakehouse-artifactId>"   # TODO: reordered form of prod lakehouse ID
 
-    # ----- HttpServer connection — EU Supply CSV source (bronze_EUSupplyShares copy activity) -----
+    # ----- HttpServer connection — EU Supply CSV source (bronze_eu_supply_shares copy activity) -----
     - find_value: "97124587-4fe9-43ee-bd6c-6a0fe3bc5664"
       replace_value:
           DEV: "97124587-4fe9-43ee-bd6c-6a0fe3bc5664"
           # PROD: "<prod-eu-httpserver-connection-id>"   # TODO
 
-    # ----- HttpServer connection — Global Supply CSV source (bronze_GlobalSupplyShares copy activity) -----
+    # ----- HttpServer connection — Global Supply CSV source (bronze_global_supply_shares copy activity) -----
     - find_value: "172b089e-bb4a-4615-94fb-beef5019fca7"
       replace_value:
           DEV: "172b089e-bb4a-4615-94fb-beef5019fca7"

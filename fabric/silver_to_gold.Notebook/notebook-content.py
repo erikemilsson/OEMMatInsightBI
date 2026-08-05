@@ -2521,7 +2521,7 @@ if _wgi_missing:
         "  CAUSE: silver_wgi is still the retired 3-column identity shape, i.e. "
         "bronze-to-silver has not re-run since task-031/task-035.\n"
         "  FIX: run bronze-to-silver (or the full pipeline) so silver_wgi is rebuilt from "
-        "the long-format bronze_WGI written by bronze_ingest_wgi."
+        "the long-format bronze_wgi written by bronze_ingest_wgi."
     )
 
 wgi_weight_by_iso3 = compute_wgi_weight(spark.table(f"{DB}.silver_wgi"))
@@ -3379,7 +3379,7 @@ def create_data_gaps_table():
     # once the API-shaped silver_wgi is in place this filters nothing.
     #
     # MIGRATION GUARD (task-031/task-035 coupling): the API-shaped silver_wgi carrying
-    # `value` only exists after bronze-to-silver re-runs against a long-format bronze_WGI
+    # `value` only exists after bronze-to-silver re-runs against a long-format bronze_wgi
     # — which is blocked until task-035 repoints the pipeline at bronze_ingest_wgi. Until
     # then the live silver_wgi is the retired 3-column shape (country_iso3, country_name,
     # indicator_name) with NO `value` column, and referencing sw.value hard-fails the

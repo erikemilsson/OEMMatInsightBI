@@ -65,12 +65,12 @@ az datafactory pipeline create-run \
 
 **Bronze WGI:**
 1. Open the pipeline `orchestrator_pipeline_bronze_to_gold`
-2. Run the `bronze_WGI` TridentNotebook activity (notebook `bronze_ingest_wgi`)
-3. Outputs: `bronze_WGI` (six World Bank indicators, long format)
+2. Run the `bronze_wgi` TridentNotebook activity (notebook `bronze_ingest_wgi`)
+3. Outputs: `bronze_wgi` (six World Bank indicators, long format)
 
 **Bronze EU Supply Shares:**
 1. Run copy activity: `bronze_copy_eu_supply_shares` from pipeline
-2. Outputs: `bronze_GlobalSupplyShares`
+2. Outputs: `bronze_global_supply_shares`
 
 ## Validation
 
@@ -87,7 +87,7 @@ tables = [
     "bronze_epi2024results",
     "bronze_WB_ESGCSV",
     "bronze_WB_ESGSeries",
-    "bronze_GlobalSupplyShares"
+    "bronze_global_supply_shares"
 ]
 
 for table in tables:
@@ -101,7 +101,7 @@ for table in tables:
 - bronze_epi2024results: ~180-200 rows (countries)
 - bronze_WB_ESGCSV: ~8,000-10,000 rows
 - bronze_WB_ESGSeries: ~100-200 rows
-- bronze_GlobalSupplyShares: ~5,000-10,000 rows
+- bronze_global_supply_shares: ~5,000-10,000 rows
 
 ## Troubleshooting
 

@@ -16,8 +16,8 @@ This document provides comprehensive research findings on automating the ingesti
 
 **Implementation (2026-04-05):**
 - ✅ **EPI notebook:** `fabric/bronze_ingest_epi.Notebook/` — downloads CSV via `requests`, writes to `bronze_epi2024results` and `bronze_epi2024weights` (task-056: the weights file is the source for `silver_epi2024variables` → `gold_dim_indicator.weight`, which the `Weighted EPI Score` DAX measure consumes)
-- ✅ **WGI notebook:** `fabric/bronze_ingest_wgi.Notebook/` — calls World Bank API v2 (JSON), writes to `bronze_WGI`
-- ✅ **Pipeline wiring:** done (task-035, 2026-07-26) — `bronze_EPI` and `bronze_WGI` are
+- ✅ **WGI notebook:** `fabric/bronze_ingest_wgi.Notebook/` — calls World Bank API v2 (JSON), writes to `bronze_wgi`
+- ✅ **Pipeline wiring:** done (task-035, 2026-07-26) — `bronze_EPI` and `bronze_wgi` are
   TridentNotebook activities in `orchestrator_pipeline_bronze_to_gold`; the
   `EPI_file2table` / `WGI_file2table` dataflow items still exist in the workspace but are
   not on the pipeline's activity path
@@ -628,13 +628,13 @@ https://www.worldbank.org/en/publication/worldwide-governance-indicators
   - Parameterized by date range (`p_start_year`/`p_end_year`, default: 1996-2023)
   - Pagination support for large result sets
   - Retry logic with exponential backoff
-  - Writes to `bronze_WGI` Delta table with columns matching downstream expectations
+  - Writes to `bronze_wgi` Delta table with columns matching downstream expectations
   - Enriches data with `Indicator Code`, `Year`, and `Value` columns beyond original schema
 ✅ **Documentation Updated** - This document updated with implementation details
 
 ### Remaining (Erik in Fabric UI)
 
-✅ **Pipeline Wiring** - Done (task-035, 2026-07-26): `bronze_EPI` and `bronze_WGI` are
+✅ **Pipeline Wiring** - Done (task-035, 2026-07-26): `bronze_EPI` and `bronze_wgi` are
 TridentNotebook activities in `orchestrator_pipeline_bronze_to_gold` pointing at
 `bronze_ingest_epi` / `bronze_ingest_wgi`. No RefreshDataflow activities remain on the
 pipeline (task-048 later retired the `bronze_procurement` RefreshDataflow too).

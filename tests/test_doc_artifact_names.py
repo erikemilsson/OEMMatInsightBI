@@ -12,6 +12,21 @@ Renames (old -> new; new is canonical on disk):
   silver-to-gold2.Notebook         -> silver_to_gold.Notebook     (Phase 5, 2026-08-04)
   report.Report                    -> report2.Report
 
+Phase 5 batch B (2026-08-05) additionally renamed three bronze lakehouse TABLES:
+  bronze_EUSupplyShares            -> bronze_eu_supply_shares
+  bronze_GlobalSupplyShares        -> bronze_global_supply_shares
+  bronze_WGI                       -> bronze_wgi
+
+`bronze_WGI` is DELIBERATELY NOT GUARDED, unlike the other two. The string is still
+legitimately correct in two live contexts, so guarding it would fire on valid text:
+  1. Historical ACTIVITY references. The pipeline activity was `bronze_WGI` before Phase 4
+     snake-cased it to `bronze_wgi`; point-in-time design records (error_handling_strategy.md's
+     2026-04-05 retry table) correctly retain the old activity name.
+  2. The retired `WGI_file2table.Dataflow` contains a Power Query query literally named
+     `bronze_WGI` (mashup.pq, queryMetadata.json), and incremental_load_strategy.md's
+     "Historically the bronze Power Query dataflows (...)" sentence correctly names it.
+The two SupplyShares names have no such dual meaning and are safe to guard.
+
 Scope note: this guard only covers surfaces that have NO legitimate historical/example
 occurrence of the old names. It deliberately does NOT cover:
   - docs/standards/naming_standards.md   (retains one legitimate
@@ -41,6 +56,10 @@ OLD_NAMES = (
     "report.Report",
     "bronze-to-silver",
     "silver-to-gold2",
+    # Phase 5 batch B (2026-08-05) bronze table renames. `bronze_WGI` is intentionally
+    # absent — see the module docstring for the two live contexts that still use it.
+    "bronze_EUSupplyShares",
+    "bronze_GlobalSupplyShares",
 )
 
 # Recruiter-facing / guide surfaces with no legitimate old-name occurrence.

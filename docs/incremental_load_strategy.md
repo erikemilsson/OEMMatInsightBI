@@ -38,9 +38,9 @@ This document defines the incremental load strategy for the OEMMatInsightBI data
 | **bronze_procurement_transactional** | Bronze | `Date` | 🔄 **Incremental** | Daily | Transactional data, grows continuously |
 | **bronze_supplier_ref** | Bronze | N/A | 🔁 Full Refresh | Weekly | Small reference table (~100 rows), changes rare |
 | **bronze_epi{year}results** | Bronze | N/A | 🔁 Full Refresh | Annual | Annual snapshot; a new vintage lands in its own table (`p_epi_year`) |
-| **bronze_WGI** | Bronze | N/A | 🔁 Full Refresh | Annual | Annual snapshot, World Bank API provides the full dataset |
-| **bronze_GlobalSupplyShares** | Bronze | N/A | 🔁 Full Refresh | Annual | Static material shares, rarely updated |
-| **bronze_EUSupplyShares** | Bronze | N/A | 🔁 Full Refresh | Annual | EU-scope companion to the global shares; consumed by `bronze_to_silver` since task-038_1 |
+| **bronze_wgi** | Bronze | N/A | 🔁 Full Refresh | Annual | Annual snapshot, World Bank API provides the full dataset |
+| **bronze_global_supply_shares** | Bronze | N/A | 🔁 Full Refresh | Annual | Static material shares, rarely updated |
+| **bronze_eu_supply_shares** | Bronze | N/A | 🔁 Full Refresh | Annual | EU-scope companion to the global shares; consumed by `bronze_to_silver` since task-038_1 |
 | **silver_procurement** | Silver | `date` | 🔄 **Incremental** | Daily | Derived from bronze procurement (delete-insert) |
 | **silver_epi{year}results** | Silver | N/A | 🔁 Full Refresh | Annual | Cleaned EPI data |
 | **silver_wgi** | Silver | N/A | 🔁 Full Refresh | Annual | Cleaned WGI data (long format) |

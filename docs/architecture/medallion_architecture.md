@@ -27,7 +27,7 @@ The project implements a **medallion architecture** (bronze → silver → gold)
 │   supplier_ref      │
 │ - bronze_           │
 │   epi{year}results  │
-│ - bronze_WGI        │
+│ - bronze_wgi        │
 │ - bronze_Global     │
 │   SupplyShares      │
 │ - bronze_EU         │
@@ -124,14 +124,14 @@ The project implements a **medallion architecture** (bronze → silver → gold)
 | `bronze_procurement_transactional` | Procurement transactions (RAW dates — see note) | Copy activity `bronze_copy_procurement_transactional` |
 | `bronze_supplier_ref` | Supplier reference data | Copy activity `bronze_copy_supplier_ref` |
 | `bronze_epi{year}results` | Environmental Performance Index (e.g. `bronze_epi2024results`) | `bronze_ingest_epi.Notebook`, parameterised on `p_epi_year` |
-| `bronze_WGI` | World Bank governance indicators, long format | `bronze_ingest_wgi.Notebook` (World Bank API v2) |
-| `bronze_GlobalSupplyShares` | Global supply concentration | Copy activity `bronze_copy_global_supply_shares` (HTTP) |
-| `bronze_EUSupplyShares` | EU supply concentration | Copy activity `bronze_copy_eu_supply_shares` (HTTP) |
+| `bronze_wgi` | World Bank governance indicators, long format | `bronze_ingest_wgi.Notebook` (World Bank API v2) |
+| `bronze_global_supply_shares` | Global supply concentration | Copy activity `bronze_copy_global_supply_shares` (HTTP) |
+| `bronze_eu_supply_shares` | EU supply concentration | Copy activity `bronze_copy_eu_supply_shares` (HTTP) |
 
 > **Retired lineage.** `bronze_WB_ESGCSV`, `bronze_WB_ESGSeries` and the
 > `WGI_file2table.Dataflow` that produced them are retired; those tables no longer exist
 > and nothing downstream reads them. WGI now arrives from the World Bank API as
-> `bronze_WGI`. See `schemas/bronze_tables.md` for the shape.
+> `bronze_wgi`. See `schemas/bronze_tables.md` for the shape.
 
 **Ingestion Methods:**
 - Copy activities (Azure SQL, HTTP sources)
@@ -248,7 +248,7 @@ The project implements a **medallion architecture** (bronze → silver → gold)
 
 1. **Bronze (Parallel):** 5 activities with no interdependencies —
    `bronze_copy_global_supply_shares` and `bronze_copy_eu_supply_shares` (Copy),
-   `bronze_copy_procurement_transactional` + `bronze_copy_supplier_ref` (Copy), `bronze_WGI` and `bronze_EPI`
+   `bronze_copy_procurement_transactional` + `bronze_copy_supplier_ref` (Copy), `bronze_wgi` and `bronze_EPI`
    (TridentNotebook).
 2. **Silver (Sequential):** `bronze_to_silver_cleaning` — depends on all five
    bronze activities succeeding.

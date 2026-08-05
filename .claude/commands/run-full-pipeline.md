@@ -108,7 +108,7 @@ orchestrator_pipeline_bronze_to_gold
 │   ├── bronze_copy_global_supply_shares (Copy) ───────┤
 │   ├── bronze_copy_procurement_transactional (Copy) ┤
 │   ├── bronze_copy_supplier_ref (Copy) ─────────────┤
-│   ├── bronze_WGI (Notebook) ─────────────────────┤
+│   ├── bronze_wgi (Notebook) ─────────────────────┤
 │   └── bronze_EPI (Notebook) ─────────────────────┤
 │                                                     ▼
 ├─[2] Silver Layer (Sequential) ────────────── [Wait for all 6 Bronze]
@@ -175,7 +175,7 @@ bronze_counts = {
     "bronze_supplier_ref": spark.table("oem_lh.bronze_supplier_ref").count(),
     "bronze_epi2024results": spark.table("oem_lh.bronze_epi2024results").count(),
     "bronze_WB_ESGCSV": spark.table("oem_lh.bronze_WB_ESGCSV").count(),
-    "bronze_GlobalSupplyShares": spark.table("oem_lh.bronze_GlobalSupplyShares").count()
+    "bronze_global_supply_shares": spark.table("oem_lh.bronze_global_supply_shares").count()
 }
 
 # Silver layer validation

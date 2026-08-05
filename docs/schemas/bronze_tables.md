@@ -45,9 +45,9 @@ The table name carries the vintage — `bronze_epi2024results` for `p_epi_year =
 The year comes from the pipeline parameter `p_epi_year`, so a new vintage lands in its own
 table rather than overwriting the previous one.
 
-## bronze_WGI
+## bronze_wgi
 Source: **World Bank API v2** (`https://api.worldbank.org/v2`), ingested by
-`bronze_ingest_wgi.Notebook` (pipeline activity `bronze_WGI`)
+`bronze_ingest_wgi.Notebook` (pipeline activity `bronze_wgi`)
 Grain: One row per country × indicator × year (**long format**)
 ```
 Country Name                STRING
@@ -72,11 +72,11 @@ Write mode is `overwrite` with `overwriteSchema` — WGI is a full snapshot refr
 > different and incompatible shape: four columns (`Country Name`, `Country Code`,
 > `Series Name`, `Percentile Rank 2023`) holding 2023 **percentile ranks (0–100)**, not
 > estimates. `bronze_to_silver` therefore **hard-fails** with an actionable message if
-> `bronze_WGI` is missing `Indicator Code` / `Year` / `Value`, rather than falling back —
+> `bronze_wgi` is missing `Indicator Code` / `Year` / `Value`, rather than falling back —
 > a percentile rank landing in `value` under the same column name would silently change
 > what `WGIᶜ` means in the DEC-001 supply-risk formula.
 
-## bronze_GlobalSupplyShares
+## bronze_global_supply_shares
 Source: EU CRM CSV over HTTP — Copy activity `bronzecopy_GlobalSupplyShares`
 Grain: One row per material × stage × country
 ```
@@ -90,7 +90,7 @@ t                           STRING (the EU CRM trade parameter; RETAINED through
                             basis of this line, which used to read "dropped in silver".)
 ```
 
-## bronze_EUSupplyShares
+## bronze_eu_supply_shares
 Source: EU CRM CSV over HTTP — Copy activity `bronzecopy_EUSupplyShares`
 Grain: One row per material × stage × country (EU-scope companion to the global file)
 

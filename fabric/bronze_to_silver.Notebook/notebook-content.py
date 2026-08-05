@@ -279,7 +279,7 @@ df_selected.write.format("delta").mode("overwrite").option("overwriteSchema", "t
 
 # CELL ********************
 
-df = spark.sql("SELECT * FROM oem_lh.`bronze_GlobalSupplyShares`")
+df = spark.sql("SELECT * FROM oem_lh.`bronze_global_supply_shares`")
 
 # rename column headers
 new_columns = [c.lower().replace(' ', '_') for c in df.columns] # create a list of new, clean column names
@@ -333,7 +333,7 @@ df_newheaders.write.format("delta").mode("overwrite").option("overwriteSchema", 
 
 # CELL ********************
 
-df_eu = spark.sql("SELECT * FROM oem_lh.`bronze_EUSupplyShares`")
+df_eu = spark.sql("SELECT * FROM oem_lh.`bronze_eu_supply_shares`")
 
 # rename column headers — identical rule to the Global table above
 new_columns_eu = [c.lower().replace(' ', '_') for c in df_eu.columns]
@@ -599,7 +599,7 @@ except Exception as _load_err:
 # CELL ********************
 
 # Load WGI data and standardize columns
-df_wgi = spark.sql("SELECT * FROM oem_lh.bronze_WGI")
+df_wgi = spark.sql("SELECT * FROM oem_lh.bronze_wgi")
 
 # -----------------------------------------------------------------------------
 # task-031 — silver_wgi MUST preserve Year and Value
@@ -633,18 +633,18 @@ missing_wgi_columns = [c for c in REQUIRED_WGI_COLUMNS
                        if c.lower() not in _wgi_columns_present]
 if missing_wgi_columns:
     raise RuntimeError(
-        f"bronze_WGI is missing {missing_wgi_columns}.\n"
+        f"bronze_wgi is missing {missing_wgi_columns}.\n"
         f"  Columns present: {df_wgi.columns}\n"
-        "  CAUSE: bronze_WGI is being written by the retired WGI_file2table.Dataflow "
+        "  CAUSE: bronze_wgi is being written by the retired WGI_file2table.Dataflow "
         "(Excel, 2023 percentile ranks, ~5 indicators) rather than by "
         "bronze_ingest_wgi.Notebook (World Bank API, long format, 6 indicators, estimates).\n"
         "  WHY NOT FALL BACK: silver_wgi must preserve Year/Value "
         "(spec_v1 § Data Transformations #3, DEC-001) — the identity-only projection this "
         "notebook used to emit is exactly the defect task-031 removed, and the dataflow's "
         "percentile ranks are not interchangeable with the API's estimates.\n"
-        "  FIX: task-035 shipped (2026-07-26) — the 'bronze_WGI' activity in "
+        "  FIX: task-035 shipped (2026-07-26) — the 'bronze_wgi' activity in "
         "orchestrator_pipeline_bronze_to_gold is a TridentNotebook calling bronze_ingest_wgi, "
-        "so the pipeline no longer overwrites bronze_WGI from the dataflow. If you are "
+        "so the pipeline no longer overwrites bronze_wgi from the dataflow. If you are "
         "seeing this, the activity has been re-pointed at the dataflow, or the dataflow was "
         "run by hand and then the pipeline in the same session. Re-point the activity at "
         "bronze_ingest_wgi.Notebook (the shipped state) to fix it permanently."

@@ -65,7 +65,7 @@ This command runs the `bronze_to_silver.Notebook` which performs:
 
 ### 2. Global Supply Shares Cleaning
 ```python
-# Input: bronze_GlobalSupplyShares
+# Input: bronze_global_supply_shares
 # Output: silver_globalsupplyshares
 # Operations:
 #   - Convert headers to lowercase
@@ -75,7 +75,7 @@ This command runs the `bronze_to_silver.Notebook` which performs:
 
 ### 3. World Governance Indicators (WGI) Cleaning
 ```python
-# Input:  bronze_WGI   (written by bronze_ingest_wgi.Notebook from the World Bank API)
+# Input:  bronze_wgi   (written by bronze_ingest_wgi.Notebook from the World Bank API)
 # Output: silver_wgi
 # Operations:
 #   - Standardize Country Code -> country_iso3 (UPPER, trimmed)
@@ -168,16 +168,16 @@ print(wgi.select("indicator_code").distinct().count(), "indicators")  # should b
 - Check for schema drift in source data
 - Review column name changes
 
-**`RuntimeError: bronze_WGI is missing ['Indicator Code', 'Year', 'Value']`:**
-- **Obsolete since task-035 (2026-07-26):** `bronze_WGI` is now written by the
+**`RuntimeError: bronze_wgi is missing ['Indicator Code', 'Year', 'Value']`:**
+- **Obsolete since task-035 (2026-07-26):** `bronze_wgi` is now written by the
   `bronze_ingest_wgi` TridentNotebook activity (World Bank API, long format, estimates),
   not by the retired `WGI_file2table.Dataflow` (Excel, 2023 percentile ranks). The
-  pipeline no longer overwrites `bronze_WGI` from the dataflow.
+  pipeline no longer overwrites `bronze_wgi` from the dataflow.
 - This raise is still in place as a guard: it fires if someone re-points the activity at
   the dataflow, or runs the dataflow by hand and then the pipeline in the same session.
   The two shapes are not interchangeable — accepting the dataflow's would put a
   differently-scaled quantity in `value` and silently redefine the `WGIᶜ` governance
-  weight in the supply-risk model (DEC-001). Ensure the `bronze_WGI` activity in
+  weight in the supply-risk model (DEC-001). Ensure the `bronze_wgi` activity in
   `orchestrator_pipeline_bronze_to_gold` points at `bronze_ingest_wgi.Notebook`.
 
 **`RuntimeError: WGI indicator_name -> indicator_code is not 1:1`:**

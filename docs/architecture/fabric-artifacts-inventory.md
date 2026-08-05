@@ -15,7 +15,7 @@ As-built inventory of Fabric artifacts in the `oem_lh` workspace. Mirrors what i
 | Artifact (repo dir) | Pipeline activity | Purpose | Status |
 |---|---|---|---|
 | `bronze_ingest_epi` | `bronze_EPI` | EPI ingestion from Yale (since task-035) | ✅ Active |
-| `bronze_ingest_wgi` | `bronze_WGI` | WGI ingestion from World Bank API (since task-035) | ✅ Active |
+| `bronze_ingest_wgi` | `bronze_wgi` | WGI ingestion from World Bank API (since task-035) | ✅ Active |
 | `bronze_to_silver` | `bronze_to_silver_cleaning` | Bronze → Silver cleaning + alias resolution | ✅ Active |
 | `silver_to_gold` | `silver_to_gold` | Silver → Gold star schema (facts, dims, observability) | ✅ Active |
 | `data_quality_checks` | `data_quality_checks` | Pipeline data-quality gate | ✅ Active |
@@ -44,7 +44,7 @@ As-built inventory of Fabric artifacts in the `oem_lh` workspace. Mirrors what i
 | `EPI_file2table` | Dataflow | EPI ingestion mechanism before task-035 | ❌ Orphan — replaced by `bronze_ingest_epi` notebook (task-035); still a workspace item, not on the pipeline path |
 | `WGI_file2table` | Dataflow | WGI ingestion mechanism before task-035 | ❌ Orphan — replaced by `bronze_ingest_wgi` notebook (task-035); still a workspace item, not on the pipeline path |
 
-> The retired dataflows are slated for removal via `fabric-cicd`'s `unpublish_all_orphan_items()` in a later cleanup pass. They have no consumers — the EPI/WGI notebooks write `bronze_epi2024results` / `bronze_WGI` directly.
+> The retired dataflows are slated for removal via `fabric-cicd`'s `unpublish_all_orphan_items()` in a later cleanup pass. They have no consumers — the EPI/WGI notebooks write `bronze_epi2024results` / `bronze_wgi` directly.
 
 ## Previously removed (archived 2025-12-15)
 
@@ -65,7 +65,7 @@ graph TD
 
     BC1[bronze_copy_procurement_transactional<br/>+ bronze_copy_supplier_ref]
     BE[bronze_ingest_epi / bronze_EPI]
-    BW[bronze_ingest_wgi / bronze_WGI]
+    BW[bronze_ingest_wgi / bronze_wgi]
 
     BS[bronze_to_silver]
     SG[silver_to_gold]
@@ -102,7 +102,7 @@ The model's DirectLake source is `oem_lh`; `oem_wh` is intentionally absent from
 - ✅ `oem_lh`, `oem_wh` — short, lowercase
 - ✅ `silver_to_gold` — renamed from `silver-to-gold2` in Phase 5 (snake_case, dropped the version stamp)
 - ⚠️ `OEMInsightBI_v2`, `report2` — version suffix / placeholder name; Phase 5 rename targets `OEMInsightBI` / `oem_report`
-- ⚠️ Bronze Copy activities (`bronzecopy_*`) and PascalCase bronze activities (`bronze_EPI`, `bronze_WGI`) deviate from snake_case; Phase 4–5 naming sweep targets these
+- ✅ Bronze activities are snake_case since Phase 4 (`bronze_copy_*`, `bronze_epi`, `bronze_wgi`); the three PascalCase bronze **tables** were renamed to snake_case in Phase 5 batch B
 
 See `standards/naming_standards.md` for the canonical convention (snake_case, layer-prefixed) and the planned reconciliations.
 

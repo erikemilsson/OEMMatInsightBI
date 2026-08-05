@@ -113,11 +113,11 @@ raises with the year echoed back.
 - `Year` (STRING) - Observation year; cast to INT in silver
 - `Value` (DOUBLE) - Governance **estimate**, roughly −2.5 … +2.5
 
-**Ingestion:** `bronze_ingest_wgi.Notebook` (PySpark; pipeline activity `bronze_WGI`).
+**Ingestion:** `bronze_ingest_wgi.Notebook` (PySpark; pipeline activity `bronze_wgi`).
 Supersedes the retired `WGI_file2table.Dataflow` CSV lineage.
 **Frequency:** Annual (typically Q3-Q4)
 **Load Type:** Full replacement (`mode("overwrite")` — WGI is a full snapshot refresh)
-**Current Table:** `bronze_WGI`
+**Current Table:** `bronze_wgi`
 
 The World Bank re-coded WGI in the API: the classic `CC.EST` / `GE.EST` / … codes were
 archived to source 57 and now return "indicator not found"; the live estimate series are
@@ -136,7 +136,7 @@ unchanged for every downstream layer.
 > with `y_2000 … y_2023` year columns plus a separate `Topic` metadata table, filtered to
 > 2020, written to `silver_WB` — no longer exist. The retired dataflow emitted 2023
 > **percentile ranks (0-100)**, which are not interchangeable with the API's estimates, so
-> `bronze_to_silver` **hard-fails** if `bronze_WGI` is missing `Indicator Code` / `Year` /
+> `bronze_to_silver` **hard-fails** if `bronze_wgi` is missing `Indicator Code` / `Year` /
 > `Value` rather than silently falling back.
 
 **Automation:** ✅ Automated (notebook in the pipeline)
@@ -168,8 +168,8 @@ unchanged for every downstream layer.
 
 | Copy activity | Target table | Consumed downstream? |
 |---|---|---|
-| `bronze_copy_global_supply_shares` | `bronze_GlobalSupplyShares` | ✅ Yes — `bronze_to_silver` builds `silver_globalsupplyshares` from it |
-| `bronze_copy_eu_supply_shares` | `bronze_EUSupplyShares` | ✅ Yes — `bronze_to_silver` builds `silver_eusupplyshares` from it (task-038_1, 2026-07-29) |
+| `bronze_copy_global_supply_shares` | `bronze_global_supply_shares` | ✅ Yes — `bronze_to_silver` builds `silver_globalsupplyshares` from it |
+| `bronze_copy_eu_supply_shares` | `bronze_eu_supply_shares` | ✅ Yes — `bronze_to_silver` builds `silver_eusupplyshares` from it (task-038_1, 2026-07-29) |
 
 **Frequency:** (TBD - currently on-demand)
 **Load Type:** Full replacement (`OverwriteSchema` table action)
@@ -196,10 +196,10 @@ Azure SQL ──────────────> bronze_procurement_transac
 
 Yale EPI HTTPS ────────> bronze_epi{year}results                (notebook)
 
-World Bank API v2 ─────> bronze_WGI                             (notebook)
+World Bank API v2 ─────> bronze_wgi                             (notebook)
 
-EU CRM HTTP ───────────> bronze_GlobalSupplyShares              (copy activity)
-                          bronze_EUSupplyShares                  (copy activity)
+EU CRM HTTP ───────────> bronze_global_supply_shares              (copy activity)
+                          bronze_eu_supply_shares                  (copy activity)
 ```
 
 ### Update Frequencies
@@ -265,13 +265,13 @@ EU CRM HTTP ───────────> bronze_GlobalSupplyShares        
   Check the ingest fetch log for an indicator that 404'd (the World Bank archives series
   periodically — see the code-mapping note in § 3)
 
-### `bronze_to_silver` fails with "bronze_WGI is missing ['Indicator Code', 'Year', 'Value']"
-- **Obsolete since task-035 (2026-07-26):** `bronze_WGI` is now written by the
+### `bronze_to_silver` fails with "bronze_wgi is missing ['Indicator Code', 'Year', 'Value']"
+- **Obsolete since task-035 (2026-07-26):** `bronze_wgi` is now written by the
   `bronze_ingest_wgi` TridentNotebook activity, not by the retired `WGI_file2table.Dataflow`,
   so the pipeline can no longer overwrite bronze from the dataflow. The error can still
   surface if someone re-points the activity at the dataflow manually, or runs the dataflow
   by hand and then the pipeline in the same session — in that case the fix is to ensure
-  the `bronze_WGI` activity in `orchestrator_pipeline_bronze_to_gold` points at
+  the `bronze_wgi` activity in `orchestrator_pipeline_bronze_to_gold` points at
   `bronze_ingest_wgi.Notebook` (the shipped state).
 
 ### EU CRM HTTP Error

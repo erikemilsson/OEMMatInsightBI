@@ -40,7 +40,7 @@
             "datasetSettings": {
               "type": "LakehouseTable",
               "typeProperties": {
-                "table": "bronze_EUSupplyShares"
+                "table": "bronze_eu_supply_shares"
               },
               "schema": [],
               "linkedService": {
@@ -175,7 +175,7 @@
             "datasetSettings": {
               "type": "LakehouseTable",
               "typeProperties": {
-                "table": "bronze_GlobalSupplyShares"
+                "table": "bronze_global_supply_shares"
               },
               "schema": [],
               "linkedService": {
@@ -268,7 +268,7 @@
           "secureOutput": false
         },
         "name": "bronze_copy_global_supply_shares",
-        "description": "Copy Global CRM github repo csv file (fact_GlobalSupplyShares&t.csv). ACTION before first run: point this activity's source connection to the GLOBAL csv — it currently inherits the EU connection (97124587), which would load EU data (907 rows) into bronze_GlobalSupplyShares instead of Global (2561 rows). Replaces the legacy 22x-duplicated load (task-022 / FR-004).",
+        "description": "Copy Global CRM github repo csv file (fact_GlobalSupplyShares&t.csv). ACTION before first run: point this activity's source connection to the GLOBAL csv — it currently inherits the EU connection (97124587), which would load EU data (907 rows) into bronze_global_supply_shares instead of Global (2561 rows). Replaces the legacy 22x-duplicated load (task-022 / FR-004).",
         "dependsOn": []
       },
       {

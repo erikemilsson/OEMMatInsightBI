@@ -8,7 +8,7 @@
 **Runtime:** ~18-19 minutes (measured 2026-07-31, run `b56a43b9`)
 
 > **Accuracy note (2026-07-31).** This document had drifted badly: it described 4
-> bronze activities (there are 6), called `bronze_WGI` / `bronze_EPI`
+> bronze activities (there are 6), called `bronze_wgi` / `bronze_EPI`
 > RefreshDataflows (task-035 made them notebooks), claimed 0 retries everywhere
 > (task-011 set real policies), omitted `data_quality_checks` and
 > `pipeline_error_handler` (task-022 / task-026), and documented a Stage 4
@@ -27,7 +27,7 @@ START
   │   ├─ bronze_copy_global_supply_shares        (Copy)      │
   │   ├─ bronze_copy_procurement_transactional (Copy)      │
   │   ├─ bronze_copy_supplier_ref              (Copy)      │
-  │   ├─ bronze_WGI                           (Notebook)  │
+  │   ├─ bronze_wgi                           (Notebook)  │
   │   └─ bronze_EPI                           (Notebook)  │
   │                                                        │
   │   [All 6 activities complete]                         │
@@ -69,14 +69,14 @@ task-011; runtimes are measured from run `b56a43b9` (2026-07-31).
 
 | # | Activity | Type | Source → Output | Retry | Runtime |
 |---|----------|------|-----------------|-------|---------|
-| 1 | `bronze_copy_eu_supply_shares` | Copy | HTTP (GitHub CSV) → `bronze_EUSupplyShares` | 3 / 300s | 28s |
-| 2 | `bronze_copy_global_supply_shares` | Copy | HTTP (GitHub CSV) → `bronze_GlobalSupplyShares` | 3 / 300s | 25s |
+| 1 | `bronze_copy_eu_supply_shares` | Copy | HTTP (GitHub CSV) → `bronze_eu_supply_shares` | 3 / 300s | 28s |
+| 2 | `bronze_copy_global_supply_shares` | Copy | HTTP (GitHub CSV) → `bronze_global_supply_shares` | 3 / 300s | 25s |
 | 3 | `bronze_copy_procurement_transactional` | Copy | Azure SQL `dbo.procurement_transactional` → `bronze_procurement_transactional` | 3 / 300s | 27s |
 | 4 | `bronze_copy_supplier_ref` | Copy | Azure SQL `dbo.supplier_ref` → `bronze_supplier_ref` | 3 / 300s | 25s |
-| 5 | `bronze_WGI` | Notebook | World Bank API → `bronze_WGI` | 2 / 30s | 119s |
+| 5 | `bronze_wgi` | Notebook | World Bank API → `bronze_wgi` | 2 / 30s | 119s |
 | 6 | `bronze_EPI` | Notebook | Yale EPI CSV → `bronze_epi2024results` + related | 2 / 30s | 104s |
 
-**Stage 1 Total:** ~2 minutes (parallel; bounded by `bronze_WGI`)
+**Stage 1 Total:** ~2 minutes (parallel; bounded by `bronze_wgi`)
 
 #### Azure SQL ingestion notes (activities 3 and 4)
 

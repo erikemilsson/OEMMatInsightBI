@@ -26,7 +26,7 @@
 # # Automated ingestion of World Governance Indicators (WGI) data from the World Bank API.
 # Replaces manual CSV upload via WGI_file2table.Dataflow.
 # # **Source:** World Bank API v2 (https://api.worldbank.org/v2/)
-# **Target:** bronze_WGI (Delta table, overwrite)
+# **Target:** bronze_wgi (Delta table, overwrite)
 # **License:** World Bank Open Data (commercial use permitted)
 # **Update frequency:** Annual (typically September)
 # # Retrieves all 6 WGI dimensions (estimate scores):
@@ -79,7 +79,7 @@ from datetime import datetime
 # NOTE (2026-07-26): the World Bank re-coded WGI in the API. The classic CC.EST / GE.EST / …
 # codes were ARCHIVED to source 57 ("WDI Database Archives") and now return
 # "indicator not found"; the LIVE estimate series under source 3 are GOV_WGI_*.EST.
-# We fetch with the new API codes but STORE the classic short code + name, so the bronze_WGI
+# We fetch with the new API codes but STORE the classic short code + name, so the bronze_wgi
 # contract (Indicator Code, Series Name) is unchanged for every downstream layer.
 # Map: API code -> (canonical Indicator Code, canonical Series Name)
 WGI_INDICATORS = {
@@ -95,7 +95,7 @@ WGI_INDICATORS = {
 API_BASE = "https://api.worldbank.org/v2"
 
 # Retry tuning (task-050). The World Bank API degrades intermittently: on 2026-08-03 it
-# timed out on roughly half of all requests for over 75 minutes, and bronze_WGI could not
+# timed out on roughly half of all requests for over 75 minutes, and bronze_wgi could not
 # complete in either a pipeline run or a standalone probe. The old policy was
 # max_retries=3 with `time.sleep(2 * attempt)` — a 2s then 4s wait after a 60s read
 # timeout, i.e. it retried straight back into the same congestion and gave the remote side
@@ -106,7 +106,7 @@ API_BASE = "https://api.worldbank.org/v2"
 #
 # These constants govern the FAILURE PATH ONLY. A run in which nothing times out issues the
 # identical request sequence in the identical time, which is what keeps the task-012_1
-# performance baseline (bronze_WGI 73s) comparable for the task-012_5 retest.
+# performance baseline (bronze_wgi 73s) comparable for the task-012_5 retest.
 #
 # DO NOT RAISE API_PAGE_SIZE. Tried and measured 2026-08-03 (task-052), on the theory that
 # fewer requests means fewer chances to hit the intermittent read timeout. That is wrong for
@@ -257,9 +257,9 @@ print(f"\n  Total records fetched: {len(all_records):,}")
 # MARKDOWN ********************
 
 # ## Write to bronze layer
-# # The downstream `bronze-to-silver` notebook reads `bronze_WGI` and expects columns:
+# # The downstream `bronze-to-silver` notebook reads `bronze_wgi` and expects columns:
 # `Country Name`, `Country Code`, `Series Name`.
-# # We write the full API data to `bronze_WGI` with those columns plus additional
+# # We write the full API data to `bronze_wgi` with those columns plus additional
 # fields (indicator_code, year, value) that enrich the dataset beyond what the
 # manual CSV upload provided.
 
@@ -300,7 +300,7 @@ rows = [
 spark_df = spark.createDataFrame(rows, schema)
 
 # Write to bronze layer (overwrite — WGI is a full snapshot refresh)
-table_name = "bronze_WGI"
+table_name = "bronze_wgi"
 spark_df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(table_name)
 
 row_count = spark.sql(f"SELECT COUNT(*) as cnt FROM oem_lh.{table_name}").first()["cnt"]
@@ -324,7 +324,7 @@ print(f"  Ingestion complete at {datetime.now().isoformat()}")
 print("Sample records:")
 df_sample = spark.sql("""
     SELECT `Country Name`, `Country Code`, `Series Name`, `Indicator Code`, `Year`, `Value`
-    FROM oem_lh.bronze_WGI
+    FROM oem_lh.bronze_wgi
     WHERE `Country Code` IN ('USA', 'CHN', 'DEU', 'SWE', 'JPN')
     AND `Year` = '2022'
     ORDER BY `Country Name`, `Indicator Code`
@@ -342,7 +342,7 @@ df_coverage = spark.sql("""
         COUNT(*) as total_records,
         ROUND(MIN(`Value`), 2) as min_value,
         ROUND(MAX(`Value`), 2) as max_value
-    FROM oem_lh.bronze_WGI
+    FROM oem_lh.bronze_wgi
     GROUP BY `Indicator Code`, `Series Name`
     ORDER BY `Indicator Code`
 """)
@@ -355,7 +355,7 @@ null_check = spark.sql("""
         SUM(CASE WHEN `Country Code` IS NULL OR `Country Code` = '' THEN 1 ELSE 0 END) as null_country_code,
         SUM(CASE WHEN `Series Name` IS NULL OR `Series Name` = '' THEN 1 ELSE 0 END) as null_series_name,
         COUNT(*) as total_rows
-    FROM oem_lh.bronze_WGI
+    FROM oem_lh.bronze_wgi
 """)
 display(null_check)
 
