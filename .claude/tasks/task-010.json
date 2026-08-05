@@ -2,7 +2,7 @@
   "id": "task-010",
   "title": "Configure Pipeline Scheduling",
   "description": "Configure automated scheduling for the orchestrator pipeline to eliminate manual execution. Currently runs manually, needs daily schedule at 6:00 AM.",
-  "status": "On Hold",
+  "status": "Finished",
   "priority": "P3",
   "difficulty": 3,
   "estimatedEffort": "0.5-1 day",
@@ -36,6 +36,7 @@
     "ON HOLD 2026-07-19 (/health-check): parked out of auto-routing after 35d In Progress. The runbook (docs/guides/pipeline_schedule.md) is written and verified; only the Fabric-UI schedule configuration + first-run confirmation remain. Deliberately deferred behind the P1 audit-fix batch (022/023/024/025/026) — scheduling a daily 06:00 run before the correctness fixes land would automate a pipeline with known duplicate-key and fan-out defects. Resume once the batch is applied and confirmed clean. Only you can move this back to Pending — On Hold tasks are excluded from auto-routing.",
     "DEP-CLEANUP 2026-07-29 (/work coherence audit): 4 of 5 entries in dependencies[] were English prose, not task IDs, so dependency resolution could never satisfy them and this task could not compute as ready. Moved to notes as preconditions: (1) Pipeline must be fully tested and working; (2) Source systems must be available at scheduled time (6:00 AM); (3) Fabric workspace must have capacity for scheduled execution; (4) Notification email addresses configured. Real dependency task-011 retained.",
     "INHERITED SCOPE (surfaced 2026-07-29): DEC-004 deferred its criterion 5 (failure notification) with \"no on-demand-firing sink exists until task-010 (scheduling) lands ... Revisit at task-010.\" This task's AC4 (\"Notifications working\") is where that deferral comes due. Note notifyOption='MailOnFailure' covers only 1/8 activities after the EPI/WGI repoint — the handler-based signal in gold_pipeline_execution_log is the real failure channel.",
+    "CORRECTION 2026-08-05 (/work, measured): the notifyOption clause in the note above is STALE and was wrong at the time it was read. There are ZERO `notifyOption` keys anywhere in fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/pipeline-content.json — not 1/8, none. Measured with bash grep plus a positive control on the same file (TridentNotebook=6, policy=10, notifyOption=0, SemanticModelRefresh=0, RefreshDataflow=0), per rules/agents.md § 'Negative Findings Require a Positive Control'. Absent means the Fabric default, NoNotification, which is exactly what spec § Orchestration line 695 already states — the spec was right and this task note was not. AC4 is therefore satisfied by the native Schedule → Failure notifications path (a job-scheduler setting, not item definition), not by editing activity notifyOption. The gold_pipeline_execution_log handler remains the richer failure channel and is unaffected.",
     "DRIFT-RECONCILE 2026-08-02 (/work, [A] Apply): ## Orchestration section_fingerprint 14923ee -> 317baa48; spec_fingerprint b966 -> 3696. Drift source = 2026-07-31 bronze_azureSQLdb2table retirement (5 -> 6 bronze activities; RefreshDataflow -> two Copy activities). Scheduling ACs intact. Non-Finished (On Hold) task: status + criterion-3 verification retained (reset-to-Pending applies only to Finished tasks).",
     "RUNBOOK FOLLOW-UP 2026-08-02: docs/guides/pipeline_schedule.md was updated for the retirement (Copy activities named, 'No RefreshDataflow activities remain') but says 'four Bronze activities' (lines 11,14) while the spec now documents six — minor count staleness in this task's criterion-3 deliverable. FIXED 2026-08-02 (same session): runbook updated to list all six Bronze activities (added bronzecopy_GlobalSupplyShares) and corrected 'four'->'six' on both lines; now matches the spec ## Orchestration activity table.",
     "PROVENANCE REFRESH 2026-08-03 (/work, Erik-approved): spec_fingerprint 3696c931 -> 0e1cb6c1 (commit 7fc5ff6). Full-spec fingerprint only — section_fingerprint is UNCHANGED because ## Orchestration is byte-identical across that commit. No requirements changed for this task; the refresh exists so Step 1b stops re-running granular analysis that narrows to nothing.",
@@ -43,33 +44,49 @@
     "PROVENANCE REFRESH 2026-08-04 (second hop, same session -- FR-051 spec edit): spec_fingerprint a85ec535 -> 6d611c63. FR-051 reconciliation edited ## Data Transformations (gold_dim_indicator source + parent_indicator attribution), changing the full-spec fingerprint; this task's own section (Orchestration) is byte-identical across that edit, so section_fingerprint remains current. Task status and ACs unchanged.",
     "PROVENANCE REFRESH 2026-08-05 (/iterate, Erik-approved [Y]): spec_fingerprint 6d611c63 -> a1d1af64; section_fingerprint 87ecb4a6 -> b0be7f18 (## Orchestration). Two hops collapsed into one refresh. Hop 1 = commit 75a8403 (Track C Phase-5 spec sweep) rewrote ## Orchestration's activity table for the snake_case notebook renames -- unlike the prior three refreshes, this task's OWN section changed. Hop 2 = this /iterate corrected § Technical Architecture line 102 and § Development Workflow (Fabric Git integration disconnected 2026-08-05; Phase 4 CI/CD 'planned' -> Complete; daily round-trip workflow rewritten), which moved the full-spec hash again but left ## Orchestration byte-identical. Naming/reconciliation only in both hops; all five scheduling ACs intact. Task remains On Hold; only Erik can move it to Pending.",
     "AC3 DELIVERABLE DRIFT (measured 2026-08-05, NOT yet fixed): docs/guides/pipeline_schedule.md lines 12-18 name EIGHT artifacts the spec no longer uses -- bronzecopy_EUSupplyShares, bronzecopy_GlobalSupplyShares, bronze_WGI, bronzecopy_procurement_transactional, bronzecopy_supplier_ref, bronze_EPI (Phase-4 activity renames) plus 'bronze-to-silver data cleaning' and 'silver-to-gold' (Phase-5 notebook renames). Spec § Orchestration lines 627-653 carry the live names. This is criterion 3's deliverable, so AC3 is no longer satisfied as written even though it verified pass on 2026-06-14. Blocked on the open Phase-5 'Category D strong-set carve-out' decision -- pipeline_schedule.md is strong-set protected, so the fix needs an explicit carve-out first. Re-verify criterion 3 after the sweep.",
-    "AC3 FIXED 2026-08-05 (/work, Erik option A): Category D carve-out granted for pipeline_schedule.md only (other 3 Category D docs stay protected -- cosmetic/narrative drift). 8 stale activity/notebook names in docs/guides/pipeline_schedule.md (lines 12-18 + 112/151/169) updated to the live spec § Orchestration names: bronze activities snake_cased (bronzecopy_EUSupplyShares->bronze_copy_eu_supply_shares, etc.), bronze_WGI->bronze_wgi, bronze_EPI->bronze_epi, bronze-to-silver data cleaning->bronze_to_silver_cleaning, silver-to-gold->silver_to_gold. Historical bronze_procurement (retired RefreshDataflow, line 15) preserved. Verified directly: grep confirms zero stale names remain; naming guard test_doc_artifact_names.py 8/8 PASS (pipeline_schedule.md is not in CLEAN_SURFACES, so guard-neutral); full suite 235 passed. Criterion 3 re-satisfied as written. Task remains On Hold -- only Erik can resume for the Fabric-UI half (criteria 1,2,4,5). Carve-out recorded in .claude/support/workspace/phase5-resume-handoff.md (strong-set list + Category D entry)."
+    "RESUMED 2026-08-05 (/work task-010, Erik). Moved On Hold -> In Progress. The On Hold rationale (don't automate a pipeline with known P1 defects) is fully discharged: batch 022-026 all Finished+verified, and Phase 2 closed 45/45 with gate 2→3 approved the same day.",
+    "AC5 DECIDED 2026-08-05 (Erik, /work): rely on DirectLake auto-update; do NOT add a Semantic model refresh activity. Grounding: OEMInsightBI_v2 is DirectLake on all 14 tables (14/14 `mode: directLake`, 0 `mode: import`), so there is no import refresh to run — only reframing, which Fabric performs automatically. This matches spec § Semantic Model & Reporting line 719, § Dependencies & External Systems lines 1502/1512. Rejected alternative: an event-ordered refresh activity chained to silver_to_gold — costs a deploy cycle, needs the Power BI connection shared with the SP, has an unconfirmed capacity requirement on trial, and would contradict three spec lines (requiring /iterate). Documented as an upgrade path in the runbook rather than built. Consequence: AC5's evidence is observational — the report must show new figures after a scheduled run WITHOUT a manual refresh.",
+    "RUNBOOK STEP 4 HAZARD FIXED 2026-08-05 (/work, direct edit — docs/guides/*.md is outside the DEC-016 gate, and the Category D carve-out for this file was granted earlier the same day). The prior Step 4 instructed adding a Semantic model refresh activity IN THE FABRIC UI. That was a live foot-gun: the pipeline activity list is item definition, the repo is the single source of truth, and fabric-cicd republishes pipeline-content.json on every push to main — so the UI-added activity would have been deleted on the next deploy with no error surfaced anywhere, silently breaking AC5 after it had been signed off. Directly contradicted spec § Development Workflow line 977 ('Fabric UI edits are not a sync path'). Measured: 0 SemanticModelRefresh activities in the repo definition (10 activities = 6 TridentNotebook + 4 Copy). Rewrote Step 4 as a one-setting confirmation, added a UI-vs-repo boundary callout to the Overview, dropped the now-moot Premium/PPU capacity prerequisite, rewrote § Downstream Power BI Refresh and Design Rationale point 4, re-scoped the two MS Learn refresh-activity links as upgrade-path references, and added a changelog entry. Verified: naming guard 8/8 PASS, full suite 235 passed, zero stale artifact names (positive control: silver_to_gold x3).",
+    "AC4 DESCOPED 2026-08-05 (Erik, /work — he challenged the criterion directly: 'why do i need to do this though?'). Email failure notification is dropped; AC4 will NOT be satisfied as originally written. MEASURED BLOCKER: the pipeline Schedule pane's Failure-notifications field rejects addresses outside the organization — erikpemilsson@gmail.com produced 'One or more e-mail addresses with the following domains are outside your organization'. The only tenant principal is fabricuser@erikemilssonhotmail.onmicrosoft.com, and a bare .onmicrosoft.com account has no Exchange mailbox without a licence, so configuring it would have turned AC4 green while alerts fired into a void — false confidence, strictly worse than empty. RATIONALE: detection (the load-bearing property) is already shipped and unaffected — pipeline_error_handler runs on every outcome and logs per-activity rows to gold_pipeline_execution_log, re-raising on final-attempt FAILED, plus red run status in the Monitoring Hub and via queryactivityruns. What was dropped is push, not detection. Single-operator portfolio project: no on-call, no SLA, no downstream consumers. Documented upgrade paths if push is ever wanted (guest-invite an external address / in-pipeline Outlook-Teams activity authored in the repo / Data Activator job events) are recorded in the runbook's § Failure Notifications.",
+    "SPEC FOLLOW-UP DONE 2026-08-05 (/iterate, Erik [Y] — 'to do what you couldnt before'). The blocking follow-up recorded in the next note is CLOSED. Three surfaces landed, not the two originally scoped: (1) spec § Orchestration line 695 — Notifications paragraph rewritten from 'deferred with reason until task-010 lands' to descoped-with-rationale; (2) spec § Open Questions -> Technical Decisions #5 line 1543 — same resolution PLUS a factual correction: the line claimed notifyOption='MailOnFailure' 'would now cover only 1/8 activities', but there are zero notifyOption keys across 10 activities (6 TridentNotebook + 4 Copy) — wrong on both mechanism and count; (3) decision-004 — new '## Amendment — 2026-08-05' section + frontmatter amended: 2026-07-27 -> 2026-08-05, recording that TWO of DEC-004's assumptions expired: its recommended notifyOption flip targeted three RefreshDataflow activities all retired 2026-07-31 by task-048, and its recommended native Schedule sink is undeliverable in this tenant. task-041 needed NO change — its criterion 5 read 'configured OR explicitly deferred with a reason' and was legitimately satisfied by the deferral when it verified; it stays Finished. Provenance refreshed in the note below.",
+    "PROVENANCE REFRESH 2026-08-05 (post-/iterate, second of the day): spec_fingerprint a1d1af64 -> ea005839; section_fingerprint b0be7f18 -> c9bd0f86 (## Orchestration). This task's OWN section changed — the /iterate above rewrote § Orchestration's Notifications paragraph, which is this task's AC4 subject. § Open Questions & Decisions Needed also changed (Technical Decisions #5) but no task claims that section. Scope of change is the AC4 descope + one factual correction; the five scheduling ACs are otherwise intact, and AC4 is now explicitly out of scope rather than pending.",
+    "SPEC FOLLOW-UP REQUIRED (opened 2026-08-05, CLOSED same day — see note above): the AC4 descope closes the criterion DEC-004 parked here — 'no on-demand-firing sink exists until task-010 (scheduling) lands ... Revisit at task-010'. Two surfaces still describe it as merely DEFERRED and are now stale: (a) spec § Orchestration line 695 ('Notifications: No on-demand-firing sink configured ... the notification criterion (task-041 criterion 5) is deferred with reason until task-010 (scheduling) lands'), and (b) decision-004-pipeline-failure-propagation-topology.md's criterion 5. BOTH are DEC-016-gated surfaces — spec body text and a decision record — so neither may be direct-edited from /work; they route through /iterate (and the decision through /iterate or /research + its Select-an-Option checkbox). This MUST land before task-010 is verified as Finished, otherwise the spec will claim a deferral pending a task that has already closed without it. Runbook and task notes are updated (both outside the DEC-016 gate); the two gated surfaces are not.",
+    "AC3 FIXED 2026-08-05 (/work, Erik option A): Category D carve-out granted for pipeline_schedule.md only (other 3 Category D docs stay protected -- cosmetic/narrative drift). 8 stale activity/notebook names in docs/guides/pipeline_schedule.md (lines 12-18 + 112/151/169) updated to the live spec § Orchestration names: bronze activities snake_cased (bronzecopy_EUSupplyShares->bronze_copy_eu_supply_shares, etc.), bronze_WGI->bronze_wgi, bronze_EPI->bronze_epi, bronze-to-silver data cleaning->bronze_to_silver_cleaning, silver-to-gold->silver_to_gold. Historical bronze_procurement (retired RefreshDataflow, line 15) preserved. Verified directly: grep confirms zero stale names remain; naming guard test_doc_artifact_names.py 8/8 PASS (pipeline_schedule.md is not in CLEAN_SURFACES, so guard-neutral); full suite 235 passed. Criterion 3 re-satisfied as written. Task remains On Hold -- only Erik can resume for the Fabric-UI half (criteria 1,2,4,5). Carve-out recorded in .claude/support/workspace/phase5-resume-handoff.md (strong-set list + Category D entry).",
+    "VERIFICATION FAIL + REMEDIATION 2026-08-05 (attempt 3, verify-agent). Verdict: FAIL on documentation coherence ONLY — every Fabric measurement was independently reproduced to the digit by the verifier using its own tokens (schedule 06:00/enabled; jobs/instances {Manual:57, Scheduled:1}; run 1217c0b3 Completed 21.9min; gold_quality_history 2833/96/20:37:01; zero notifyOption with its own positive controls; 235+8 tests). It explicitly declined to overturn Erik's AC1 call and judged the residual-gap record honest. Configuration was NOT re-done. HEADLINE MISS: spec § Orchestration line 691 still asserted 'Schedule: Not configured. The pipeline is run manually.' — FOUR LINES ABOVE the Notifications paragraph routed through /iterate twice the same day, inside this task's own spec_section, and baked into the pinned section_fingerprint so drift detection structurally could not surface it (FR-052). REMEDIATED (all 7 issues): spec:691 rewritten via /iterate (Erik [Y]); docs/guides/pipeline_schedule.md lines 3+7 status banner (was contradicting its own footer) and line 158 (a phantom open follow-up this session had itself fabricated — it claimed the spec 'still' deferred the criterion after the /iterate had already landed); docs/architecture/orchestration.md lines 7, 201-203, 245-247 (a surface never opened during the original sweep) plus line 250 timezone 'Sweden Central (datacenter region)' -> 'W. Europe Standard Time' (the old text conflated a capacity region with a time zone); docs/PROJECT_PROGRESS.md:21 On Hold -> In Progress; files_affected corrected to the 5 real files (DataPipeline dir removed — the schedule is a job-scheduler setting, not item definition, which the verifier confirmed was correctly never modified). LESSON (FR-052 + verification_gap marker): the descope sweep tracked the three DEC-016-GATED surfaces because those needed approval routing, and never enumerated the UNGATED mirrors repeating the same claim — the cheaper fixes were the ones missed. A closure sweep should grep the criterion's own phrasing across docs/ + .claude/ before verification, not just the surfaces that need permission.",
+    "PROVENANCE REFRESH 2026-08-05 (third of the day, post-remediation /iterate): spec_fingerprint ea005839 -> 5689d10f; section_fingerprint c9bd0f86 -> 2ff8fac2 (## Orchestration). Change = line 691 Schedule status corrected from 'Not configured. The pipeline is run manually.' to the active daily 06:00 record. This task's OWN section again. ACs unchanged.",
+    "PARITY CLAUSE APPLIED + TASK CLOSED 2026-08-05 (/iterate N1 approved, Erik). Verify-agent attempt 4 PASSED with two minors; minor (b) was that spec:691 and orchestration.md:257 cited the 20:20:00.63Z firing as 'the exact specified minute' without saying that minute was the temporary 22:20 TEST time, nor that the 06:00 firing is unobserved — making 'daily at 06:00' + '20:20:00.63Z' read as internally incoherent to anyone who wasn't there. One clause added to each; the runbook footer already carried both facts. The verifier explicitly did NOT ask to weaken 'Active since 2026-08-05' — it judged that accurate and rejected 'configured, first 06:00 run pending' as LESS accurate and self-obsoleting. Provenance refresh (fourth of the day): spec_fingerprint 5689d10f -> d826310c; section_fingerprint 2ff8fac2 -> 21a2c67b. FINAL AC DISPOSITION: AC1 satisfied (Erik's call; verifier concurred, declined to overturn, and confirmed the residual-gap record honest). AC2 proven (run 1217c0b3, invokeType=Scheduled, Completed, 21.9 min, first non-Manual in 58). AC3 satisfied (runbook rewritten incl. removal of the UI-add-activity hazard that would have been destroyed by the next fabric-cicd publish). AC4 DESCOPED by explicit decision, landed on 3 gated + 3 ungated surfaces. AC5 proven behaviorally by DAX with no manual refresh (gold_quality_history 2767->2833, distinct runs 94->96, max refresh_timestamp advancing into the scheduled run's window). OPEN, deliberately NOT blocking closure: FR-052 (a false status assertion baked into a pinned section fingerprint is structurally invisible to drift detection — only a content read finds it) and FR-053 (docs/architecture/data_sources.md stale in 3 spots; out of blast radius, never references task-010). Both for /audit-coherence. The task's test_protocol carries a one-step check for 2026-08-06: confirm a second Scheduled run at ~04:00Z (Scheduled count 1 -> 2). If none appears, re-examine the schedule's times value and timezone first — that is AC1's sole unobserved link."
   ],
   "phase": "3",
   "spec_section": "Orchestration",
   "files_affected": [
-    "fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/",
-    "docs/guides/pipeline_schedule.md"
+    "docs/guides/pipeline_schedule.md",
+    "docs/architecture/orchestration.md",
+    "docs/PROJECT_PROGRESS.md",
+    ".claude/spec_v1.md",
+    ".claude/support/decisions/decision-004-pipeline-failure-propagation-topology.md"
   ],
   "created_date": "",
   "updated_date": "2026-08-05",
   "task_verification": {
     "result": "pass",
-    "attempt_number": 2,
-    "timestamp": "2026-06-14T00:00:00Z",
+    "attempt_number": 4,
+    "timestamp": "2026-08-05T21:05:34Z",
     "checks": {
       "files_exist": "pass",
       "consistency_check": "pass",
       "spec_alignment": "pass",
       "output_quality": "pass",
-      "runtime_validation": "not_applicable",
+      "runtime_validation": "pass",
       "integration_ready": "pass",
       "scope_validation": "pass"
     },
-    "issues": [],
-    "notes": "Criterion 3 (documentation) only — owner:both. docs/guides/pipeline_schedule.md verified complete, honest (non-active status banner), and grounded in Microsoft Learn; archived semantic-model name corrected to OEMInsightBI_v2 (0 occurrences of old name, probe-validated). Erik's Fabric configuration (criteria 1,2,4,5) remains — user_review_pending."
+    "issues": [
+      "MINOR docs/architecture/data_sources.md:209 '| Azure SQL | Daily (planned) | Manual | Implement scheduling |' presents completed work as an open action; lines 41/174 '(TBD - currently manual/on-demand)'. Out of blast radius — never references task-010; routed to FR-053 for /audit-coherence.",
+      "MINOR spec_v1.md:691 + docs/architecture/orchestration.md:257 cite the 20:20:00.63Z firing as 'the exact specified minute' without stating that minute was the temporary 22:20 test time, or that the 06:00 firing is unobserved until 2026-08-06. Runbook:202 carries both facts; the spec is the higher bar and does not."
+    ],
+    "notes": "AC1 satisfied (Erik's call, verifier concurred and declined to overturn); AC2 proven (run 1217c0b3, invokeType=Scheduled, Completed 21.9min); AC3 deliverables verified incl. removal of the UI-add hazard; AC4 DESCOPED and landed on all 3 gated surfaces + ungated mirrors; AC5 proven behaviorally by DAX with no manual refresh. Verifier's own sweep initially returned a SILENT EMPTY because zsh glob-expanded an unquoted --include=*.md — its positive control caught it, which is precisely why rules/agents.md § 'Negative Findings Require a Positive Control' exists. It then re-ran quoted and found data_sources.md, a file neither the orchestrator nor the first pass had touched."
   },
-  "verification_attempts": 2,
+  "verification_attempts": 4,
   "verification_history": [
     {
       "attempt": 1,
@@ -82,11 +99,109 @@
       "result": "pass",
       "timestamp": "2026-06-14T00:00:00Z",
       "summary": "Archived name eliminated (0 occurrences, probe-validated); OEMInsightBI_v2 in place; runbook coherent. Criterion 3 verified."
+    },
+    {
+      "attempt": 3,
+      "result": "fail",
+      "timestamp": "2026-08-05T20:54:36Z",
+      "summary": "Fabric work independently re-measured and CONFIRMED (schedule 06:00/enabled; {Manual:57,Scheduled:1}; run 1217c0b3 Completed 21.9min; gold_quality_history 2833/96/20:37:01; zero notifyOption with positive controls; 235+8 tests) — every orchestrator number reproduced to the digit. FAILED on documentation coherence: 4 major + 3 minor. Headline: spec_v1.md line 691 still asserts 'Schedule: Not configured. The pipeline is run manually.' four lines above the Notifications paragraph edited twice today, inside this task's own spec_section, and baked into the pinned fingerprint c9bd0f86 so drift detection cannot surface it. Also: pipeline_schedule.md:158 fabricates a phantom open follow-up; docs/architecture/orchestration.md:201-203 still says notifications deferred pending task-010; pipeline_schedule.md:3/7 status banner contradicts its own line 202."
+    },
+    {
+      "attempt": 4,
+      "result": "pass",
+      "timestamp": "2026-08-05T21:05:34Z",
+      "summary": "All 7 attempt-3 issues confirmed substantively remediated (re-read each site, not taken on report). Verifier TESTED the new spec:691 claim that the schedule 'is not represented in pipeline-content.json' rather than accepting it — grep returns schedule=0/recurrence=0/trigger=0/17288b67=0 against positive controls TridentNotebook=6, activities=3. Fingerprints independently recomputed (spec 5689d10f, § Orchestration 2ff8fac2) and matched index + task JSON. Live schedule re-read unchanged. 235 + 8 tests pass. Two MINOR issues remain, neither blocking: (a) docs/architecture/data_sources.md stale in 3 spots — out of blast radius, routed to friction FR-053; (b) spec:691 + orchestration.md:257 omit that the 'exact specified minute' was the temporary 22:20 test time and that the 06:00 firing is unobserved — a parity gap against the runbook footer which carries both facts. Verifier judged 'Active since 2026-08-05' ACCURATE and said it should stay."
     }
   ],
-  "test_protocol": null,
-  "user_review_pending": true,
-  "interaction_hint": "dashboard",
+  "test_protocol": {
+    "estimated_time": "35-45 min (includes one ~17 min pipeline run)",
+    "mode": "guided_cli",
+    "baseline_captured_utc": "2026-08-05T20:02:22Z",
+    "ids": {
+      "workspace": "99e4cc6d-6ec3-49a7-aed9-b69b04a97aa9",
+      "pipeline_rest_item": "d44ac501-95f9-4d7a-b50e-3d02c55dee23",
+      "semantic_model": "f57bdfa4-52c9-47a3-b853-dac1d1f76178",
+      "report": "bc96c840-f760-4c50-a92c-57882c482926 (displayName 'report2' — no name collision with the model)",
+      "schedule": "17288b67-a36f-4db8-88fe-cfa4ce1dba61"
+    },
+    "baseline": {
+      "schedules_before": "GET /v1/workspaces/{ws}/items/{pipe}/jobs/Pipeline/schedules -> {\"value\":[]} HTTP 200 (jobType RunPipeline returns 400 InvalidJobType, so the empty list is a real negative, not a broken probe)",
+      "job_instances": "57 runs, ALL invokeType=Manual; most recent 2026-08-05T14:21:47 Completed. invokeType is the field that distinguishes AC2's scheduled run.",
+      "dax_gold_quality_history_rows": 2767,
+      "dax_gold_quality_history_distinct_runs": 94,
+      "dax_gold_quality_history_latest_refresh_timestamp": "2026-08-05 14:47:33",
+      "dax_fact_procurement_rows": 132,
+      "dax_gold_supply_risk_rows": 127,
+      "probe_rationale": "gold_quality_history is the AC5 probe because it provably appends a discrete batch per run — verified, not assumed: the last 5 distinct refresh_timestamp values each carry their own row batch (56 for a full check suite, 10 for a partial). A bare row count was the weaker first attempt; distinct_runs + max(refresh_timestamp) is unambiguous. Post-run expectation: distinct_runs 94 -> 95 and latest_refresh_timestamp moves to ~22:2x. Unchanged values = reframing did not happen = AC5 fails.",
+      "semantic_model_refresh_schedule": "enabled=false, days=[], times=[] (DirectLake — no import refresh configured, as expected)",
+      "directlake_audit": "RIGOROUS: all 14 tables have exactly 1 partition each, directLake=1 / import=0 / directQuery=0 per table. Supersedes the earlier `grep -rl | wc -l` file-count, which only showed 14 files mentioned directLake and could not rule out mixed-mode tables."
+    },
+    "verification_limits": {
+      "directlake_autoupdate_toggle": "NOT readable by any reachable API. Probed and ruled out: Power BI GET /datasets/{id} (no such field; targetStorageMode=PremiumFiles only), GET /datasets/{id}/refreshSchedule (import-refresh only), Fabric GET /semanticModels/{id} (bare item metadata), and Fabric getDefinition?format=TMDL via the 202+Location LRO (live model.tmdl is byte-identical to the repo and carries no auto-update key). It is a service-side setting. Requires visual confirmation, and is superseded as evidence by the behavioral DAX check.",
+      "failure_notification": "NOT verifiable here — CORRECTION to an earlier overstatement in this session. The schedule payload contains only id/enabled/createdDateTime/configuration/owner; there is NO notification field, so neither the configured recipient nor the delivery can be read back. AC4 rests on user confirmation of the inbox."
+    },
+    "steps": [
+      {
+        "n": 1,
+        "type": "interactive",
+        "ac": "1",
+        "instruction": "Fabric UI: pipeline Home -> Schedule -> Add Schedule. Fixed / Daily / every 1 day. Set the time to ~10 min from now for the end-to-end test (we edit it to 06:00 at the end). Time zone Europe/Stockholm. End date far future (01/01/2099). Leave parameters at defaults so p_full_load=false.",
+        "expected": "Schedule saved and enabled",
+        "verify": "GET jobs/Pipeline/schedules returns 1 entry, enabled=true, correct recurrence + timezone"
+      },
+      {
+        "n": 2,
+        "type": "interactive",
+        "ac": "4",
+        "instruction": "Same Schedule pane: add the failure-notification recipient. Replace the data-eng-alerts@<your-domain> placeholder with a real address.",
+        "expected": "Recipient saved",
+        "verify": "Re-read the schedule payload for a notification field; if the API does not expose it, falls back to user confirmation"
+      },
+      {
+        "n": 3,
+        "type": "visual",
+        "ac": "5",
+        "instruction": "Semantic model OEMInsightBI_v2 -> settings -> confirm the Direct Lake automatic-update option is enabled.",
+        "expected": "Toggle is on",
+        "verify": "Not API-readable; superseded by the step-5 behavioral DAX check"
+      },
+      {
+        "n": 4,
+        "type": "command",
+        "ac": "2,5",
+        "instruction": "Wait for the scheduled run to fire and complete (~17 min).",
+        "expected": "Run completes as a scheduled invocation and the model reflects new Gold data",
+        "verify": "jobs/instances shows invokeType=Scheduled + status=Completed; DAX re-query of fact_procurement compared against the 132-row baseline WITHOUT any manual refresh"
+      },
+      {
+        "n": 5,
+        "type": "interactive",
+        "ac": "4",
+        "instruction": "Exercise the failure path and confirm the alert email arrives.",
+        "expected": "Email received",
+        "verify": "User confirmation (inbox is not reachable from here)"
+      },
+      {
+        "n": 6,
+        "type": "interactive",
+        "ac": "1",
+        "instruction": "Edit the schedule time from the test time to 06:00 Europe/Stockholm.",
+        "expected": "Schedule reads 06:00 daily",
+        "verify": "GET jobs/Pipeline/schedules shows the 06:00 recurrence"
+      }
+    ],
+    "results": {
+      "step1_AC1_schedule": "PASS — schedule id 17288b67-a36f-4db8-88fe-cfa4ce1dba61, enabled=true, Daily 06:00, W. Europe Standard Time (the zone whose label literally lists Stockholm). AC1 CALLED SATISFIED BY ERIK 2026-08-05 after Claude flagged the residual gap: the fired-on-time evidence (20:20:00.63Z, exact to the minute) was captured against the 22:20 TEST time, so the 06:00 firing itself is unobserved until the first morning run. Erik's reasoning stands on the mechanism being proven and the schedule record persisting across the edit (same id, only `times` changed). Recording the gap rather than hiding it: if the first 06:00 run does not appear, this is the assumption to re-examine first.",
+      "step2_AC4_notifications": "DESCOPED — see the AC4 DESCOPED note. Field rejects external domains; no tenant mailbox.",
+      "step3_AC5_setting": "PASS (visual) — 'Keep your Direct Lake data up to date' = On; 'Configure a refresh schedule' = Off. Matches the API read (refreshSchedule enabled=false). Not API-readable, so confirmed by screenshot.",
+      "step4_AC2_scheduled_run": "PASS — run 1217c0b3-1fe9-4983-82b2-df98c7a8eb6c, invokeType=Scheduled (the FIRST non-Manual invocation in 58 runs; baseline was 57/57 Manual), status=Completed, start 2026-08-05T20:20:00.63Z fired exactly on the specified minute, end 2026-08-05T20:41:55.87Z, duration ~21.9 min (within the documented 15-30 min envelope). Per-activity detail via queryactivityruns returned HTTP 404 on the .../groups/{ws}/datapipelines/pipelineruns/{runId}/queryactivityruns form — NOT chased; AC2 does not depend on it, and the gold_quality_history growth below independently proves the bronze->silver->gold->DQ chain executed rather than merely reporting green.",
+      "step4_AC5_behavioral": "PASS — the decisive evidence. NO manual refresh was issued at any point; the only writes were the scheduled pipeline's. gold_quality_history 2767 -> 2833 rows (+66 = one 56-row batch + one 10-row batch, matching the measured per-run pattern), distinct refresh_timestamps 94 -> 96, max(refresh_timestamp) 2026-08-05 14:47:33 -> 2026-08-05 20:37:01 UTC (written mid-run). DirectLake reframed on its own. NOTE: fact_procurement (132) and gold_supply_risk (127) were UNCHANGED — correct for an incremental load with no new Azure SQL data since 14:21, but it means the original fact_procurement row-count probe would have read as a FALSE FAILURE. That is why the probe was rebuilt onto gold_quality_history before the run.",
+      "step5_AC4_failure_test": "NOT RUN — moot under the descope.",
+      "step6_reset_to_0600": "PASS — schedule reset to times=['06:00'], enabled=true, same id 17288b67 (edited in place), timezone/end-date untouched. Verified via GET jobs/Pipeline/schedules."
+    }
+  },
+  "user_review_pending": false,
+  "interaction_hint": "cli_direct",
   "decision_dependencies": [],
   "recovery_state": "",
   "out_of_spec": false,
@@ -125,8 +240,9 @@
     }
   ],
   "subtasks": [],
-  "progress": "Not started",
+  "progress": "Complete",
   "spec_version": "1",
-  "spec_fingerprint": "sha256:a1d1af6490d15334866a726c2d1bd4461758d9069e156d33d919665320604beb",
-  "section_fingerprint": "sha256:b0be7f185259ff85fc7167b7fb6b434e4d47de883d0e03821106d22a0b8ec83f"
+  "spec_fingerprint": "sha256:d826310c45adc2a10be9cb6f0431be5d7c4a543f91d2eb8bd6c70a6c8b901250",
+  "section_fingerprint": "sha256:21a2c67b003f6d0136d69db31da9ad389028a2172b49a2a466f4a15fe25dfcbf",
+  "completion_date": "2026-08-05"
 }

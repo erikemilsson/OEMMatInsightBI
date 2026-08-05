@@ -18,7 +18,7 @@
 | task-007 | Finished | Add Comprehensive Data Quality Checks | 2026-04-05 |
 | task-008 | Finished | Create Unit Tests for Transformation Functions | 2026-01-16 |
 | task-009 | Finished | Document Existing DAX Measures | 2025-11-03 |
-| task-010 | On Hold | Configure Pipeline Scheduling |  |
+| task-010 | In Progress | Configure Pipeline Scheduling | Schedule active daily 06:00 since 2026-08-05; AC4 (notifications) descoped |
 | task-011 | Finished | Implement Error Handling & Retry Logic | 2026-04-05 |
 | task-012 | Finished | Optimize Pipeline Performance |  |
 | task-012_1 | Finished | Establish performance baseline |  |

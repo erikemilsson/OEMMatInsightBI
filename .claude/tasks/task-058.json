@@ -1,0 +1,47 @@
+{
+  "spec_version": "1",
+  "spec_fingerprint": "sha256:3909f3518fe5715e4722eee44e243ee01e7d84c3e9f6fe89e83cc7356159bcb7",
+  "created_date": "2026-08-05",
+  "updated_date": "2026-08-05",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "absorbed_into": "",
+  "subtasks": [],
+  "decision_dependencies": [],
+  "user_feedback": "",
+  "source": "verify-agent (phase-level, 2026-08-05)",
+  "id": "task-058",
+  "title": "Repair 14 dangling .claude/support/documents/** references across spec, notebook source, src/ and docs/",
+  "status": "Pending",
+  "priority": "P3",
+  "difficulty": 3,
+  "owner": "claude",
+  "phase": "5",
+  "spec_section": "Semantic Model & Reporting",
+  "out_of_spec": false,
+  "dependencies": [],
+  "files_affected": [
+    ".claude/spec_v1.md",
+    "fabric/bronze_to_silver.Notebook/notebook-content.py",
+    "src/transformations/watermark.py",
+    "fabric/sql/warehouse_indexes.sql",
+    "docs/guides/FAQ.md",
+    "docs/error_handling_strategy.md",
+    "docs/architecture/data_sources.md",
+    ".claude/support/decisions/decision-001-sr-gold-model.md",
+    ".claude/support/decisions/decision-012-warehouse-index-retire.md",
+    ".claude/support/decisions/decision-013-epi-weight-sourcing-gold-dim-indicator-rebuild.md"
+  ],
+  "description": "`.claude/support/documents/` is now COMPLETELY EMPTY — only four empty subdirectories (architecture, schemas, standards, transformations); every document moved to docs/. Fourteen file-specific references still point into it. Verified by direct enumeration WITH a positive control (the same sweep found docs/architecture/ referenced from 5+ files).\n\nBy file: spec_v1.md -> dax_measure_library.md (3x, lines 785/889/1414) + rls_security_strategy.md (2x, lines 821/1252) [SPEC BODY -> /iterate]; fabric/bronze_to_silver.Notebook/notebook-content.py -> incremental_load_strategy.md + architecture/orchestration.md (~line 470) [DEPLOYED NOTEBOOK SOURCE — a push republishes it]; src/transformations/watermark.py -> incremental_load_strategy.md; fabric/sql/warehouse_indexes.sql -> performance_optimized.md; docs/guides/FAQ.md -> 3 targets; docs/error_handling_strategy.md -> architecture/orchestration.md; docs/architecture/data_sources.md -> schemas/bronze_tables.md; decision-001 -> dax_measure_library.md, decision-012 -> performance_optimized.md, decision-013 -> external_data_automation.md [DECISION RECORDS -> /research or /iterate per DEC-016].\n\nEvery target exists under docs/ with the same basename EXCEPT external_data_automation.md, which has no docs/ counterpart and needs separate resolution. Also decide whether the four empty subdirectories should be removed so a future sweep does not read them as a live mirror.",
+  "acceptanceCriteria": [
+    "All 14 references resolve to files that exist; a link-check probe passes with a positive control.",
+    "The two references inside deployed notebook source are fixed in the repo (never via the Fabric UI — the next publish overwrites UI edits).",
+    "Spec-body references land via /iterate; decision-record references via /research or /iterate — neither direct-edited.",
+    "external_data_automation.md is either located, recreated, or the reference removed with a recorded reason.",
+    "A decision is recorded on whether to delete the four empty .claude/support/documents/ subdirectories."
+  ],
+  "notes": [
+    "CREATED 2026-08-05 by phase-level verification. Broader instance of open FR-053 (doc-mirror drift).",
+    "Mixed gating: docs/ + src/ + fabric/ are direct-editable; spec and decision records are DEC-016 gated."
+  ]
+}

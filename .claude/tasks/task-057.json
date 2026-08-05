@@ -1,0 +1,42 @@
+{
+  "spec_version": "1",
+  "spec_fingerprint": "sha256:3909f3518fe5715e4722eee44e243ee01e7d84c3e9f6fe89e83cc7356159bcb7",
+  "created_date": "2026-08-05",
+  "updated_date": "2026-08-05",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "absorbed_into": "",
+  "subtasks": [],
+  "decision_dependencies": [],
+  "user_feedback": "",
+  "source": "verify-agent (phase-level, 2026-08-05)",
+  "id": "task-057",
+  "title": "Spec reconciliation: retire four false status assertions surfaced by phase-level verification",
+  "status": "Pending",
+  "priority": "P2",
+  "difficulty": 4,
+  "owner": "claude",
+  "phase": "5",
+  "spec_section": "Data Architecture",
+  "out_of_spec": false,
+  "files_affected": [
+    ".claude/spec_v1.md"
+  ],
+  "dependencies": [],
+  "description": "Route through /iterate (DEC-016 — every edit is spec body text). Phase-level verification found the spec asserting states the built system contradicts, each baked into a pinned section fingerprint and therefore INVISIBLE to drift detection (FR-052 class).\n\n(1) SHARPEST: § Data Architecture line 297 states silver_eusupplyshares is 'planned (task-038), not yet built' and line 300 states 'the EU table is orphaned at the silver boundary — bronze_to_silver.Notebook reads only the Global table, so bronze_eu_supply_shares has no silver consumer today'. Both FALSE: task-038 closed 2026-08-05; bronze_to_silver.Notebook line 336 reads bronze_eu_supply_shares and line 372 writes silver_eusupplyshares; live fact_supply_share holds 903 rows at supply_mix='eu_sourcing' (vs 2560 global) with t spanning 0.8-1.5. A reader would conclude the EU-sourcing half of DEC-001 Option B was never built.\n\n(2) § Current State Assessment lines 931-934 list task-006_3, task-010, task-012_5, task-036 as incomplete; § Next Steps line 1589 states all four closed. Direct intra-spec contradiction.\n\n(3) § Performance Optimization line 1262 'Pipeline Runtime: Not benchmarked' vs two FINAL benchmark docs with 6 measured runs — and those docs quote the stale line BACK as their rationale, a citation loop that will keep it alive. Lines 1272/1276 also leave task-012_3 items unchecked though it is Finished.\n\n(4) § Development Workflow lines 1013-1017 still claim 'Notebooks use both hyphens and underscores' and 'Some artifact names use camelCase (copyjob1)', contradicted by line 995 in the SAME section and by live workspace enumeration (22 items, no copyjob1).\n\nAlso in the same pass: § Orchestration documents 3 pipeline parameters but live+repo carry 5 (p_epi_year, p_execution_id undocumented, and p_epi_year is load-bearing for the EPI vintage chain); § Semantic Model names measures 'Total Spend'/'Supplier Count'/'Total Quantity'/'YoY Growth' but the live model has 'Total Spend EUR'/'Supplier Countries Count' and NO Total Quantity or YoY Growth (verified against a complete 45-measure enumeration); § Data Quality line 1113 and § Testing Strategy line 1302 attribute test data to 'SQL scripts in /azure/' which are DDL-only (zero INSERT statements); § Expected Data Profiles line 1115 says '~500 records' where the verified count is 132.",
+  "acceptanceCriteria": [
+    "§ Data Architecture no longer describes silver_eusupplyshares as unbuilt or bronze_eu_supply_shares as having no silver consumer; the text matches the live 903-row eu_sourcing reality and cites task-038 as closed.",
+    "§ Current State Assessment and § Next Steps agree on the status of task-006_3, task-010, task-012_5 and task-036.",
+    "§ Performance Optimization no longer says 'Not benchmarked'; it cites the two FINAL benchmark documents, and task-012_3's completed items are checked.",
+    "§ Development Workflow 'Consistency Issues' no longer contradicts line 995's Phase-5 snake_case reconciliation; copyjob1 is not claimed to exist.",
+    "§ Orchestration documents all 5 pipeline parameters including p_epi_year and p_execution_id.",
+    "§ Semantic Model measure names match a live enumeration; no measure is named that does not exist.",
+    "The '~500 records' and '/azure/ test data' claims are corrected to 132 and DDL-only respectively.",
+    "All edits landed via /iterate with an approved change declaration — no direct spec writes."
+  ],
+  "notes": [
+    "CREATED 2026-08-05 by phase-level verification (result: pass, 13/13 criteria). Phase acceptance passed; spec coherence did not.",
+    "Every item is spec body text -> DEC-016 gated -> /iterate only. Do NOT direct-edit.",
+    "Related open friction: FR-052 (the generalising mechanism), FR-054/055/056 (design_contradiction), FR-058 (terminology_mismatch), FR-059 (spec_implementation_gap)."
+  ]
+}

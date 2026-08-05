@@ -1,49 +1,89 @@
 {
-  "task_id": "task-046",
+  "mode": "phase_level",
   "result": "pass",
-  "timestamp": "2026-08-01T18:44:21Z",
-  "attempt": 1,
+  "timestamp": "2026-08-05T21:40:24Z",
+  "spec_version": "spec_v1",
+  "spec_fingerprint": "sha256:3909f3518fe5715e4722eee44e243ee01e7d84c3e9f6fe89e83cc7356159bcb7",
+  "criteria_passed": 13,
+  "criteria_failed": 0,
+  "issues": {
+    "critical": 0,
+    "major": 4,
+    "minor": 6
+  },
+  "tasks_created": [
+    "task-057",
+    "task-058",
+    "task-059",
+    "task-060",
+    "task-061"
+  ],
+  "summary": "All 13 acceptance sub-criteria across Phases 1-4 PASS on LIVE evidence, not code inspection: 235/235 pytest; 9 gold tables populated in the live DirectLake model (fact_procurement 132, fact_epi_score 12196, fact_supply_share 3463 = 2560 global + 903 eu_sourcing, gold_supply_risk 127, 5 dims); all 45 DAX measures evaluate (Total Spend EUR 3,273,776.03; Supply Risk Global 0.5521 / EU 0.6053 / Contrast 1.0964); report2 ships 4 pages / 14 visuals; live pipeline definition byte-identical to repo across all 10 activities, retries and parameters (no deploy drift); schedule 17288b67 enabled Daily 06:00 with its one Scheduled invocation Completed 20:20:00.63->20:41:55.87Z; terminal DQ gate wrote dq_gate_raised=0 / blocking_failures=0 / blocking_evaluated=18 over a 13-entry BLOCKING_CHECKS set, overall score 97.57; deploy-fabric.yml has 12 consecutive green push-to-main publishes. THE BUILD IS SOUND; THE SPEC'S DESCRIPTION OF IT IS NOT. Hunting the FR-052/FR-053 defect classes surfaced four further instances, sharpest being § Data Architecture asserting silver_eusupplyshares is 'planned (task-038), not yet built' and bronze_eu_supply_shares 'has no silver consumer today' — a reader would conclude the EU-sourcing half of DEC-001 Option B was never built, while it is live with 903 rows. Also found: two advisory DQ checks (silver_procurement data_type_consistency 75.0 'fail', business_rule_validation 81.82 'fail') failing on EVERY run with zero documentation — the clearest thing 74 consecutive per-task passes collectively missed, because per-task scope is bounded by files_affected and no single task owned the cross-run view.",
   "criteria": [
     {
-      "index": 1,
+      "name": "Phase 1 — Gold tables populated",
       "status": "pass",
-      "criterion": "Repository secrets for tenant ID, client ID and client secret exist and are referenced by the workflow.",
-      "evidence": "gh secret list returns all 4 (AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, FABRIC_WORKSPACE_ID); deploy-fabric.yml env block references each via secrets.* ; runner logs show all 4 populated (masked) at checkout/run-mode steps."
+      "notes": "Live DAX: fact_procurement 132, fact_epi_score 12196, fact_supply_share 3463 (2560 global + 903 eu_sourcing), gold_supply_risk 127, gold_dim_country 193, gold_dim_date 337, gold_dim_indicator 73, gold_dim_material 96, gold_dim_stage 2 — all non-empty."
     },
     {
-      "index": 2,
+      "name": "Phase 1 — Semantic model connected",
       "status": "pass",
-      "criterion": "A dry-run execution completes and its reported plan matches what is actually in fabric/.",
-      "evidence": "Run 30710412362 (dry_run=true) conclusion=success; resolved 15 repository items matching the fabric/ tree one-to-one (DataPipeline x1, Dataflow x2, Lakehouse x1, Notebook x8, Report x1, SemanticModel x1, Warehouse x1). archive/ exclude regex is a defensive guard (no archive/ on disk)."
+      "notes": "14 non-hidden tables via INFO.VIEW.TABLES(); all 45 measures enumerate, 10 headline ones return real values — DirectLake is reading current lakehouse Delta."
     },
     {
-      "index": 3,
+      "name": "Phase 1 — Power BI report built",
       "status": "pass",
-      "criterion": "A real deployment run completes green and the workspace shows the deployed definitions.",
-      "evidence": "Run 30710829613 (publish=true) conclusion=success, publish_all_items completed; live GET items returns 19 items = 15 committed definitions + 4 staging/derived; legacy 'report' and 'semantic_model_oeminsightbi' ABSENT."
+      "notes": "fabric/report2.Report: 4 pages / 14 visuals; live as item bc96c840."
     },
     {
-      "index": 4,
+      "name": "Phase 2 — Incremental load works for fact_procurement",
       "status": "pass",
-      "criterion": "Dataflow connection bindings are verified live after deployment.",
-      "evidence": "Original subject bronze_azureSQLdb2table retired by task-048 (Finished, verified). Pipeline has 0 RefreshDataflow (6 TridentNotebook + 4 Copy); Azure SQL Copy sources use Fabric Connection oem_azuresql_procurement (GET /v1/connections/da9667d6 live, credentialType=Basic, lastBoundDateTime 2026-08-01T17:40:55Z coincident with publish). Connection is not a published item -> survives publish by construction. Remaining EPI/WGI dataflows public-HTTP, no credentials, orphaned. User accepted criterion as satisfied; opaque Power BI datasources endpoint is a known API limitation, not a blocker."
+      "notes": "task-006_3 live pair: full load 132 lossless bronze==silver==fact; incremental p_from_date=2024-12-01 re-inserted a 22-row window, total unchanged at 132, no duplicates."
     },
     {
-      "index": 5,
+      "name": "Phase 2 — Data quality checks run in pipeline",
       "status": "pass",
-      "criterion": "A full pipeline run after the automated deploy completes successfully, proving the deploy did not break the runtime path.",
-      "evidence": "Job acb30360-de4b-434e-bfda-7144fb2447f8 status=Completed, failureReason=null (~37.6 min). POST .../datapipelines/pipelineruns/{runId}/queryactivityruns returns 10 activities all Succeeded (6 TridentNotebook + 4 Copy), matching deployed pipeline-content.json exactly."
+      "notes": "Terminal Notebook activity. Latest Scheduled run 20:37:01 wrote dq_gate_raised=0, blocking_failures=0, blocking_evaluated=18 over 13-entry BLOCKING_CHECKS; score 97.57. 3 advisory non-pass rows — see task-059."
+    },
+    {
+      "name": "Phase 2 — External data ingestion scripted",
+      "status": "pass",
+      "notes": "bronze_ingest_epi / bronze_ingest_wgi live as bronze_epi / bronze_wgi (retry 2 @ 30s); both succeeded latest run; row-count validation 100.0 pass."
+    },
+    {
+      "name": "Phase 3 — Error handling with Try-Catch in pipeline",
+      "status": "pass",
+      "notes": "pipeline_error_handler on ['Succeeded','Failed','Skipped'] retry 0; other 9 activities retry 1-3 @ 30/120/300s exactly per § Orchestration + DEC-004. Zero RefreshDataflow."
+    },
+    {
+      "name": "Phase 3 — Pipeline scheduling configured",
+      "status": "pass",
+      "notes": "Schedule 17288b67 enabled Daily 06:00 W. Europe, end 2099-01-01. Single Scheduled instance of 58 ran 21.9 min and Completed. First 06:00 firing unobserved until 2026-08-06 — noted, not gating."
+    },
+    {
+      "name": "Phase 3 — Basic performance review done",
+      "status": "pass",
+      "notes": "performance_baseline.md (3 runs) + performance_optimized.md (3 runs) both FINAL, matched comparability, honest null/negative headline. Spec § Performance Optimization contradicts this — task-057."
+    },
+    {
+      "name": "Phase 4 — GitHub Actions deploys via fabric-cicd",
+      "status": "pass",
+      "notes": "deploy-fabric.yml pins fabric-cicd==1.2.0, ClientSecretCredential, real-publish on push to main. 12 most recent runs all succeeded."
+    },
+    {
+      "name": "Cross-cutting — Deploy fidelity: repo equals live workspace",
+      "status": "pass",
+      "notes": "Repo pipeline-content.json and live getDefinition agree exactly on all 10 activity names, types, retry counts, intervals and 5 parameters. No deploy drift."
+    },
+    {
+      "name": "Cross-cutting — Test suite green",
+      "status": "pass",
+      "notes": "235 passed in 26.79s, matching § Testing Strategy exactly. Includes the notebook<->src/ parity contract (DEC-002 / task-032)."
+    },
+    {
+      "name": "Cross-cutting — Task ledger integrity",
+      "status": "pass",
+      "notes": "77 task files: 74 Finished all carrying task_verification.result=='pass', 3 Absorbed. No Finished-without-pass, no orphan statuses."
     }
-  ],
-  "summary": "All 5 acceptance criteria pass against live evidence. Phase 4 CI/CD acceptance gate met.",
-  "issues": [],
-  "checks": {
-    "files_exist": "pass",
-    "consistency_check": "pass",
-    "spec_alignment": "pass",
-    "output_quality": "pass",
-    "runtime_validation": "pass",
-    "integration_ready": "pass",
-    "scope_validation": "pass"
-  }
+  ]
 }

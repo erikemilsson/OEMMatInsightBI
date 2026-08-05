@@ -688,11 +688,11 @@ Bronze now holds the source's raw day/year-transposed dates — a Copy activity 
 
 -   Start date for incremental load (default: "1900-01-01")
 
-**Schedule:** Not configured. The pipeline is run manually.
+**Schedule:** **Active since 2026-08-05** — daily at **06:00 Europe/Stockholm**, schedule id `17288b67-a36f-4db8-88fe-cfa4ce1dba61`, enabled, no end date in practice (2099-01-01). Configured via Fabric's job scheduler, which is **not** part of the pipeline's item definition — it survives `fabric-cicd` publishes and is not represented in `pipeline-content.json`. Runs use the pipeline defaults (`p_full_load = false`, incremental). Verified end to end on 2026-08-05: a test firing **against a temporary 22:20 test time** started at `20:20:00.63Z` — the exact specified minute — ran 21.9 minutes, and completed as the first `invokeType=Scheduled` invocation in 58 runs. **The schedule was then reset to 06:00; that first morning firing is unobserved until 2026-08-06.** On-demand runs remain available and are unaffected. Runbook: `docs/guides/pipeline_schedule.md`.
 
 **Error Handling:** Activity-level retry (1–3 retries depending on activity; retry intervals 30–300s depending on activity — see Technical Decisions #5 for per-activity values) plus a single terminal handler activity (`pipeline_error_handler`) that runs on every outcome and logs each activity to `gold_pipeline_execution_log`, **re-raising only when an activity's final attempt FAILED** (an activity retried into success is reported as recovered, not a run failure) to keep a genuinely failing run red. Canonical description: § Open Questions & Decisions Needed → Technical Decisions #5 (DEC-004, amended 2026-07-27). *(Supersedes the earlier "fail-fast, 0 retries" description — stale since task-011 shipped retry logic — and the "Upon-Failure paths" wording — stale since the 2026-07-27 amendment moved the handler onto every outcome — and the "re-raising on any FAILED" wording — stale since task-051 shipped final-attempt semantics, 2026-08-03, under which a retried-into-success activity is recovered, not a run failure.)*
 
-**Notifications:** No on-demand-firing sink configured. `notifyOption` remains `NoNotification`; the notification criterion (task-041 criterion 5) is deferred with reason until task-010 (scheduling) lands. See Technical Decisions #5.
+**Notifications:** No email sink configured, and none is planned — **push notification was descoped 2026-08-05** (task-010, superseding the 2026-07-27 deferral of task-041 criterion 5). The pipeline's failure signal is `gold_pipeline_execution_log` plus the run reporting Failed via the handler's re-raise; that is *detection*, and it is unchanged. What was dropped is *push*. Two reasons: the tenant cannot deliver it (the Schedule pane's Failure-notifications field rejects addresses outside the organization, and the only tenant principal is a `.onmicrosoft.com` account with no Exchange mailbox — configuring it would satisfy the criterion while alerting into a void), and this is a single-operator project with no on-call, SLA, or downstream consumers. No `notifyOption` key exists anywhere in the pipeline definition. Upgrade paths, if push is ever wanted, are recorded in `docs/guides/pipeline_schedule.md § Failure Notifications`. Resolves the criterion DEC-004 parked here. See Technical Decisions #5.
 
 **Dependencies:**
 
@@ -1540,7 +1540,7 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
     -   **DECISION (DEC-004, 2026-07-23, amended 2026-07-27):** Activity-level retry plus a single pipeline-level error-handler activity on the terminal node, logging every activity's outcome to `gold_pipeline_execution_log`.
     -   **Pattern:** Each activity keeps its retry count (1–3 retries, i.e. 2–4 total attempts) and interval (30–300s: 30s for bronze_wgi/bronze_epi, 120s for bronze_to_silver_cleaning/silver_to_gold/data_quality_checks, 300s for the four Copy activities). One handler activity (`pipeline_error_handler`) depends on the terminal activity `data_quality_checks` via `['Succeeded','Failed','Skipped']` — so it runs on every outcome — and reads per-activity results via POST `queryactivityruns` (not `@activity('X').Error`, which has no `error` field on Skipped activities). It writes one log row **per attempt** (Succeeded rows included), then collapses those per-attempt rows to one final terminal outcome per activity (ranking `activityRunStart`, since `queryactivityruns` always returns `retryAttempt` as null) and **re-raises `RuntimeError` only when an activity's final attempt FAILED** — so an activity retried into success is reported as recovered (logged, not a run failure) while a genuinely failed activity keeps the run red. Non-notebook activities (Copy) are covered because the handler reads the run's activity-run records directly, not via in-notebook `try/except`.
     -   **Why:** Fabric has no pipeline-level retry — only activity-level. A handler on `['Failed','Skipped']` only (the original 2-activity shape) never fires on a clean run and so cannot log successes; running on every outcome and re-raising when an activity's final attempt fails (a retried-into-success activity is recovered, not a run failure) gives both coverage and the red-on-failure guard in one activity. The re-raise is the Try-Catch-trap defence: a bare on-failure branch that succeeds makes the whole run report Success and would silently undo the DQ gate.
-    -   **Notification (criterion 5, deferred 2026-07-27 with reason):** no on-demand-firing sink exists until task-010 (scheduling) lands; `notifyOption='MailOnFailure'` would now cover only 1/8 activities after the EPI/WGI repoint. Revisit at task-010. The pipeline's failure signal is `gold_pipeline_execution_log` plus the run reporting Failed via the handler's re-raise.
+    -   **Notification (criterion 5 — resolved 2026-08-05 as DESCOPED, superseding the 2026-07-27 deferral):** email push is not configured and will not be. The Schedule pane's native Failure-notifications field refuses addresses outside the organization, and the tenant's only principal is a `.onmicrosoft.com` account without an Exchange mailbox, so a configured alert would fire into a void — false confidence, worse than none. The pipeline's failure signal remains `gold_pipeline_execution_log` plus the run reporting Failed via the handler's re-raise. *Correcting the prior text: the pipeline carries **no** `notifyOption` key at all (verified 2026-08-05 — zero occurrences across all 10 activities: 6 TridentNotebook + 4 Copy). The earlier "`MailOnFailure` would cover only 1/8 activities" was wrong on both the mechanism and the count.*
 
 ### Business Decisions
 
@@ -1566,10 +1566,10 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
 
 | Phase | Focus | Status | Acceptance Criteria |
 |-------|-------|--------|-------------------|
-| Phase 1 | Core Data Model & Reports | **Complete (10/10)** | Gold tables populated, semantic model connected, Power BI report built |
-| Phase 2 | Automation & Quality | Active (36/38) — task-006_3, task-036 remain (both Fabric-run verification) | Incremental load works for fact_procurement, data quality checks run in pipeline, external data ingestion scripted |
-| Phase 3 | Operations & Performance | Active (13/15) — task-010 (scheduling, On Hold) + task-012_5 (perf retest) | Error handling with Try-Catch in pipeline, pipeline scheduling configured, basic performance review done |
-| Phase 4 | CI/CD Deployment | **Complete (7/7)** — task-043…046 shipped; task-048/049 folded in | GitHub Actions workflow deploys Fabric artifacts on merge to main via `fabric-cicd` |
+| Phase 1 | Core Data Model & Reports | **Complete (9/9)** — task-034 absorbed | Gold tables populated, semantic model connected, Power BI report built |
+| Phase 2 | Automation & Quality | **Complete (45/45)** — closed 2026-08-05; gate 2→3 approved | Incremental load works for fact_procurement, data quality checks run in pipeline, external data ingestion scripted |
+| Phase 3 | Operations & Performance | **Complete (14/14)** — task-012_5 closed 2026-08-03, task-010 closed 2026-08-05; task-012_4 absorbed | Error handling with Try-Catch in pipeline, pipeline scheduling configured, basic performance review done |
+| Phase 4 | CI/CD Deployment | **Complete (6/6)** — task-043…046 shipped; task-048/049 folded in; task-047 closed won't-do | GitHub Actions workflow deploys Fabric artifacts on merge to main via `fabric-cicd` |
 
 ### Phase 4 — CI/CD Deployment
 
@@ -1586,16 +1586,15 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
 
 ### Remaining Work
 
-Four tasks remain, all gated on Fabric-UI execution by the project owner. They are not sequential — they collapse into a single Fabric session:
+**All spec tasks are closed** as of 2026-08-05 — 74 Finished with passing per-task verification, 3 Absorbed. The four Fabric-UI-gated tasks previously listed here resolved as: **task-036** and **task-006_3** on 2026-08-04 (full-load + incremental runs, duplicate check clean); **task-012_5** on 2026-08-03 (three warm-cache runs against the task-012_1 baseline, after the `OPTIMIZE` prerequisite); **task-010** on 2026-08-05 (daily 06:00 schedule live and verified firing).
 
-**Prerequisites (must precede the measured runs):** `OPTIMIZE` on gold tables (task-012_3 AC2); ~~deploy `fabric/sql/warehouse_indexes.sql` (task-012_4 AC5)~~ — retired DEC-012 (file is now a finding document, not deployable DDL). Running the retest before OPTIMIZE invalidates the comparison.
+Descoped: task-034 (Data Gaps report page — optional surface; the underlying table and measures shipped under task-001). Closed won't-do: task-047 (see § CI/CD Deployment → Known Limitations). Retired: task-012_4's warehouse-index deployment (DEC-012 — `fabric/sql/warehouse_indexes.sql` is a finding document, not deployable DDL).
 
-1. **task-036** — external-data e2e: satisfied by any complete pipeline run (EPI/WGI ingest identically in both parameter modes).
-2. **task-006_3** — incremental load: one full-load run (`p_full_load=true`, which must log FULL LOAD — the runtime proof for task-039's parameters cell) plus one incremental run, then the duplicate check.
-3. **task-012_5** — performance retest: three incremental warm-cache runs, matching the task-012_1 baseline methodology.
-4. **task-010** — scheduling: configure the daily 06:00 run; the first scheduled execution supplies its own evidence.
+**What remains is verification and hygiene, not build scope:**
 
-Descoped: task-034 (Data Gaps report page — optional surface; the underlying table and measures shipped under task-001). Closed won't-do: task-047 (see § CI/CD Deployment → Known Limitations).
+1. **Phase-level verification has not yet run.** `.claude/verification-result.json` currently holds a per-task result (task-046) rather than a phase-level one.
+2. **Open friction:** FR-052 (a false status assertion baked into a pinned section fingerprint is invisible to drift detection), FR-053 (`docs/architecture/data_sources.md` doc-mirror drift).
+3. **First 06:00 scheduled firing** is unobserved until 2026-08-06 — see § Orchestration → Schedule.
 
 ------------------------------------------------------------------------
 

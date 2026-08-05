@@ -5,7 +5,7 @@ status: approved
 category: architecture
 created: 2026-07-23
 decided: 2026-07-23
-amended: 2026-07-27
+amended: 2026-08-05
 decided_by: user
 related:
   tasks: [task-041, task-037, task-011]
@@ -43,6 +43,41 @@ Mark your selection by checking one box:
 > runs must also populate the log). The as-built is 1 activity — handler on `["Succeeded","Failed","Skipped"]`
 > (runs on every outcome) with an in-notebook `raise` after logging if any activity FAILED *(granularity clarified 2026-08-03, task-051 — final attempt only; a retried-into-success activity is recovered, not a run failure — see the clarification note below)*. The trailing
 > `Fail` activity was removed. Full detail in `## Amendment — 2026-07-27` below.
+
+## Amendment — 2026-08-05 (Erik-approved, via `/iterate`): criterion 5 resolved as DESCOPED
+
+The 2026-07-27 deferral of the notification criterion ("no on-demand-firing sink exists until
+task-010 (scheduling) lands … Revisit at task-010") comes due with task-010 and **resolves as
+no push sink at all**. This record required exactly that: *"Criterion 5 accepts an explicit
+deferral with a reason, but not an undecided gap."* It is now neither deferred nor configured
+but **decided**.
+
+**Two of this record's assumptions expired between 2026-07-23 and now:**
+
+1. **The recommended `notifyOption` flip has no target left.** The recommendation named "the three
+   RefreshDataflow `notifyOption`s" — **all RefreshDataflow activities were retired 2026-07-31**
+   by task-048 (a service principal cannot refresh a Dataflow Gen2, and every `fabric-cicd`
+   publish stripped its credentials). Measured 2026-08-05: the pipeline carries **zero**
+   `notifyOption` keys across all 10 activities (6 TridentNotebook + 4 Copy). The related "1/8
+   activities" figure that had propagated into the spec was wrong on both mechanism and count,
+   and was corrected in the same pass.
+2. **The recommended native sink is undeliverable in this tenant.** "Cheapest credible:
+   scheduled-run Failure notifications (Home ▸ Schedule ▸ Failure notifications)" — verified
+   2026-08-05 during task-010 configuration: the field **rejects addresses outside the
+   organization**, and the tenant's only principal is a `.onmicrosoft.com` account with no
+   Exchange mailbox. Configuring it would satisfy the criterion while alerting into a void.
+
+**What is unaffected:** detection — this decision's actual subject. `pipeline_error_handler` runs
+on every outcome, logs per-activity rows to `gold_pipeline_execution_log`, and re-raises on a
+final-attempt FAILED. Push was dropped; detection was not. Rationale for accepting that: a
+single-operator portfolio project with no on-call, no SLA, and no downstream consumers.
+
+Upgrade paths, if push is ever wanted, are enumerated in
+`docs/guides/pipeline_schedule.md § Failure Notifications` (guest-invite an external principal /
+in-pipeline Outlook-Teams activity authored in the repo / Data Activator on job events).
+
+Spec surfaces updated in the same `/iterate`: § Orchestration → Notifications, and § Open
+Questions → Technical Decisions #5.
 
 ## Amendment — 2026-07-27 (Erik-approved)
 

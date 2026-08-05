@@ -1,0 +1,41 @@
+{
+  "spec_version": "1",
+  "spec_fingerprint": "sha256:3909f3518fe5715e4722eee44e243ee01e7d84c3e9f6fe89e83cc7356159bcb7",
+  "created_date": "2026-08-05",
+  "updated_date": "2026-08-05",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "absorbed_into": "",
+  "subtasks": [],
+  "decision_dependencies": [],
+  "user_feedback": "",
+  "source": "verify-agent (phase-level, 2026-08-05)",
+  "id": "task-059",
+  "title": "Diagnose and document the two silver_procurement quality checks that fail on every pipeline run",
+  "status": "Pending",
+  "priority": "P2",
+  "difficulty": 4,
+  "owner": "claude",
+  "phase": "5",
+  "spec_section": "Data Quality & Validation",
+  "out_of_spec": false,
+  "dependencies": [],
+  "files_affected": [
+    "fabric/data_quality_checks.Notebook/notebook-content.py",
+    "fabric/bronze_to_silver.Notebook/notebook-content.py",
+    "docs/data_quality_framework.md"
+  ],
+  "description": "The latest Scheduled run (2026-08-05T20:37:01) recorded three non-pass rows in gold_quality_history, two of them genuine 'fail': oem_lh.silver_procurement / dq_data_type_consistency = 75.0 (fail) and oem_lh.silver_procurement / dq_business_rule_validation = 81.82 (fail). Both are ADVISORY (absent from BLOCKING_CHECKS) so the gate correctly did not raise — but neither is explained anywhere. 'data_type_consistency' appears in ZERO files under docs/ (positive control: 'business_rule_validation' IS present in docs/data_quality_framework.md, so the probe works).\n\ndata_quality_checks.Notebook declares 8 expected types for silver_procurement (date:date, materialname:string, suppliername:string, quantity:decimal, unit:string, unitpriceeur:decimal, headquarterscountry:string, productioncountry:string); 75.0 means 2 of 8 mismatch — plausibly the two decimal columns landing as a different numeric type through the Copy activity, BUT THAT MUST BE MEASURED, NOT ASSUMED.\n\nDetermine the mismatching columns and the failing business rules, then EITHER fix the cast in bronze_to_silver OR record the divergence as accepted in docs/data_quality_framework.md with a rationale. Do NOT silence the check (rules/agents.md § Root Cause Over Symptom).\n\nThe third non-pass row — bronze_procurement_transactional / dq_date_range_validation = 0.0 (warning, breach_flag true) — is expected by design per § Data Architecture line 636 (bronze holds the source's raw day/year-transposed dates), but confirm that expectation is written somewhere a reader will find it.",
+  "acceptanceCriteria": [
+    "The exact mismatching columns behind data_type_consistency = 75.0 are identified by measurement, not inference.",
+    "The failing business rules behind business_rule_validation = 81.82 are identified.",
+    "Each is either FIXED at source in bronze_to_silver, or documented as accepted in docs/data_quality_framework.md with an explicit rationale — not suppressed, not removed from the check set.",
+    "The expected bronze date_range_validation = 0.0 warning is documented where a reader encountering it will find it.",
+    "A pipeline run after the change shows the intended outcome (either the checks pass, or they fail with documented acceptance)."
+  ],
+  "notes": [
+    "CREATED 2026-08-05 by phase-level verification — THE CLEAREST GAP 74 CONSECUTIVE PER-TASK PASSES MISSED.",
+    "Root cause of the miss: per-task verification scope is bounded by files_affected, so a defect visible only in the cross-run aggregate of gold_quality_history had no owner until phase level.",
+    "Advisory, not blocking — the DQ gate behaved correctly. This is about undocumented persistent failure, not a broken gate."
+  ]
+}

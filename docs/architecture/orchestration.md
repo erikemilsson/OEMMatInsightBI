@@ -4,7 +4,7 @@
 
 **Pipeline Name:** `orchestrator_pipeline_bronze_to_gold.DataPipeline`
 **Purpose:** End-to-end data orchestration from source ingestion to warehouse sync
-**Execution:** Currently manual (scheduled execution planned in Task 10)
+**Execution:** Scheduled — daily 06:00 Europe/Stockholm, active since 2026-08-05 (task-010). Manual on-demand runs remain available.
 **Runtime:** ~18-19 minutes (measured 2026-07-31, run `b56a43b9`)
 
 > **Accuracy note (2026-07-31).** This document had drifted badly: it described 4
@@ -198,9 +198,15 @@ rows on `activityRunStart`. This is deliberate: Fabric's `queryactivityruns` API
 returns `retryAttempt: null` even for activities that did retry, so the field
 cannot be trusted (task-037 / task-041).
 
-**Notifications:** deferred — schedule-attached failure notifications do not fire
-for on-demand runs, so no sink is configured until task-010 (Configure Pipeline
-Scheduling) lands.
+**Notifications:** **descoped 2026-08-05** (task-010) — no email sink is configured
+and none is planned. The tenant cannot deliver one: the Schedule pane's
+Failure-notifications field rejects addresses outside the organization, and the
+only tenant principal is a `.onmicrosoft.com` account with no Exchange mailbox, so
+a configured alert would fire into a void. Failure **detection** is unaffected and
+is the load-bearing property: `pipeline_error_handler` runs on every outcome,
+logs per-activity rows to `gold_pipeline_execution_log`, and re-raises on a
+final-attempt FAILED. Resolves the criterion DEC-004 parked at task-010; see
+`docs/guides/pipeline_schedule.md § Failure Notifications` for upgrade paths.
 
 ## Dependencies
 
@@ -242,13 +248,14 @@ Every edge uses `dependencyConditions: ["Succeeded"]`.
 - Activity failure patterns (which activities fail most?)
 - Data volume growth (row counts over time)
 
-## Scheduling (Planned - Task 10)
+## Scheduling (Active since 2026-08-05 — task-010)
 
-**Proposed Schedule:**
+**Configured Schedule:**
 - **Frequency:** Daily
-- **Time:** 06:00 AM Europe/Stockholm
-- **Timezone:** Sweden Central (datacenter region)
-- **Trigger Type:** Scheduled (time-based)
+- **Time:** 06:00 Europe/Stockholm
+- **Timezone:** `W. Europe Standard Time` — the Windows zone id Fabric stores, whose label reads "(UTC+01:00) Amsterdam, Berlin, Bern, Rome, **Stockholm**, Vienna". Tracks CET/CEST DST automatically. *(Corrected 2026-08-05: previously read "Sweden Central (datacenter region)", which conflated a capacity region with a time zone — they are unrelated.)*
+- **Trigger Type:** Scheduled (time-based), schedule id `17288b67-a36f-4db8-88fe-cfa4ce1dba61`, enabled, end date 2099-01-01
+- **Verified:** a test firing **against a temporary 22:20 test time** started at `2026-08-05T20:20:00.63Z` — the exact specified minute — and completed in 21.9 min as the first `invokeType=Scheduled` invocation in 58 runs. The schedule was then reset to 06:00; **that first morning firing is unobserved until 2026-08-06.**
 
 **Rationale:**
 - Procurement data refreshed nightly in Azure SQL (by 5:00 AM)

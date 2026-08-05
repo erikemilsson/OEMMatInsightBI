@@ -1,10 +1,12 @@
 # Pipeline Scheduling Guide
 
-> **Status:** This document is a **runbook and design rationale**. It describes the *intended* schedule and the steps to configure it in Microsoft Fabric. At the time of writing, the orchestrator pipeline still runs **on demand** — the schedule below becomes active only after the Fabric configuration steps in [How to Configure the Schedule in Fabric](#-how-to-configure-the-schedule-in-fabric) are applied in the workspace.
+> **Status: ACTIVE since 2026-08-05.** The schedule described below **is configured and enabled** in the Fabric workspace — daily 06:00 Europe/Stockholm, schedule id `17288b67-a36f-4db8-88fe-cfa4ce1dba61`. This document is both the design rationale and the runbook for re-creating or editing it; the configuration steps are a record of what was done, not work still outstanding. Verification evidence is in the footer.
 
 ## Overview
 
-The `orchestrator_pipeline_bronze_to_gold` pipeline (`fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline`) runs the full medallion flow: it ingests raw sources into Bronze, cleans into Silver, and builds the Gold star schema. Today it is started manually from the pipeline editor; this guide defines an automated daily schedule so the data is refreshed without operator intervention, plus the failure alerting and downstream Power BI refresh that make the scheduled run safe to leave unattended.
+The `orchestrator_pipeline_bronze_to_gold` pipeline (`fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline`) runs the full medallion flow: it ingests raw sources into Bronze, cleans into Silver, and builds the Gold star schema. It runs **automatically every day at 06:00 Europe/Stockholm** (active since 2026-08-05); it can still be started manually from the pipeline editor when needed. This guide documents that schedule, why those settings were chosen, and how failure detection works for an unattended run.
+
+> **Configure in the UI, or in the repo?** Two of the three settings below live *outside* the pipeline's item definition and are therefore safe to set in the Fabric UI: the **schedule** itself and the **failure notifications** attached to it. Both are held by Fabric's job scheduler, not by `pipeline-content.json`, so a `fabric-cicd` publish does not touch them. **Anything that changes the pipeline's activity list is a different matter** — the repo is the single source of truth and the next push to `main` overwrites the workspace copy (spec § Development Workflow: *"Fabric UI edits are not a sync path"*). Do not add, remove, or rewire activities in the UI; author them in `fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/pipeline-content.json` and let the deploy publish them.
 
 **What this pipeline does on each run** (activity order from the pipeline definition):
 
@@ -72,8 +74,8 @@ Confirm all of the following **before** enabling the schedule:
 | **Error handling & retry logic in place (task-011)** | A scheduled pipeline runs unattended. Per-activity retry policies are already configured in the pipeline (e.g., 2–3 retries with 120–300 s intervals on the Bronze and notebook activities). This must be in place so transient source/network hiccups self-recover instead of failing the whole nightly run. |
 | **Pipeline fully tested on demand** | The schedule should automate a run that already succeeds manually — not debug it. Run the pipeline on demand and confirm a clean Bronze→Gold pass first. |
 | **Source systems available at 06:00** | The Azure SQL nightly batch must have completed (~05:00) and the HTTP source for the EU CRM CSV must be reachable. |
-| **Fabric capacity available** | The workspace must have capacity headroom at 06:00. The downstream Power BI refresh additionally requires **Power BI Premium, Premium Per User, or Embedded** capacity. |
-| **Notification recipients identified** | Have the failure-alert email address(es) / group ready at configuration time (see [Failure Notifications](#-failure-notifications)). |
+| **Fabric capacity available** | The workspace must have capacity headroom at 06:00. No Premium/PPU/Embedded tier is needed — the semantic model is DirectLake and the pipeline runs no semantic-model refresh activity (see [Downstream Power BI Refresh](#-downstream-power-bi-refresh)). |
+| ~~Notification recipients identified~~ | **No longer a prerequisite** — email alerting was descoped 2026-08-05. Failure detection is `gold_pipeline_execution_log` + run status; see [Failure Notifications](#-failure-notifications). |
 
 ---
 
@@ -100,23 +102,27 @@ These steps are performed in the Fabric workspace UI by the workspace owner. The
 4. **(If prompted for parameters)** The pipeline defines parameters (`p_full_load`, `p_from_date`, `procurement_array`). If the schedule configuration shows a parameters section, the parameter names you enter **must exactly match** the pipeline's parameter names (mismatched names are silently ignored at runtime). For the standard daily incremental run, the pipeline defaults are correct — leave `p_full_load = false`. Supply values directly, or reference a variable library if one is set up.
 5. Select **Save**.
 
-### Step 3 — Configure failure notifications
+### Step 3 — Failure notifications (descoped 2026-08-05 — no action)
 
-1. Still in the **Schedule** pane (Home → Schedule), find **Failure notifications**.
-2. Add the user(s) or group(s) who should be emailed when a **scheduled** run fails.
-   - Placeholder — replace at configuration time: `data-eng-alerts@<your-domain>` (or Erik's individual address).
-   - **Note:** failure notifications fire for **scheduled** runs only, not for on-demand runs. See [Failure Notifications](#-failure-notifications) for richer alerting options.
+**Skip this step.** Email failure notification was evaluated during configuration and deliberately descoped. Leave the **Failure notifications** box in the Schedule pane **empty**. See [Failure Notifications](#-failure-notifications) for the reasoning and for the detection path that replaces it.
 
-### Step 4 — Add the downstream Power BI refresh (recommended)
+### Step 4 — Confirm the semantic model auto-updates (no pipeline change)
 
-So the report reflects the new Gold data automatically, add a **Semantic model refresh** activity to the pipeline, chained after `silver_to_gold` (see [Downstream Power BI Refresh](#-downstream-power-bi-refresh) for details), then re-save the pipeline.
+**Do not add a refresh activity to the pipeline.** The semantic model is DirectLake, so there is no import refresh to run — the report reads the Gold Delta tables directly and only needs to *reframe* onto the new parquet files, which Fabric does on its own. Instead, verify the setting is on:
+
+1. In the workspace, open the settings for the **`OEMInsightBI_v2`** semantic model.
+2. Under the refresh settings, confirm the automatic-update option for Direct Lake is **enabled** (labelled *"Keep your Direct Lake data up to date"* at time of writing — *verify the exact label in your tenant*, as Fabric renames these settings periodically).
+3. That is the whole step. No pipeline edit, no re-save, no deploy.
+
+> **Why this is a "confirm", not an "add":** an earlier version of this runbook told you to add a **Semantic model refresh** activity here, in the Fabric UI. That instruction was wrong on two counts and has been removed. First, the pipeline's activity list is part of the item definition, and the repo is the single source of truth — the next push to `main` republishes `pipeline-content.json` over the workspace and would silently delete a UI-added activity, breaking the refresh with no error anywhere (spec § Development Workflow: *"Fabric UI edits are not a sync path"*). Second, it is unnecessary: all 14 tables in `OEMInsightBI_v2` are `mode: directLake` with zero import partitions, so a classic refresh has nothing to do. See [Downstream Power BI Refresh](#-downstream-power-bi-refresh).
 
 ### Step 5 — Verify the first scheduled run
 
 1. Let the first scheduled run fire (or use **Schedule → Run now** to trigger an immediate run for verification — note this counts as an on-demand run, so it will **not** exercise failure notifications).
 2. Watch the **Output** tab at the bottom of the canvas; each activity shows a green check on success, and the run status updates to **Succeeded**.
 3. Confirm in the **Monitoring Hub** that the run is recorded as a scheduled (not on-demand) invocation.
-4. Confirm the Gold tables and the Power BI report reflect the refreshed data.
+4. Confirm the Gold tables hold the refreshed data.
+5. Open the Power BI report **without** manually refreshing anything and confirm the figures moved to match the new Gold data. This is the actual acceptance evidence for the auto-update path — the report reflecting new numbers on its own is what proves reframing happened. If the numbers are stale, check the Step 4 setting before concluding the pipeline failed.
 
 ### Pausing / editing / deleting the schedule
 
@@ -129,33 +135,39 @@ So the report reflects the new Gold data automatically, add a **Semantic model r
 
 ## 🔔 Failure Notifications
 
-The pipeline runs unattended, so an undetected failure means stale data with no warning. Three options, in increasing capability:
+**Email alerting is descoped for this project (decided 2026-08-05).** The pipeline runs unattended, so failures still need to be *detectable* — but detection and *push notification* are different things, and only the first is load-bearing here.
 
-| Option | What it covers | When to use |
-|--------|----------------|-------------|
-| **Schedule → Failure notifications** (native) | Emails recipients when a **scheduled** run fails. Simplest to set up. | Baseline — set this up at minimum (Step 3 above). |
-| **In-pipeline Outlook / Teams activity** | Add an **Outlook 365** (email) or **Teams** activity wired to the failure path of a specific activity, for activity-level alerts with custom messages (e.g., include `@{activity('...').error.message}`). | When you want a tailored message or to alert on a specific activity, including for on-demand runs. |
-| **Data Activator on job events** | Reacts to pipeline **job events** (succeed *and* fail) and sends email or Teams. Workspace-level KQL/Activator rules can cover all pipelines at once. | When you want success confirmations too, or fleet-wide monitoring across many pipelines. |
+**What detects a failure today (unchanged, already shipped):**
 
-**Recommendation for this project:** start with native **Failure notifications** on the schedule (one-time setup, covers the daily run). Add a Data Activator job-event rule later if a "nightly success" confirmation is wanted for portfolio polish.
+- `pipeline_error_handler` runs on **every** outcome and logs each activity to `gold_pipeline_execution_log`, re-raising when an activity's final attempt FAILED (a retried-into-success activity is recorded as recovered, not a run failure). This carries per-activity detail no email would.
+- A genuinely failed run shows red in the **Monitoring Hub**, and `queryactivityruns` reports per-activity status via API.
 
-> Replace the placeholder recipient `data-eng-alerts@<your-domain>` with the real address(es) when configuring. *Test the alert* by forcing a failure (e.g., temporarily point a source at a bad path) and confirming the email arrives — this is one of the task acceptance criteria.
+**Why push notification was dropped rather than configured:**
+
+1. **The tenant cannot deliver it.** The Schedule pane's Failure-notifications field rejects addresses outside the organization (verified 2026-08-05 — a `gmail.com` address is refused with an "outside your organization" error). The only tenant principal is `fabricuser@<tenant>.onmicrosoft.com`, and a bare `.onmicrosoft.com` account has **no mailbox without an Exchange licence**. Configuring it would have satisfied the acceptance criterion on paper while sending alerts into a void — strictly worse than leaving it empty, because it manufactures false confidence.
+2. **The operating context does not need push.** Single-user portfolio project: no on-call rotation, no SLA, no downstream consumers to mislead. The operator is in Fabric regularly and a red run is visible there.
+
+**If push alerting is ever wanted**, in increasing order of effort:
+
+| Option | What it covers | Cost |
+|--------|----------------|------|
+| **Guest-invite an external address** into the tenant so it resolves as a principal, then use the native Schedule → Failure notifications field | Emails on **scheduled**-run failure only (not on-demand) | Tenant admin work; smallest change that makes the native path real |
+| **In-pipeline Outlook / Teams activity** wired to a failure path | Activity-level alerts with custom messages (e.g. `@{activity('...').error.message}`), including on-demand runs | Repo change to `pipeline-content.json` + deploy; **never add this in the UI** — the next publish overwrites it |
+| **Data Activator on job events** | Reacts to job events (succeed *and* fail); workspace-level rules cover all pipelines | Most capable, most setup |
+
+> **Provenance:** this descope closes the criterion DEC-004 parked here (*"no on-demand-firing sink exists until task-010 (scheduling) lands … Revisit at task-010"*). It was landed on all three gated surfaces the same day (2026-08-05) via `/iterate`: spec § Orchestration → Notifications, spec § Open Questions → Technical Decisions #5, and `decision-004-pipeline-failure-propagation-topology.md` (`## Amendment — 2026-08-05`, frontmatter `amended:` bumped). **No follow-up is outstanding.**
 
 ---
 
 ## 📊 Downstream Power BI Refresh
 
-After a successful pipeline run, the Power BI semantic model should refresh so the report shows the new Gold data. Add a **Semantic model refresh** activity to the pipeline:
+After a successful pipeline run, the report should show the new Gold data. **This requires no pipeline activity and no configuration beyond confirming one setting** (Step 4 above).
 
-1. In the pipeline editor, add a **Semantic model refresh** activity (from the Activities bar or the home-screen card).
-2. Chain it so it runs **after `silver_to_gold` succeeds** (drag the success/green output of `silver_to_gold` to the new activity). This guarantees the model only refreshes once the Gold tables are rebuilt.
-3. In the activity **Settings**, pick (or create) a **Power BI connection**, then select the **Workspace** and the project **semantic model** (`OEMInsightBI_v2`).
-4. Leave **Wait on completion** on (default) so the pipeline run isn't marked complete until the refresh finishes — this way a refresh failure surfaces through the same failure-notification path as the rest of the pipeline.
-5. By default this performs a **full refresh**. For this dataset's size that is fine; tables/partitions can be selected later if incremental refresh is configured.
+**Why nothing is needed.** `OEMInsightBI_v2` is a DirectLake model: all 14 tables carry `mode: directLake` and there are zero import partitions. Nothing is copied into the model, so there is no import refresh to schedule — the report queries the Gold Delta tables in `oem_lh` directly. When `silver_to_gold` rewrites those tables, the model only has to *reframe* onto the new parquet files, and Fabric performs that automatically while the Direct Lake auto-update setting is enabled. This is what the spec means by "Refresh: Automatic (no explicit refresh needed with DirectLake)" (§ Dependencies & External Systems) and "Automatic refresh when lakehouse tables update" (§ Semantic Model & Reporting).
 
-**Capacity requirement:** the semantic model refresh activity requires the workspace to be on **Power BI Premium, Premium Per User, or Power BI Embedded** capacity, and works only with semantic models you own. *Verify your capacity tier in the tenant before relying on this step.*
+**One thing to watch.** Auto-reframing is *eventually* consistent, not ordered against the pipeline — the model reframes because the tables changed, not because the pipeline said it was finished. In practice the gap is small and harmless for a 06:00 daily run read during the working day. The known way to force a stale read is a full-overwrite write pattern: `mode("overwrite")` erases the Delta log and forces a full DirectLake reload, which is one of the reasons the incremental path uses delete-insert instead (spec § Open Questions → Technical Decisions). Keep that in mind if report figures ever lag a completed run.
 
-> **Alternative:** instead of an in-pipeline activity, the semantic model's own scheduled refresh can be set to a time comfortably after the pipeline finishes (e.g., 07:00). The in-pipeline activity is preferred because it is **event-ordered** (refresh happens *because* Gold finished) rather than **time-guessed** (refresh happens at a clock time and hopes Gold is done).
+**If eventual consistency ever proves too lax**, the upgrade is a **Semantic model refresh** activity chained to `silver_to_gold` success, giving event-ordered reframing. Two constraints if you go there: it must be authored in `pipeline-content.json` and deployed via `fabric-cicd` (never added in the UI — it would be overwritten on the next push), and the activity's Power BI connection must be shared with the service principal or the publish fails with *"User does not have access to the connection."* It would also contradict the three spec lines quoted above, so the spec would need an `/iterate` pass in the same change. Deliberately not done now — see the decision recorded on task-010, 2026-08-05.
 
 ---
 
@@ -165,8 +177,8 @@ For a portfolio reader, the scheduling design comes down to four decisions:
 
 1. **Daily at 06:00 local** — driven by the fastest-changing source (Azure SQL procurement, daily), placed an hour after the upstream nightly batch settles (~05:00) so it reads complete data, and early enough that the report is fresh before the working day.
 2. **One orchestrated run, cadence driven by the fastest source** — annual ESG/governance datasets (EPI, WGI, EU CRM) are piggybacked on the daily run for operational simplicity; they can be split into a weekly/manual schedule if cost or run time ever demands it.
-3. **Unattended-safe before automated** — error handling/retry (task-011) and a proven on-demand run are prerequisites; native failure notifications give a detection path; the schedule is **pausable** via toggle for maintenance.
-4. **Event-ordered downstream refresh** — the Power BI refresh is chained to `silver_to_gold` success rather than guessed by clock time, so the report never refreshes against a half-built Gold layer.
+3. **Unattended-safe before automated** — error handling/retry (task-011) and a proven on-demand run are prerequisites; failure **detection** comes from the `pipeline_error_handler` → `gold_pipeline_execution_log` trail plus run status, with email push deliberately descoped (the tenant cannot deliver it, and this is a single-operator project); the schedule is **pausable** via toggle for maintenance.
+4. **No downstream refresh step at all** — the semantic model is DirectLake end to end (14/14 tables, zero import partitions), so the report reads the Gold Delta tables directly and Fabric reframes it automatically. The cheapest correct design is the one with no moving part: nothing to schedule, nothing to keep in sync, no Premium-tier dependency, and no activity that a `fabric-cicd` publish could silently drop.
 
 ---
 
@@ -176,8 +188,8 @@ Microsoft Learn documentation used to ground the Fabric configuration steps in t
 
 - [Run, schedule, or use events to trigger a pipeline](https://learn.microsoft.com/fabric/data-factory/pipeline-runs) — scheduled runs, fixed schedule, time zone, start/end-date requirement, managing/pausing schedules, scheduling with parameters, native failure notifications.
 - [Concept: Create alerts for pipeline runs](https://learn.microsoft.com/fabric/data-factory/create-alerts-for-pipeline-runs) — activity-level (Outlook/Teams) alerts, scheduled-run failure notifications, Data Activator job-event alerts, workspace-level alerting.
-- [Use the Semantic model refresh activity to refresh a Power BI Dataset](https://learn.microsoft.com/fabric/data-factory/semantic-model-refresh-activity) — adding the refresh activity, connection/workspace/dataset settings, Wait on completion, full-refresh default, capacity prerequisites.
-- [Refresh a semantic model using data pipelines (preview)](https://learn.microsoft.com/power-bi/connect-data/data-pipeline-templates) — scheduled / event-driven / after-dataflow refresh patterns and adding notifications.
+- [Use the Semantic model refresh activity to refresh a Power BI Dataset](https://learn.microsoft.com/fabric/data-factory/semantic-model-refresh-activity) — *not used by this project;* retained as the reference for the upgrade path described in [Downstream Power BI Refresh](#-downstream-power-bi-refresh) (connection/workspace/dataset settings, Wait on completion, capacity prerequisites).
+- [Refresh a semantic model using data pipelines (preview)](https://learn.microsoft.com/power-bi/connect-data/data-pipeline-templates) — *not used by this project;* scheduled / event-driven / after-dataflow refresh patterns, same upgrade-path context.
 
 Related project documents:
 
@@ -187,4 +199,6 @@ Related project documents:
 ---
 
 *Last Updated: 2026-08-05*
-*Status: Runbook — schedule not yet active in Fabric (pending workspace configuration). Update this line to "Active since YYYY-MM-DD" once the schedule is enabled and the first scheduled run completes.*
+*Status: **ACTIVE since 2026-08-05.** Daily 06:00 Europe/Stockholm, schedule id `17288b67-a36f-4db8-88fe-cfa4ce1dba61`, enabled. Verified end to end the same evening: a test firing at 22:20 started at `20:20:00.63Z` on the exact specified minute, ran 21.9 min, and completed as `invokeType=Scheduled` — the first non-Manual invocation in 58 runs. Direct Lake reframing confirmed behaviorally with no manual refresh (`gold_quality_history` 2767 → 2833 rows, max `refresh_timestamp` advancing to 20:37:01Z). The schedule was then reset from the 22:20 test time to the documented 06:00; the 06:00 firing itself is unobserved until the first morning run.*
+
+*Changelog — 2026-08-05: Step 4 rewritten. It previously instructed adding a **Semantic model refresh** activity in the Fabric UI; that would have been overwritten by the next `fabric-cicd` publish (the pipeline activity list is item definition, and the repo is the source of truth), and it was unnecessary besides — `OEMInsightBI_v2` is DirectLake on all 14 tables with no import partitions. Step 4 is now a one-setting confirmation, the Premium/PPU capacity prerequisite is dropped, and the refresh-activity route is retained only as a documented upgrade path.*

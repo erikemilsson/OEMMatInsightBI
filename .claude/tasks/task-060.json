@@ -1,0 +1,40 @@
+{
+  "spec_version": "1",
+  "spec_fingerprint": "sha256:3909f3518fe5715e4722eee44e243ee01e7d84c3e9f6fe89e83cc7356159bcb7",
+  "created_date": "2026-08-05",
+  "updated_date": "2026-08-05",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "absorbed_into": "",
+  "subtasks": [],
+  "decision_dependencies": [],
+  "user_feedback": "",
+  "source": "verify-agent (phase-level, 2026-08-05)",
+  "id": "task-060",
+  "title": "Correct performance_baseline.md's false live-name claim and widen the artifact-name regression guard",
+  "status": "Pending",
+  "priority": "P3",
+  "difficulty": 3,
+  "owner": "claude",
+  "phase": "5",
+  "spec_section": "Performance Optimization",
+  "out_of_spec": false,
+  "dependencies": [],
+  "files_affected": [
+    "docs/performance_baseline.md",
+    "docs/performance_optimized.md",
+    "tests/test_doc_artifact_names.py"
+  ],
+  "description": "docs/performance_baseline.md § Measurement Method asserts IN THE PRESENT TENSE: 'Activity names below match the live pipeline / repo definition: silver-to-gold, bronze-to-silver data cleaning, bronze_EPI, bronze_WGI, bronzecopy_*'. Measured against the live getDefinition payload the actual names are silver_to_gold, bronze_to_silver_cleaning, bronze_epi, bronze_wgi, bronze_copy_* — the Phase 5 snake_case rename (2026-08-04/05) invalidated the claim, and the file never names the change that did it (FR-053 class).\n\nThe measurement TABLES are point-in-time records of runs on 2026-08-02/03 and are historically correct — DO NOT rewrite the measured rows. Fix only the present-tense claim and add a dated note that the names predate the Phase 5 rename, with the old->new mapping. Same treatment for docs/performance_optimized.md.\n\nThen extend tests/test_doc_artifact_names.py: neither performance doc is in CLEAN_SURFACES, and OLD_NAMES lacks 'bronzecopy_' and 'silver-to-gold' (it has only 'silver-to-gold2' and 'bronze-to-silver'). Because both files legitimately contain historical occurrences, the guard likely needs a CLAIM-SCOPED rather than file-scoped check — assert that any sentence claiming a match to the live pipeline uses current names — rather than a blanket ban.",
+  "acceptanceCriteria": [
+    "The present-tense live-name claim in performance_baseline.md is corrected; the measured tables are unchanged.",
+    "A dated note records that the names predate the Phase 5 rename, with the old->new mapping.",
+    "performance_optimized.md receives the same treatment.",
+    "tests/test_doc_artifact_names.py catches this class — claim-scoped, so historical occurrences remain legal.",
+    "The extended guard passes and the full suite stays green."
+  ],
+  "notes": [
+    "CREATED 2026-08-05 by phase-level verification. Recruiter-facing document actively claiming fidelity to a pipeline it no longer matches.",
+    "Deliberately NOT a blanket OLD_NAMES ban — these files must keep historical names in their measurement tables."
+  ]
+}
