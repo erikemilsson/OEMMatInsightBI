@@ -2,7 +2,7 @@
 version: 1
 status: active
 created: 2025-11-14
-updated: 2026-08-05
+updated: 2026-08-06
 ---
 
 # OEMMatInsightBI - Project Definition for Claude Code
@@ -15,11 +15,11 @@ updated: 2026-08-05
 >
 > -   Command definitions (`.claude/commands/`)
 >
-> -   Context documentation (`.claude/support/documents/`)
+> -   Context documentation (`docs/`)
 >
 > -   Reference files (`.claude/support/reference/`)
 >
-> -   Standards and conventions (`.claude/support/documents/standards/`)
+> -   Standards and conventions (`docs/standards/`)
 
 ------------------------------------------------------------------------
 
@@ -241,7 +241,14 @@ Power BI Reports
 
 -   Silver table: `silver_epi2024results` — consumed by `silver_to_gold.Notebook` via `EPI_YEAR` (default `2024`)
 
-**Single-vintage caveat.** The naming is parameterized at both ends but **hardcoded in the middle**: `bronze_to_silver.Notebook` names `bronze_epi2024results` and `silver_epi2024results` literally (lines 74, 108). Changing the vintage at either end therefore breaks the chain rather than moving it. A second hardcoded reference sits in `data_quality_checks.Notebook`'s `BLOCKING_CHECKS` as `("schema_validation", "oem_lh.silver_epi2024results")` — and a stale entry there does **not** error, it silently demotes that check to advisory. Only the 2024 vintage is supported today; **task-042** carries the parameterization.
+**Vintage is single-sourced end to end** (task-042, closed 2026-07-26). Every EPI table name in the chain derives from a vintage parameter rather than a literal, so changing the vintage **re-points** the chain rather than breaking it:
+
+-   `bronze_ingest_epi.Notebook` — `p_epi_year` parameter cell
+-   `bronze_to_silver.Notebook` — `p_epi_year = "2024"` in its parameters cell; reads `f"…bronze_epi{p_epi_year}results"` and writes `f'silver_epi{p_epi_year}results'`. **Zero literal occurrences** of `bronze_epi2024results` / `silver_epi2024results`
+-   `silver_to_gold.Notebook` and `data_quality_checks.Notebook` — `EPI_YEAR` declared once in a parameter cell; all EPI table names, **including the `BLOCKING_CHECKS` entry** `("schema_validation", f"oem_lh.silver_epi{EPI_YEAR}results")`, are f-strings over it
+-   The pipeline passes one `p_epi_year` to every EPI notebook (§ Orchestration)
+
+*Verified 2026-08-06. This paragraph previously described the pre-task-042 state — that `bronze_to_silver` hardcoded both names "literally (lines 74, 108)", that changing the vintage "breaks the chain", and that task-042 still "carries the parameterization". All four claims were stale: task-042 is exactly the task that fixed them, and it closed 11 days before this correction. Retaining the caveat that matters: a **stale `BLOCKING_CHECKS` table name does not error — it silently demotes that check to advisory**, which is why the entry is derived rather than written out (see § Data Quality & Validation).*
 
 **Update Frequency:** Annual (EPI releases yearly)
 
@@ -281,7 +288,7 @@ Power BI Reports
 
 -   **Six** WGI dimensions are ingested, not five. Coverage rules must test against six.
 
--   *(The pipeline currently selects only identity columns — `country_iso3`, `country_name`, `indicator_name` — discarding `Year`/`Value`. Corrected by task-031; made mandatory by DEC-001.)*
+-   *(Historical note: the pipeline once selected only identity columns — `country_iso3`, `country_name`, `indicator_name` — discarding `Year`/`Value`. **Corrected by task-031, closed 2026-07-23**; `bronze_to_silver` now hard-requires `Indicator Code`/`Year`/`Value` and fails rather than falling back. Made mandatory by DEC-001.)*
 
 **Update Frequency:** Annual (World Bank releases Q3-Q4)
 
@@ -294,10 +301,10 @@ Power BI Reports
 | | Global supply | EU sourcing |
 |---|---|---|
 | Bronze | `bronze_global_supply_shares` | `bronze_eu_supply_shares` |
-| Silver | `silver_globalsupplyshares` | `silver_eusupplyshares` — **planned (task-038), not yet built** |
+| Silver | `silver_globalsupplyshares` | `silver_eusupplyshares` |
 | Measures | where a material is produced worldwide | where the EU actually sources it from |
 
-**Current-state caveat:** the EU table is orphaned at the silver boundary — `bronze_to_silver.Notebook` reads only the Global table, so `bronze_eu_supply_shares` has no silver consumer today. Wiring EU sourcing into silver is DEC-001 Option B work, tracked in task-038.
+**Both halves of DEC-001 Option B are live.** `bronze_to_silver.Notebook` reads `bronze_eu_supply_shares` and writes `silver_eusupplyshares`; `fact_supply_share` carries **903 rows at `supply_mix = 'eu_sourcing'`** alongside 2,560 global rows (3,463 total), with trade-weighting `t` spanning 0.80–1.50. Built under task-038, closed 2026-08-05. *(Measured against the live Delta log 2026-08-06.)*
 
 **Ingestion Method:** One copy activity per table. Each activity's source connection must point at its own CSV — conflating them produced the duplicated-load defect tracked as FR-004 / task-022.
 
@@ -373,7 +380,7 @@ Power BI Reports
 
 -   Standardize `Country Code` → `country_iso3` (UPPER, trimmed); trim `Country Name` and `Series Name`
 
--   **Must preserve `Year` and `Value`** — the governance scores are the `WGIᶜ` input to the Supply Risk model (§ Business Logic & Calculations). *Currently dropped by the pipeline; corrected by task-031.*
+-   **Must preserve `Year` and `Value`** — the governance scores are the `WGIᶜ` input to the Supply Risk model (§ Business Logic & Calculations). *Satisfied since task-031 (closed 2026-07-23): both columns are now hard-required at read time, so a source missing them fails loudly instead of silently dropping them.*
 
 -   Coverage rules test against **six** WGI dimensions (not five)
 
@@ -413,7 +420,7 @@ Power BI Reports
 
 -   `silver_globalsupplyshares`
 
--   `silver_eusupplyshares` *(planned — task-038; see § Data Architecture → Supply Shares)*
+-   `silver_eusupplyshares` *(live — built by task-038, closed 2026-08-05; 903 `eu_sourcing` rows reach `fact_supply_share`. See § Data Architecture → Supply Shares.)*
 
 -   `silver_wgi`
 
@@ -571,7 +578,7 @@ Power BI Reports
         -   `parent_indicator` (BIGINT) - Parent indicator key, resolved from EPI `NextLevel` via a self-join on the parent indicator's abbreviation (NULL for the EPI composite root and for WB indicators; populated for EPI indicators with a non-empty `NextLevel`). *(Prior "(currently NULL)" wording stale since task-056 shipped the NextLevel self-join.)*
     -   **Source:**
         -   EPI: `silver_epi{EPI_YEAR}variables` — built by `silver_to_gold` from bronze EPI weights (Yale `epi2024weights.csv`, ingested by `bronze_ingest_epi`); `NextLevel` is carried through so `parent_indicator` can be resolved. If the silver table is absent, an empty EPI indicator DataFrame is emitted (the gap is visible in `gold_dim_indicator`) — no NULL-weight fallback. *(Prior "`silver_epi2024variables2024-12-11`" wording stale since task-056 built `silver_epi{EPI_YEAR}variables` from bronze weights; the pre-task-056 "no silver_epi2024variables table / weights always NULL" gap is closed.)*
-        -   WB: **none currently** — `silver_to_gold.Notebook:883` builds an *empty* WB-indicator DataFrame for schema compatibility, so no WB-sourced indicator rows exist. WGI reaches gold as country **coverage flags**, not as indicator rows.
+        -   WB: **none currently** — `silver_to_gold.Notebook` builds an *empty* WB-indicator DataFrame (`wb_vars`, ~line 1236) for schema compatibility, so no WB-sourced indicator rows exist. WGI reaches gold as country **coverage flags**, not as indicator rows.
 4.  **`gold_dim_material`**
     -   **Surrogate Key:** `material_key` (BIGINT) - xxhash64 of material_name_std
     -   **Attributes:**
@@ -688,7 +695,17 @@ Bronze now holds the source's raw day/year-transposed dates — a Copy activity 
 
 -   Start date for incremental load (default: "1900-01-01")
 
-**Schedule:** **Active since 2026-08-05** — daily at **06:00 Europe/Stockholm**, schedule id `17288b67-a36f-4db8-88fe-cfa4ce1dba61`, enabled, no end date in practice (2099-01-01). Configured via Fabric's job scheduler, which is **not** part of the pipeline's item definition — it survives `fabric-cicd` publishes and is not represented in `pipeline-content.json`. Runs use the pipeline defaults (`p_full_load = false`, incremental). Verified end to end on 2026-08-05: a test firing **against a temporary 22:20 test time** started at `20:20:00.63Z` — the exact specified minute — ran 21.9 minutes, and completed as the first `invokeType=Scheduled` invocation in 58 runs. **The schedule was then reset to 06:00; that first morning firing is unobserved until 2026-08-06.** On-demand runs remain available and are unaffected. Runbook: `docs/guides/pipeline_schedule.md`.
+-   `p_epi_year` (String)
+
+-   EPI vintage, default `"2024"`. **Load-bearing:** every EPI table-name contract derives from it (`bronze_epi{YEAR}results`, `silver_epi{YEAR}variables`, …), so changing it re-points the whole EPI chain. Single-sourced to the parameter cells of the EPI notebooks.
+
+-   `p_execution_id` (String)
+
+-   Correlation id for one pipeline run, default null. Written to `bronze_load_metadata` and `gold_pipeline_execution_log` so a watermark row can be traced back to the run that wrote it.
+
+*All five verified against the live `getDefinition` payload 2026-08-06 (10 activities, 5 parameters).*
+
+**Schedule:** **Active since 2026-08-05** — daily at **06:00 Europe/Stockholm**, schedule id `17288b67-a36f-4db8-88fe-cfa4ce1dba61`, enabled, no end date in practice (2099-01-01). Configured via Fabric's job scheduler, which is **not** part of the pipeline's item definition — it survives `fabric-cicd` publishes and is not represented in `pipeline-content.json`. Runs use the pipeline defaults (`p_full_load = false`, incremental). Verified end to end on 2026-08-05: a test firing **against a temporary 22:20 test time** started at `20:20:00.63Z` — the exact specified minute — ran 21.9 minutes, and completed as the first `invokeType=Scheduled` invocation in 58 runs. The schedule was then reset to 06:00. **That first morning firing has now been observed** (2026-08-06): run `df0cc54f-b3e4-46c9-bdd3-6b19efdf7381`, `invokeType=Scheduled`, started `04:00:01.24Z` = 06:00:01 Europe/Stockholm, Completed in 22.6 min, taking the Scheduled count 1 → 2. The 06:00 recurrence is therefore proven by observation, not only by mechanism. On-demand runs remain available and are unaffected. Runbook: `docs/guides/pipeline_schedule.md`.
 
 **Error Handling:** Activity-level retry (1–3 retries depending on activity; retry intervals 30–300s depending on activity — see Technical Decisions #5 for per-activity values) plus a single terminal handler activity (`pipeline_error_handler`) that runs on every outcome and logs each activity to `gold_pipeline_execution_log`, **re-raising only when an activity's final attempt FAILED** (an activity retried into success is reported as recovered, not a run failure) to keep a genuinely failing run red. Canonical description: § Open Questions & Decisions Needed → Technical Decisions #5 (DEC-004, amended 2026-07-27). *(Supersedes the earlier "fail-fast, 0 retries" description — stale since task-011 shipped retry logic — and the "Upon-Failure paths" wording — stale since the 2026-07-27 amendment moved the handler onto every outcome — and the "re-raising on any FAILED" wording — stale since task-051 shipped final-attempt semantics, 2026-08-03, under which a retried-into-success activity is recovered, not a run failure.)*
 
@@ -782,15 +799,13 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 -   The semantic model redesign and DAX measure implementation are complete (task-002, task-009).
 
--   40+ DAX measures are implemented and documented in `.claude/support/documents/dax_measure_library.md`.
+-   40+ DAX measures are implemented and documented in `docs/dax_measure_library.md`.
 
 -   Representative measures:
 
-    -   Total Spend = SUM(fact_procurement\[spend_eur\])
+    -   Total Spend EUR = SUM(fact_procurement\[spend_eur\])
 
-    -   Total Quantity = SUM(fact_procurement\[quantity_base\])
-
-    -   Supplier Count = DISTINCTCOUNT(fact_procurement\[supplier_hq_country_key\])
+    -   Supplier Countries Count = DISTINCTCOUNT(fact_procurement\[supplier_hq_country_key\])
 
     -   Avg EPI Score = AVERAGE(fact_epi_score\[score\])
 
@@ -802,7 +817,7 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
     -   Supply Risk Contrast = DIVIDE(\[Supply Risk (EU Sourcing)\], \[Supply Risk (Global)\]) — blank when the global index is 0
 
-    -   YoY Growth = \[Calculate current vs previous year\]
+*Names above match a live enumeration of the semantic model (45 measures, 2026-08-06). Two measures previously listed here — `Total Quantity` and `YoY Growth` — **do not exist in the model** and were removed rather than left as phantom references. `quantity_base` is NULL for non-mass units (see § Data Quality → Persistent advisory failures), so a naive `Total Quantity` would silently under-report; a year-over-year measure was never built.*
 
 **Date Table Configuration:**
 
@@ -818,7 +833,7 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 The report was redesigned and rebuilt from scratch after the semantic model was finalized (task-003, task-013, task-014, task-016). The earlier report was discarded.
 
-**RLS (Row-Level Security):** Designed (6 roles, see `.claude/support/documents/rls_security_strategy.md`). Portfolio demonstration only.
+**RLS (Row-Level Security):** Designed (6 roles, see `docs/rls_security_strategy.md`). Portfolio demonstration only.
 
 **Theme:** CY24SU10.json (Fabric default theme)
 
@@ -886,7 +901,7 @@ The report was redesigned and rebuilt from scratch after the semantic model was 
 
 -   [x] Connection to Fabric lakehouse (`oem_lh`) established
 
--   [x] 40+ DAX measures (documented in `.claude/support/documents/dax_measure_library.md`)
+-   [x] 40+ DAX measures (documented in `docs/dax_measure_library.md`)
 
 -   [x] Data quality observability tables added to semantic model
 
@@ -898,7 +913,7 @@ The report was redesigned and rebuilt from scratch after the semantic model was 
 
 **Testing:**
 
--   [x] Unit tests for transformation logic (235 tests, `tests/`), including the notebook↔`src/` parity contract (task-032)
+-   [x] Unit tests for transformation logic (**282 tests** as of 2026-08-06, `tests/`), including the notebook↔`src/` parity contract (task-032)
 
 -   [x] CI pipeline: GitHub Actions with matrix testing (Python 3.10-3.12)
 
@@ -928,10 +943,10 @@ The report was redesigned and rebuilt from scratch after the semantic model was 
 
 **Remaining Technical Work** (mapped to tasks):
 
--   [ ] Incremental load — implementation done (006_1a/1b/1c/2); end-to-end testing in Fabric remains (task-006_3)
--   [ ] Pipeline scheduling (task-010)
--   [ ] Performance retest — optimizations applied (012_3, 012_4); before/after measurement remains (task-012_5)
--   [ ] External-data ingestion — automated in code; end-to-end runtime verification remains (task-036)
+-   [x] Incremental load — end-to-end tested in Fabric (task-006_3, closed 2026-08-04)
+-   [x] Pipeline scheduling — daily 06:00 Europe/Stockholm, live and observed firing (task-010, closed 2026-08-05)
+-   [x] Performance retest — three warm-cache runs against the baseline; honest null result (task-012_5, closed 2026-08-03)
+-   [x] External-data ingestion — end-to-end runtime verified (task-036, closed 2026-08-04)
 
 **Documentation:**
 
@@ -1008,13 +1023,19 @@ Fabric UI edits are not a sync path — anything changed there is overwritten by
 
 -   Example: `orchestrator_pipeline_bronze_to_gold`
 
-**Consistency Issues:**
+**Consistency notes** *(measured 2026-08-06: 22 live workspace items, 39 lakehouse tables)*:
 
--   Table naming mixes bronze\_/silver\_/gold_dim\_ prefixes
+-   Gold-layer tables use two prefix families: `fact_*` (3 tables) carries no `gold_` prefix while the other 20 gold-layer tables do. Deliberate, but worth knowing when globbing by prefix.
 
--   Notebooks use both hyphens and underscores as separators
+-   `silver_eusupplyshares` and `silver_globalsupplyshares` are concatenated rather than snake_case — **open** (Phase 5 Batch C, undecided). Any fix must use the underscore-**adding** form: the metastore lowercases identifiers, so a case-only rename is a silent no-op and `DROP TABLE` on the old casing destroys the live table. Four further tables read as concatenated but are **deliberate and must not be "fixed"** — `bronze_epi2024results`, `bronze_epi2024weights`, `silver_epi2024results`, `silver_epi2024variables` embed the EPI vintage because their names derive from the `p_epi_year` contract (§ Orchestration); renaming them breaks the parameterised chain.
 
--   Some artifact names use camelCase (copyjob1), others use underscores
+-   `mapping_*` (2 tables) sits outside the medallion prefixes by design.
+
+-   `sample-quality-data` and `Notebook_1` retain pre-Phase-5 names; neither participates in the pipeline.
+
+-   **`OEMInsightBI_v2` and `report2` are documented OPEN rename targets, not settled names** — `docs/standards/naming_standards.md` prescribes `OEMInsightBI` and a co-named `oem_report`, noting the live model is "slated to drop the `_v2` suffix", and `docs/architecture/fabric-artifacts-inventory.md` flags both as "Phase 5 rename targets". No decision record retires those targets. So there are **two** open naming families — these plus the concatenated silver tables above — and neither is decided here.
+
+-   Remaining non-snake_case names are Fabric-generated or convention-bound: `StagingLakehouseForDataflows_*` / `StagingWarehouseForDataflows_*` (auto-created for dataflow staging) are camelCase; `Report Usage Metrics Model` / `Report Usage Metrics Report` are Fabric-generated **Title Case with spaces**, not camelCase; `EPI_file2table` / `WGI_file2table` follow the dataflow convention above. Semantic models and reports deliberately follow Fabric's PascalCase display-name convention rather than snake_case (`naming_standards.md § Semantic Model & Report Naming`) — that convention is settled; the specific `_v2` / `2` suffixes are what remain open. **`copyjob1` does not exist** in the workspace — 22 items enumerated 2026-08-06.
 
 ------------------------------------------------------------------------
 
@@ -1048,7 +1069,7 @@ Fabric UI edits are not a sync path — anything changed there is overwritten by
 
 ### Data Quality Checks Needed
 
-*All 12 of these are implemented in `data_quality_checks.Notebook` — 9 from task-007, plus 3 from task-020 (bronze date-range validation, silver data-type consistency, silver completeness).*
+*All **14** are implemented in `data_quality_checks.Notebook` — 9 from task-007, 3 from task-020 (bronze date-range validation, silver data-type consistency, silver completeness), and **2 from task-026: `lookup_name_uniqueness` (gold lookup dims) and `grain_uniqueness` (gold facts)**. Split: Bronze 5 / Silver 5 / Gold 4. The task-026 pair was previously omitted from this list even though **both are in `BLOCKING_CHECKS` and therefore halt the pipeline** — so the spec understated its own halt conditions (FR-060, corrected 2026-08-06). Count verified three ways: 14 `# CHECK N:` headers, 14 distinct `check_name` literals reaching `log_check_result`, 14 `CHECK_TO_DIMENSION` keys.*
 
 **Bronze Layer Checks:**
 
@@ -1090,7 +1111,7 @@ Fabric UI edits are not a sync path — anything changed there is overwritten by
 
 -   Visualization: quality_category field available in facts for filtering
 
--   DQ framework: 12 check functions across bronze/silver/gold in `data_quality_checks.Notebook` (9 from task-007, 3 from task-020); results persisted to gold_quality_history
+-   DQ framework: **14** check functions across bronze/silver/gold in `data_quality_checks.Notebook` (9 from task-007, 3 from task-020, 2 from task-026); results persisted to gold_quality_history. **Three checks record a non-`pass` row on every run by design** — measured, explained and accepted in `docs/data_quality_framework.md § 7`; none is in `BLOCKING_CHECKS`, so the gate correctly never raises on them
 
 -   Observability tables: gold_quality_history, gold_gap_registry, gold_low_confidence_audit (task-018)
 
@@ -1110,9 +1131,9 @@ Membership of `BLOCKING_CHECKS` is a deliberate choice per check, not a severity
 
 ### Expected Data Profiles
 
-Synthetic dataset — exact counts depend on Azure SQL seed scripts in `/azure/`.
+Synthetic dataset. **`/azure/` holds DDL only** — `procurement.sql` and `supplier_info.sql` each contain one `CREATE TABLE` and **zero `INSERT` statements**; the rows were seeded separately and are not reproducible from the repo. Counts below are measured against the live lakehouse (2026-08-06), not derived from the scripts.
 
-**Procurement Transactions:** ~500 records, key fields: date, materialname, suppliername, quantity, unitpriceeur
+**Procurement Transactions:** **132 records** (measured), key fields: date, materialname, suppliername, quantity, unitpriceeur. Bronze holds the source's raw day/year-transposed dates; silver corrects them to calendar 2024.
 
 **EPI Scores:** ~180-200 countries, ~30-40 indicators (wide format in bronze), year 2024, score range 0-100
 
@@ -1249,7 +1270,7 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 
 **Row-Level Security (RLS):**
 
--   Designed and documented (see `.claude/support/documents/rls_security_strategy.md`). 6 roles defined. Implementation is a portfolio demonstration — not enforced in a production sense.
+-   Designed and documented (see `docs/rls_security_strategy.md`). 6 roles defined. Implementation is a portfolio demonstration — not enforced in a production sense.
 
 **Access Control:** Single-developer portfolio project — no access control configuration needed.
 
@@ -1259,7 +1280,9 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 
 ### Current Performance Status
 
-**Pipeline Runtime:** Not benchmarked — manual pipeline runs at portfolio scale. No production load or SLA requirements.
+**Pipeline Runtime: Benchmarked** — 6 measured runs across two FINAL documents: `docs/performance_baseline.md` (3 runs, 2026-08-02) and `docs/performance_optimized.md` (3 runs, 2026-08-03), both at `p_full_load=false` on a warm cache. The headline is an honest **null result**: the primary target (`silver_to_gold`, ~58–60% of wall clock) came back **+6%, inside noise**, with one confirmed regression (`data_quality_checks`, +43%) and a functional total of +18%. Nothing measurably improved, which is a valid result for a pipeline that was already fast. No production load or SLA requirements; the >30% improvement target was retired 2026-07-29.
+
+*Activity names in both documents predate the Phase 5 snake_case rename — see `performance_baseline.md § Activity names predate the Phase 5 rename` for the old→new mapping.*
 
 **Optimization Opportunities:**
 
@@ -1269,11 +1292,11 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 
 -   [x] Incremental load activation — **built** (task-024, date-partition delete-insert; task-029, `bronze_load_metadata` high-water-mark). See § Open Questions & Decisions Needed → Technical Decisions 1.
 
--   [ ] Caching strategies *(task-012_3)*
+-   [x] Caching strategies — **built** (task-012_3, closed 2026-08-02; `.cache()` on multi-action DataFrames, broadcast hints on small dim joins)
 
 -   [x] ~~Index creation in warehouse~~ — **not applicable** (platform limitation), see DEC-012. Task-012_4 was retired on this basis (2026-08-03).
 
--   [ ] DirectLake optimization (V-Order columnar format) *(task-012_3)*
+-   [x] DirectLake optimization (V-Order columnar format) — **built** (task-012_3, closed 2026-08-02; scoped to gold writes per DEC-011)
 
 ------------------------------------------------------------------------
 
@@ -1281,7 +1304,7 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 
 ### Current Testing Status
 
-**Unit Tests:** 235 tests for transformation logic in `tests/` (as of 2026-08-03; originally 33 from task-008, since extended by task-020/027/032 and the Phase 2–4 work), including the notebook↔`src/` parity contract (task-032). **Integration Tests:** None yet. **Data Validation Tests:** Quality checks in gold layer + observability tables.
+**Unit Tests:** **282 tests** for transformation logic in `tests/` (as of 2026-08-06; originally 33 from task-008, since extended by task-020/027/032, the Phase 2–4 work, and task-060's claim-scoped documentation guard), including the notebook↔`src/` parity contract (task-032). **Integration Tests:** None yet. **Data Validation Tests:** Quality checks in gold layer + observability tables.
 
 **Testing Approach:**
 
@@ -1291,15 +1314,15 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 
 -   [ ] Schema validation tests
 
--   [ ] Data quality tests (expand current checks)
+-   [x] Data quality tests (expand current checks) — `tests/test_data_quality.py` collects **45 tests** over the DQ functions, and the check suite itself was expanded twice (9 → 12 → 14; see § Data Quality & Validation)
 
--   [ ] Pipeline integration tests
+-   [ ] Pipeline integration tests — none yet; the pipeline is exercised end to end by real runs, not by a test harness
 
 -   [ ] Semantic model validation (relationship integrity)
 
--   [ ] Regression tests for alias mappings
+-   [ ] Regression tests for alias mappings — **partial:** `tests/test_material_mapping.py` covers `MATERIAL_ALIASES` (7 tests, including that known-dead materials now resolve and that alias targets exist in the commodity map). **Country aliases have zero coverage** — `mapping_country_aliases_confidence` is built in `silver_to_gold` but no test exercises it
 
-**Test Data:** Synthetic data generated via SQL scripts in `/azure/`. Local unit tests use PySpark test fixtures in `tests/`.
+**Test Data:** Synthetic. **`/azure/` contains table DDL only** (two `CREATE TABLE` scripts, zero `INSERT`s) — it does not generate the data, so the Azure SQL rows are not reproducible from the repo. Local unit tests use PySpark test fixtures in `tests/`.
 
 ------------------------------------------------------------------------
 
@@ -1411,21 +1434,23 @@ Computed over two supply mixes and exposed in `gold_supply_risk` (**grain: one r
 
 ### DAX Measures (High-Level)
 
-See `.claude/support/documents/dax_measure_library.md` for the full measure library (40+ measures). Key measures:
+See `docs/dax_measure_library.md` for the full measure library. **45 measures live in the model** (enumerated 2026-08-06); names below are that enumeration. Key measures:
 
--   Total Spend = SUM(fact_procurement\[spend_eur\])
+-   Total Spend EUR = SUM(fact_procurement\[spend_eur\])
 
--   Total Quantity = SUM(fact_procurement\[quantity_base\])
+-   Total Spend by Country = spend rolled to supplier HQ country
 
--   Avg Unit Price = DIVIDE(\[Total Spend\], \[Total Quantity\])
+-   Supplier Countries Count = DISTINCTCOUNT(fact_procurement\[supplier_hq_country_key\])
 
--   Supplier Count = DISTINCTCOUNT(fact_procurement\[supplier_hq_country_key\])
+-   Materials Count = DISTINCTCOUNT(fact_procurement\[material_key\])
 
--   Material Count = DISTINCTCOUNT(fact_procurement\[material_key\])
+-   Transaction Count = row count of fact_procurement
 
 -   Avg EPI Score = AVERAGE(fact_epi_score\[score\])
 
--   Supply Concentration = MAX(fact_supply_share\[share_pct\]) filtered to `supply_mix = 'global'` *(secondary lens)*
+-   Weighted EPI Score = weight-weighted EPI across sub-indicators. **Requires a country filter context** — non-additive at grand total, where the SUMX accumulates across all countries (task-061)
+
+-   Supply Concentration Index = MAX(fact_supply_share\[share_pct\]) filtered to `supply_mix = 'global'` *(secondary lens)*
 
 -   Supply Risk (Global) = governance- & trade-weighted HHI over the global supply mix
 
@@ -1433,11 +1458,7 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
 
 -   Supply Risk Contrast = DIVIDE(\[Supply Risk (EU Sourcing)\], \[Supply Risk (Global)\]) — EU-specific exposure; blank when the global index is 0
 
--   YoY Spend Growth = \[Calculate vs previous year\]
-
--   Spend by Commodity Group = \[Sum spend joined to material dimension\]
-
--   High Risk Sourcing % = \[Procurement from countries with low EPI/WGI scores\]
+**Named here previously but NOT in the model** — removed rather than left as phantom references (verified against the 45-measure enumeration, 2026-08-06): `Total Spend` (actual name is `Total Spend EUR`), `Supplier Count` (actual name is `Supplier Countries Count`), `Total Quantity`, `Avg Unit Price`, `YoY Spend Growth`, `Spend by Commodity Group`, `High Risk Sourcing %`. No year-over-year measure of any name exists. A `Total Quantity` would need care rather than a plain SUM: `quantity_base` is NULL for non-mass units (24 of 132 procurement rows are `pcs`), so a naive sum silently under-reports — see § Data Quality and `docs/data_quality_framework.md § 7.2`.
 
 ------------------------------------------------------------------------
 
@@ -1590,11 +1611,11 @@ See `.claude/support/documents/dax_measure_library.md` for the full measure libr
 
 Descoped: task-034 (Data Gaps report page — optional surface; the underlying table and measures shipped under task-001). Closed won't-do: task-047 (see § CI/CD Deployment → Known Limitations). Retired: task-012_4's warehouse-index deployment (DEC-012 — `fabric/sql/warehouse_indexes.sql` is a finding document, not deployable DDL).
 
-**What remains is verification and hygiene, not build scope:**
+**Verification and hygiene status (no build scope remains):**
 
-1. **Phase-level verification has not yet run.** `.claude/verification-result.json` currently holds a per-task result (task-046) rather than a phase-level one.
-2. **Open friction:** FR-052 (a false status assertion baked into a pinned section fingerprint is invisible to drift detection), FR-053 (`docs/architecture/data_sources.md` doc-mirror drift).
-3. **First 06:00 scheduled firing** is unobserved until 2026-08-06 — see § Orchestration → Schedule.
+1. **Phase-level verification has run and PASSED — 13/13 criteria** (2026-08-05, the first in the project's history). `.claude/verification-result.json` holds that phase-level result against `spec_fingerprint` 3909f351. It was validated on live evidence: live DAX over 9 gold tables with all 45 measures evaluating, repo-vs-workspace pipeline definition byte-identical, DQ gate rows, 12 consecutive green deploys, and the 235 tests passing **at that date** (282 as of 2026-08-06). It also produced 5 fix tasks (057–061), **every one of them accuracy-of-the-record rather than correctness-of-the-build** — the build was sound and is now provably so; the spec's description of it is what needed work. This section is part of that correction.
+2. **Open friction:** FR-052 (a false status assertion baked into a pinned section fingerprint is invisible to drift detection — the mechanism behind most of the corrections in this pass), FR-053 (`docs/architecture/data_sources.md` doc-mirror drift), FR-060 (this spec understated its own DQ blocking checks — corrected above).
+3. **First 06:00 scheduled firing — CONFIRMED 2026-08-06.** Run `df0cc54f-b3e4-46c9-bdd3-6b19efdf7381`, `invokeType=Scheduled`, started `04:00:01.24Z` = 06:00:01 Europe/Stockholm, Completed in 22.6 min; Scheduled count 1 → 2. This was the schedule's last link resting on mechanism rather than observation, and it now rests on observation. See § Orchestration → Schedule.
 
 ------------------------------------------------------------------------
 

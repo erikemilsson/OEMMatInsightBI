@@ -2,8 +2,8 @@
   "spec_version": "1",
   "spec_fingerprint": "sha256:3909f3518fe5715e4722eee44e243ee01e7d84c3e9f6fe89e83cc7356159bcb7",
   "created_date": "2026-08-05",
-  "updated_date": "2026-08-05",
-  "completion_date": null,
+  "updated_date": "2026-08-06",
+  "completion_date": "2026-08-06",
   "verification_attempts": 0,
   "absorbed_into": "",
   "subtasks": [],
@@ -12,7 +12,7 @@
   "source": "verify-agent (phase-level, 2026-08-05)",
   "id": "task-060",
   "title": "Correct performance_baseline.md's false live-name claim and widen the artifact-name regression guard",
-  "status": "Pending",
+  "status": "Finished",
   "priority": "P3",
   "difficulty": 3,
   "owner": "claude",
@@ -35,6 +35,57 @@
   ],
   "notes": [
     "CREATED 2026-08-05 by phase-level verification. Recruiter-facing document actively claiming fidelity to a pipeline it no longer matches.",
-    "Deliberately NOT a blanket OLD_NAMES ban — these files must keep historical names in their measurement tables."
-  ]
+    "Deliberately NOT a blanket OLD_NAMES ban — these files must keep historical names in their measurement tables.",
+    "IMPLEMENTED 2026-08-06 (inline, orchestrator).\n\n(1) LIVE NAMES MEASURED FIRST, not taken from the task text — same discipline that paid off in task-059 where the assumed cause was wrong. POST getDefinition on the live pipeline returned 10 activities / 5 parameters, and the task's claimed current names checked out exactly: bronze_copy_eu_supply_shares, bronze_copy_global_supply_shares, bronze_copy_procurement_transactional, bronze_copy_supplier_ref, bronze_to_silver_cleaning, silver_to_gold, bronze_epi, bronze_wgi, data_quality_checks, pipeline_error_handler. So the old->new mapping in the doc is measured, not inferred: 8 of 10 renamed, data_quality_checks and pipeline_error_handler unchanged.\n\n(2) THE FALSE CLAIM IS UNIQUE TO performance_baseline.md. A grep for fidelity-claim phrasing across performance_optimized.md returned NOTHING (positive control: the same probe found the claim in performance_baseline.md line 24). So the task's 'same treatment for performance_optimized.md' could not mean 'fix its claim' — it has none. Its ~68 stale-name occurrences are all inside measurement tables and analysis prose that are historically correct. It therefore got the DATED NOTE only, pointing at the single-sourced mapping rather than duplicating it.\n\n(3) MEASURED ROWS PROVABLY UNTOUCHED. Compared every markdown table row against HEAD: performance_baseline.md rows added=12 (my 10-row mapping table + its header/separator) removed=0; performance_optimized.md added=0 removed=0. Nothing measured was rewritten.\n\n(4) THE GUARD: claim-scoped, added alongside the existing file-scoped test rather than replacing it. New STALE_ACTIVITY_NAMES maps the 5 pre-rename activity-name patterns to current names; a sentence is flagged only if it carries a FIDELITY_CLAIM_MARKER ('match the live', 'no deploy drift', ...) AND names a stale activity AND carries no HISTORICAL_MARKER ('predate', 'as measured', 'point-in-time', ...). 42 doc surfaces are scanned. Historical occurrences stay legal, which is the whole point — a blanket OLD_NAMES ban would have forced a choice between a broken guard and a falsified document.\n  Deliberate non-contradiction recorded in the code: bronze_WGI and bronze_EPI ARE in the claim-scoped set although bronze_WGI is deliberately ABSENT from the file-scoped OLD_NAMES. The file-scoped guard must tolerate legitimate historical activity references and the retired dataflow's Power Query name; a sentence asserting CURRENT fidelity is wrong whichever old name it uses.\n  Scoped to SENTENCES, not lines, because markdown hard-wraps prose — a line-scoped check would miss a claim whose stale name wrapped to the next line, which is the exact shape of this defect.\n\n(5) MY FIRST VERSION OF THE GUARD DID NOT WORK, and I only know that because I tested it against the REAL pre-fix text (git show HEAD:docs/performance_baseline.md) instead of trusting my own synthetic example. It scored 0 VIOLATIONS against the very defect it was written for. Root cause: I had included ':' in the sentence-terminator regex, and the defect reads '...match the live pipeline / repo definition: `silver-to-gold`, ...' — so the colon severed the claim from the names it claimed about, putting marker and stale names in different 'sentences'. Fixed by splitting on .!? only, with the reason written into the code so nobody reintroduces it. Re-verified: the guard now flags the pre-fix sentence with all 5 stale names and reports 0 on the post-fix file. A synthetic positive control alone would NOT have caught this — the lesson is to ground the control in the real artifact.\n  Both controls are now committed as tests: test_claim_guard_catches_the_original_defect (fires on the original sentence — without it a guard matching nothing looks identical to a passing one) and test_claim_guard_allows_dated_historical_naming (must NOT fire on properly dated historical naming).\n\n(6) Dropped the doc's parenthetical claiming 'an earlier notebook-filtered view showed slightly different display names — silver-to-gold2, bronze_ingest_*'. It conflated two different things: bronze_ingest_epi / bronze_ingest_wgi are NOTEBOOK names, not activity display names. The activities invoking them were bronze_EPI / bronze_WGI and are now bronze_epi / bronze_wgi. Replaced with that explicit distinction.\n\nTESTS: 279 passed (was 235; +42 claim-scanned surfaces, +2 controls). Zero failures, no skips beyond the pre-existing pattern.",
+    "VERIFIED PASS 2026-08-06 (verify-agent, attempt 1, separate context). It re-derived all 5 ACs independently: counter-diffed every table row against HEAD to confirm no measured row moved, re-fetched the live getDefinition to check all 10 mapping rows, and — the check that matters most — ran the shipped guard against the REAL pre-fix text and independently reproduced the colon regression, confirming that root cause was real rather than a post-hoc story. It also honoured the no-token-to-disk instruction (piped inline, verified the payload carried no token material).\n\n4 minor issues, ALL FOUR FIXED — none deferred. Two were genuine holes in my own test design:\n  (1) FIXED — MY NEGATIVE CONTROL WAS VACUOUS. test_claim_guard_allows_dated_historical_naming passed even with HISTORICAL_MARKERS emptied entirely, because its input carried no fidelity marker: the OUTER GATE was rejecting it, so the exemption list it was supposed to exercise was never reached, and the whole exemption list was untested by both the control and all 42 real surfaces. This is the exact mirror of the positive-control mistake I had just caught myself — I grounded the positive control in the real artifact and then failed to apply the same scepticism to the negative one. Rewrote DATED_HISTORICAL so it DOES carry a fidelity marker ('no longer match the live') and a stale name, so the exemption is what saves it, and added test_negative_control_is_not_vacuous, which empties HISTORICAL_MARKERS and asserts the control FLIPS TO FIRING. Added test_fidelity_markers_are_load_bearing on the same mutation principle.\n  (2) FIXED — THE GUARD MISSED THE CLAIM-THEN-TABLE SHAPE, and the verifier proved it on a real instance: the SECOND pre-rename defect in this same file (HEAD L26-28 — heading 'Live pipeline activity set (observed, 10 activities)' plus 'All 10 activities from the repo definition run in the live pipeline — no deploy drift.') scored 0, because its stale names sit in the table below and I was skipping tables as non-prose. I had fixed that instance BY HAND without noticing the guard wouldn't catch its recurrence. Replaced _prose_sentences with _blocks_with_tables + _claim_units, which ATTACH a following table to the block it belongs to. Re-measured: the guard now flags 2 violations on the pre-fix file (was 1) — both real defect shapes — and 0 tree-wide after the fix. Both shapes are now committed as parametrized positive controls with the real text.\n  (3) FIXED — 'rename'/'renamed' in HISTORICAL_MARKERS were an escape hatch for the single most plausible future defect phrasing: 'Activity names below match the live pipeline after the Phase 5 rename: `silver-to-gold`, ...' carries a fidelity marker and 3 stale names, yet the bare word 'rename' waved it through. Verifier probed that neither marker was load-bearing (removing both = 0 new violations across 42 surfaces). Removed; the specific 'pre-rename'/'predate' forms stay, with a comment warning that every entry in that list is a hole.\n  (4) FIXED — file-scoped OLD_NAMES was still missing 'bronzecopy_' and 'silver-to-gold', which the task text had explicitly called out. Verifier probed that adding both fires on nothing across the 8 CLEAN_SURFACES, so it was zero-cost hardening left on the table. Added, with a note that bare 'silver-to-gold' subsumes 'silver-to-gold2' by substring and that bronze_EPI/bronze_WGI still cannot join this list (they belong to the claim-scoped set).\n\nVerifier's other assessments, recorded: sentence-scoping is the right call; the bronze_WGI/bronze_EPI asymmetry between the two guards is a genuine well-reasoned distinction (empirically probed, not assumed); and dropping the bronze_ingest_* parenthetical LOST NOTHING — both strings are retained and the notebook-vs-activity distinction the original conflated is now explicit.\n\nFINAL: 282 tests pass. Guard catches both real defect shapes, passes all 42 surfaces, and its two load-bearing mechanisms are mutation-tested rather than merely green."
+  ],
+  "user_review_pending": false,
+  "task_verification": {
+    "result": "pass",
+    "verified_by": "verify-agent (separate context, dispatched by /work)",
+    "timestamp": "2026-08-06T12:35:07Z",
+    "attempt_number": 1,
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "pass",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "evidence": [
+      {
+        "type": "measured_rows_unchanged",
+        "result": "pass",
+        "detail": "Verifier counter-diffed EVERY markdown table row against git HEAD: performance_baseline.md added=12 (the 10 mapping rows + header + separator, all newly authored) removed=0; performance_optimized.md added=0 removed=0. No measurement row rewritten — the blocking condition for this task."
+      },
+      {
+        "type": "live_mapping_verified",
+        "result": "pass",
+        "detail": "Verifier independently POSTed getDefinition (item d44ac501): 10 activities / 5 parameters, right-hand column matches live exactly; 8 renamed, data_quality_checks + pipeline_error_handler unchanged. It also checked the LEFT column is grounded rather than invented — all 10 pre-rename names genuinely occur in the docs (2-13 occurrences in baseline, 4-23 in optimized)."
+      },
+      {
+        "type": "guard_efficacy_real_artifact",
+        "result": "pass",
+        "detail": "Verifier ran the shipped guard logic over git HEAD:docs/performance_baseline.md and confirmed it flags the genuine defect sentence with all 5 stale names, 0 on the post-fix tree. It independently REPRODUCED the reported colon regression (a ':'-splitting version scores 0 vs 1 on the same real text), confirming the root cause was real and not post-hoc rationalisation."
+      },
+      {
+        "type": "guard_not_over_aggressive",
+        "result": "pass",
+        "detail": "42 surfaces scanned (archive excluded), 0 violations tree-wide, despite performance_optimized.md alone carrying ~68 legitimate historical occurrences."
+      },
+      {
+        "type": "file_scoped_exclusion_probed",
+        "result": "pass",
+        "detail": "Verifier empirically confirmed the bronze_WGI/bronze_EPI asymmetry is load-bearing rather than sloppy: adding either to file-scoped OLD_NAMES fires on legitimate historical text in docs/error_handling_strategy.md (2026-04-05 retry table) and docs/incremental_load_strategy.md (L738 'Historically the bronze Power Query dataflows...'), both of which ARE guarded surfaces."
+      },
+      {
+        "type": "test_suite",
+        "result": "pass",
+        "detail": "279 passed at verification time (baseline 235; this file 8 -> 52, arithmetically exact). After the 4 post-verification fixes: 282 passed, 0 failed, 0 skipped; this file now 55 tests (8 file-scoped + 42 claim-scoped + 5 controls)."
+      }
+    ],
+    "post_verification_fixes": "All 4 minor issues fixed and re-verified — none deferred."
+  }
 }

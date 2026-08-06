@@ -35,7 +35,7 @@
 ## Architecture
 
 ### Q: What is the medallion architecture?
-**A:** A layered data architecture: Bronze (raw ingestion) → Silver (cleaned/standardized) → Gold (business-ready with star schema). See `/.claude/support/documents/architecture/medallion_architecture.md`.
+**A:** A layered data architecture: Bronze (raw ingestion) → Silver (cleaned/standardized) → Gold (business-ready with star schema). See `/docs/architecture/medallion_architecture.md`.
 
 ### Q: Why use Delta Lake instead of Parquet?
 **A:** Delta Lake provides ACID transactions, time travel, and MERGE support critical for incremental loads and data quality. See ADR-002.
@@ -84,13 +84,13 @@
 ## Task-Specific Questions
 
 ### Q: Task 002 (DAX Measures) - Where is the design?
-**A:** See `/.claude/support/documents/dax_measure_library.md` - 40+ measures designed across 5 categories (Procurement, Time Intelligence, Sustainability, Risk, Advanced).
+**A:** See `/docs/dax_measure_library.md` - 40+ measures designed across 5 categories (Procurement, Time Intelligence, Sustainability, Risk, Advanced).
 
 ### Q: Task 003 (Power BI Report) - Can I start it now?
 **A:** No, it's blocked by Task 002. Complete DAX measures implementation first.
 
 ### Q: Task 006 (Incremental Load) - Is the design done?
-**A:** Yes! See `/.claude/support/documents/incremental_load_strategy.md` - comprehensive strategy with merge patterns and high-water mark tracking.
+**A:** Yes! See `/docs/incremental_load_strategy.md` - comprehensive strategy with merge patterns and high-water mark tracking.
 
 ### Q: Why are some tasks marked "Design Complete"?
 **A:** Design/research phases are done with comprehensive documentation. Implementation is ready to start but awaits Fabric workspace access.
@@ -137,7 +137,7 @@
 **A:** 1) Read `/.claude/dashboard.md` for current status, 2) Review `.claude/CLAUDE.md` (project instructions), 3) Run `/work task-XXX` to start a task.
 
 ### Q: I'm stuck on a task - what should I do?
-**A:** 1) Check task's `relatedFiles` in JSON, 2) Review relevant `/.claude/support/documents/` docs, 3) Check `/.claude/support/reference/task-workflow.md`, 4) Run `/status` to see dependencies.
+**A:** 1) Check task's `relatedFiles` in JSON, 2) Review relevant `docs/` docs, 3) Check `/.claude/support/reference/task-workflow.md`, 4) Run `/status` to see dependencies.
 
 ### Q: How do I report issues?
 **A:** Currently a portfolio project - no formal issue tracking. Document blockers in task notes within JSON files.

@@ -232,7 +232,7 @@ def should_retry(error_message: str, retry_attempt: int, max_retries: int) -> bo
 > configuration is in `fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/pipeline-content.json`
 > (Copy retry=3/300s, EPI/WGI TridentNotebook retry=2/30s, bronze_to_silver_cleaning retry=2/120s,
 > silver_to_gold retry=2/120s, data_quality_checks retry=1/120s, pipeline_error_handler
-> retry=0/30s) and summarised in `.claude/support/documents/architecture/orchestration.md`.
+> retry=0/30s) and summarised in `docs/architecture/orchestration.md`.
 > The "Recommended Retries" column below is what task-011 shipped.
 
 ### Activity-Specific Retry Settings

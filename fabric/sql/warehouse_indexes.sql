@@ -4,7 +4,7 @@
 -- STATUS: RETIRED. This file is no longer deployable DDL. It is preserved as a
 -- finding document. Do not run it against oem_wh — every statement in the
 -- former DDL is inert on Fabric Data Warehouse (verified by execution,
--- 2026-08-03; see .claude/support/documents/performance_optimized.md §
+-- 2026-08-03; see docs/performance_optimized.md §
 -- Prerequisites that could not be applied).
 --
 -- This file resolves task-012_4 acceptance criterion 3 ("fabric/sql/

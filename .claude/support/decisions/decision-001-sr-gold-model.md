@@ -179,7 +179,7 @@ This does not change the selection — all three are small plumbing fixes in fil
 
 **Affected Areas:**
 - `fabric/silver-to-gold2.Notebook/notebook-content.py` (`fact_supply_share`, a new `gold_supply_risk` build for B+)
-- `.claude/support/documents/dax_measure_library.md` (§6.1 Concentration Risk → SR measures)
+- `docs/dax_measure_library.md` (§6.1 Concentration Risk → SR measures)
 - `fabric/OEMInsightBI_v2.SemanticModel/` (new measures / relationships)
 - spec `.claude/spec_v1.md` — Business Logic & Calculations, DAX Measures sections
 - Related tasks: **task-022** (prerequisite); a follow-on "build SR gold model" task to be created on selection.

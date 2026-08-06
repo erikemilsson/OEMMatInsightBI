@@ -74,7 +74,7 @@ Erik reopened the task (option (a): rewrite toward CLUSTER BY). The acceptance c
 **Weaknesses:**
 - Closes the optimization thread with "nothing built" — but that is the correct outcome when there is no problem to solve and the mechanism cannot reach the read path.
 
-**Research Notes:** `fabric/OEMInsightBI_v2.SemanticModel/definition/relationships.tmdl`, `tables/*.tmdl`, `expressions.tmdl` (DirectLake → OneLake parquet); `.claude/support/documents/performance_optimized.md` § Power BI (warm timings 85–171 ms, cold-start 84 s diagnosed as DirectLake parquet transcoding of `gold_supply_risk`, not a DirectQuery fallback); task-012_5 (no pipeline-runtime problem); Msg 22424 verified by execution against `oem_wh` 2026-08-03.
+**Research Notes:** `fabric/OEMInsightBI_v2.SemanticModel/definition/relationships.tmdl`, `tables/*.tmdl`, `expressions.tmdl` (DirectLake → OneLake parquet); `docs/performance_optimized.md` § Power BI (warm timings 85–171 ms, cold-start 84 s diagnosed as DirectLake parquet transcoding of `gold_supply_risk`, not a DirectQuery fallback); task-012_5 (no pipeline-runtime problem); Msg 22424 verified by execution against `oem_wh` 2026-08-03.
 
 ## Decision
 

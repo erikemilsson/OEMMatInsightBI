@@ -21,12 +21,42 @@
 - **Load mode: incremental (`p_full_load=false`).** ⚠️ **Hard condition:** the task-012_5 retest MUST use the same incremental mode for a valid before/after comparison. A full-load retest would not be comparable to this baseline.
 - **Cache state:** warm. Runs are ~24–25 min apart (pipeline-start to pipeline-start) with only ~7 min idle between runs, so runs 2–3 (and likely run 1) ran on a warm Spark session. Comparable to each other; this is a steady-state warm baseline, not a cold start.
 - **Source of durations:** Run 3 = exact (Fabric Monitoring detail pane); Runs 1–2 = gap-derived from start timestamps (pending exact paste).
-- **Activity names** below match the live pipeline / repo definition: `silver-to-gold`, `bronze-to-silver data cleaning`, `bronze_EPI`, `bronze_WGI`, `bronzecopy_*`. (An earlier notebook-filtered view showed slightly different display names — `silver-to-gold2`, `bronze_ingest_*` — these are the same activities.)
+- **Activity names** below are the names **as they were on 2026-08-02**, the measurement date. They no longer match the live pipeline: the Phase 5 snake_case rename (2026-08-04/05) changed 8 of the 10 activity names. The names in this document are deliberately left as measured — see *Activity names predate the Phase 5 rename* below for the mapping to current names.
 
-## Live pipeline activity set (observed, 10 activities)
+### Activity names predate the Phase 5 rename
 
-All 10 activities from the repo definition run in the live pipeline — no deploy
-drift. The 6 bronze activities start in parallel; silver and gold are sequential.
+**Added 2026-08-06 (task-060).** Every activity name in this document is the pre-rename
+name in use on 2026-08-02. The **Phase 5 snake_case rename (2026-08-04/05)** renamed 8 of
+the 10 pipeline activities. The measured rows below are point-in-time records and are
+**deliberately not rewritten** — rewriting them would falsify the measurement. Use this
+mapping to relate them to the current pipeline:
+
+| Name in this document (2026-08-02) | Current live name |
+|---|---|
+| `bronzecopy_EUSupplyShares` | `bronze_copy_eu_supply_shares` |
+| `bronzecopy_GlobalSupplyShares` | `bronze_copy_global_supply_shares` |
+| `bronzecopy_procurement_transactional` | `bronze_copy_procurement_transactional` |
+| `bronzecopy_supplier_ref` | `bronze_copy_supplier_ref` |
+| `bronze_EPI` | `bronze_epi` |
+| `bronze_WGI` | `bronze_wgi` |
+| `bronze-to-silver data cleaning` | `bronze_to_silver_cleaning` |
+| `silver-to-gold` | `silver_to_gold` |
+| `data_quality_checks` | `data_quality_checks` *(unchanged)* |
+| `pipeline_error_handler` | `pipeline_error_handler` *(unchanged)* |
+
+Verified 2026-08-06 against the live `getDefinition` payload: 10 activities, 5 parameters,
+names exactly as in the right-hand column. The earlier parenthetical about "different
+display names (`silver-to-gold2`, `bronze_ingest_*`)" conflated two things and is dropped —
+`bronze_ingest_epi` / `bronze_ingest_wgi` are **notebook** names, not activity names; the
+activities that invoke them were `bronze_EPI` / `bronze_WGI` and are now `bronze_epi` /
+`bronze_wgi`.
+
+## Live pipeline activity set (10 activities, as observed 2026-08-02)
+
+All 10 activities from the repo definition ran in the live pipeline — no deploy
+drift at measurement time, and re-confirmed still 10 activities on 2026-08-06 (names
+per the mapping above). The 6 bronze activities start in parallel; silver and gold are
+sequential.
 
 | Stage | Activities | Parallel? | Stage wall-clock |
 |-------|------------|-----------|------------------|

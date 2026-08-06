@@ -2,8 +2,8 @@
   "spec_version": "1",
   "spec_fingerprint": "sha256:3909f3518fe5715e4722eee44e243ee01e7d84c3e9f6fe89e83cc7356159bcb7",
   "created_date": "2026-08-05",
-  "updated_date": "2026-08-05",
-  "completion_date": null,
+  "updated_date": "2026-08-06",
+  "completion_date": "2026-08-06",
   "verification_attempts": 0,
   "absorbed_into": "",
   "subtasks": [],
@@ -12,7 +12,7 @@
   "source": "verify-agent (phase-level, 2026-08-05)",
   "id": "task-059",
   "title": "Diagnose and document the two silver_procurement quality checks that fail on every pipeline run",
-  "status": "Pending",
+  "status": "Finished",
   "priority": "P2",
   "difficulty": 4,
   "owner": "claude",
@@ -36,6 +36,97 @@
   "notes": [
     "CREATED 2026-08-05 by phase-level verification — THE CLEAREST GAP 74 CONSECUTIVE PER-TASK PASSES MISSED.",
     "Root cause of the miss: per-task verification scope is bounded by files_affected, so a defect visible only in the cross-run aggregate of gold_quality_history had no owner until phase level.",
-    "Advisory, not blocking — the DQ gate behaved correctly. This is about undocumented persistent failure, not a broken gate."
-  ]
+    "Advisory, not blocking — the DQ gate behaved correctly. This is about undocumented persistent failure, not a broken gate.",
+    "IMPLEMENTED 2026-08-06 (inline, orchestrator). BOTH FAILURES DIAGNOSED BY DIRECT MEASUREMENT, not inference — read from the Delta transaction log + data files over the OneLake DFS API (silver_procurement v93: checkpoint 090 + commits 091-093). Both scores reproduce ARITHMETICALLY from the measured data, which is the evidence that the reading is exact rather than plausible.\n\n(1) business_rule_validation = 81.82 -> unit domain is EXACTLY {kg:108, pcs:24}, 132 rows, NO NULLs. (1 - 24/132)*100 = 81.8181 = 81.82 EXACT. The 24 are two materials x 12 months: 'Tires (Rubber compound)' and 'Electronics (controllers, sensors)'. NOTE: the notebook's own comment recorded a local-fixture violation set of ['lb', NULL] — the LIVE domain is 'pcs' and contains no NULLs, so that comment described fixture data, not production. VERDICT: ACCEPTED, not a defect. 'pcs' is a COUNT; no pieces->kg factor exists (depends on per-item mass), so nothing can be added to UNIT_CONVERSION_FACTORS. silver_to_gold already handles it correctly per task-030 AC2/AC3 (quantity_base NULL, spend_eur still real on the per_row_unit basis) — an unrecognized unit withholds MASS, not SPEND. Reporting consequence now documented: spend covers 132 rows, mass covers 108.\n\n(2) data_type_consistency = 75.00 -> THE ASSUMED CAUSE WAS WRONG, which is why the task forbade assuming it. Measured: quantity is `short` (NOT decimal) and unitpriceeur is `double` (NOT decimal); the other 6 of 8 conform => 6/8 = 75.00 EXACT. Both columns EXIST, so the 'column missing' branch is ruled out. ROOT CAUSE: `decimal` appears NOWHERE in the chain — bronze (Quantity short, UnitPriceEUR double, inherited from Azure SQL via the Copy activity) -> silver (bronze_to_silver applies NO cast; it lowercases/underscores column names and drops `region`, nothing more) -> gold (fact_procurement quantity_base/unitprice_eur/spend_eur all double). The check asserts an INTENT no layer implements, and its own docstring compounded this by citing 'DECIMAL bronze quantity' — factually wrong and the thing that seeded the wrong hypothesis. Docstring corrected.\n\nTWO GENUINE SUB-FINDINGS recorded: (a) unitpriceeur carries float32-widening noise — 124 of 132 values exceed 2dp, e.g. 17.309999465942383 for an intended 17.31, min 1.350000023841858, max 91.86000061035156 — and because spend_eur = quantity * unitpriceeur it propagates into gold and into Total Spend EUR; (b) quantity is 16-bit, ceiling 32767 against an observed max of 3293 (~29k headroom, no current overflow but a real latent ceiling).\n\nRESOLUTION = DOCUMENTED ACCEPTANCE (Erik's decision, 2026-08-06, asked with the full measurement in hand). Rationale: fixing the types is a THREE-LAYER SCHEMA MIGRATION on a live scheduled pipeline, not a cast edit. The default write path is the incremental delete-insert ending in mode('append') (bronze_to_silver:560); an append whose schema differs from the table's is REJECTED, and that failure writes a FAILED watermark row and re-raises — halting the pipeline. So it needs overwriteSchema + a one-time p_full_load=true run, and it propagates to fact_procurement's schema and the DirectLake TMDL column types. Against sub-cent noise on 132 synthetic rows that was judged the wrong trade today. The check is LEFT FAILING ON PURPOSE and the expectation was deliberately NOT relabelled to short/double — an expectation edited to match whatever exists is a tautology carrying no information, and rules/agents.md § Root Cause Over Symptom treats that as silencing. A 5-step migration path is recorded for if it is ever wanted.\n\n(3) AC4 — bronze date_range_validation = 0.0 MEASURED TOO, not restated: 132/132 bronze rows are out-of-range and ALL 132 are FUTURE, raw range 2028-02-24 -> 2031-12-24 against the window [2015-01-01, today] => score 0.0, status 'warning' (validate_date_range is informational by construction and never returns 'fail'). Correct by design: the source transposes day and year (raw 2028-02-24 MEANS 2024-02-28; DATE_SWAP_EPOCH=2000), bronze is deliberately byte-faithful to the malformed source because a Copy activity cannot transform, and silver corrects it. 0.0 is the EXPECTED STEADY STATE here; it going non-zero would mean the source stopped transposing.\n\nSTRUCTURAL FINDING (§7.4) — the reason all three went undocumented: log_check_result computes a `details` string naming exactly the offending columns/rules, and `details` is then DROPPED at the persistence boundary. The gold_quality_history tuple carries refresh_timestamp/layer/table_name/metric_name/metric_value/threshold/breach_flag/status/producer and NO details column. The diagnosis exists, is computed every run, is printed to console, and is discarded — which is why this required reading the Delta log instead of querying the quality table. NOT FIXED (outside these ACs); recommended as a cheap follow-up since ensure_quality_history_columns() already establishes the safe idempotent ALTER TABLE ADD COLUMNS pattern (task-040 used it twice).\n\nDELIVERABLES: docs/data_quality_framework.md +115/-7 — new § 7 'Persistent Advisory Failures (Measured and Accepted)' with a disposition table, measurement provenance, §7.1/7.2/7.3 per check, the 5-step migration path, and §7.4. Confirmed none of the three is in BLOCKING_CHECKS, so the gate correctly never raised. fabric/data_quality_checks.Notebook +56/-17 — corrected the false DECIMAL docstring; added a do-not-relabel block at type_consistency_checks; recorded the now-MEASURED unit domain at Check 7 (the notebook itself named 'the observed unit domain is known' as the precondition for promoting the check to blocking — that precondition is now met and the measurement is written there).\n\nIN-PASSING CORRECTIONS, disclosed not silent: (a) the doc footer said 'Design complete and ready for implementation / Begin implementation when Fabric access available' — directly incoherent with the live measurements § 7 adds; rewritten to implemented-and-running. (b) The Summary said '9 Core Quality Checks / Bronze (4) / Silver (3) / Gold (2)' but the notebook header (the authority) says 5/5/4 = 14; corrected WITH a note recording the old counts, and it mattered because Bronze(4) omitted date_range_validation and so undermined §7.1's findability. (c) Bundled the 8 stale artifact-name mentions in THIS notebook (7x silver-to-gold2, 1x bronze-to-silver) per the standing recommendation to bundle the comment sweep with the next real change to a file rather than republish for comments alone — zero extra republish cost. CORRECTION TO THE HANDOFF ESTIMATE: the repo-wide stale count is 40 occurrences across the notebooks, not ~20.\n\nVERIFICATION STATE: 235/235 tests pass — identical to the pre-change baseline, and that includes test_data_quality.py which loads the notebook's own functions via load_notebook_functions, so the src/-vs-notebook parity contract survived the edits. Notebook re-parsed clean with ast.parse (2088 lines). Stale-name recheck returns 0 for this file with a positive control (silver_to_gold present 9x).\n\nAC5 IS THE ONE RESIDUAL, stated honestly: no LOGIC changed (documentation + comments only), so a run after the change produces byte-identical DQ results — the intended outcome is 'they fail with documented acceptance', and the failing half is already observed on TWO runs (2026-08-05 20:37 and the 2026-08-06 04:00Z scheduled run) while the documented half now exists. What remains is that the DEPLOYED notebook still carries the old wrong docstring, so repo and workspace have drifted by comments. A fabric-cicd publish would close that, and the daily 06:00 schedule would then exercise it for free on the next run. NOT DEPLOYED — that is an outward-facing action for Erik to trigger.",
+    "VERIFIED PASS 2026-08-06 (verify-agent, attempt 1, separate context). The verifier did NOT take the claims on trust — it re-read the OneLake DFS API itself and reproduced all five core findings exactly, cross-checked them against the persisted 04:18:10Z scheduled run (values, statuses AND breach_flags all match the doc's disposition table), and added a technique I had not used: it parsed HEAD's notebook and the working tree, STRIPPED DOCSTRINGS, and compared ast.dump — byte-identical at 154128 chars. That PROVES the change cannot move any DQ result, which is exactly the premise AC5's disclosure rests on, and it is better evidence than the assertion I gave. It also confirmed the check was not silenced the hard way (expectations still read \"decimal\" verbatim) and gave BLOCKING_CHECKS absence by closed-set enumeration rather than a probe.\n\n6 minor issues, none blocking. FOUR FIXED IMMEDIATELY because three were factual errors in what I had just written:\n  (1) FIXED — notebook header line 21 still said '12 check functions' while lines 25-27 of the SAME header enumerate 14, and my doc correction had just cited 'the notebook header, which is the authority' for 14. I created that self-contradiction by pointing at it. Header corrected to 14 with the reason (never updated for the task-026 gold additions) and the three independent ground-truth checks recorded. Re-verified: header says 14, and there are exactly 14 '# CHECK N:' headers.\n  (2) FIXED — § 7.4 listed the persistence tuple as carrying 'table_name', but the live gold_quality_history column is `entity` (table_name is only the notebook's local variable). A reader building a query from my list would have referenced a non-existent column. Corrected, with an explicit callout of the variable-vs-column trap.\n  (3) FIXED — my 'repo-wide stale count is 40 occurrences' was imprecise and the verifier could not reproduce it (it measured 33 occurrences over 32 lines). Both are right at different moments in different units: 40 was matching LINES measured BEFORE this task fixed 8 of them; 32 lines remain after (re-confirmed: 32). Restating precisely — 40 matching lines before, 32 lines / 33 occurrences across 5 notebooks remaining, so a future sweep should be sized against 32/33, not 40.\n  (4) FIXED — my Check 7 comment framed the unit domain as newly established, but silver_to_gold has carried {kg 108, pcs 24} since task-030 (ee880ef, 2026-07-23). Reworded to credit task-030 and to say what was ACTUALLY missing: not the domain but the LINK from that domain to this check's 81.82 score, which is why the score read as unexplained.\n  (5) FIXED (not merely filed) — no cross-reference from docs/data_quality_architecture.md to the new § 7, which mattered because that file is where a reader querying gold_quality_history actually lands, so AC4's findability requirement was weaker than it looked. Added a pointer immediately after the gold_quality_history DDL naming all three persistent non-pass rows with their exact values, stating that none is in BLOCKING_CHECKS, and noting that there is no `details` column so a row never tells you why.\n  (6) NOT FIXED, correctly out of scope — spec § Data Quality & Validation says 12 checks (lines 1051, 1093) where the notebook implements 14, omitting lookup_name_uniqueness and grain_uniqueness, both of which ARE in BLOCKING_CHECKS and therefore pipeline-halting. Spec body text -> DEC-016 -> /iterate only. Filed as FR-060 and belongs with task-057's spec reconciliation pass.\n\nAC5 disposition: closed on the verifier's explicit independent judgment plus the AST-invariance proof, with the residual recorded in task_verification.residual rather than hidden. The one genuinely open action is a fabric-cicd publish so the deployed notebook's COMMENTS match the repo — outward-facing, Erik's to trigger; user_review_pending=true and the verifier's test_protocol carries the exact steps."
+  ],
+  "user_review_pending": true,
+  "interaction_hint": "cli_direct",
+  "task_verification": {
+    "result": "pass",
+    "verified_by": "verify-agent (separate context, dispatched by /work)",
+    "timestamp": "2026-08-06T12:09:55Z",
+    "attempt_number": 1,
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "partial",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "evidence": [
+      {
+        "type": "live_measurement",
+        "result": "pass",
+        "detail": "Verifier independently re-read the OneLake DFS API (silver_procurement checkpoint 090 + commits 091-093 at v93; bronze v91; fact_procurement v142; gold_quality_history v135) and reproduced EVERY figure: unit domain {kg:108, pcs:24} over 132 rows with zero NULLs, violators exactly Tires x12 + Electronics x12, (1-24/132)*100 = 81.818182 exact; silver schema 6 conforming + quantity=short + unitpriceeur=double => 6/8 = 75.00 exact; bronze 132/132 future, raw 2028-02-24..2031-12-24 => 0.0."
+      },
+      {
+        "type": "persisted_history_crosscheck",
+        "result": "pass",
+        "detail": "The 2026-08-06T04:18:10Z scheduled run's gold_quality_history rows match the new doc's disposition table on all three checks including statuses AND breach_flags: business_rule_validation 81.818182/fail/false, data_type_consistency 75.0/fail/false, date_range_validation 0.0/warning/true."
+      },
+      {
+        "type": "ast_invariance_proof",
+        "result": "pass",
+        "detail": "Verifier parsed HEAD's notebook vs the working tree, stripped docstrings, compared ast.dump -> BYTE-IDENTICAL (154128 chars each); differs only with docstrings included. This PROVES the change cannot move any DQ result, which is the load-bearing premise of the AC5 disclosure."
+      },
+      {
+        "type": "not_silenced_check",
+        "result": "pass",
+        "detail": "type_consistency_checks still reads \"quantity\": \"decimal\" and \"unitpriceeur\": \"decimal\" verbatim; silver_procurement_rules unchanged; check still returns status='fail'. No try/except swallow, no skipped test, no threshold fudge, no removal from the check set. Satisfies rules/agents.md § Root Cause Over Symptom."
+      },
+      {
+        "type": "blocking_set_enumeration",
+        "result": "pass",
+        "detail": "BLOCKING_CHECKS fully enumerated as a closed literal set of 13 entries; none of the three checks is a member. Observed by direct enumeration, not by a probe, so the absence is observed rather than inferred."
+      },
+      {
+        "type": "no_cast_positive_control",
+        "result": "pass",
+        "detail": "Claim 'bronze_to_silver applies no cast to procurement numerics' carried a POSITIVE CONTROL: the same probe DID find 4 casts in that file (code->Integer L226, indicator->Double L245, Year->Integer L659, Value->Double L660), none on procurement numerics. Repo-wide `decimal` in fabric/ hits only data_quality_checks, positive control `double` hits 49x."
+      },
+      {
+        "type": "test_suite",
+        "result": "pass",
+        "detail": "235/235 pass, unchanged from baseline, including test_data_quality.py which loads the notebook's own functions via load_notebook_functions -> the src/-vs-notebook parity contract survives. Re-run 235/235 after the post-verification fixes too."
+      }
+    ],
+    "residual": "AC5 is literally unmet: the doc was written 2026-08-06T11:50:03Z and the most recent pipeline run is 04:18:10Z, so no run has occurred after the change. The verifier judged this MUST NOT block closure and said so plainly: Erik's chosen resolution (documented acceptance) makes AC5's DQ-results half an invariant, and the invariance is proven at the AST level, so requiring a fresh run to re-observe a value the change cannot touch is verification theatre. The failing half is measured on the 04:18:10Z run at the exact documented values; the documenting half now exists. What genuinely remains is a fabric-cicd publish so the DEPLOYED notebook's comments match the repo — outward-facing, Erik's to trigger, and the daily 06:00 schedule exercises it for free afterward.",
+    "minor_issues_count": 6,
+    "minor_issues_resolved": 4
+  },
+  "test_protocol": {
+    "summary": "Close the AC5 residual: publish the comment-only notebook change so the deployed notebook matches the repo, then confirm the next scheduled run still records the three documented values.",
+    "estimated_time": "5 minutes plus one scheduled-run wait",
+    "mode": "guided_cli",
+    "automated_results": "Everything verifiable without a deploy passed: all three scores re-derived exactly from the live Delta log and data files; the 2026-08-06T04:18:10Z persisted run matches the documented values, statuses and breach_flags exactly; the notebook's executable AST is byte-identical to HEAD once docstrings are stripped, proving the change cannot move any DQ result; 235/235 tests pass including the notebook/src parity contract. Remaining: the fabric-cicd publish and one post-publish scheduled run.",
+    "steps": [
+      {
+        "n": 1,
+        "type": "command",
+        "ac": "5",
+        "instruction": "Publish to Fabric via fabric-cicd. Comment/docstring-only change to data_quality_checks; no logic differs (proven AST-identical).",
+        "command": "gh workflow run deploy-fabric.yml",
+        "expected": "Publish succeeds; data_quality_checks updated IN PLACE by displayName, no duplicate item created."
+      },
+      {
+        "n": 2,
+        "type": "command",
+        "ac": "5",
+        "instruction": "Let the daily 06:00 Europe/Stockholm schedule fire (or trigger manually), then query the newest run for the three checks.",
+        "command": "SELECT metric_name, entity, metric_value, status, breach_flag FROM gold_quality_history WHERE refresh_timestamp = (SELECT MAX(refresh_timestamp) FROM gold_quality_history WHERE producer = 'data_quality_checks') AND metric_name IN ('dq_business_rule_validation','dq_data_type_consistency','dq_date_range_validation')",
+        "expected": "silver_procurement dq_business_rule_validation = 81.818182 (fail, breach false); silver_procurement dq_data_type_consistency = 75.0 (fail, breach false); bronze_procurement_transactional dq_date_range_validation = 0.0 (warning, breach true) — UNCHANGED, which IS the documented intended outcome."
+      },
+      {
+        "n": 3,
+        "type": "command",
+        "ac": "5",
+        "instruction": "Confirm the gate did not raise on that run.",
+        "command": "SELECT metric_name, metric_value, status FROM gold_quality_history WHERE entity = 'gate' AND refresh_timestamp = (SELECT MAX(refresh_timestamp) FROM gold_quality_history WHERE entity = 'gate')",
+        "expected": "dq_gate_raised = 0.0 and dq_gate_blocking_failures = 0.0 — the three advisory failures must not affect the gate."
+      }
+    ]
+  }
 }

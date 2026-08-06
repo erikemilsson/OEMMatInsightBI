@@ -292,7 +292,7 @@ EU CRM HTTP ───────────> bronze_global_supply_shares      
 - `/fabric/bronze_ingest_epi.Notebook/` - EPI ingestion (live)
 - `/fabric/bronze_ingest_wgi.Notebook/` - WGI ingestion (live)
 - `/fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/` - Orchestration + the two supply-share copy activities
-- `/.claude/support/documents/schemas/bronze_tables.md` - Bronze table schemas
+- `/docs/schemas/bronze_tables.md` - Bronze table schemas
 - `/project_definition.md` - Lines 126-319 (Data Sources section)
 
 **Retired** (artifacts still on disk, no longer in the pipeline):

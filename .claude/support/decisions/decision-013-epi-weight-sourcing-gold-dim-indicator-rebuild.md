@@ -102,7 +102,7 @@ Weighted EPI Score rendered BLANK in the deployed semantic model (task-055 AC4 s
 - `fabric/bronze_ingest_epi.Notebook/notebook-content.py` — weights download
 - `fabric/silver-to-gold2.Notebook/notebook-content.py` — silver variables build, fallback retirement, parent_indicator self-join
 - `fabric/OEMInsightBI_v2.SemanticModel/definition/tables/fact_epi_score.tmdl` — measure harden
-- `.claude/support/documents/external_data_automation.md`, `dax_measure_library.md` — doc updates
+- `docs/epi_wgi_ingestion.md`, `dax_measure_library.md` — doc updates
 - Spec drift: `spec_v1.md § Data Transformations → gold_dim_indicator` (L558-574) is now stale — Source says `silver_epi2024variables2024-12-11` and `parent_indicator (currently NULL)`. Tracked as FR-051; reconcile via `/iterate` (DEC-016).
 - Related tasks: task-056, task-055
 

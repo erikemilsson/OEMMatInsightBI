@@ -16,7 +16,7 @@ results to these functions over a fixture. Divergence fails CI.
 
 **If you change a function here, change the notebook(s) to match (or vice versa).**
 
-DESIGN NOTES — see `.claude/support/documents/incremental_load_strategy.md § 4`
+DESIGN NOTES — see `docs/incremental_load_strategy.md § 4`
 for the full contract. Summary:
 
   * One watermark mechanism per tracked source. The procurement pipeline uses a

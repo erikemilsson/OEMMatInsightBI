@@ -18,8 +18,13 @@
 # MARKDOWN ********************
 
 # # Data Quality Checks (Task 007 + Task 020)
-# # **Purpose:** Comprehensive data quality framework with 12 check functions across
+# # **Purpose:** Comprehensive data quality framework with 14 check functions across
 # bronze, silver, and gold layers using ISO 25012 quality dimensions.
+# # (Count corrected 12 -> 14 on 2026-08-06, task-059: it had not been updated for the
+# # task-026 gold additions — lookup_name_uniqueness and duplicate-grain — even though
+# # the per-layer list immediately below already enumerated all 14. Ground truth is
+# # 14 three independent ways: 14 `# CHECK N:` headers, 14 distinct check_name literals
+# # reaching log_check_result, and 14 CHECK_TO_DIMENSION keys.)
 # # **Quality Dimensions:** Completeness, Accuracy, Consistency, Timeliness, Validity, Uniqueness
 # # **Check Functions:**
 # - Bronze (5): Row count validation, Schema validation, Required field completeness, Duplicate detection, Date range validation
@@ -369,7 +374,7 @@ schema_checks = {
     },
     # task-026: asserted against SILVER, not bronze. bronze_epi2024results is the raw
     # Yale file (149 cols) whose score columns are "EPI.old"/"EPI.new" — a bare "EPI"
-    # never exists there. bronze-to-silver:79 drops the ".old" columns and strips the
+    # never exists there. bronze_to_silver:79 drops the ".old" columns and strips the
     # ".new" suffix, so "EPI" comes into existence in silver_epi2024results
     # (code, iso, country, EPI). Asserting the raw name here would also hardcode a
     # Yale vintage: .old/.new exist because the 2024 methodology revision introduced
@@ -942,7 +947,7 @@ except Exception as e:
 # column, only the already-converted quantity_base. Silver is the last layer where
 # the source vocabulary still exists.
 #
-# Why it matters: silver-to-gold2 converts to kg with a four-entry map
+# Why it matters: silver_to_gold converts to kg with a four-entry map
 # (kg/g/mg/t = calculations.md). task-030 changed the fallback for any OTHER unit
 # from "pass the raw magnitude through as if it were kg" (silent corruption) to a
 # NULL quantity_base. That makes the defect honest but not visible — this check is
@@ -953,17 +958,38 @@ except Exception as e:
 # DEC-003 against data that currently passes; a new blocking check would halt the
 # pipeline on the first exotic unit. Promoting it is a deliberate decision to take
 # once task-030 AC3 confirms the unitprice basis and the observed unit domain is
-# known (silver-to-gold2 now prints that domain every run and persists the
+# known (silver_to_gold now prints that domain every run and persists the
 # unrecognized slice to gold_unmapped_unit_audit).
 #
-# The domain below MIRRORS UNIT_CONVERSION_FACTORS in silver-to-gold2.Notebook.
+# THE UNIT DOMAIN IS KNOWN, so that precondition is met — and credit where due:
+# silver_to_gold has recorded {kg (108 rows), pcs (24 rows)} since task-030 (commit
+# ee880ef, 2026-07-23). task-059 re-measured it independently from the live Delta log
+# on 2026-08-06 and reproduced it exactly — 132 rows, {kg: 108, pcs: 24}, NO NULLs,
+# the 24 being two materials x 12 months ("Tires (Rubber compound)" and "Electronics
+# (controllers, sensors)").
+#
+# WHAT WAS ACTUALLY MISSING was not the domain but the LINK: (1 - 24/132) * 100 = 81.82
+# is precisely this check's score, so it has been failing advisorily on EVERY run for
+# exactly that reason — and nothing recorded the connection, so the score read as an
+# unexplained failure to anyone looking at gold_quality_history. That link is now
+# written down.
+#
+# THAT IS ACCEPTED, NOT A DEFECT: `pcs` is a count, and no pieces->kg factor exists
+# (it depends on each part's per-item mass), so nothing can be added to
+# UNIT_CONVERSION_FACTORS to resolve it. quantity_base is correctly NULL for those 24
+# rows while spend_eur is still real (per_row_unit basis) — an unrecognized unit
+# withholds MASS, not SPEND. Keep this check failing: it is the mechanism that makes
+# those NULLs visible, one layer before the NULLs appear. Full measured rationale and
+# the reporting consequences: docs/data_quality_framework.md § 7.2.
+#
+# The domain below MIRRORS UNIT_CONVERSION_FACTORS in silver_to_gold.Notebook.
 # Fabric notebooks cannot import from each other — change both together.
 #
 # The "unit IS NOT NULL AND" prefix is load-bearing, not defensive noise.
 # validate_business_rules counts violations as NOT (condition). For a NULL unit,
 # `lower(trim(unit)) IN (...)` evaluates to NULL, `NOT NULL` is NULL, and the filter
 # drops the row — so a NULL unit would slip through the check entirely while
-# silver-to-gold2 correctly treats it as unrecognized (a map lookup on a NULL key
+# silver_to_gold correctly treats it as unrecognized (a map lookup on a NULL key
 # returns NULL). Verified on a local SparkSession: without the prefix the violation
 # set is ['lb']; with it, ['lb', NULL].
 silver_procurement_rules = [
@@ -1110,11 +1136,18 @@ def validate_data_type_consistency(table_name, expected_types):
     bronze->silver casts.
 
     Distinct from the bronze schema_validation check: that one runs on raw bronze
-    tables (pre-cast), whereas this confirms the transformation layer produced the
-    intended Spark types (e.g. DECIMAL bronze quantity surfaced as the expected
-    silver numeric type). Matching is case-insensitive on column name and uses a
-    substring match on the simple Spark type string so it tolerates the differing
-    str(dataType) representations across PySpark versions.
+    tables, whereas this asserts the type contract the SILVER layer is supposed to
+    hold. Matching is case-insensitive on column name and uses a substring match on
+    the simple Spark type string so it tolerates the differing str(dataType)
+    representations across PySpark versions.
+
+    NOTE (corrected 2026-08-06, task-059): an earlier version of this docstring cited
+    "DECIMAL bronze quantity surfaced as the expected silver numeric type" as the
+    example. That was factually wrong and sent a later diagnosis down the wrong path —
+    bronze Quantity is `short` and never was DECIMAL. bronze_to_silver applies NO cast
+    to these columns (it renames and drops `region` only), so silver inherits Azure
+    SQL's types verbatim. This check asserts an INTENT, and on silver_procurement that
+    intent is currently unmet by design — see docs/data_quality_framework.md § 7.3.
 
     Args:
         table_name: Fully qualified silver table name
@@ -1159,10 +1192,28 @@ def validate_data_type_consistency(table_name, expected_types):
 
 print("\n--- Silver Check 9: Data Type Consistency ---")
 
-# Expected silver types after bronze->silver casts.
-# silver_procurement = bronze procurement joined to supplier_ref, columns
-# lowercased/underscored. Numeric source columns (DECIMAL/DOUBLE) must remain
-# numeric; descriptive columns must remain strings; date must remain a date.
+# Expected silver types. silver_procurement = bronze procurement joined to
+# supplier_ref, columns lowercased/underscored. Descriptive columns must remain
+# strings; date must remain a date; the numeric columns are the declared INTENT.
+#
+# THIS CHECK FAILS AT 75.0 ON EVERY RUN, AND THAT IS A RECORDED DECISION —
+# NOT AN UNNOTICED DEFECT. Measured 2026-08-06 (task-059) from the Delta log:
+#   quantity     -> short   (expected decimal)  MISMATCH
+#   unitpriceeur -> double  (expected decimal)  MISMATCH
+#   the other 6 columns conform  =>  6/8 = 75.0
+# Root cause: bronze_to_silver applies NO cast to these two columns, so silver
+# inherits Azure SQL's types (Quantity SMALLINT -> short, UnitPriceEUR REAL ->
+# double). `decimal` appears nowhere in bronze, silver OR gold — the expectation
+# describes an intent no layer implements.
+#
+# DO NOT "fix" this by relabelling the expectations to short/double. An expectation
+# edited to match whatever exists is a tautology that carries no information, and
+# rules/agents.md § Root Cause Over Symptom treats it as silencing. The divergence is
+# accepted and documented WITH its measured evidence, the two genuine sub-findings
+# (float32 noise in a money column; a 16-bit ceiling on quantity) and a five-step
+# migration path in docs/data_quality_framework.md § 7.3. Read that before changing
+# this dict — in particular, casting here breaks the incremental mode("append") write
+# unless overwriteSchema + a p_full_load=true run land in the same change.
 type_consistency_checks = {
     "oem_lh.silver_procurement": {
         "date": "date",
@@ -1368,7 +1419,7 @@ print("\n--- Gold Check 11: Aggregate Reconciliation ---")
 #
 # SEVERITY = ADVISORY (intentionally NOT in the blocking set). Gold derives
 # spend_eur = quantity_base * unitprice_eur where quantity_base = quantity *
-# unit_factor (kg-normalization; silver-to-gold2). The silver-side raw
+# unit_factor (kg-normalization; silver_to_gold). The silver-side raw
 # SUM(quantity * unitpriceeur) therefore reconciles EXACTLY only when all rows are
 # already in the base unit (kg) — true for the sample dataset, but tying a
 # pipeline-halting raise to that assumption is unsafe. The fan-out drift this check
@@ -1531,7 +1582,7 @@ for table, metric, date_col, threshold, filt in trend_checks:
 # CHECK 13: LOOKUP-NAME UNIQUENESS (gold lookup dimensions) — task-026 (5a)
 # =============================================================================
 # A duplicate lookup_name in a lookup dim fans out EVERY fact that joins on it
-# (root cause of the task-023 spend inflation). silver-to-gold2 already hard-guards
+# (root cause of the task-023 spend inflation). silver_to_gold already hard-guards
 # this at build time; this is the observability layer that records it to history
 # and gates the pipeline (BLOCKING).
 print("\n--- Gold Check 13: Lookup-Name Uniqueness ---")
@@ -1574,7 +1625,7 @@ grain_checks = [
     # measurements, not partitions of one population — so the same (material, stage, country,
     # year) legitimately carries one row per mix. Without supply_mix in this key list every
     # EU row reads as a duplicate grain and fails the pipeline at 0% tolerance. Must stay in
-    # step with the _dup_grain guard in silver-to-gold2's fact_supply_share build.
+    # step with the _dup_grain guard in silver_to_gold's fact_supply_share build.
     ("oem_lh.fact_supply_share",
      ["material_key", "stage_key", "country_key", "year", "supply_mix"]),
     ("oem_lh.fact_epi_score", ["country_key", "indicator_key", "year"]),

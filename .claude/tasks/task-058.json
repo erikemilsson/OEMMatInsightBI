@@ -2,17 +2,17 @@
   "spec_version": "1",
   "spec_fingerprint": "sha256:3909f3518fe5715e4722eee44e243ee01e7d84c3e9f6fe89e83cc7356159bcb7",
   "created_date": "2026-08-05",
-  "updated_date": "2026-08-05",
-  "completion_date": null,
-  "verification_attempts": 0,
+  "updated_date": "2026-08-06",
+  "completion_date": "2026-08-06",
+  "verification_attempts": 2,
   "absorbed_into": "",
   "subtasks": [],
   "decision_dependencies": [],
   "user_feedback": "",
   "source": "verify-agent (phase-level, 2026-08-05)",
   "id": "task-058",
-  "title": "Repair 14 dangling .claude/support/documents/** references across spec, notebook source, src/ and docs/",
-  "status": "Pending",
+  "title": "Repair dangling .claude/support/documents/** references across spec, notebook source, src/ and docs/ (21 refs: 18 file-specific + 3 directory; the original '14' was miscounted at creation)",
+  "status": "Finished",
   "priority": "P3",
   "difficulty": 3,
   "owner": "claude",
@@ -30,7 +30,8 @@
     "docs/architecture/data_sources.md",
     ".claude/support/decisions/decision-001-sr-gold-model.md",
     ".claude/support/decisions/decision-012-warehouse-index-retire.md",
-    ".claude/support/decisions/decision-013-epi-weight-sourcing-gold-dim-indicator-rebuild.md"
+    ".claude/support/decisions/decision-013-epi-weight-sourcing-gold-dim-indicator-rebuild.md",
+    ".claude/commands/complete-task.md"
   ],
   "description": "`.claude/support/documents/` is now COMPLETELY EMPTY — only four empty subdirectories (architecture, schemas, standards, transformations); every document moved to docs/. Fourteen file-specific references still point into it. Verified by direct enumeration WITH a positive control (the same sweep found docs/architecture/ referenced from 5+ files).\n\nBy file: spec_v1.md -> dax_measure_library.md (3x, lines 785/889/1414) + rls_security_strategy.md (2x, lines 821/1252) [SPEC BODY -> /iterate]; fabric/bronze_to_silver.Notebook/notebook-content.py -> incremental_load_strategy.md + architecture/orchestration.md (~line 470) [DEPLOYED NOTEBOOK SOURCE — a push republishes it]; src/transformations/watermark.py -> incremental_load_strategy.md; fabric/sql/warehouse_indexes.sql -> performance_optimized.md; docs/guides/FAQ.md -> 3 targets; docs/error_handling_strategy.md -> architecture/orchestration.md; docs/architecture/data_sources.md -> schemas/bronze_tables.md; decision-001 -> dax_measure_library.md, decision-012 -> performance_optimized.md, decision-013 -> external_data_automation.md [DECISION RECORDS -> /research or /iterate per DEC-016].\n\nEvery target exists under docs/ with the same basename EXCEPT external_data_automation.md, which has no docs/ counterpart and needs separate resolution. Also decide whether the four empty subdirectories should be removed so a future sweep does not read them as a live mirror.",
   "acceptanceCriteria": [
@@ -42,6 +43,74 @@
   ],
   "notes": [
     "CREATED 2026-08-05 by phase-level verification. Broader instance of open FR-053 (doc-mirror drift).",
-    "Mixed gating: docs/ + src/ + fabric/ are direct-editable; spec and decision records are DEC-016 gated."
-  ]
+    "Mixed gating: docs/ + src/ + fabric/ are direct-editable; spec and decision records are DEC-016 gated.",
+    "[RETRACTED 2026-08-06 — the sentence 'That file has NEVER existed (verified with a positive control)' below is FALSE and is preserved only for the audit trail. The file existed as 389 lines until 2026-08-04 (deleted in e5d9335). See the root-cause note later in this list. Do not quote this note in isolation.]\n\nIMPLEMENTED 2026-08-06. Both halves landed in one pass: the DEC-016-gated half via /iterate (Erik approved, N5), the ungated half directly.\n\nGATED (8 refs): spec_v1.md -> docs/dax_measure_library.md (3x) + docs/rls_security_strategy.md (2x), plus the two DIRECTORY refs at L18/L22 that this task never enumerated but which were equally dangling; decision-001 -> docs/dax_measure_library.md; decision-012 -> docs/performance_optimized.md; decision-013 -> docs/epi_wgi_ingestion.md.\n\nUNGATED (10 refs): docs/error_handling_strategy.md (1), docs/architecture/data_sources.md (1), docs/guides/FAQ.md (4 — one more than the 3 this task predicted), fabric/bronze_to_silver.Notebook/notebook-content.py (2), src/transformations/watermark.py (1), fabric/sql/warehouse_indexes.sql (1). All 6 repoint targets confirmed to exist before repointing.\n\nTHE OPEN UNKNOWN IS RESOLVED. external_data_automation.md has no docs/ counterpart because it was RENAMED, not lost: docs/epi_wgi_ingestion.md's H1 is literally 'External Data Source Automation - OEMMatInsightBI', and decision-013 cites it alongside dax_measure_library.md in a doc-updates list, which fits. Evidence-backed, not guessed.\n\nTHE DELETION AC IS SIMPLER THAN IT LOOKED: `.claude/support/documents/` is GITIGNORED (.gitignore:105), so the four empty subdirectories exist only in the local working copy and are not in the repo at any commit. The 'future sweep reads them as a live mirror' risk is therefore purely local, and deleting them has zero repo effect. RECOMMENDATION (Erik's call, still open): delete the four subdirs, KEEP the parent — the parent is a live documented convention for user-provided reference INPUTS in three template-owned files (.claude/CLAUDE.md:33, support/reference/paths.md:25, rules/archiving.md:34), while the subdirs are pure migration residue.\n\nDELIBERATELY NOT CHANGED, and why: the convention refs in template-owned files (CLAUDE.md, paths.md, archiving.md) describe where reference inputs GO — still valid, and template-owned; CHANGELOG.md:10 and docs/PROJECT_PROGRESS.md:41 are correct HISTORICAL records of the migration itself.\n\nONE 15TH REF FOUND AND FIXED, disclosed rather than silent: .claude/commands/complete-task.md:19 told users the legacy command definition was archived at .claude/support/documents/complete-task-legacy.md. That file has NEVER existed (verified with a positive control). Not in this task's enumerated 14, but a link-check probe would flag it, so AC1 required it. Replaced the false pointer with the truth (git history only, plus the retrieval command).\n\nBUNDLED at zero extra republish cost, per the standing recommendation to fold the comment sweep into the next real change to a file: 8 stale artifact names in bronze_to_silver.Notebook (7x silver-to-gold2, 1x bronze-to-silver). All 8 were PRESENT-TENSE references to the current notebooks by retired names (e.g. \"silver-to-gold2 passes the current run's execution_id\"), not historical records — checked individually before replacing. ast.parse clean (761 lines). Repo-wide notebook stale count now 24 lines (was 32 at the start of this session, 40 before task-059).\n\nVERIFIED: repo-wide sweep returns ZERO file-specific dangling .claude/support/documents refs, with a positive control (docs/incremental_load_strategy.md findable from 5 files). 282 tests pass.",
+    "VERIFICATION FAIL 2026-08-06 (attempt 1) — AND THE VERIFIER WAS RIGHT ABOUT A REAL ERROR OF MINE.\n\nMAJOR: I wrote into `.claude/commands/complete-task.md` — a tracked file — that `.claude/support/documents/complete-task-legacy.md` \"has never existed — verified with a positive control\". THAT IS FALSE. The file existed as 389 lines and was DELETED on 2026-08-04 in commit e5d9335 (\"repo-only curation — root clutter, dead docs\"), whose own commit message names complete-task-legacy.md among the deleted dead docs. So the pointer went stale two days before this task ran; it did not point at nothing all along.\n\nROOT CAUSE OF MY ERROR, which is the part worth keeping: my probe was `find . -name \"complete-task-legacy.md\"` — a WORKING-TREE search, which STRUCTURALLY CANNOT SEE DELETED FILES. My 'positive control' was `find . -name \"complete-task.md\"` returning a hit, which only proves the probe finds files that are PRESENT. That is not a control for a claim about HISTORICAL existence — the control and the claim were about different universes. The correct probe for 'did X ever exist' is `git log --all --diff-filter=D --name-only -- '*X*'`. And the verifier caught that the note was SELF-REFUTING: the retrieval command I recommended (`git log --diff-filter=D`) displays exactly the deletion that disproves the sentence above it.\n\nThis is precisely the failure mode `.claude/rules/agents.md § \"Negative Findings Require a Positive Control\"` exists to prevent, and I committed it in the same breath as citing that rule. The rule's existing text covers whether the probe WORKS; it does not say the control must interrogate the SAME UNIVERSE as the claim (working tree vs history). Emitted as a friction marker.\n\nREMEDIATED: the note now states the file existed as 389 lines until 2026-08-04, names the deletion commit, says the pointer went stale on that date rather than never resolving, and gives a retrieval command that actually works (`git show e5d9335~1:<path>`). The note's other content was correct and was kept.\n\nMINOR (not fixed, deliberately — template-owned): a 16TH dangling ref exists at `.claude/rules/archiving.md:48` -> `.claude/support/documents/README.md`, deleted in the SAME e5d9335 commit. It qualifies under my own stated AC1 standard, and my notes had cited archiving.md line 34 only (a genuine convention row), which left the misleading impression the whole file was convention-only. But the file is TEMPLATE-OWNED at v5.4.0, so a project-side edit is reverted at the next sync — the correct resolution is a template-side fix or a documented project exception, not a local edit. Filed as FR-061 with a positive control (the other three pointers in that same References block all resolve).\n\nMINOR (open, needs Erik): AC5 as worded asks that \"a decision is recorded\" on deleting the four empty subdirectories. What I recorded is a RECOMMENDATION my own notes label \"(Erik's call, still open)\" — so the criterion is literally unmet. The verifier confirmed the underlying finding is correct (gitignored at .gitignore:105, git check-ignore confirms parent and subdir, zero files under all four), so deletion has zero repo effect. Needs one yes/no, not rework.\n\nCOUNT NOTE from the verifier: the title's \"14\" was WRONG AT CREATION — the task's own description enumerates 17 file-specific refs, and the real repo count was 18 file-specific + 3 directory refs = 21. Nothing enumerated was missed; MORE was fixed than claimed. AC1 is unfalsifiable as literally worded.",
+    "VERIFIED PASS 2026-08-06 (attempt 2). The verifier confirmed the remediation the right way — with a history-aware probe and a KNOWN-DELETED positive control, i.e. in the same universe as the claim, which is exactly the discipline whose absence caused attempt 1's failure. All four remediation particulars checked out to the digit (389 lines, 2026-08-04, e5d9335, commit subject), and the recommended retrieval command was executed and returns the real legacy definition.\n\nIt also strengthened AC4 beyond my own reasoning: I argued from the H1 string; the verifier PROVED the rename with an unbroken git --follow --find-renames R100 chain ending at 00628a5, and added the decisive detail that DEC-013 was decided 2026-08-04 BEFORE the 21:15 rename, so it was necessarily written against the pre-rename path.\n\n5 minors. THREE FIXED HERE: (a) inline [RETRACTED] marker prepended to the superseded note so the false sentence cannot be quoted in isolation — original text preserved, since notes[] is an append-only audit log and excising it would orphan the root-cause analysis; (b) files_affected now includes .claude/commands/complete-task.md (the disclosed 15th ref) for future parallel-dispatch accuracy; (c) title corrected — it claimed 14 references while the description enumerated 17 and the real count was 18 file-specific + 3 directory, which made AC1 unfalsifiable as worded.\n\nTWO LEFT OPEN, correctly: FR-061 (16th ref in template-owned rules/archiving.md:48) — the verifier endorsed 'file a marker, do not edit' with a reason I had not fully articulated: the TEMPLATE SHIPS that README and THIS project deleted it, so archiving.md is not stale in the template's universe and editing it would fix the wrong end; plus health-check classifies a locally-modified template file as 'Modified upstream' requiring adjudication on EVERY sync, so a one-line edit becomes a recurring cost. And AC5, which needs one yes/no from Erik.",
+    "AC5 DECIDED AND EXECUTED 2026-08-06 (Erik: 'Delete the 4 empty .claude/support/documents/ subdirs'). Removed architecture/, schemas/, standards/, transformations/ with rmdir — chosen deliberately over rm -r because rmdir fails on a non-empty directory, making the operation safe by construction. Pre-flight confirmed 0 files at any depth and 0 hidden entries. PARENT KEPT: .claude/support/documents/ remains a live documented convention for user-provided reference INPUTS (.claude/CLAUDE.md:33, support/reference/paths.md:25, rules/archiving.md:34) — only the migration-residue subdirs are gone, which is what made a future sweep read the tree as a live doc mirror. git status shows no change, confirming the gitignore analysis. ALL 5 ACs NOW SATISFIED; user_review_pending cleared."
+  ],
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "fail",
+      "timestamp": "2026-08-06T16:43:20Z",
+      "summary": "FAIL on output_quality. Repair work itself verified correct and complete — all enumerated refs repointed, all 10 targets exist (with negative controls), notebook fixed in-repo and ast-clean, 282 tests pass, AC4's resolution PROVEN by git rather than merely plausible. Failed on one thing: the fix for the self-disclosed 15th reference shipped a FALSE factual claim into a tracked file."
+    },
+    {
+      "attempt": 2,
+      "result": "pass",
+      "timestamp": "2026-08-06T16:52:35Z",
+      "summary": "PASS. Remediation verified in the CLAIM's own universe (git history) with a known-deleted positive control. 5 minors, none blocking."
+    }
+  ],
+  "user_review_pending": false,
+  "interaction_hint": "cli_direct",
+  "task_verification": {
+    "result": "pass",
+    "verified_by": "verify-agent (separate context)",
+    "timestamp": "2026-08-06T16:52:35Z",
+    "attempt_number": 2,
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "pass",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "evidence": [
+      {
+        "type": "remediation_same_universe",
+        "result": "pass",
+        "detail": "Verifier re-checked with a HISTORY-aware probe, not a working-tree one: `git log --all --diff-filter=D` returns exactly e5d9335 (2026-08-04); `git show e5d9335~1:<path> | wc -l` = 389 EXACTLY; commit subject matches the note's quoted fragment. POSITIVE CONTROL IN THE SAME UNIVERSE: the same probe surfaced a second known-deleted file (support/documents/README.md), proving it finds deletions rather than returning silent-empty."
+      },
+      {
+        "type": "recommended_command_executes",
+        "result": "pass",
+        "detail": "`git show e5d9335~1:.claude/support/documents/complete-task-legacy.md` returns the real legacy definition (H1 '# Complete Task Command'). The note is no longer self-refuting — the retrieval command now CONFIRMS the sentence above it."
+      },
+      {
+        "type": "ac4_proven_by_git",
+        "result": "pass",
+        "detail": "external_data_automation.md -> docs/epi_wgi_ingestion.md proven by an unbroken git --follow --find-renames R100 chain ending at 00628a5 (2026-08-04 21:15). Both endpoints 678 lines, identical H1. DEC-013 was decided 2026-08-04 BEFORE the rename, so it was written against the pre-rename path. Stronger than the implementer's H1-string argument."
+      },
+      {
+        "type": "sweep_with_positive_control",
+        "result": "pass",
+        "detail": "Independent tracked-file sweep leaves survivors in only two files: complete-task.md (deliberate historical references inside the corrected note) and archiving.md (FR-061). Positive control: docs/incremental_load_strategy.md resolves from 7 locations including all three repointed consumers."
+      },
+      {
+        "type": "bundled_renames_spot_checked",
+        "result": "pass",
+        "detail": "All 8 renames confirmed as live-artifact references by retired names. The one borderline case (L231, narrating a past defect) was judged correctly — past tense attaches to the defect, the referent is the still-live unpivot step."
+      },
+      {
+        "type": "test_suite",
+        "result": "pass",
+        "detail": "282 passed (30.4s); ast.parse clean at 761 lines."
+      }
+    ],
+    "residual": "AC5 RESOLVED 2026-08-06 by Erik: delete the four empty subdirectories, keep the parent. Executed with rmdir (which refuses non-empty directories, so the operation was safe by construction); all four verified empty at any depth including hidden files beforehand. Parent retained because it is a live documented convention for user-provided reference inputs in three template-owned files. Zero git effect, as predicted — the path is gitignored at .gitignore:105."
+  }
 }

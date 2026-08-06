@@ -1096,17 +1096,127 @@ WHERE  entity = 'gate'
 
 ---
 
-**Document Status:** Design complete and ready for implementation
-**Implementation Effort:** 3 days
-**Next Steps:** Begin implementation when Fabric access available
+## 7. Persistent Advisory Failures (Measured and Accepted)
+
+Three checks record a non-`pass` row on **every** pipeline run. None is a broken gate, and none is a defect the pipeline should repair silently — but until 2026-08-06 none was documented either, so a reader meeting `dq_data_type_consistency = 75.0` in `gold_quality_history` had nowhere to look. This section is that place.
+
+None of the three is in `BLOCKING_CHECKS`, so the gate correctly does not raise on them (§ "Score severity vs. the blocking gate" above). They stay in the check set deliberately: each makes a real property of the data visible, and removing one — or relabelling its expectation to force a green score — would hide the property instead of resolving it.
+
+| Check | Table | Score | `status` | `breach_flag` | Disposition |
+|---|---|---|---|---|---|
+| `date_range_validation` | `bronze_procurement_transactional` | `0.0` | `warning` | `true` | **Expected by design** — bronze is byte-faithful to a malformed source |
+| `business_rule_validation` | `silver_procurement` | `81.82` | `fail` | `false` | **Accepted** — a dimensionally impossible conversion |
+| `data_type_consistency` | `silver_procurement` | `75.00` | `fail` | `false` | **Accepted** — divergence recorded; migration path in 7.3 |
+
+**Measurement provenance.** Every figure below was measured on **2026-08-06** directly from the Delta transaction log and data files over the OneLake DFS API (`silver_procurement` at version 93 — checkpoint `…090.checkpoint.parquet` plus commits 091–093), *not* inferred from the check's own score. Each score is then reproduced arithmetically from the measured data. If these numbers ever stop reconciling, the data changed — the reading was not loose.
+
+### 7.1 `date_range_validation = 0.0` on `bronze_procurement_transactional` — expected
+
+**Measured:** 132 of 132 bronze rows (100.00%) fall outside the plausible window `[2015-01-01, today]`, and all 132 are *future* dates. The raw range is `2028-02-24` → `2031-12-24`. Score `= (1 − 100.00/100) × 100 = 0.0`; `status = "warning"` because `validate_date_range` is informational by construction (`status` is `"warning"`, never `"fail"`, once `out_of_range_pct > tolerance_pct`).
+
+**Why it is correct.** The source table `dbo.procurement_transactional` stores every transaction date with its **day and year components transposed** — the calendar year sits in the day position, and the day-of-month sits in the year position as an offset from 2000. Raw `2028-02-24` means `2024-02-28`. Bronze deliberately holds the source's raw, malformed value: the retired `bronze_azureSQLdb2table` Dataflow Gen2 used to fix this at ingestion, but a Copy activity cannot transform, so the correction moved to `bronze_to_silver` (`DATE_SWAP_EPOCH = 2000`, `correct_procurement_date`). Keeping bronze byte-faithful to the source is the better medallion practice and is what makes this warning inevitable.
+
+**So the check is measuring the right thing and reporting it honestly.** A bronze date-range score of `0.0` on this table is the *expected steady state*; it becoming non-zero would mean the source stopped transposing dates, which is the event worth noticing. Silver is where dates are correct — `silver_procurement` spans calendar 2024.
+
+### 7.2 `business_rule_validation = 81.82` on `silver_procurement` — accepted
+
+**Measured:** the `unit` domain is exactly `{kg: 108, pcs: 24}` across 132 rows, with **no NULLs**. The single rule on this table is `Unit In Conversion Domain` (`unit IS NOT NULL AND lower(trim(unit)) IN ('kg','g','mg','t')`, severity `error`), so 24 rows violate it. Score `= (1 − 24/132) × 100 = 81.8181… → 81.82`.
+
+The 24 violating rows are **two materials only**, 12 months each:
+
+| Material | `unit` | rows |
+|---|---|---|
+| Tires (Rubber compound) | `pcs` | 12 |
+| Electronics (controllers, sensors) | `pcs` | 12 |
+
+**Why it is accepted rather than fixed.** `pcs` is a **count**, not a mass. There is no universal pieces→kilogram factor — it depends on the per-item mass of each specific part — so no entry can be added to `UNIT_CONVERSION_FACTORS` to make this convert. The divergence is dimensional, not a data error.
+
+`silver_to_gold` already handles it correctly and deliberately (task-030 AC2/AC3): a unit outside `{kg, g, mg, t}` yields a **NULL `quantity_base`**, while `spend_eur` is still computed on the per-row-unit basis (`quantity × unitpriceeur`), because tyres and electronic control units are genuinely priced per piece. **An unrecognized unit therefore withholds MASS, not SPEND.** The practical consequence, worth stating plainly for anyone reading a report:
+
+- **Spend analysis covers all 132 rows.** `spend_eur` is real for `pcs` rows.
+- **Mass/kg analysis covers 108 rows.** `quantity_base` is NULL for the 24 `pcs` rows, by design.
+- The unrecognized slice is persisted every run to `gold_unmapped_unit_audit`, and `silver_to_gold` prints the observed unit domain, so the boundary is observable rather than inferred.
+
+**This check is the mechanism that makes those NULLs visible**, and it fires one layer earlier than the NULLs themselves. That is why it must keep failing: silencing it would restore the pre-task-030 situation in which a non-mass unit was invisible. It is advisory by design — promoting it to `BLOCKING_CHECKS` would halt the pipeline on the first exotic unit, which is a separate decision (see the in-notebook rationale on Check 7).
+
+### 7.3 `data_type_consistency = 75.00` on `silver_procurement` — accepted
+
+**Measured schema** (Delta types, exactly as `spark.table(...).schema` reports them):
+
+| Column | Expected by the check | **Actual** | Conforms |
+|---|---|---|---|
+| `date` | `date` | `date` | ✅ |
+| `materialname` | `string` | `string` | ✅ |
+| `suppliername` | `string` | `string` | ✅ |
+| `unit` | `string` | `string` | ✅ |
+| `headquarterscountry` | `string` | `string` | ✅ |
+| `productioncountry` | `string` | `string` | ✅ |
+| `quantity` | `decimal` | **`short`** | ❌ |
+| `unitpriceeur` | `decimal` | **`double`** | ❌ |
+
+6 of 8 conform → score `= 6/8 × 100 = 75.00`. Both columns **exist**, so this is a type mismatch, not the `column missing` branch.
+
+**Root cause — the expectation was never true at any layer.** `decimal` appears nowhere in the chain:
+
+| Layer | `quantity` | price / spend |
+|---|---|---|
+| `bronze_procurement_transactional` (from Azure SQL via Copy activity) | `short` | `UnitPriceEUR double` |
+| `silver_procurement` | `short` | `unitpriceeur double` |
+| `fact_procurement` | `quantity_base double` | `unitprice_eur double`, `spend_eur double` |
+
+`bronze_to_silver` applies **no cast** to these columns — it joins the two bronze tables, lowercases column names and replaces spaces with underscores, and drops `region`. Silver therefore inherits Azure SQL's types verbatim. The check's expectation of `decimal` describes an *intent* that no layer implements, and its own docstring compounded this by citing "DECIMAL bronze quantity" — bronze `Quantity` is `short`, and never was DECIMAL. (That docstring is corrected as of 2026-08-06.)
+
+**Two real sub-findings, recorded rather than fixed:**
+
+1. **`unitpriceeur` carries float32-widening noise.** 124 of 132 values have more than two decimal places — e.g. `17.309999465942383` for an intended `17.31`, `1.350000023841858` for `1.35`. The magnitudes are exactly what a REAL/`float32` source column widened to `float64` produces. Because `spend_eur = quantity × unitpriceeur`, that noise propagates into gold and into `Total Spend EUR`. At 132 rows the absolute error is sub-cent, but storing money as a float is a genuine anti-pattern rather than a cosmetic one.
+2. **`quantity` is 16-bit.** `short` caps at 32,767. Observed range is 108 → 3,293, so headroom is ~29,000 — no current overflow, but a single order of 33,000+ units would silently exceed the type.
+
+**Why accepted (decision, 2026-08-06).** Fixing the types is not a cast edit — it is a three-layer schema migration on a live, scheduled, fully-verified pipeline:
+
+- The default write path is the incremental delete-insert ending in `mode("append")`. **An append whose DataFrame schema differs from the table's is rejected**, and that failure writes a `FAILED` watermark row and re-raises — halting the pipeline. So the change requires `.option("overwriteSchema","true")` on the full-load branch *plus* one `p_full_load = true` run to re-establish the schema before incrementals resume.
+- It propagates: decimal inputs make `fact_procurement.spend_eur` decimal, changing the **gold** schema and the DirectLake semantic model's column types (TMDL).
+
+Weighed against sub-cent precision noise on a 132-row synthetic dataset, that migration was judged the wrong trade at this point in the project. **The check is left failing on purpose** — it is the standing, visible record of the divergence, and the expectation was *not* relabelled to `short`/`double`, because an expectation edited to match whatever exists is a tautology that carries no information.
+
+**Migration path, if it is ever wanted** (in order):
+
+1. Decide the intended contract per column — `unitpriceeur → decimal(18,2)` is unambiguous for money; `quantity` is a count, so `integer` is arguably more correct than `decimal`, and the check's expectation should be updated to whatever is *decided* rather than to what is *observed*.
+2. Add the casts in `bronze_to_silver` immediately after the rename/drop step, and `.option("overwriteSchema","true")` to the full-load write.
+3. Run once with `p_full_load = true` (lossless here — bronze is a full copy every run, and silver full-load reads all of bronze).
+4. Verify `fact_procurement`'s resulting types and update the TMDL column types if they shifted.
+5. Confirm `data_type_consistency` reaches 100.0 for the *right* reason, and that `Total Spend EUR` changes only by the recovered precision.
+
+### 7.4 Why the mismatch list is not in `gold_quality_history`
+
+`log_check_result` accepts a `details` string, and both checks above populate it with exactly the diagnostic a reader wants — `data_type_consistency` builds `f"Type mismatches: {mismatches}"` naming each offending column, and `business_rule_validation` builds `f"{n}/{m} rules violated: {names}"`. **`details` is then dropped at the persistence boundary:** the appended tuple maps onto the nine live `gold_quality_history` columns — `refresh_timestamp, layer, entity, metric_name, metric_value, threshold, breach_flag, status, producer` — and there is no `details` column among them.
+
+> Note the column is **`entity`**, not `table_name`. The notebook's local variable is `table_name` and it is written into the `entity` column, so a query built from the notebook's variable names will reference a column that does not exist.
+
+So the explanation of every failure exists, is computed on every run, is printed to the notebook's console output, and is discarded. **That is the structural reason these three checks went undocumented for as long as they did**, and it is why diagnosing them required reading the Delta log directly rather than querying the quality table.
+
+Until that is addressed, the mismatch list for a given run is recoverable only from the `data_quality_checks` notebook's cell output in that pipeline run's snapshot. Adding a nullable `details` column would make future failures self-documenting, and `ensure_quality_history_columns()` already establishes the safe idempotent `ALTER TABLE … ADD COLUMNS` pattern for exactly this kind of additive change (task-040 used it twice).
 
 ---
 
-## Summary: 9 Core Quality Checks
+**Document Status:** Implemented and running in production. The `data_quality_checks`
+notebook executes on every pipeline run — including the daily 06:00 Europe/Stockholm
+schedule — and persists per-check scores to `gold_quality_history`. Sections 1–6 are the
+original design; § 7 records the measured behaviour of the built system.
+**Next Steps:** § 7.4 (`details` is computed but not persisted) is the one open
+improvement identified against the running implementation.
 
-**Bronze (4):** Row count, Schema validation, Required fields, Duplicates
-**Silver (3):** Referential integrity, Business rules, Outlier detection
-**Gold (2):** Aggregate reconciliation, Trend validation
+---
+
+## Summary: 14 Quality Checks
+
+**Bronze (5):** Row count, Schema validation, Required fields, Duplicates, Date range validation
+**Silver (5):** Referential integrity, Business rules, Outlier detection (Z-score), Data type consistency, Completeness (post-join)
+**Gold (4):** Aggregate reconciliation, Trend validation, Lookup-name uniqueness, Duplicate-grain on facts
+
+> The earlier "9 Core Quality Checks / Bronze (4) / Silver (3) / Gold (2)" summary predated
+> the task-020 and task-026 additions and was corrected 2026-08-06. Counts here match the
+> `data_quality_checks` notebook header, which is the authority. Three of these 14 record a
+> non-`pass` row on every run by design — see § 7.
 
 **Quality Dimensions (6):** Completeness, Accuracy, Consistency, Timeliness, Validity, Uniqueness
 

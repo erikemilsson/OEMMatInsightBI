@@ -401,6 +401,10 @@ CREATE TABLE gold_quality_history (
 
 `status` and `producer` were added to the live table with `ALTER TABLE ... ADD COLUMNS` (the table is append-only and already held history). Rows predating that change carry NULL in both and are not backfilled.
 
+**There is no `details` column, and that is load-bearing when reading this table.** `log_check_result` computes a human-readable diagnostic for every check — naming the exact mismatching columns or violated rules — but it is not persisted here, only printed to the notebook's cell output. So a non-`pass` row tells you *that* a check failed and its score, never *why*.
+
+**Three checks record a non-`pass` row on every single run, by design.** If you meet `dq_data_type_consistency = 75.0`, `dq_business_rule_validation = 81.82` (both `silver_procurement`, `status = 'fail'`) or `dq_date_range_validation = 0.0` (`bronze_procurement_transactional`, `status = 'warning'`), they are measured, explained and accepted — not unnoticed defects, and none is in `BLOCKING_CHECKS`, so the gate correctly never raises on them. Full diagnosis with live evidence, the reporting consequences, and a migration path: **`data_quality_framework.md` § 7 "Persistent Advisory Failures (Measured and Accepted)"**.
+
 ### gold_gap_registry
 ```sql
 CREATE TABLE gold_gap_registry (

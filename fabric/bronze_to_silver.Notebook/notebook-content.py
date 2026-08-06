@@ -81,7 +81,7 @@ from datetime import datetime, timedelta, date
 # `get_last_load_date` reads the last SUCCESSful run's max date; `update_load_metadata`
 # appends a SUCCESS or FAILED row. The effective watermark for this run is resolved
 # once (here) and used by both the silver read below and — via the same mechanism —
-# the gold read in silver-to-gold2. See `.claude/support/documents/incremental_load_strategy.md § 4-5`.
+# the gold read in silver_to_gold. See `docs/incremental_load_strategy.md § 4-5`.
 
 # CELL ********************
 
@@ -138,8 +138,8 @@ def get_last_load_date(metadata_df, source_table, exclude_execution_id=None):
     """Return the last SUCCESSful load's last_load_date for source_table, or None.
 
     exclude_execution_id: if non-empty, rows with this execution_id are excluded.
-        silver-to-gold2 passes the current run's execution_id so it reads the
-        PREVIOUS run's watermark (bronze-to-silver has already written its
+        silver_to_gold passes the current run's execution_id so it reads the
+        PREVIOUS run's watermark (bronze_to_silver has already written its
         SUCCESS row by the time gold starts), keeping both layers on the same
         effective watermark for a given run.
     """
@@ -228,7 +228,7 @@ df_multi_casted = df_cleaned.withColumn("code", F.col("code").cast(IntegerType()
 # task-054 (FB-001): keep ALL 30+ EPI sub-indicator columns into silver, not just
 # the overall EPI composite. The previous select("code", "iso", "country", "EPI")
 # dropped every sub-indicator right after clean_and_rename (L211-222) had carefully
-# preserved them, so silver-to-gold2's wide→long unpivot had nothing to unpivot and
+# preserved them, so silver_to_gold's wide→long unpivot had nothing to unpivot and
 # fact_epi_score landed 180 rows of overall-EPI-only against a spec / gold_tables.md
 # / DAX library / live TMDL that ALL specify grain = country × indicator × year.
 #
@@ -291,7 +291,7 @@ new_columns = [c.lower().replace(' ', '_') for c in df.columns] # create a list 
 df_newheaders = df.toDF(*new_columns)
 
 # `share` deliberately stays a raw string ('45%', '<1%') at this layer. The censored-share
-# convention ('<1%' -> 0.5) is applied once, in silver-to-gold2's fact_supply_share build,
+# convention ('<1%' -> 0.5) is applied once, in silver_to_gold's fact_supply_share build,
 # which is the single source of truth for it (task-028). Do not fork it into silver.
 
 display(df_newheaders)
@@ -467,7 +467,7 @@ is_full_load = p_full_load.strip().lower() == "true"
 # was unreachable and bronze always full-loaded. The Copy activities therefore
 # reproduce actual pre-migration runtime behaviour exactly; nothing was lost.
 # See spec_v1.md § Data Architecture (Incremental vs Full Load) and
-# .claude/support/documents/architecture/orchestration.md § p_from_date.
+# docs/architecture/orchestration.md § p_from_date.
 df1_all = correct_procurement_date(
     spark.sql("SELECT * FROM oem_lh.bronze_procurement_transactional")
 )
@@ -701,13 +701,13 @@ if _pair_total != _name_total:
         f"WGI indicator_name -> indicator_code is not 1:1 ({_pair_total} distinct pairs "
         f"for {_name_total} distinct names). silver_wgi's declared grain "
         "(country_iso3, indicator_name, year) is therefore not unique, and "
-        "silver-to-gold2's COUNT(DISTINCT indicator_name) coverage rule would undercount. "
+        "silver_to_gold's COUNT(DISTINCT indicator_name) coverage rule would undercount. "
         "Either the World Bank renamed an indicator mid-series or two codes collided — "
         "reconcile before loading."
     )
 
 # Per-run visibility into what actually reached silver — the analogue of the
-# unit-domain report in silver-to-gold2. Without it, a partial API fetch (an indicator
+# unit-domain report in silver_to_gold. Without it, a partial API fetch (an indicator
 # that 404s, a truncated year range) is invisible until the gold coverage flag
 # quietly drops every country.
 print("--- silver_wgi: governance indicators preserved ---")
@@ -725,7 +725,7 @@ print("--- silver_wgi: governance indicators preserved ---")
     .orderBy("indicator_code")
 ).show(truncate=False)
 
-# The gold coverage rule in silver-to-gold2 requires all SIX indicators per country.
+# The gold coverage rule in silver_to_gold requires all SIX indicators per country.
 # If fewer than six ever reach silver, that rule cannot be satisfied by ANY country
 # and the Data Gaps page would report zero WGI coverage — worth a warning here, at
 # the layer that can explain why, rather than a mystery zero two notebooks later.

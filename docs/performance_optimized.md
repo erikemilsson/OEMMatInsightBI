@@ -13,6 +13,15 @@
 > **including null or negative results** — and call out explicitly any optimization that
 > measurably made things worse. A pipeline that was already fast showing no meaningful
 > improvement is a valid result, not a failed task.
+>
+> **Activity names in this document predate the Phase 5 rename** (added 2026-08-06,
+> task-060). Every activity name here — `silver-to-gold`, `bronze-to-silver data cleaning`,
+> `bronze_EPI`, `bronze_WGI`, `bronzecopy_*` — is the name in use on the retest date
+> (2026-08-03). The **Phase 5 snake_case rename (2026-08-04/05)** subsequently renamed 8 of
+> the 10 pipeline activities, so these names no longer match the live pipeline. The measured
+> rows are point-in-time records and are **deliberately not rewritten** — rewriting them
+> would falsify the measurement. Old → new mapping (single-sourced, not duplicated here):
+> `performance_baseline.md` § *Activity names predate the Phase 5 rename*.
 
 ## Comparability conditions (must match the baseline or the comparison is void)
 
