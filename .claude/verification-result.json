@@ -1,89 +1,102 @@
 {
   "mode": "phase_level",
   "result": "pass",
-  "timestamp": "2026-08-05T21:40:24Z",
+  "timestamp": "2026-08-07T01:53:20Z",
   "spec_version": "spec_v1",
-  "spec_fingerprint": "sha256:3909f3518fe5715e4722eee44e243ee01e7d84c3e9f6fe89e83cc7356159bcb7",
+  "spec_fingerprint": "sha256:a475793a20943544717579fcc63affe2b17a0df274db98e90f10e24cbcf5c738",
+  "summary": "Re-verification against the post-task-057..060 spec (a475793a). The prior 3909f351 pass was NOT treated as evidence — all 13 criteria were re-derived from live Fabric (az CLI token, Fabric REST + Power BI executeQueries) plus a local test run. 13/13 PASS. Deploy fidelity is proven more strongly than in the prior run: applying fabric/parameter.yml's documented substitutions to the repo pipeline-content.json yields a payload byte-identical to the live getDefinition (10 activities, 5 parameters); the 45 repo TMDL measure names are set-equal to the 45 live model measures; and both notebooks changed at HEAD carry HEAD-only text in the live workspace (negative probe for the retired 'silver-to-gold2' name returned 0 with a positive control of 7/10 'silver_to_gold' hits). The spec's changed section is a large body of newly-asserted verifiable facts, and 16 of them were re-measured independently — 22 workspace items (copyjob1 genuinely absent), 39 lakehouse tables split fact_* 3 / gold_* 20 / mapping_* 2, 903 eu_sourcing + 2560 global = 3463 supply-share rows, 45 measures with all 7 named-as-phantom measures confirmed absent, 14 DQ checks triangulated three ways in code and a fourth from live metric names, BLOCKING_CHECKS at 13 entries with the EPI entry now an f-string over EPI_YEAR, 3 persistent advisory non-pass rows reproduced across 4 consecutive runs and all 3 documented at docs/data_quality_framework.md § 7.1-7.3 with none in BLOCKING_CHECKS, 132 procurement records, /azure/ with zero INSERTs against a positive control of 1 CREATE TABLE each, 282 tests with test_data_quality.py at 45 and test_material_mapping.py at 7, and the 06:00 firing (run df0cc54f, 04:00:01.24Z, 22.6 min, Scheduled count 2). Every one held. ONE genuine defect found, and it is in the correction text itself: § Next Steps & Priorities item 1 pins 'spec_fingerprint 3909f351' into spec prose as the live verification record — the orchestrator writing THIS result falsifies that sentence on contact, and restating verification-result.json's contents in spec body text duplicates an authority DEC-022 assigns to the file. That is the FR-052 class task-057 existed to eliminate, reintroduced by task-057. Build correctness is not in question anywhere; the record is again what needs work. Also observational: HEAD deployed 01:36Z has not yet been exercised by a pipeline run (last run 2026-08-06T04:00Z), but a comment-stripped diff proves its notebook changes are 100% comment/docstring with zero executable-line changes, and both notebooks parse.",
   "criteria_passed": 13,
   "criteria_failed": 0,
-  "issues": {
-    "critical": 0,
-    "major": 4,
-    "minor": 6
-  },
-  "tasks_created": [
-    "task-057",
-    "task-058",
-    "task-059",
-    "task-060",
-    "task-061"
-  ],
-  "summary": "All 13 acceptance sub-criteria across Phases 1-4 PASS on LIVE evidence, not code inspection: 235/235 pytest; 9 gold tables populated in the live DirectLake model (fact_procurement 132, fact_epi_score 12196, fact_supply_share 3463 = 2560 global + 903 eu_sourcing, gold_supply_risk 127, 5 dims); all 45 DAX measures evaluate (Total Spend EUR 3,273,776.03; Supply Risk Global 0.5521 / EU 0.6053 / Contrast 1.0964); report2 ships 4 pages / 14 visuals; live pipeline definition byte-identical to repo across all 10 activities, retries and parameters (no deploy drift); schedule 17288b67 enabled Daily 06:00 with its one Scheduled invocation Completed 20:20:00.63->20:41:55.87Z; terminal DQ gate wrote dq_gate_raised=0 / blocking_failures=0 / blocking_evaluated=18 over a 13-entry BLOCKING_CHECKS set, overall score 97.57; deploy-fabric.yml has 12 consecutive green push-to-main publishes. THE BUILD IS SOUND; THE SPEC'S DESCRIPTION OF IT IS NOT. Hunting the FR-052/FR-053 defect classes surfaced four further instances, sharpest being § Data Architecture asserting silver_eusupplyshares is 'planned (task-038), not yet built' and bronze_eu_supply_shares 'has no silver consumer today' — a reader would conclude the EU-sourcing half of DEC-001 Option B was never built, while it is live with 903 rows. Also found: two advisory DQ checks (silver_procurement data_type_consistency 75.0 'fail', business_rule_validation 81.82 'fail') failing on EVERY run with zero documentation — the clearest thing 74 consecutive per-task passes collectively missed, because per-task scope is bounded by files_affected and no single task owned the cross-run view.",
   "criteria": [
     {
       "name": "Phase 1 — Gold tables populated",
       "status": "pass",
-      "notes": "Live DAX: fact_procurement 132, fact_epi_score 12196, fact_supply_share 3463 (2560 global + 903 eu_sourcing), gold_supply_risk 127, gold_dim_country 193, gold_dim_date 337, gold_dim_indicator 73, gold_dim_material 96, gold_dim_stage 2 — all non-empty."
+      "notes": "Live DAX: fact_procurement 132, fact_epi_score 12196, fact_supply_share 3463 (2560 global + 903 eu_sourcing), gold_supply_risk 127, gold_dim_country 193, gold_dim_date 337, gold_dim_indicator 73, gold_dim_material 96, gold_dim_stage 2 — all non-empty; 39 tables enumerated in the live lakehouse."
     },
     {
       "name": "Phase 1 — Semantic model connected",
       "status": "pass",
-      "notes": "14 non-hidden tables via INFO.VIEW.TABLES(); all 45 measures enumerate, 10 headline ones return real values — DirectLake is reading current lakehouse Delta."
+      "notes": "14 non-hidden tables via INFO.VIEW.TABLES(); 45 measures enumerate and 12 headline ones return real values (Total Spend EUR 3,273,776.03, Supply Risk Global 0.5521 / EU 0.6053 / Contrast 1.0964), so DirectLake is reading current Delta."
     },
     {
       "name": "Phase 1 — Power BI report built",
       "status": "pass",
-      "notes": "fabric/report2.Report: 4 pages / 14 visuals; live as item bc96c840."
+      "notes": "fabric/report2.Report holds 4 page directories and 14 visual.json files; live as item bc96c840-f760-4c50-a92c-57882c482926."
     },
     {
       "name": "Phase 2 — Incremental load works for fact_procurement",
       "status": "pass",
-      "notes": "task-006_3 live pair: full load 132 lossless bronze==silver==fact; incremental p_from_date=2024-12-01 re-inserted a 22-row window, total unchanged at 132, no duplicates."
+      "notes": "Mechanism intact and unit-tested (p_from_date + p_full_load live in the 5-parameter set, watermark tests green in the 282-test run); the end-to-end lossless-then-incremental run remains task-006_3's recorded live evidence, as Delta MERGE is not locally reproducible."
     },
     {
       "name": "Phase 2 — Data quality checks run in pipeline",
       "status": "pass",
-      "notes": "Terminal Notebook activity. Latest Scheduled run 20:37:01 wrote dq_gate_raised=0, blocking_failures=0, blocking_evaluated=18 over 13-entry BLOCKING_CHECKS; score 97.57. 3 advisory non-pass rows — see task-059."
+      "notes": "Terminal-adjacent activity; latest Scheduled run wrote refresh_timestamp 2026-08-06T04:18:10 with dq_gate_raised=0, dq_gate_blocking_failures=0, dq_gate_blocking_evaluated=18 over a 13-entry BLOCKING_CHECKS, overall score 97.57; the 3 non-pass rows are advisory and documented at docs/data_quality_framework.md § 7.1-7.3."
     },
     {
       "name": "Phase 2 — External data ingestion scripted",
       "status": "pass",
-      "notes": "bronze_ingest_epi / bronze_ingest_wgi live as bronze_epi / bronze_wgi (retry 2 @ 30s); both succeeded latest run; row-count validation 100.0 pass."
+      "notes": "bronze_epi and bronze_wgi are live TridentNotebook activities (retry 2 @ 30s); both produced dq_row_count_validation=100.0 pass rows for bronze_epi2024results and bronze_wgi in the latest run."
     },
     {
       "name": "Phase 3 — Error handling with Try-Catch in pipeline",
       "status": "pass",
-      "notes": "pipeline_error_handler on ['Succeeded','Failed','Skipped'] retry 0; other 9 activities retry 1-3 @ 30/120/300s exactly per § Orchestration + DEC-004. Zero RefreshDataflow."
+      "notes": "Live getDefinition: pipeline_error_handler depends on data_quality_checks with ['Succeeded','Failed','Skipped'] at retry 0; the other 9 activities carry retry 1-3 at 30/120/300s exactly per § Orchestration and DEC-004; zero RefreshDataflow activities remain."
     },
     {
       "name": "Phase 3 — Pipeline scheduling configured",
       "status": "pass",
-      "notes": "Schedule 17288b67 enabled Daily 06:00 W. Europe, end 2099-01-01. Single Scheduled instance of 58 ran 21.9 min and Completed. First 06:00 firing unobserved until 2026-08-06 — noted, not gating."
+      "notes": "Schedule 17288b67-a36f-4db8-88fe-cfa4ce1dba61 is enabled, Daily 06:00, W. Europe Standard Time, end 2099-01-01; the 06:00 firing is now observed, not inferred — run df0cc54f started 2026-08-06T04:00:01.24Z and Completed in 22.6 min as Scheduled invocation 2 of 59."
     },
     {
       "name": "Phase 3 — Basic performance review done",
       "status": "pass",
-      "notes": "performance_baseline.md (3 runs) + performance_optimized.md (3 runs) both FINAL, matched comparability, honest null/negative headline. Spec § Performance Optimization contradicts this — task-057."
+      "notes": "docs/performance_baseline.md and docs/performance_optimized.md both carry Status: FINAL over 6 measured runs with an honest null headline, and § Performance Optimization now reads 'Benchmarked' — the prior run's task-057 contradiction is closed."
     },
     {
       "name": "Phase 4 — GitHub Actions deploys via fabric-cicd",
       "status": "pass",
-      "notes": "deploy-fabric.yml pins fabric-cicd==1.2.0, ClientSecretCredential, real-publish on push to main. 12 most recent runs all succeeded."
+      "notes": "deploy-fabric.yml pins fabric-cicd==1.2.0 with ClientSecretCredential and real-publish on push to main; the HEAD (2eece5b) deploy succeeded 2026-08-07T01:36:58Z and the last 8 push-to-main deploys are all green."
     },
     {
       "name": "Cross-cutting — Deploy fidelity: repo equals live workspace",
       "status": "pass",
-      "notes": "Repo pipeline-content.json and live getDefinition agree exactly on all 10 activity names, types, retry counts, intervals and 5 parameters. No deploy drift."
+      "notes": "Repo pipeline-content.json with parameter.yml's find_replace + key_value_replace applied is byte-identical to the live getDefinition; 45 repo TMDL measure names are set-equal to the 45 live measures; both HEAD-changed notebooks carry HEAD-only text live with the retired 'silver-to-gold2' name at 0 occurrences (positive control 7 and 10 'silver_to_gold' hits)."
     },
     {
       "name": "Cross-cutting — Test suite green",
       "status": "pass",
-      "notes": "235 passed in 26.79s, matching § Testing Strategy exactly. Includes the notebook<->src/ parity contract (DEC-002 / task-032)."
+      "notes": "282 passed in 28.92s, matching § Testing Strategy's '282 tests as of 2026-08-06' exactly; per-file claims also hold (test_data_quality.py 45, test_material_mapping.py 7) and task-060's guard test_doc_artifact_names.py contributes 55."
     },
     {
       "name": "Cross-cutting — Task ledger integrity",
       "status": "pass",
-      "notes": "77 task files: 74 Finished all carrying task_verification.result=='pass', 3 Absorbed. No Finished-without-pass, no orphan statuses."
+      "notes": "82 task files across .claude/tasks/ and .claude/tasks/archive/: 78 Finished every one carrying task_verification.result=='pass', 3 Absorbed, 1 Pending (task-061, out_of_spec:true and therefore excluded from phase detection by design)."
     }
-  ]
+  ],
+  "issues": {
+    "critical": 0,
+    "major": 1,
+    "minor": 2
+  },
+  "tasks_created": [
+    "task-062",
+    "task-063"
+  ],
+  "fingerprint_acceptance": {
+    "status": "stale_but_sound",
+    "accepted_by": "Erik",
+    "accepted_at": "2026-08-10",
+    "verified_against_fingerprint": "sha256:a475793a20943544717579fcc63affe2b17a0df274db98e90f10e24cbcf5c738",
+    "cause": "task-062 (applied via /iterate 2026-08-10, two passes) edited § Next Steps & Priorities to stop restating verification state in spec prose, then § Data Quality & Validation and § Testing Strategy to date the remaining undisclaimed derived counts.",
+    "why_not_re_verified": [
+      "Edits since the verified state changed narrative and added as-of dates to counts; none altered a requirement of the build.",
+      "The Phase Structure acceptance-criteria table is byte-unchanged, so none of the 13 criteria moved — a re-run would re-derive the same criteria against the same build.",
+      "The § Next Steps edit REMOVED a self-reference to this file rather than altering any requirement.",
+      "Re-running would be one more turn of the invalidation loop task-062 exists to break: record result -> spec changes -> fingerprint moves -> result invalidated -> re-verify -> record result."
+    ],
+    "re_verification_warranted_when": "The spec's acceptance criteria or build requirements change — not merely when the fingerprint moves. Check whether the Phase Structure acceptance-criteria table or any phase's requirements differ from those this result was derived against.",
+    "routing_note": "/work Step 3 item 7 will still flag this as a spec_fingerprint mismatch and route to phase-level re-verification. That routing is mechanical and correct as written; this block is the deliberate, user-approved answer to it. Do not silently re-run — surface this acceptance instead.",
+    "scope_of_divergence": "The spec has moved past the verified fingerprint by edits confined to narrative and measurement-dating. The Phase Structure acceptance-criteria table — the source of the 13 criteria — is byte-unchanged across every one of those edits. Verify that claim with: git diff <commit-of-verified-state> -- .claude/spec_v1.md | grep -E '^[+-]\\| Phase'  (empty output = table intact)."
+  }
 }

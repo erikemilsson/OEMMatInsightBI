@@ -1,0 +1,37 @@
+{
+  "spec_version": "spec_v1",
+  "spec_fingerprint": "sha256:a475793a20943544717579fcc63affe2b17a0df274db98e90f10e24cbcf5c738",
+  "created_date": "2026-08-07",
+  "updated_date": "2026-08-07",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "absorbed_into": null,
+  "subtasks": [],
+  "decision_dependencies": [],
+  "user_feedback": null,
+  "source": "verify-agent (phase-level, 2026-08-07)",
+  "id": "task-063",
+  "title": "Add regression coverage for country alias mappings (mapping_country_aliases_confidence has zero tests)",
+  "status": "Pending",
+  "priority": "medium",
+  "difficulty": 4,
+  "owner": "claude",
+  "phase": "5",
+  "spec_section": "Testing Strategy",
+  "out_of_spec": true,
+  "dependencies": [],
+  "files_affected": [
+    "tests/",
+    "src/transformations/",
+    ".claude/spec_v1.md"
+  ],
+  "description": "RECOMMENDATION — beyond the phase acceptance criteria, requires approval before execution. § Testing Strategy self-declares this gap: 'Regression tests for alias mappings — partial: tests/test_material_mapping.py covers MATERIAL_ALIASES (7 tests). Country aliases have zero coverage — mapping_country_aliases_confidence is built in silver_to_gold but no test exercises it.' Confirmed independently: tests/test_material_mapping.py collects exactly 7 tests, and mapping_country_aliases_confidence IS live (present in the 39-table lakehouse enumeration, 2026-08-07), so an untested transform is producing a table the model depends on for country resolution. Mirror the material-alias test shape against the country alias map: that known-dead country names resolve, that every alias target exists in the canonical country dimension, that the confidence banding is assigned as specified, and that an unmapped country surfaces rather than silently defaulting. Follow the DEC-002 / task-032 reference-implementation contract — load the notebook's own functions via load_notebook_functions and pin parity against the src/ mirror, rather than testing only the src/ copy. Build the local SparkSession with .config('spark.sql.ansi.enabled','false') per the project ANSI gotcha.",
+  "acceptanceCriteria": [
+    "A test module exercises the country alias mapping logic with at least the four cases named above.",
+    "Tests load the notebook's own functions (load_notebook_functions) and assert parity with the src/ mirror, per the DEC-002 contract.",
+    "The full suite passes and § Testing Strategy's 'Country aliases have zero coverage' sentence is updated to match (via /iterate, DEC-016).",
+    "The local SparkSession sets spark.sql.ansi.enabled=false."
+  ],
+  "notes": "APPROVED by Erik 2026-08-07 (out-of-spec gate). Created by phase-level verification 2026-08-07. Rationale: no phase acceptance criterion covers alias-mapping regression coverage, but the untested transform demonstrably produces a live lakehouse table (mapping_country_aliases_confidence, present in the 39-table enumeration). Note the spec-edit half of AC3 routes through /iterate (DEC-016).",
+  "out_of_spec_approved": true
+}

@@ -2,7 +2,7 @@
 version: 1
 status: active
 created: 2025-11-14
-updated: 2026-08-06
+updated: 2026-08-10
 ---
 
 # OEMMatInsightBI - Project Definition for Claude Code
@@ -1111,7 +1111,7 @@ Fabric UI edits are not a sync path — anything changed there is overwritten by
 
 -   Visualization: quality_category field available in facts for filtering
 
--   DQ framework: **14** check functions across bronze/silver/gold in `data_quality_checks.Notebook` (9 from task-007, 3 from task-020, 2 from task-026); results persisted to gold_quality_history. **Three checks record a non-`pass` row on every run by design** — measured, explained and accepted in `docs/data_quality_framework.md § 7`; none is in `BLOCKING_CHECKS`, so the gate correctly never raises on them
+-   DQ framework: **14** check functions across bronze/silver/gold in `data_quality_checks.Notebook` *(as of 2026-08-10; 9 from task-007, 3 from task-020, 2 from task-026)*; results persisted to gold_quality_history. **Three checks record a non-`pass` row on every run by design** — measured, explained and accepted in `docs/data_quality_framework.md § 7`; none is in `BLOCKING_CHECKS`, so the gate correctly never raises on them
 
 -   Observability tables: gold_quality_history, gold_gap_registry, gold_low_confidence_audit (task-018)
 
@@ -1119,7 +1119,7 @@ Fabric UI edits are not a sync path — anything changed there is overwritten by
 
 Quality checks are not purely advisory. `data_quality_checks.Notebook` is the pipeline's terminal activity, and it **halts the pipeline** when any check in a fixed blocking set fails.
 
--   **Trigger:** `status == "fail"` for any check in `BLOCKING_CHECKS` — currently **13 entries**: schema validation on the core bronze tables plus `silver_epi2024results`, required-field completeness and duplicate detection on `bronze_procurement_transactional`, referential integrity at 0% tolerance on all three gold facts, lookup-name uniqueness on both lookup dimensions, and grain uniqueness on `fact_supply_share` / `fact_epi_score`.
+-   **Trigger:** `status == "fail"` for any check in `BLOCKING_CHECKS` *(13 entries as of 2026-08-10)*: schema validation on the core bronze tables plus `silver_epi2024results`, required-field completeness and duplicate detection on `bronze_procurement_transactional`, referential integrity at 0% tolerance on all three gold facts, lookup-name uniqueness on both lookup dimensions, and grain uniqueness on `fact_supply_share` / `fact_epi_score`.
 
 -   **Mechanism:** a single `DataQualityException` raised **after** results are persisted, so a blocked run still leaves a full audit trail.
 
@@ -1306,7 +1306,7 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 
 **Unit Tests:** **282 tests** for transformation logic in `tests/` (as of 2026-08-06; originally 33 from task-008, since extended by task-020/027/032, the Phase 2–4 work, and task-060's claim-scoped documentation guard), including the notebook↔`src/` parity contract (task-032). **Integration Tests:** None yet. **Data Validation Tests:** Quality checks in gold layer + observability tables.
 
-**Testing Approach:**
+**Testing Approach:** *(counts in this section are measured against the suite at the date given on the Unit Tests line above)*
 
 -   [x] Unit tests for transformation functions (stable_key, clean_and_rename, etc.) — task-008
 
@@ -1607,14 +1607,14 @@ See `docs/dax_measure_library.md` for the full measure library. **45 measures li
 
 ### Remaining Work
 
-**All spec tasks are closed** as of 2026-08-05 — 74 Finished with passing per-task verification, 3 Absorbed. The four Fabric-UI-gated tasks previously listed here resolved as: **task-036** and **task-006_3** on 2026-08-04 (full-load + incremental runs, duplicate check clean); **task-012_5** on 2026-08-03 (three warm-cache runs against the task-012_1 baseline, after the `OPTIMIZE` prerequisite); **task-010** on 2026-08-05 (daily 06:00 schedule live and verified firing).
+**All Phase 1–4 build scope is closed.** Phase 5 is the accuracy-of-the-record fix queue that phase-level verification produced; the dashboard is the authority for current task counts and statuses. The four Fabric-UI-gated tasks previously listed here resolved as: **task-036** and **task-006_3** on 2026-08-04 (full-load + incremental runs, duplicate check clean); **task-012_5** on 2026-08-03 (three warm-cache runs against the task-012_1 baseline, after the `OPTIMIZE` prerequisite); **task-010** on 2026-08-05 (daily 06:00 schedule live and verified firing).
 
 Descoped: task-034 (Data Gaps report page — optional surface; the underlying table and measures shipped under task-001). Closed won't-do: task-047 (see § CI/CD Deployment → Known Limitations). Retired: task-012_4's warehouse-index deployment (DEC-012 — `fabric/sql/warehouse_indexes.sql` is a finding document, not deployable DDL).
 
 **Verification and hygiene status (no build scope remains):**
 
-1. **Phase-level verification has run and PASSED — 13/13 criteria** (2026-08-05, the first in the project's history). `.claude/verification-result.json` holds that phase-level result against `spec_fingerprint` 3909f351. It was validated on live evidence: live DAX over 9 gold tables with all 45 measures evaluating, repo-vs-workspace pipeline definition byte-identical, DQ gate rows, 12 consecutive green deploys, and the 235 tests passing **at that date** (282 as of 2026-08-06). It also produced 5 fix tasks (057–061), **every one of them accuracy-of-the-record rather than correctness-of-the-build** — the build was sound and is now provably so; the spec's description of it is what needed work. This section is part of that correction.
-2. **Open friction:** FR-052 (a false status assertion baked into a pinned section fingerprint is invisible to drift detection — the mechanism behind most of the corrections in this pass), FR-053 (`docs/architecture/data_sources.md` doc-mirror drift), FR-060 (this spec understated its own DQ blocking checks — corrected above).
+1. **Phase-level verification has run and PASSED.** `.claude/verification-result.json` is the authority for its result, fingerprint and date (DEC-022, template-tier — `.claude/rules/spec-workflow.md`) — this section deliberately does not restate them, because recording a result in the spec changes the spec fingerprint and thereby invalidates the very result being recorded. The first phase-level run was 2026-08-05, the first in the project's history. It was validated on live evidence (live DAX over the gold tables, repo-vs-workspace pipeline definition byte-identical, DQ gate rows, green deploys, the test suite) and produced fix tasks 057–061, **every one of them accuracy-of-the-record rather than correctness-of-the-build** — the build was sound; the spec's description of it is what needed work. This section is part of that correction.
+2. **Open friction:** tracked in `.claude/support/friction.jsonl`, which is the authority for what is open. The dominant mechanism is FR-052's class — a false status assertion baked into a pinned section fingerprint, invisible to fingerprint-based drift detection because the stale text is *inside* the hash rather than differing from it. That class is why this section points at authorities instead of restating them.
 3. **First 06:00 scheduled firing — CONFIRMED 2026-08-06.** Run `df0cc54f-b3e4-46c9-bdd3-6b19efdf7381`, `invokeType=Scheduled`, started `04:00:01.24Z` = 06:00:01 Europe/Stockholm, Completed in 22.6 min; Scheduled count 1 → 2. This was the schedule's last link resting on mechanism rather than observation, and it now rests on observation. See § Orchestration → Schedule.
 
 ------------------------------------------------------------------------

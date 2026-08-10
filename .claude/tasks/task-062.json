@@ -1,0 +1,123 @@
+{
+  "spec_version": "spec_v1",
+  "spec_fingerprint": "sha256:836adbd4e3a78a89c37191afa0b01d2d44ee919a37decd4906eb7d2e5c2ad441",
+  "created_date": "2026-08-07",
+  "updated_date": "2026-08-10",
+  "completion_date": "2026-08-10",
+  "verification_attempts": 2,
+  "absorbed_into": null,
+  "subtasks": [],
+  "decision_dependencies": [],
+  "user_feedback": null,
+  "source": "verify-agent (phase-level, 2026-08-07)",
+  "id": "task-062",
+  "title": "Stop pinning verification state into spec prose — § Next Steps item 1 self-falsifies on every phase-level write",
+  "status": "Finished",
+  "priority": "high",
+  "difficulty": 3,
+  "owner": "claude",
+  "phase": "5",
+  "spec_section": "Next Steps & Priorities",
+  "out_of_spec": false,
+  "dependencies": [],
+  "files_affected": [
+    ".claude/spec_v1.md"
+  ],
+  "description": "Route through /iterate (DEC-016 — every edit is spec body text). § Next Steps & Priorities item 1 (spec_v1.md ~line 1616) states: '.claude/verification-result.json holds that phase-level result against spec_fingerprint 3909f351' and '13/13 criteria (2026-08-05)'. Two problems. (1) SELF-FALSIFYING: the moment the orchestrator writes the 2026-08-07 re-verification result, verification-result.json holds a475793a, not 3909f351, and the sentence becomes false — a false status assertion baked into a pinned section fingerprint, i.e. exactly the FR-052 class task-057 was created to eliminate, reintroduced by task-057's own correction text. (2) AUTHORITY DUPLICATION: DEC-022 assigns phase-acceptance status authority to verification-result.json's criteria[] and explicitly not to spec body text; restating the file's contents in prose creates a second, always-decaying copy of a field the spec is not the authority for. FIX SHAPE (generalize, do not just refresh the numbers — refreshing them recreates the defect on the next re-verification): replace the pinned fingerprint, criteria count and date with a pointer — e.g. 'Phase-level verification has run and passed; .claude/verification-result.json is the authority for its result, fingerprint and date (DEC-022)' — plus, if a narrative anchor is wanted, the durable non-decaying facts only (that the first phase-level run was 2026-08-05, that it produced fix tasks 057-061, and that all five were accuracy-of-the-record rather than correctness-of-the-build). While in the section, apply the same treatment to any sibling hardcoded derived count that no 'as of <date>' disclaimer protects. Do NOT touch § Testing Strategy's '282 tests as of 2026-08-06' — that one carries its own disclaimer and is currently accurate (re-measured 282 passed, 2026-08-07).",
+  "acceptanceCriteria": [
+    "§ Next Steps & Priorities item 1 no longer names a specific spec_fingerprint value, and no longer restates the criteria count or verification date as spec-owned fact.",
+    "The section points a reader at .claude/verification-result.json as the status authority, citing DEC-022.",
+    "Re-running phase-level verification (which rewrites verification-result.json) would leave the section's remaining claims true — verified by reading the new text against a hypothetical next result.",
+    "No other section of spec_v1.md pins a fingerprint value or an undisclaimed derived count."
+  ],
+  "notes": "[ATTEMPT 2] Attempt 1 FAILED AC4 and the failure was real: the AC4 sweep keyed on a noun list (tasks|tests|measures|checks|tables) that omitted 'entries', so BLOCKING_CHECKS 'currently **13 entries**' (L1122) was silently missed — the same lexical-sweep failure mode task-057 already documented. The attempt-1 note then ASSERTED the sweep was clean, which was itself an instance of the defect this task removes. Both are corrected here.\n\nAttempt 1 changes (retained, all verified passing AC1-AC3): § Next Steps & Priorities item 1 no longer pins spec_fingerprint/criteria-count/date and points at verification-result.json; the '**All spec tasks are closed** ... 74 Finished' opening was false on both halves and became a non-decaying Phase 1-4 statement; item 2's FR-052/FR-053/FR-060 enumeration was already stale and became a pointer to friction.jsonl.\n\nAttempt 2 changes (AC4 + FR-064): L1122 'currently **13 entries**' -> '*(13 entries as of 2026-08-10)*'; L1114 '**14** check functions' gains the same parenthetical date; § Testing Strategy gains one governing disclaimer at 'Testing Approach:' covering L1317/L1323 rather than four near-duplicate parentheticals; the DEC-022 citation is disambiguated as template-tier with an inline path, because every other DEC-NNN in the spec resolves to .claude/support/decisions/decision-0NN and that directory holds only 001-013 (FR-064). L1325 ('two CREATE TABLE scripts, zero INSERTs') deliberately left alone — a structural fact about files on disk, not a drifting measurement; confirmed directly by the phase-level run.\n\nAll fixes follow the spec's own established disclaimer form (L1026, L307, L1307). Spec fingerprint a475793a -> da20c9be -> 836adbd4; spec_v1.index.json regenerated after each. NOT re-swept by regex: the second structural sweep attempt produced 15 candidates of which most were headings/ranges/bounds, so the authoritative AC4 evidence is a section-by-section read, not a pattern match.",
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "fail",
+      "timestamp": "2026-08-10T10:36:37Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "fail",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "major",
+          "description": "AC4 unmet: spec_v1.md L1122 (§ Pipeline Blocking Gate) states BLOCKING_CHECKS is 'currently 13 entries' — an undisclaimed derived count with no governing 'as of <date>' in § Data Quality & Validation (L1042-1155), exactly the self-falsifying class the task exists to eliminate."
+        },
+        {
+          "severity": "minor",
+          "description": "Same class, weaker: L1114 '14 check functions', L1317 'collects 45 tests', L1323 '7 tests', L1325 'two CREATE TABLE scripts, zero INSERTs' carry no own as-of date."
+        },
+        {
+          "severity": "minor",
+          "description": "The completion note claimed 'every remaining derived count carries an as of <date> disclaimer' — false for L1122 and the L1114/L1317/L1323/L1325 group, so AC4 was asserted rather than swept; correct the note alongside the fix."
+        }
+      ],
+      "notes": "AC1/AC2/AC3 pass; AC4 fails on a literal whole-spec sweep (BLOCKING_CHECKS '13 entries', L1122)."
+    },
+    {
+      "attempt": 2,
+      "result": "pass",
+      "timestamp": "2026-08-10T10:47:45Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "minor",
+          "description": "L1325/L1134 '/azure/ holds DDL only — two CREATE TABLE scripts, zero INSERTs' has no as-of date; accepted as a structural fact about an inert input directory (verified currently true), recorded so the carve-out is explicit rather than implicit."
+        },
+        {
+          "severity": "minor",
+          "description": "L1317's '(9 -> 12 -> 14)' is a DQ-check count under a disclaimer scoped to 'the suite', so it is covered by its cross-reference to § Data Quality & Validation rather than by the governing clause itself."
+        },
+        {
+          "severity": "minor",
+          "description": "§ Phase Structure table (L1590-1593) still stops at Phase 4 while L1610 now asserts Phase 5 exists — an incompleteness, outside this task's scope."
+        }
+      ],
+      "notes": "PASS attempt 2. AC1/AC2/AC3 re-verified against the CURRENT spec (not carried over from attempt 1). AC3 was demonstrated live rather than hypothetically: verification-result.json still holds a475793a/2026-08-07/13-13 while the spec is 836adbd4, so the OLD text would already be doubly false and every claim in the NEW text survives. AC4 PASS by an enumerate-and-classify sweep, method stated for audit: 974 numeric tokens extracted with no lexical filter, provably-exempt classes mechanically masked (ISO dates, GUIDs, hex-8, task/FR/DEC/FB ids, versions, years, section refs) leaving 432, each residual read and classified per-site; 18 derived-count sites found, all 18 carrying a governing or inline as-of disclaimer; zero fingerprint pins remain. The governing-disclaimer scope was checked rather than assumed: L1309 sits on the Testing Approach line and scopes over L1317/L1323 by list-membership and section, and L1307 carries exactly one date so the reference resolves unambiguously. The new 'as of 2026-08-10' dates were re-measured rather than trusted: 14 check functions (3 ways), BLOCKING_CHECKS parses to exactly 13 tuples, pytest --collect-only gives 282/45/7 — all match, so no fix introduced a false date. The L1325 carve-out was independently judged sound, with the reasoning recorded."
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-08-10T10:47:45Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "not_applicable",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "L1325/L1134 '/azure/ holds DDL only — two CREATE TABLE scripts, zero INSERTs' has no as-of date; accepted as a structural fact about an inert input directory (verified currently true), recorded so the carve-out is explicit rather than implicit."
+      },
+      {
+        "severity": "minor",
+        "description": "L1317's '(9 -> 12 -> 14)' is a DQ-check count under a disclaimer scoped to 'the suite', so it is covered by its cross-reference to § Data Quality & Validation rather than by the governing clause itself."
+      },
+      {
+        "severity": "minor",
+        "description": "§ Phase Structure table (L1590-1593) still stops at Phase 4 while L1610 now asserts Phase 5 exists — an incompleteness, outside this task's scope."
+      }
+    ],
+    "notes": "PASS attempt 2. AC1/AC2/AC3 re-verified against the CURRENT spec (not carried over from attempt 1). AC3 was demonstrated live rather than hypothetically: verification-result.json still holds a475793a/2026-08-07/13-13 while the spec is 836adbd4, so the OLD text would already be doubly false and every claim in the NEW text survives. AC4 PASS by an enumerate-and-classify sweep, method stated for audit: 974 numeric tokens extracted with no lexical filter, provably-exempt classes mechanically masked (ISO dates, GUIDs, hex-8, task/FR/DEC/FB ids, versions, years, section refs) leaving 432, each residual read and classified per-site; 18 derived-count sites found, all 18 carrying a governing or inline as-of disclaimer; zero fingerprint pins remain. The governing-disclaimer scope was checked rather than assumed: L1309 sits on the Testing Approach line and scopes over L1317/L1323 by list-membership and section, and L1307 carries exactly one date so the reference resolves unambiguously. The new 'as of 2026-08-10' dates were re-measured rather than trusted: 14 check functions (3 ways), BLOCKING_CHECKS parses to exactly 13 tuples, pytest --collect-only gives 282/45/7 — all match, so no fix introduced a false date. The L1325 carve-out was independently judged sound, with the reasoning recorded."
+  },
+  "user_review_pending": false
+}
