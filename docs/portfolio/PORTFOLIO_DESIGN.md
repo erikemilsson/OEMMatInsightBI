@@ -1,8 +1,8 @@
 # OEMMatInsightBI - Portfolio Report Design
-**Version:** 1.0 (design spec for the built `report2.Report`)
+**Version:** 1.0 (design spec for the built `oem_report.Report`)
 **Purpose:** 2-page Power BI report design for portfolio showcase (erikemilsson.com)
 
-> The report this spec describes is **built** (`fabric/report2.Report`) on the `OEMInsightBI` semantic model. The visual specs below are the design; the as-built measure set is documented in [`docs/dax_measure_library.md`](../dax_measure_library.md) (45 measures). Where a visual below names a measure that was reframed during the model's redesign, substitute the nearest as-built measure from the catalogue — e.g. `[Supply Risk (Global)]` for HHI, `Weighted EPI Score` for the spend-weighted sustainability gauge.
+> The report this spec describes is **built** (`fabric/oem_report.Report`) on the `OEMInsightBI` semantic model. The visual specs below are the design; the as-built measure set is documented in [`docs/dax_measure_library.md`](../dax_measure_library.md) (45 measures). Where a visual below names a measure that was reframed during the model's redesign, substitute the nearest as-built measure from the catalogue — e.g. `[Supply Risk (Global)]` for HHI, `Weighted EPI Score` for the spend-weighted sustainability gauge.
 
 ---
 
@@ -310,7 +310,7 @@ Neutral:
 ## Implementation Steps
 
 1. ✅ **Semantic model** — `OEMInsightBI` ships 45 measures (see `dax_measure_library.md`)
-2. ✅ **Report** — `report2.Report` built from the model; the two pages follow the layouts above
+2. ✅ **Report** — `oem_report.Report` built from the model; the two pages follow the layouts above
 3. ✅ **Theme** — applied (colors, fonts from the spec below)
 4. **Portfolio asset capture** (on demand):
    - Take screenshots (hi-res PNG, 1920×1080)
@@ -323,7 +323,7 @@ Neutral:
 ## Next Steps
 
 **For the report:**
-1. Open `report2.Report` in the Fabric workspace (or Power BI Desktop)
+1. Open `oem_report.Report` in the Fabric workspace (or Power BI Desktop)
 2. DirectLake auto-refreshes from `oem_lh`; no manual semantic-model refresh needed
 3. Iterate on visuals against the layouts above; consult `dax_measure_library.md` for the authoritative measure list
 
@@ -335,4 +335,4 @@ Neutral:
 
 ---
 
-**Design Status:** ✅ Spec complete; report built (`report2.Report`)
+**Design Status:** ✅ Spec complete; report built (`oem_report.Report`)

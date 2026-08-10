@@ -123,7 +123,7 @@ carries (the prior `semantic_model_oeminsightbi` recommendation was just such a
 fictional example).
 
 **Semantic model:** `OEMInsightBI` — ✅ live as of 2026-08-10; the `_v2` suffix was dropped that day.
-**Report:** project-prefixed, co-named with its semantic model so the pair reads as one brand (e.g. `oem_report`) — ⚠️ **open**: the live report is still `report2`.
+**Report:** `oem_report` — project-prefixed, co-named with its semantic model so the pair reads as one brand. ✅ live as of 2026-08-10; renamed from `report2`.
 
 ## File & Directory Standards
 

@@ -13,11 +13,9 @@ Renames (old -> new; new is canonical on disk):
   silver-to-gold2.Notebook         -> silver_to_gold.Notebook     (Phase 5, 2026-08-04)
   sample-quality-data.Notebook     -> sample_quality_data.Notebook (2026-08-10)
   report.Report                    -> report2.Report
+  report2.Report                   -> oem_report.Report            (2026-08-10)
 
-`report2.Report` is NOT yet renamed. `standards/naming_standards.md` prescribes
-`oem_report`; the live item and the repo folder both still read `report2`, so the
-two agree and nothing is guarded for it yet. Add `report2` to OLD_NAMES only when
-that rename actually lands, or the guard will fire on every correct reference.
+All naming targets are now closed; no open renames remain.
 
 Phase 5 batch B (2026-08-05) additionally renamed three bronze lakehouse TABLES:
   bronze_EUSupplyShares            -> bronze_eu_supply_shares
@@ -59,8 +57,10 @@ import pytest
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 
-# Old names that must never reappear on a clean surface.
-# "report.Report" does not match "report2.Report" (the new name) as a substring.
+# Old names that must never reappear on a clean surface. Matching is boundary-aware
+# (see _stale_hits) — an entry is NOT flagged when it is preceded by a word character,
+# which is what lets the guarded `report.Report` coexist with the current
+# `oem_report.Report`.
 OLD_NAMES = (
     "semantic_model_oeminsightbi",
     "clean_columnsAndHeaders",
@@ -85,6 +85,10 @@ OLD_NAMES = (
     # literal, so a correct `OEMInsightBI` reference cannot match it.
     "OEMInsightBI_v2",
     "sample-quality-data",
+    # report2 -> oem_report (2026-08-10). Probed against CLEAN_SURFACES before
+    # adding: fires on none. Safe alongside the `report.Report` entry above only
+    # because matching is boundary-aware.
+    "report2",
 )
 
 # Recruiter-facing / guide surfaces with no legitimate old-name occurrence.
@@ -106,7 +110,18 @@ def _stale_hits(rel):
     if not path.exists():
         return None
     text = path.read_text(encoding="utf-8")
-    return [name for name in OLD_NAMES if name in text]
+    # Boundary-aware, NOT a plain substring test. A plain `name in text` produces
+    # false positives whenever a NEW name ends with an OLD one: the 2026-08-10
+    # rename report2 -> oem_report made every correct `oem_report.Report`
+    # reference contain the guarded `report.Report`, failing two clean surfaces on
+    # valid text. Requiring the match not to be preceded by a word character keeps
+    # bare `report.Report` guarded while letting `oem_report.Report` through.
+    # re.escape matters — `report.Report` contains a regex-metachar dot.
+    return [
+        name
+        for name in OLD_NAMES
+        if re.search(r"(?<![A-Za-z0-9_])" + re.escape(name), text)
+    ]
 
 
 @pytest.mark.parametrize("rel", CLEAN_SURFACES)
@@ -117,7 +132,7 @@ def test_no_stale_fabric_artifact_names(rel):
     assert not hits, (
         f"{rel} reintroduced pre-rename Fabric artifact name(s): {hits}. "
         "Use OEMInsightBI / bronze_to_silver.Notebook / silver_to_gold.Notebook / "
-        "sample_quality_data.Notebook / report2.Report (audit C-01, task-021)."
+        "sample_quality_data.Notebook / oem_report.Report (audit C-01, task-021)."
     )
 
 

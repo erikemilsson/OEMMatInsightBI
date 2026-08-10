@@ -75,7 +75,7 @@ endpoint in the serving path.
 - 3 fact tables: fact_procurement, fact_supply_share, fact_epi_score
 - 5 dimension tables: gold_dim_country, gold_dim_date, gold_dim_indicator, gold_dim_material, gold_dim_stage
 
-### Power BI Report: `report2.Report`
+### Power BI Report: `oem_report.Report`
 
 **Connected Model:** `OEMInsightBI`
 

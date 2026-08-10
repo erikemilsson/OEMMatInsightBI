@@ -35,7 +35,7 @@ As-built inventory of Fabric artifacts in the `oem_lh` workspace. Mirrors what i
 | Artifact | Type | Purpose | Status |
 |---|---|---|---|
 | `OEMInsightBI` | SemanticModel | Star schema, DirectLake on `oem_lh`, **45 measures** across 8 tables / 10 relationships | ✅ Active |
-| `report2` | Report | Power BI report over the semantic model | ✅ Active |
+| `oem_report` | Report | Power BI report over the semantic model | ✅ Active |
 
 > **No Dataflow Gen2 items remain.** The last two (`EPI_file2table`, `WGI_file2table`) were retired 2026-08-10 — see *Previously removed* below.
 
@@ -79,7 +79,7 @@ graph TD
 
     LH[oem_lh.Lakehouse]
     SM[OEMInsightBI.SemanticModel]
-    Report[report2.Report]
+    Report[oem_report.Report]
 
     Pipeline --> BC1 & BE & BW & BS & SG & DQ
     BC1 --> LH
@@ -108,7 +108,9 @@ The model's DirectLake source is `oem_lh`, read directly over OneLake. EPI/WGI i
 - ✅ `silver_to_gold` — renamed from `silver-to-gold2` in Phase 5 (snake_case, dropped the version stamp)
 - ✅ `OEMInsightBI` — renamed from `OEMInsightBI_v2` on 2026-08-10 (dropped the version suffix)
 - ✅ `sample_quality_data` — renamed from `sample-quality-data` on 2026-08-10 (last hyphenated notebook name)
-- ⚠️ `report2` — placeholder name; remaining rename target is `oem_report` (`standards/naming_standards.md § Semantic Model & Report Naming`)
+- ✅ `oem_report` — renamed from `report2` on 2026-08-10 (co-named with its semantic model per `standards/naming_standards.md § Semantic Model & Report Naming`)
+
+**All naming targets are now closed.** No open renames remain.
 - ✅ Bronze activities are snake_case since Phase 4 (`bronze_copy_*`, `bronze_epi`, `bronze_wgi`); the three PascalCase bronze **tables** were renamed to snake_case in Phase 5 batch B
 
 See `standards/naming_standards.md` for the canonical convention (snake_case, layer-prefixed) and the planned reconciliations.

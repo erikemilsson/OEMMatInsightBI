@@ -47,7 +47,7 @@ fabric/                 # All Fabric artifacts
 ├── data_quality_checks.Notebook/        # Terminal blocking DQ gate
 ├── pipeline_error_handler.Notebook/     # Runs on every pipeline outcome
 ├── OEMInsightBI.SemanticModel/       # DirectLake on oem_lh — 45 measures, TMDL
-├── report2.Report/                       # 2-page portfolio report
+├── oem_report.Report/                       # 2-page portfolio report
 ├── dax/                                  # Reference-only DAX sketches — not deployed
 └── sql/                                  # SQL finding documents — not deployed
 src/transformations/    # Tested PySpark mirror of notebook logic (key generation, data quality)
@@ -207,10 +207,10 @@ View runs in the [Actions tab](https://github.com/erikemilsson/OEMMatInsightBI/a
 ## Portfolio
 
 - **Case study:** [`docs/portfolio/CASE_STUDY.md`](docs/portfolio/CASE_STUDY.md) — the portfolio centerpiece (problem, medallion build, DQ observability, HHI methodology, honest null-result, 6 defended decisions)
-- **Report design:** [`docs/portfolio/PORTFOLIO_DESIGN.md`](docs/portfolio/PORTFOLIO_DESIGN.md) — 2-page Power BI report spec for `report2.Report`
+- **Report design:** [`docs/portfolio/PORTFOLIO_DESIGN.md`](docs/portfolio/PORTFOLIO_DESIGN.md) — 2-page Power BI report spec for `oem_report.Report`
 - **Assets index:** [`docs/portfolio/PORTFOLIO_ASSETS_README.md`](docs/portfolio/PORTFOLIO_ASSETS_README.md) — code samples, interview narrative, honest-framing LinkedIn template
 
-> **Visual assets** (dashboard screenshots, PDF export) are generated on demand from the live `report2.Report` — see the assets index. They are not committed to the repo.
+> **Visual assets** (dashboard screenshots, PDF export) are generated on demand from the live `oem_report.Report` — see the assets index. They are not committed to the repo.
 
 ## License
 

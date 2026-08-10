@@ -18,7 +18,7 @@ The portfolio centerpiece. Covers the problem, the medallion build, the data-qua
 
 ## 2. Report design — `PORTFOLIO_DESIGN.md`
 
-Power BI report design specification: page layouts, measure wiring, theme, and accessibility notes. Pairs with the live `report2.Report` (built from the `OEMInsightBI` semantic model).
+Power BI report design specification: page layouts, measure wiring, theme, and accessibility notes. Pairs with the live `oem_report.Report` (built from the `OEMInsightBI` semantic model).
 
 **Demonstrates:** dashboard design thinking (visual hierarchy, storytelling), Power BI best practices (measure organization, DirectLake), and professional handoff-grade documentation.
 
@@ -64,7 +64,7 @@ The model has one canonical version (`OEMInsightBI`, DirectLake on `oem_lh`). Me
 
 ## 5. Visual assets
 
-Generated from the live `report2.Report` in the Fabric workspace:
+Generated from the live `oem_report.Report` in the Fabric workspace:
 
 | Asset | How to produce | Use |
 |---|---|---|
@@ -122,7 +122,7 @@ These are produced from the *real* report on the *real* model — no mockups or 
 | Report design | `docs/portfolio/PORTFOLIO_DESIGN.md` | ✅ Ready |
 | DAX measure catalogue | `docs/dax_measure_library.md` | ✅ Ready (as-built, 45 measures) |
 | Semantic model | `fabric/OEMInsightBI.SemanticModel/` | ✅ Built |
-| Report | `fabric/report2.Report/` | ✅ Built |
+| Report | `fabric/oem_report.Report/` | ✅ Built |
 | Pipeline | `fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/` | ✅ Built |
 | Tests | `tests/` | ✅ 235 tests |
 | Screenshots / PDF / PBIX | produced from the live report | ⏳ Capture on demand |
