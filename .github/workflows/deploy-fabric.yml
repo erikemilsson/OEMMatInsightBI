@@ -123,11 +123,13 @@ jobs:
             "Warehouse",
         ]
 
-        # fabric/archive/ holds retired items (the old `report` and
-        # `semantic_model_oeminsightbi`) that Fabric's git sync committed when
-        # they were archived in the UI. fabric-cicd's repository scan (os.walk)
-        # recurses into archive/, so without an exclude a publish would RE-DEPLOY
-        # those retired artifacts to the live workspace. publish_all_items
+        # fabric/archive/ is currently EMPTY. It once held retired items (the old
+        # `report` and `semantic_model_oeminsightbi`) that Fabric's git sync
+        # committed when they were archived in the UI; both were deleted
+        # 2026-08-01 by workspace-sync commit d128664 (recoverable at d128664~1).
+        # The exclude is retained deliberately: fabric-cicd's repository scan
+        # (os.walk) recurses into archive/, so anything archived there in future
+        # would otherwise be RE-DEPLOYED to the live workspace. publish_all_items
         # honors publish_folder_path_exclude_regex (ancestor walk), so this
         # makes the real publish skip them. The regex matches the item's
         # folder_path, which for an item directly under archive/ is "/archive".

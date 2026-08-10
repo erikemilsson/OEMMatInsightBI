@@ -79,7 +79,7 @@ updated: 2026-08-10
 
 -   **Warehouse:** `oem_wh` (SQL-queryable layer for BI)
 
--   **Semantic Model:** `OEMInsightBI_v2` (Power BI data model; old `semantic_model_oeminsightbi` archived in `fabric/archive/`)
+-   **Semantic Model:** `OEMInsightBI_v2` (Power BI data model; the superseded `semantic_model_oeminsightbi` was removed from `fabric/archive/` on 2026-08-01 by workspace-sync commit `d128664` and survives only in git history at `d128664~1`)
 
 -   **Report:** Power BI report connected to semantic model
 
@@ -165,9 +165,9 @@ Power BI Reports
 
 **Schema scripts** (in `/azure` folder — tracked):
 
--   `procurement.sql` - Procurement table schema/data
+-   `procurement.sql` - Procurement table schema (DDL only)
 
--   `supplier_info.sql` - Supplier reference schema/data
+-   `supplier_info.sql` - Supplier reference schema (DDL only)
 
 **Key Columns:**
 
@@ -1037,6 +1037,8 @@ Fabric UI edits are not a sync path — anything changed there is overwritten by
 
 -   Remaining non-snake_case names are Fabric-generated or convention-bound: `StagingLakehouseForDataflows_*` / `StagingWarehouseForDataflows_*` (auto-created for dataflow staging) are camelCase; `Report Usage Metrics Model` / `Report Usage Metrics Report` are Fabric-generated **Title Case with spaces**, not camelCase; `EPI_file2table` / `WGI_file2table` follow the dataflow convention above. Semantic models and reports deliberately follow Fabric's PascalCase display-name convention rather than snake_case (`naming_standards.md § Semantic Model & Report Naming`) — that convention is settled; the specific `_v2` / `2` suffixes are what remain open. **`copyjob1` does not exist** in the workspace — 22 items enumerated 2026-08-06.
 
+-   **Terminology carve-out — "DQ gate" is deliberate:** spec *prose* canonicalizes on "data quality" over the abbreviation "DQ" (FB-005, promoted 2026-05-17; re-swept 2026-08-10). **"DQ gate" is the single retained exception** — a coined term for the `BLOCKING_CHECKS` failure gate, used in § Technical Decisions and § Remaining Work, where the expanded "data quality gate" reads as needless length. After the 2026-08-10 sweep, and outside this bullet, those are the **only** two standalone occurrences of "DQ" in this spec — `grep -c '\bDQ\b' .claude/spec_v1.md` returns **3**, counting this bullet. A fourth is drift, not this carve-out.
+
 ------------------------------------------------------------------------
 
 ## Data Quality & Validation
@@ -1111,7 +1113,7 @@ Fabric UI edits are not a sync path — anything changed there is overwritten by
 
 -   Visualization: quality_category field available in facts for filtering
 
--   DQ framework: **14** check functions across bronze/silver/gold in `data_quality_checks.Notebook` *(as of 2026-08-10; 9 from task-007, 3 from task-020, 2 from task-026)*; results persisted to gold_quality_history. **Three checks record a non-`pass` row on every run by design** — measured, explained and accepted in `docs/data_quality_framework.md § 7`; none is in `BLOCKING_CHECKS`, so the gate correctly never raises on them
+-   Data quality framework: **14** check functions across bronze/silver/gold in `data_quality_checks.Notebook` *(as of 2026-08-10; 9 from task-007, 3 from task-020, 2 from task-026)*; results persisted to gold_quality_history. **Three checks record a non-`pass` row on every run by design** — measured, explained and accepted in `docs/data_quality_framework.md § 7`; none is in `BLOCKING_CHECKS`, so the gate correctly never raises on them
 
 -   Observability tables: gold_quality_history, gold_gap_registry, gold_low_confidence_audit (task-018)
 
@@ -1249,7 +1251,7 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 
 **Additional capabilities beyond the original plan:**
 -   Dry-run mode reporting the deployment plan without publishing
--   Retired artifacts under `fabric/archive/` excluded from publish via folder regex
+-   `fabric/archive/` excluded from publish via folder regex (`folder_exclude_regex = r"^/archive$"`, `.github/workflows/deploy-fabric.yml`) — the guard is retained deliberately, though the directory is currently empty
 
 **Known Limitations:**
 -   Notebook-to-Lakehouse bindings don't auto-update across environments — `parameter.yml` handles this
@@ -1314,7 +1316,7 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 
 -   [ ] Schema validation tests
 
--   [x] Data quality tests (expand current checks) — `tests/test_data_quality.py` collects **45 tests** over the DQ functions, and the check suite itself was expanded twice (9 → 12 → 14; see § Data Quality & Validation)
+-   [x] Data quality tests (expand current checks) — `tests/test_data_quality.py` collects **45 tests** over the data quality functions, and the check suite itself was expanded twice (9 → 12 → 14; see § Data Quality & Validation)
 
 -   [ ] Pipeline integration tests — none yet; the pipeline is exercised end to end by real runs, not by a test harness
 
@@ -1516,7 +1518,7 @@ See `docs/dax_measure_library.md` for the full measure library. **45 measures li
 
 **Power BI Report:**
 
--   Report ID: `report2.Report` (in `/fabric` folder; old `report.Report` archived in `fabric/archive/`)
+-   Report ID: `report2.Report` (in `/fabric` folder; the superseded `report.Report` was removed from `fabric/archive/` on 2026-08-01 by workspace-sync commit `d128664` and survives only in git history at `d128664~1`)
 
 -   Portfolio demonstration — no external consumers
 

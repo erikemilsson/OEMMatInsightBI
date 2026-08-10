@@ -1,0 +1,41 @@
+{
+  "spec_version": "spec_v1",
+  "spec_fingerprint": "sha256:a7109adcbe9c16e0c9d67dbe54c7df17ae03c043d5c5d4fccf509ed518a65553",
+  "created_date": "2026-08-10",
+  "updated_date": "2026-08-10",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "absorbed_into": null,
+  "subtasks": [],
+  "decision_dependencies": [],
+  "user_feedback": null,
+  "source": "/feedback review + /iterate (2026-08-10) — surfaced while correcting the azure/ 'schema/data' mislabel",
+  "id": "task-064",
+  "title": "Make the Azure SQL seed rows reproducible from the repo (azure/ is DDL-only)",
+  "status": "Pending",
+  "priority": "medium",
+  "difficulty": 5,
+  "owner": "both",
+  "phase": "5",
+  "spec_section": "Data Architecture",
+  "section_fingerprint": "sha256:17e918938b2de92faa7e321fae1f91b4f9a6e655cb26f121eaea8b446def89cd",
+  "section_snapshot_ref": "spec_v1_decomposed.md",
+  "out_of_spec": true,
+  "out_of_spec_approved": true,
+  "dependencies": [],
+  "files_affected": [
+    "azure/",
+    "fabric/",
+    ".claude/spec_v1.md"
+  ],
+  "description": "The spec states in three places that /azure/ holds DDL only — procurement.sql and supplier_info.sql each contain one CREATE TABLE and zero INSERT statements (§ Data Architecture Setup Scripts, § Expected Data Profiles L1136, § Testing Strategy L1327). Those statements are accurate; the gap they describe is real. The synthetic rows backing fact_procurement were seeded by hand outside the repo, so a clean rebuild of the Azure SQL source is impossible from a fresh clone and the row counts in § Expected Data Profiles can only be re-derived by measuring the live lakehouse. Close the gap by committing a reproducible seed alongside the DDL: either exported INSERT statements or a deterministic generator with a pinned seed. IMPORTANT — do NOT export from the laptop. The erik-laptop firewall rule (37.247.31.201/32) was deliberately deleted from the procurement-supplier Azure SQL server on 2026-08-01 (FB-009, commit c0fcb3a) once the pipeline moved to the Fabric Connection oem_azuresql_procurement; re-adding it to run a local export would reopen the security loose end that cleanup closed. Run the export from a Fabric notebook over the existing connection instead, which executes in the Fabric runtime and needs no firewall change. Note the two tables differ in character: supplier_info is reference data (small, stable, a literal INSERT dump is fine) while procurement is transactional volume (a generator may be the better fit). Decide per-table rather than forcing one approach on both.",
+  "acceptanceCriteria": [
+    "A fresh clone can populate both Azure SQL tables from repo contents alone — no hand-seeding, no out-of-band file — using the committed DDL plus the new seed artifact.",
+    "The seed reproduces row counts and distributions consistent with the figures in § Expected Data Profiles; any deliberate divergence is stated in the task notes.",
+    "No Azure SQL firewall rule is added for a laptop IP — the export or generation path runs in the Fabric runtime over the oem_azuresql_procurement connection (or is a pure offline generator).",
+    "If a generator is used, it is deterministic — a pinned seed produces identical output across runs.",
+    "The three spec statements that currently say the rows are 'not reproducible from the repo' are updated to match the new reality (routes through /iterate per DEC-016).",
+    "No credentials are committed — the seed artifact contains data only, and connection details stay in the Fabric connection or secure/ (gitignored)."
+  ],
+  "notes": "Requested by Erik 2026-08-10 (out-of-spec gate — the spec documents the gap as current state but nowhere requires reproducibility, so this is new scope rather than a correction). Surfaced during the /feedback review + /iterate pass that relabelled azure/ from 'schema/data' to 'schema (DDL only)'; the relabel made the record honest, this task closes the underlying gap. owner=both: Claude authors the export notebook or generator locally, Erik runs it in the Fabric UI and confirms the round trip, per the project's Fabric-UI/local-code split. The AC5 spec edit routes through /iterate, not a direct write."
+}
