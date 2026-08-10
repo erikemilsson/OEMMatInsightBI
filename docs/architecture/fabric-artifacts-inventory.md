@@ -28,7 +28,7 @@ As-built inventory of Fabric artifacts in the `oem_lh` workspace. Mirrors what i
 | Artifact | Type | Purpose | Status |
 |---|---|---|---|
 | `oem_lh` | Lakehouse | Medallion storage (Bronze/Silver/Gold Delta tables); **DirectLake source for the semantic model** | ✅ Active |
-| `oem_wh` | Warehouse | SQL analytics endpoint over the lakehouse | Exists — but **not** in the semantic-model path (the model reads `oem_lh` directly, see `semantic_model.md`) |
+| `oem_lh` (SQL endpoint) | SQLEndpoint | Auto-created read-only T-SQL surface over the lakehouse. Distinct from a standalone Warehouse item, and **not** in the DirectLake path either | ✅ Active (auto-managed) |
 
 ### 📊 Analytics
 
@@ -37,14 +37,19 @@ As-built inventory of Fabric artifacts in the `oem_lh` workspace. Mirrors what i
 | `OEMInsightBI_v2` | SemanticModel | Star schema, DirectLake on `oem_lh`, **45 measures** across 8 tables / 10 relationships | ✅ Active |
 | `report2` | Report | Power BI report over the semantic model | ✅ Active |
 
-### 📥 Dataflows (retired / orphan)
+> **No Dataflow Gen2 items remain.** The last two (`EPI_file2table`, `WGI_file2table`) were retired 2026-08-10 — see *Previously removed* below.
 
-| Artifact | Type | Purpose | Status |
+## Previously removed
+
+| Artifact | Type | Reason | Backup |
 |---|---|---|---|
-| `EPI_file2table` | Dataflow | EPI ingestion mechanism before task-035 | ❌ Orphan — replaced by `bronze_ingest_epi` notebook (task-035); still a workspace item, not on the pipeline path |
-| `WGI_file2table` | Dataflow | WGI ingestion mechanism before task-035 | ❌ Orphan — replaced by `bronze_ingest_wgi` notebook (task-035); still a workspace item, not on the pipeline path |
-
-> The retired dataflows are slated for removal via `fabric-cicd`'s `unpublish_all_orphan_items()` in a later cleanup pass. They have no consumers — the EPI/WGI notebooks write `bronze_epi2024results` / `bronze_wgi` directly.
+| `EPI_file2table` | Dataflow | Orphaned by task-035 (2026-07-26) when the pipeline moved to `bronze_ingest_epi`; removed 2026-08-10. Read a hand-uploaded CSV; the notebook downloads from `epi.yale.edu` directly | `.claude/support/retired/epi-wgi-file2table-dataflows/manifest.json` |
+| `WGI_file2table` | Dataflow | Orphaned by task-035 (2026-07-26) when the pipeline moved to `bronze_ingest_wgi`; removed 2026-08-10. Read a hand-uploaded Excel extract (2023 only); the notebook pulls all 6 indicators 1996–2023 from the World Bank API | `.claude/support/retired/epi-wgi-file2table-dataflows/manifest.json` |
+| `oem_wh` | Warehouse | Never read by anything — the semantic model is DirectLake on `oem_lh`, no pipeline activity or notebook wrote to it, and its data was a frozen 2026-01-16 snapshot. Removed 2026-08-10 | `.claude/support/retired/oem-wh-warehouse/manifest.json` |
+| `StagingLakehouseForDataflows_20250822093021` | Lakehouse + SQLEndpoint | Auto-created Dataflow Gen2 staging; held 0 tables. Removed 2026-08-10 with the dataflows | — (Fabric-generated) |
+| `StagingWarehouseForDataflows_20250822093045` | Warehouse | Auto-created Dataflow Gen2 staging; held 0 tables. Removed 2026-08-10 with the dataflows | — (Fabric-generated) |
+| `Notebook_1` | Notebook | Scratch notebook from the Phase-5 snake_case rename verification; never in the repo. Removed 2026-08-10 | — (scratch) |
+| `Report Usage Metrics Report` / `Report Usage Metrics Model` | Report / SemanticModel | Power BI auto-generated usage telemetry, not project content. Removed 2026-08-10 | — (Fabric-generated) |
 
 ## Previously removed (archived 2025-12-15)
 
@@ -94,12 +99,12 @@ graph TD
     style Report fill:#ffebee
 ```
 
-The model's DirectLake source is `oem_lh`; `oem_wh` is intentionally absent from this graph (the model does not read it). EPI/WGI ingestion is via notebooks, not the orphan dataflows.
+The model's DirectLake source is `oem_lh`, read directly over OneLake. EPI/WGI ingestion is via notebooks. The `oem_wh` warehouse and both `*_file2table` dataflows that once sat alongside this graph were retired 2026-08-10; nothing in the graph referenced them.
 
 ## Naming-convention status
 
 - ✅ `orchestrator_pipeline_bronze_to_gold` — clear, snake_case
-- ✅ `oem_lh`, `oem_wh` — short, lowercase
+- ✅ `oem_lh` — short, lowercase
 - ✅ `silver_to_gold` — renamed from `silver-to-gold2` in Phase 5 (snake_case, dropped the version stamp)
 - ⚠️ `OEMInsightBI_v2`, `report2` — version suffix / placeholder name; Phase 5 rename targets `OEMInsightBI` / `oem_report`
 - ✅ Bronze activities are snake_case since Phase 4 (`bronze_copy_*`, `bronze_epi`, `bronze_wgi`); the three PascalCase bronze **tables** were renamed to snake_case in Phase 5 batch B

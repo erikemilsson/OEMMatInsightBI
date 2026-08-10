@@ -7,6 +7,14 @@
 -- 2026-08-03; see docs/performance_optimized.md §
 -- Prerequisites that could not be applied).
 --
+-- FOLLOW-ON (2026-08-10): finding 2 below — "the warehouse oem_wh has no
+-- documented SQL-endpoint consumer" — was re-confirmed and acted on. oem_wh was
+-- retired and deleted from the workspace; a live catalogue query first showed it
+-- held 8 tables, zero views and zero stored procedures, with data frozen at
+-- 2026-01-16. See .claude/support/retired/oem-wh-warehouse/manifest.json.
+-- The findings below are therefore historical: there is no warehouse to run
+-- anything against.
+--
 -- This file resolves task-012_4 acceptance criterion 3 ("fabric/sql/
 -- warehouse_indexes.sql is resolved rather than left misleading"). The
 -- retire path was chosen over a CLUSTER BY rewrite because no defensible
@@ -56,7 +64,8 @@
 --    affect any Power BI report query.
 --
 -- 2. The warehouse oem_wh has no documented SQL-endpoint consumer. Its
---    table set (fabric/oem_wh.Warehouse/dbo/Tables/) is 8 tables:
+--    table set (snapshot: .claude/support/retired/oem-wh-warehouse/
+--    fabric/oem_wh.Warehouse/dbo/Tables/) is 8 tables:
 --      gold_dim_country, gold_dim_material, gold_dim_indicator,
 --      gold_dim_date, gold_dim_stage,
 --      fact_procurement, fact_epi_score, fact_supply_share.

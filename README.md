@@ -37,8 +37,6 @@ A Microsoft Fabric solution demonstrating how OEM procurement data can be integr
 ```
 fabric/                 # All Fabric artifacts
 ├── oem_lh.Lakehouse/                    # Medallion architecture (bronze/silver/gold)
-├── oem_wh.Warehouse/                    # Secondary SQL-project warehouse (oem_wh.sqlproj);
-│                                        # NOT the DirectLake serving path (see OEMInsightBI_v2)
 ├── orchestrator_pipeline_bronze_to_gold.DataPipeline  # 10-activity orchestration
 │                                        # (4 Copy + 6 Notebook); Azure SQL ingestion is
 │                                        # Copy activities in the pipeline
@@ -50,10 +48,8 @@ fabric/                 # All Fabric artifacts
 ├── pipeline_error_handler.Notebook/     # Runs on every pipeline outcome
 ├── OEMInsightBI_v2.SemanticModel/       # DirectLake on oem_lh — 45 measures, TMDL
 ├── report2.Report/                       # 2-page portfolio report
-├── EPI_file2table.Dataflow/             # Legacy file ingestion — superseded by notebooks
-├── WGI_file2table.Dataflow/             # (items retained, not in the pipeline path)
 ├── dax/                                  # Reference-only DAX sketches — not deployed
-└── sql/                                  # Warehouse SQL (e.g. warehouse_indexes.sql)
+└── sql/                                  # SQL finding documents — not deployed
 src/transformations/    # Tested PySpark mirror of notebook logic (key generation, data quality)
 tests/                  # 235 pytest tests (parity contract + transform units)
 docs/                   # Canonical documentation surface (architecture, schemas, guides)
@@ -155,7 +151,7 @@ The `orchestrator_pipeline_bronze_to_gold.DataPipeline` manages the full data fl
 
 ### Semantic Model (OEMInsightBI_v2 — DirectLake)
 
-The semantic model is defined as **TMDL** (model-as-code) and serves from the `oem_lh` lakehouse via **DirectLake** — no warehouse in the serving path, no scheduled refresh needed. (`oem_wh.Warehouse` exists as a secondary SQL-project artifact but is not the model source.)
+The semantic model is defined as **TMDL** (model-as-code) and serves from the `oem_lh` lakehouse via **DirectLake** — no warehouse in the serving path, no scheduled refresh needed. The model's single source expression resolves to the lakehouse's OneLake path directly, so all 14 tables read Delta files without a SQL endpoint in between.
 
 - **Facts:** `fact_procurement`, `fact_supply_share`, `fact_epi_score`
 - **Dimensions:** `gold_dim_country`, `gold_dim_material`, `gold_dim_date`, `gold_dim_indicator`, `gold_dim_stage`

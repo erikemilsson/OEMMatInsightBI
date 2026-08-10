@@ -110,7 +110,7 @@ bronze_epi_file_to_table.Dataflow
 ```
 Examples:
 oem_lh (lakehouse)
-oem_wh (warehouse)
+oem_wh (warehouse) — convention example only; the item was retired 2026-08-10
 ```
 
 ### Semantic Model & Report Naming

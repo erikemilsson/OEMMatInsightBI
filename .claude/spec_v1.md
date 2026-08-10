@@ -45,7 +45,7 @@ updated: 2026-08-10
 
 -   Make data-driven sourcing decisions
 
-**Secondary Purpose:** This project also serves as hands-on preparation for a data engineering consultant role (Rejlers). Beyond demonstrating a working BI solution, it exercises production patterns commonly encountered at client sites: incremental Delta MERGE loading, SQL warehouse stored procedures alongside PySpark notebooks, pipeline error handling with retry logic, and CI/CD deployment via GitHub Actions. The hybrid Lakehouse + Warehouse approach reflects standard Fabric practice.
+**Secondary Purpose:** This project also serves as hands-on preparation for a data engineering consultant role (Rejlers). Beyond demonstrating a working BI solution, it exercises production patterns commonly encountered at client sites: incremental Delta MERGE loading, a blocking data-quality gate backed by observability tables, pipeline error handling with retry logic, and CI/CD deployment via GitHub Actions. Storage and serving are **Lakehouse-only** — the semantic model reads gold Delta tables through DirectLake, with no warehouse in the path.
 
 **Stakeholders:**
 
@@ -77,7 +77,7 @@ updated: 2026-08-10
 
 -   **Lakehouse:** `oem_lh` (data storage, bronze/silver/gold layers)
 
--   **Warehouse:** `oem_wh` (SQL-queryable layer for BI)
+-   **SQL analytics endpoint:** `oem_lh`'s auto-created, read-only T-SQL surface. Some Fabric APIs report it with item type `Warehouse`; it is not a standalone warehouse and is not in the DirectLake path. **Retired (2026-08-10)** — the standalone `oem_wh` Warehouse was removed; nothing ever read it. See `.claude/support/retired/oem-wh-warehouse/manifest.json`.
 
 -   **Semantic Model:** `OEMInsightBI_v2` (Power BI data model; the superseded `semantic_model_oeminsightbi` was removed from `fabric/archive/` on 2026-08-01 by workspace-sync commit `d128664` and survives only in git history at `d128664~1`)
 
@@ -252,9 +252,9 @@ Power BI Reports
 
 **Update Frequency:** Annual (EPI releases yearly)
 
-**File Location:** Manual CSV file upload. (Task created to investigate automating ingestion).
+**File Location:** Downloaded over HTTPS from `epi.yale.edu` by `bronze_ingest_epi.Notebook` (task-028; year-parameterised via `p_epi_year`). Manual upload to Lakehouse `Files/` was the pre-task-035 mechanism.
 
-**File Format:** CSV (inferred from dataflow type)
+**File Format:** CSV
 
 #### 3. World Governance Indicators (WGI) - External Data
 
@@ -679,7 +679,7 @@ Bronze now holds the source's raw day/year-transposed dates — a Copy activity 
 
     -   Retry: 1 attempt
 
-**Planned — not yet orchestrated:** warehouse sync (gold → `oem_wh`). No pipeline activity exists for this today. The warehouse itself is real — see § Infrastructure & Deployment (SQL endpoint, views, `usp_merge_fact_procurement`); only the automated sync is outstanding.
+**Not orchestrated — and there is no warehouse.** No gold → warehouse sync activity exists. **Retired (2026-08-10)** — `oem_wh` was removed because nothing read it. A live catalogue query on that date returned 8 tables, **zero views and zero stored procedures**, so the "SQL endpoint, views, `usp_merge_fact_procurement`" this line previously pointed to never existed. A SQL interface over gold would now need both a new warehouse and a sync activity. See `.claude/support/retired/oem-wh-warehouse/manifest.json`.
 
 **Pipeline Parameters:**
 
@@ -1011,11 +1011,11 @@ Fabric UI edits are not a sync path — anything changed there is overwritten by
 
 **Dataflows:**
 
-**Retired (2026-07-31)** — the example below no longer exists. The convention itself still stands for `EPI_file2table` / `WGI_file2table`, which remain as items.
+**Retired (2026-08-10)** — **no Dataflow Gen2 items remain.** `bronze_azureSQLdb2table` was retired 2026-07-31; `EPI_file2table` and `WGI_file2table` followed on 2026-08-10. The convention is retained for reference only. See `.claude/support/retired/epi-wgi-file2table-dataflows/manifest.json`.
 
 -   `[layer]_[source]_[method]2table.Dataflow`
 
--   Examples: ~~`bronze_azureSQLdb2table`~~ (retired), `EPI_file2table`, `WGI_file2table`
+-   Examples (all retired): ~~`bronze_azureSQLdb2table`~~, ~~`EPI_file2table`~~, ~~`WGI_file2table`~~
 
 **Pipelines:**
 
@@ -1023,7 +1023,7 @@ Fabric UI edits are not a sync path — anything changed there is overwritten by
 
 -   Example: `orchestrator_pipeline_bronze_to_gold`
 
-**Consistency notes** *(measured 2026-08-06: 22 live workspace items, 39 lakehouse tables)*:
+**Consistency notes** *(measured 2026-08-10: **13 live workspace items**, 39 lakehouse tables)*:
 
 -   Gold-layer tables use two prefix families: `fact_*` (3 tables) carries no `gold_` prefix while the other 20 gold-layer tables do. Deliberate, but worth knowing when globbing by prefix.
 
@@ -1031,11 +1031,11 @@ Fabric UI edits are not a sync path — anything changed there is overwritten by
 
 -   `mapping_*` (2 tables) sits outside the medallion prefixes by design.
 
--   `sample-quality-data` and `Notebook_1` retain pre-Phase-5 names; neither participates in the pipeline.
+-   `sample-quality-data` retains its pre-Phase-5 name and does not participate in the pipeline. (`Notebook_1`, previously listed here, was deleted 2026-08-10.)
 
 -   **`OEMInsightBI_v2` and `report2` are documented OPEN rename targets, not settled names** — `docs/standards/naming_standards.md` prescribes `OEMInsightBI` and a co-named `oem_report`, noting the live model is "slated to drop the `_v2` suffix", and `docs/architecture/fabric-artifacts-inventory.md` flags both as "Phase 5 rename targets". No decision record retires those targets. So there are **two** open naming families — these plus the concatenated silver tables above — and neither is decided here.
 
--   Remaining non-snake_case names are Fabric-generated or convention-bound: `StagingLakehouseForDataflows_*` / `StagingWarehouseForDataflows_*` (auto-created for dataflow staging) are camelCase; `Report Usage Metrics Model` / `Report Usage Metrics Report` are Fabric-generated **Title Case with spaces**, not camelCase; `EPI_file2table` / `WGI_file2table` follow the dataflow convention above. Semantic models and reports deliberately follow Fabric's PascalCase display-name convention rather than snake_case (`naming_standards.md § Semantic Model & Report Naming`) — that convention is settled; the specific `_v2` / `2` suffixes are what remain open. **`copyjob1` does not exist** in the workspace — 22 items enumerated 2026-08-06.
+-   Remaining non-snake_case names: `sample-quality-data` (hyphenated), plus `OEMInsightBI_v2` / `report2`, which deliberately follow Fabric's PascalCase display-name convention rather than snake_case (`naming_standards.md § Semantic Model & Report Naming`) — that convention is settled; the specific `_v2` / `2` suffixes are what remain open. The Fabric-generated `StagingLakehouseForDataflows_*` / `StagingWarehouseForDataflows_*` (dataflow staging) and `Report Usage Metrics Model` / `Report Usage Metrics Report` names previously listed here were all deleted 2026-08-10, as were `EPI_file2table` / `WGI_file2table`. **`copyjob1` does not exist** in the workspace — 13 items enumerated 2026-08-10.
 
 -   **Terminology carve-out — "DQ gate" is deliberate:** spec *prose* canonicalizes on "data quality" over the abbreviation "DQ" (FB-005, promoted 2026-05-17; re-swept 2026-08-10). **"DQ gate" is the single retained exception** — a coined term for the `BLOCKING_CHECKS` failure gate, used in § Technical Decisions and § Remaining Work, where the expanded "data quality gate" reads as needless length. After the 2026-08-10 sweep, and outside this bullet, those are the **only** two standalone occurrences of "DQ" in this spec — `grep -c '\bDQ\b' .claude/spec_v1.md` returns **3**, counting this bullet. A fourth is drift, not this carve-out.
 
@@ -1189,6 +1189,10 @@ Synthetic dataset. **`/azure/` holds DDL only** — `procurement.sql` and `suppl
 **Partitioning Strategy:** Not applicable at portfolio scale — default Fabric behavior. **Optimization Settings:** Default V-Order (Fabric default for warehouse tables). **Format:** Delta Lake (confirmed from write operations)
 
 ### Warehouse Configuration
+
+**Retired (2026-08-10)** — `oem_wh` was removed from the repo and the workspace. See `.claude/support/retired/oem-wh-warehouse/manifest.json`.
+
+> ⚠️ **The "SQL Business Logic Objects" listed below never existed.** A live `sys.objects` query on 2026-08-10 returned 8 tables and **zero views, zero stored procedures**; all 8 tables had `modify_date == create_date == 2026-01-16`. The four `v_*` views and two `usp_*` procedures were specified and never built. Three of the `v_*` names do exist — as Spark-catalog views created inside `silver_to_gold.Notebook` over the lakehouse, invisible to any SQL endpoint (established independently by task-038_2). The section is retained as historical record, not as a description of shipped work.
 
 **Warehouse Name:** `oem_wh`
 
@@ -1482,11 +1486,11 @@ See `docs/dax_measure_library.md` for the full measure library. **45 measures li
 
 **EPI Dataset:**
 
--   Source: Yale EPI (https://epi.yale.edu/), file-based dataflow ingestion
+-   Source: Yale EPI (https://epi.yale.edu/), automated HTTPS download
 
 -   Update schedule: Annual (typically Q2-Q3 each year)
 
--   File location: Manual CSV upload to Fabric Lakehouse Files
+-   File location: n/a — fetched at runtime by `bronze_ingest_epi.Notebook`, not pre-staged
 
 -   Ingestion: `bronze_ingest_epi.Notebook` — automated HTTP download, no manual upload
 
@@ -1605,7 +1609,7 @@ See `docs/dax_measure_library.md` for the full measure library. **45 measures li
    - Service Principal authentication (human task: Azure AD app registration)
    - Deployment triggered on merge to main
 
-2. **SQL Warehouse Analytics Layer** — already implemented (4 views + 2 stored procedures in `oem_wh`). No additional work needed.
+2. ~~**SQL Warehouse Analytics Layer** — already implemented (4 views + 2 stored procedures in `oem_wh`).~~ — **Retired (2026-08-10).** Never implemented: the objects were specified but never built, and the warehouse itself was removed. The shipped analytics surface is the gold layer plus 45 DAX measures over DirectLake.
 
 ### Remaining Work
 

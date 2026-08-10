@@ -70,7 +70,7 @@
 
 **HQ:** Headquarters (supplier HQ country)
 **LH:** Lakehouse (oem_lh)
-**WH:** Warehouse (oem_wh)
+**WH:** Warehouse (generic Fabric item type; this project has none — `oem_wh` was retired 2026-08-10)
 **YoY:** Year-over-Year (comparing to same period last year)
 **MoM:** Month-over-Month (comparing to previous month)
 **DQ:** Data Quality

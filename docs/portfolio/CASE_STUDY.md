@@ -195,7 +195,7 @@ Stated because a risk model without stated boundaries is a liability:
 | `fabric/*.Notebook/` | PySpark transformation notebooks (the code that runs) |
 | `fabric/*.DataPipeline/` | Orchestrator definition (10 activities) |
 | `fabric/*.SemanticModel/` | TMDL semantic model — model as code, not `.pbix` |
-| `fabric/sql/`, `fabric/oem_wh.Warehouse/` | Warehouse DDL, views, stored procedures, indexes |
+| `fabric/sql/` | SQL finding documents (e.g. why `CREATE INDEX` is rejected on Fabric DW) — reference, not deployed |
 | `src/transformations/` | Testable mirror of the notebook logic |
 | `tests/` | 235 pytest tests, incl. the notebook↔module parity contract |
 | `.github/workflows/` | CI (tests) and CD (`fabric-cicd` deployment) |

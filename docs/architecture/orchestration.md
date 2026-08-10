@@ -151,10 +151,16 @@ to retry 0.**
 - **Note:** this runs on the *Succeeded* path as the pipeline's final step — it is a
   logging/harvest stage, not a failure branch.
 
-> **There is no Warehouse Sync stage.** Earlier revisions of this document
-> described a Stage 4 `Copy job1` (`InvokeCopyJob`) syncing gold to `oem_wh`. No
-> such activity exists in the pipeline. The warehouse analytics layer (4 views +
-> 2 stored procedures in `oem_wh`) is maintained separately.
+> **There is no Warehouse Sync stage, and no warehouse.** Earlier revisions of this
+> document described a Stage 4 `Copy job1` (`InvokeCopyJob`) syncing gold to `oem_wh`;
+> no such activity ever existed. A later revision claimed a separately-maintained
+> "warehouse analytics layer (4 views + 2 stored procedures in `oem_wh`)" — that was
+> also wrong. A live catalogue query on 2026-08-10 returned 8 tables and **zero views,
+> zero stored procedures**; those objects were specified but never built. The `oem_wh`
+> warehouse was retired the same day
+> (`.claude/support/retired/oem-wh-warehouse/manifest.json`). The three `v_*` view names
+> that do exist are Spark-catalog views created inside `silver_to_gold.Notebook` over the
+> lakehouse, invisible to any SQL endpoint.
 
 ## Pipeline Parameters
 

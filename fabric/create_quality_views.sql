@@ -4,7 +4,17 @@
 -- These views create aggregated quality metrics that are optimized
 -- for Power BI visualizations in the data quality dashboard.
 --
--- Run this script in the oem_wh warehouse after gold layer loads
+-- ⚠️ NOT DEPLOYED — REFERENCE ONLY. This script was written to run against the
+-- `oem_wh` warehouse, which was RETIRED 2026-08-10 because nothing read it
+-- (.claude/support/retired/oem-wh-warehouse/manifest.json). It was never
+-- actually run: a live catalogue query on that date returned 8 tables and zero
+-- views, so none of the views below ever existed.
+--
+-- The shipped data-quality surface is built in PySpark instead — see
+-- `silver_to_gold.Notebook` (gold_data_quality_metrics, gold_data_quality_dashboard)
+-- and docs/data_quality_architecture.md. This file is retained as a T-SQL
+-- rendering of the same aggregations, not as a deployable artifact. To use it,
+-- point it at a warehouse that actually exists first.
 -- =====================================================================
 
 -- =====================================================================

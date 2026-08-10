@@ -43,33 +43,31 @@ oem_lh/
 - Partitioning: Pending implementation (Task 12)
 - Compaction: Automatic via Delta Lake
 
-### Warehouse: `oem_wh`
+### Warehouse: none
 
-**Warehouse ID:** `b1cb7506-8d2d-4e4a-97cc-2b580da8eda0`
+**Retired (2026-08-10)** — the workspace previously carried a standalone Warehouse item,
+`oem_wh` (`b1cb7506-8d2d-4e4a-97cc-2b580da8eda0`). It was removed because nothing read it:
+the semantic model is DirectLake on `oem_lh`, no pipeline activity or notebook ever wrote
+to it, and its contents were a frozen 2026-01-16 snapshot that had drifted from the live
+gold tables in both directions. Snapshot and full rationale:
+`.claude/support/retired/oem-wh-warehouse/manifest.json`.
 
-**Purpose:** SQL-queryable layer over gold — **not currently in the data flow**
-
-**Connection:**
-- **Endpoint:** `2BINPJYTVAEEVEF26XKMILPX4E-NXGOJGODN2TUTLWZW2NQJKL2VE.datawarehouse.fabric.microsoft.com`
-- **Database ID:** `b1cb7506-8d2d-4e4a-97cc-2b580da8eda0`
-- **Authentication:** Workspace identity (automatic)
-
-**Tables/Views:**
-- `fabric/oem_wh.Warehouse/dbo/Tables/` holds DDL for the 3 facts + 5 dimensions
-- Schema: `dbo` (default)
-
-> ⚠️ **Nothing populates this warehouse.** No pipeline activity syncs gold → `oem_wh`,
-> and the semantic model does not read from it (see below). The DDL is real; the data
-> flow into it is not. Treat the warehouse as a future SQL-interface option, not as part
-> of the current architecture — see `architecture/medallion_architecture.md`.
+> **Do not confuse this with the lakehouse's SQL analytics endpoint,** which still exists.
+> `oem_lh` has an auto-created, read-only T-SQL endpoint (`f9bb3de4-…`) that some Fabric
+> APIs report with item type `Warehouse`. That endpoint is live and is a normal part of any
+> lakehouse; it is not a standalone warehouse and is not in the DirectLake path either.
+> Both surfaces happened to share the TDS host
+> `2binpjytvaeevef26xkmilpx4e-…datawarehouse.fabric.microsoft.com`, distinguished only by
+> database name — which is exactly why the two were easy to conflate.
 
 ### Semantic Model: `OEMInsightBI_v2`
 
 **Type:** DirectLake
 
 **Connection:** DirectLake on the **`oem_lh` lakehouse** — `definition/expressions.tmdl`
-declares a single expression, `'DirectLake - oem_lh'`. It does **not** connect to the
-`oem_wh` warehouse; the report reads the gold Delta tables in the lakehouse directly.
+declares a single expression, `'DirectLake - oem_lh'`, resolving to the lakehouse's OneLake
+path. The report reads the gold Delta tables directly; there is no warehouse and no SQL
+endpoint in the serving path.
 
 **Refresh:** Automatic (no explicit refresh needed with DirectLake)
 
@@ -111,15 +109,20 @@ All PySpark, all attached to the `oem_lh` lakehouse.
      and every `fabric-cicd` publish strips its credentials
    - Snapshot: `.claude/support/retired/bronze-azuresqldb2table-dataflow/manifest.json`
 
-2. **EPI_file2table.Dataflow** — ⚠️ retired
-   - Superseded by `bronze_ingest_epi.Notebook`. The artifact is still on disk but no
-     pipeline activity refreshes it.
+2. **EPI_file2table.Dataflow** — ❌ RETIRED 2026-08-10 (deleted from the workspace)
+   - Superseded by `bronze_ingest_epi.Notebook` when task-035 repointed the pipeline
+     (2026-07-26); orphaned for two weeks before removal
+   - Read a hand-uploaded CSV from the lakehouse `Files/EPI/`; the notebook downloads
+     from `epi.yale.edu` with retry and year-parameterisation
+   - Snapshot: `.claude/support/retired/epi-wgi-file2table-dataflows/manifest.json`
 
-3. **WGI_file2table.Dataflow** — ⚠️ retired
-   - Superseded by `bronze_ingest_wgi.Notebook`. It wrote `bronze_WB_ESGCSV` +
-     `bronze_WB_ESGSeries` (wide Excel extract, 2023 percentile ranks); those tables no
-     longer exist and `bronze_to_silver` hard-fails if `bronze_wgi` still carries that
-     shape. See `schemas/bronze_tables.md`.
+3. **WGI_file2table.Dataflow** — ❌ RETIRED 2026-08-10 (deleted from the workspace)
+   - Superseded by `bronze_ingest_wgi.Notebook` (task-035, 2026-07-26)
+   - Read a hand-uploaded Excel extract (2023 percentile ranks, 4 columns); the notebook
+     pulls all 6 WGI indicators for 1996–2023 from the World Bank API. `bronze_to_silver`
+     hard-fails if `bronze_wgi` still carries the old wide shape — see
+     `schemas/bronze_tables.md`
+   - Snapshot: `.claude/support/retired/epi-wgi-file2table-dataflows/manifest.json`
 
 ### Pipelines (1)
 1. **orchestrator_pipeline_bronze_to_gold.DataPipeline**

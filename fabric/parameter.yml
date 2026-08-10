@@ -74,11 +74,16 @@
 #   * It is bound inside the DATAFLOW EDITOR itself, which is precisely what the
 #     publish strips.
 #
-# Applies to `EPI_file2table` and `WGI_file2table`, which are still Dataflow Gen2
-# items. Re-bind them in the dataflow editor after any deploy that touches them.
-# (task-035 moved the pipeline's EPI/WGI ingestion to notebooks, so these two no
-# longer sit on the orchestrator's critical path — but the items still exist and
-# the gotcha still applies if they are refreshed.)
+# NO DATAFLOW GEN2 ITEMS REMAIN (as of 2026-08-10). `EPI_file2table` and
+# `WGI_file2table` were the last two, and both were retired that day — task-035
+# had already moved the pipeline's EPI/WGI ingestion to notebooks in 2026-07-26,
+# leaving the items orphaned but still republished (and re-unbound) on every
+# deploy. Snapshot: .claude/support/retired/epi-wgi-file2table-dataflows/
+#
+# This block is retained deliberately: it is the rationale for the Copy-activity
+# pattern below, and it is the guidance to re-read if a Dataflow Gen2 is ever
+# reintroduced. "Dataflow" has also been dropped from `item_type_in_scope` in
+# .github/workflows/deploy-fabric.yml.
 #
 # `bronze_azureSQLdb2table` was RETIRED for exactly this reason (task-048): on top
 # of the credential stripping, an SPN cannot refresh a Dataflow Gen2 at all

@@ -295,6 +295,7 @@ EU CRM HTTP ───────────> bronze_global_supply_shares      
 - `/docs/schemas/bronze_tables.md` - Bronze table schemas
 - `/project_definition.md` - Lines 126-319 (Data Sources section)
 
-**Retired** (artifacts still on disk, no longer in the pipeline):
-- `/fabric/EPI_file2table.Dataflow/` — superseded by `bronze_ingest_epi.Notebook`
-- `/fabric/WGI_file2table.Dataflow/` — superseded by `bronze_ingest_wgi.Notebook`
+**Retired** (removed from the repo and the workspace 2026-08-10; snapshot at
+`.claude/support/retired/epi-wgi-file2table-dataflows/`):
+- `EPI_file2table.Dataflow` — superseded by `bronze_ingest_epi.Notebook`
+- `WGI_file2table.Dataflow` — superseded by `bronze_ingest_wgi.Notebook`

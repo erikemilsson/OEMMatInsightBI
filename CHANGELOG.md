@@ -15,6 +15,11 @@ Notable changes to the OEMMatInsightBI project. The project does not cut version
 - **Removed:** fabricated `guides/performance-baselines.md` (kept the measured `performance_baseline.md` as single source).
 
 ### Removed
+- **Workspace reduced 22 → 13 items (2026-08-10).** Retired with snapshots under `.claude/support/retired/`:
+  - `EPI_file2table` / `WGI_file2table` **dataflows** — orphaned since task-035 repointed the pipeline to notebooks (2026-07-26); every run in their history was manual, never pipeline-triggered. They were not inert: `fabric-cicd` republished both on every deploy and each publish stripped their Gen2 credentials.
+  - `oem_wh` **warehouse** — never read by anything. The semantic model is DirectLake on `oem_lh` (the warehouse GUID appears zero times across all 20 model parts); no pipeline activity or notebook wrote to it. A live catalogue query found 8 tables, **zero views and zero stored procedures** — refuting the docs' "4 views + 2 stored procedures" claim — with data frozen at 2026-01-16 and diverged from live gold in both directions (`fact_epi_score` 206 vs 12,196; `fact_supply_share` 58,542 vs 3,463).
+  - Auto-created dataflow staging (`StagingLakehouseForDataflows_*` + SQL endpoint, `StagingWarehouseForDataflows_*`, all empty), the `Notebook_1` scratch notebook, and Power BI's auto-generated usage-metrics report + model.
+  - `Dataflow` and `Warehouse` dropped from `item_type_in_scope` in `deploy-fabric.yml`.
 - Root clutter (`nb-*.png`, `project_definition.md`, `MISSION_CONTROL.md`, `OEMMatInsightBI.code-workspace`).
 - Dead docs (`dax_measures.md`, `complete-task-legacy.md`, `hooks-reference.md`, `templates-reference.md`).
 - `src/monitoring/performance_monitor.py` (sole parity-contract violator — parity is now uniform).

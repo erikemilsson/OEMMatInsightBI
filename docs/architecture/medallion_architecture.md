@@ -95,12 +95,13 @@ The project implements a **medallion architecture** (bronze → silver → gold)
 └─────────────────────┘
 ```
 
-> **There is no Warehouse Sync stage.** This diagram used to place an `oem_wh`
-> warehouse mirror between gold and the semantic model. The `oem_wh.Warehouse` artifact
-> does exist in `fabric/` (table DDL only), but **no pipeline activity populates it** and
-> the semantic model reads DirectLake directly off the `oem_lh` lakehouse
+> **There is no Warehouse Sync stage, and no warehouse.** This diagram used to place an
+> `oem_wh` warehouse mirror between gold and the semantic model. That artifact was table
+> DDL only — no pipeline activity ever populated it, nothing ever read it — and it was
+> retired 2026-08-10 (`.claude/support/retired/oem-wh-warehouse/manifest.json`). The
+> semantic model reads DirectLake directly off the `oem_lh` lakehouse
 > (`expressions.tmdl`: `expression 'DirectLake - oem_lh'`). If a SQL-interface mirror is
-> ever wanted it needs its own task; until then it is not part of the flow.
+> ever wanted it needs its own task, including a warehouse to sync into.
 
 ## Layer Definitions
 
@@ -289,8 +290,10 @@ high-water-mark tracking lands (task-029).
 📋 **Partitioning:** (Task 12) - Partition by date for query performance
 📋 **V-Order:** (Task 12) - Optimize for DirectLake queries
 📋 **Silver Join Metrics:** capture per-join match rates (`data_quality_architecture.md § [1]`)
-📋 **Warehouse Sync:** populate `oem_wh` as a SQL interface over gold, if wanted — no
-pipeline activity does this today
+📋 **SQL interface over gold:** if a T-SQL surface is ever wanted beyond the lakehouse's
+read-only SQL endpoint, it would need a new warehouse plus a gold→warehouse sync activity.
+The previous `oem_wh` warehouse was retired 2026-08-10 (nothing ever populated or read it)
+— see `.claude/support/retired/oem-wh-warehouse/manifest.json`
 
 ## Related Files
 

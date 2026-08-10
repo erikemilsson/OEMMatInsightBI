@@ -181,8 +181,13 @@ CREATE INDEX idx_material_key ON fact_procurement(material_key);
 
 ### Update Statistics
 ```sql
-UPDATE STATISTICS oem_wh.fact_procurement;
+UPDATE STATISTICS dbo.fact_procurement;
 ```
+
+> Generic T-SQL reference. **Not applicable on Fabric Data Warehouse**, which maintains
+> statistics automatically — running this is a no-op (established by DEC-012, alongside
+> the finding that `CREATE INDEX` is rejected outright with `Msg 22424`). This project
+> has no warehouse at all since `oem_wh` was retired 2026-08-10.
 
 ## Comments
 

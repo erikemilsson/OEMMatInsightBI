@@ -18,9 +18,10 @@ This document provides comprehensive research findings on automating the ingesti
 - ✅ **EPI notebook:** `fabric/bronze_ingest_epi.Notebook/` — downloads CSV via `requests`, writes to `bronze_epi2024results` and `bronze_epi2024weights` (task-056: the weights file is the source for `silver_epi2024variables` → `gold_dim_indicator.weight`, which the `Weighted EPI Score` DAX measure consumes)
 - ✅ **WGI notebook:** `fabric/bronze_ingest_wgi.Notebook/` — calls World Bank API v2 (JSON), writes to `bronze_wgi`
 - ✅ **Pipeline wiring:** done (task-035, 2026-07-26) — `bronze_EPI` and `bronze_wgi` are
-  TridentNotebook activities in `orchestrator_pipeline_bronze_to_gold`; the
-  `EPI_file2table` / `WGI_file2table` dataflow items still exist in the workspace but are
-  not on the pipeline's activity path
+  TridentNotebook activities in `orchestrator_pipeline_bronze_to_gold`
+- ✅ **Dataflows decommissioned:** the `EPI_file2table` / `WGI_file2table` items were
+  deleted from the workspace 2026-08-10 after two weeks orphaned. Snapshot:
+  `.claude/support/retired/epi-wgi-file2table-dataflows/manifest.json`
 
 ---
 
@@ -640,10 +641,11 @@ TridentNotebook activities in `orchestrator_pipeline_bronze_to_gold` pointing at
 pipeline (task-048 later retired the `bronze_procurement` RefreshDataflow too).
 ✅ **Test End-to-End** - Done (task-035): live pipeline run green end-to-end with both
 notebooks succeeding.
-⏭️ **Decommission Dataflows** - DEFERRED follow-up (not on this task's path): the
-`EPI_file2table.Dataflow` and `WGI_file2table.Dataflow` workspace items still exist but
-are not referenced by the pipeline. Remove them from the workspace once the notebook
-lineage is confirmed stable over a longer window.
+✅ **Decommission Dataflows** - Done (2026-08-10). The `EPI_file2table.Dataflow` and
+`WGI_file2table.Dataflow` workspace items were deleted once the notebook lineage had run
+clean for two weeks. Their auto-created staging artifacts
+(`StagingLakehouseForDataflows_*`, `StagingWarehouseForDataflows_*`, both empty) went with
+them. Snapshot: `.claude/support/retired/epi-wgi-file2table-dataflows/manifest.json`.
 
 ### Future Enhancements
 

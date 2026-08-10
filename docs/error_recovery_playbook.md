@@ -109,8 +109,8 @@ unreachable, schema changed at source, or resource contention on the Fabric capa
 1. Open Fabric workspace > the pipeline `orchestrator_pipeline_bronze_to_gold` > check
    the `bronze_wgi` / `bronze_EPI` activity's output cell. EPI/WGI ingestion has been via
    TridentNotebook activities (`bronze_ingest_wgi`, `bronze_ingest_epi`) since task-035 —
-   not dataflow refreshes; the `WGI_file2table` and `EPI_file2table` dataflow items still
-   exist in the workspace but are not on the pipeline's activity path.
+   not dataflow refreshes. The `WGI_file2table` / `EPI_file2table` dataflows were deleted
+   from the workspace 2026-08-10; there are no Dataflow Gen2 items left to check.
 2. If the World Bank API (WGI) or Yale EPI server is down, wait and retry
 3. If resource contention: check Fabric capacity utilization and retry during off-peak
 4. If schema changed at source: update the ingest notebook's parsing logic (the dataflows

@@ -113,14 +113,22 @@ jobs:
         # Item types in scope for this workspace. Matches fabric/parameter.yml
         # (task-044) and the spec's Phase 4 deliverable list. Names must match
         # fabric_cicd.ItemType enum values exactly.
+        #
+        # "Dataflow" and "Warehouse" were REMOVED 2026-08-10. The repo no longer
+        # contains any item of either type: the last two Dataflow Gen2 items
+        # (EPI_file2table, WGI_file2table) and the oem_wh Warehouse were retired
+        # that day. Keeping them in scope was not free — it made every deploy
+        # republish dead items, and each Dataflow publish stripped their Gen2
+        # credentials (see fabric/parameter.yml). Re-add a type here only when a
+        # real item of that type returns to fabric/.
+        # Snapshots: .claude/support/retired/epi-wgi-file2table-dataflows/
+        #            .claude/support/retired/oem-wh-warehouse/
         item_type_in_scope = [
             "Notebook",
             "DataPipeline",
-            "Dataflow",
             "SemanticModel",
             "Lakehouse",
             "Report",
-            "Warehouse",
         ]
 
         # fabric/archive/ is currently EMPTY. It once held retired items (the old
