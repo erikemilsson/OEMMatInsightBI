@@ -79,7 +79,7 @@ updated: 2026-08-10
 
 -   **SQL analytics endpoint:** `oem_lh`'s auto-created, read-only T-SQL surface. Some Fabric APIs report it with item type `Warehouse`; it is not a standalone warehouse and is not in the DirectLake path. **Retired (2026-08-10)** — the standalone `oem_wh` Warehouse was removed; nothing ever read it. See `.claude/support/retired/oem-wh-warehouse/manifest.json`.
 
--   **Semantic Model:** `OEMInsightBI_v2` (Power BI data model; the superseded `semantic_model_oeminsightbi` was removed from `fabric/archive/` on 2026-08-01 by workspace-sync commit `d128664` and survives only in git history at `d128664~1`)
+-   **Semantic Model:** `OEMInsightBI` (Power BI data model; renamed from `OEMInsightBI_v2` on 2026-08-10 to drop the version suffix. The superseded `semantic_model_oeminsightbi` was removed from `fabric/archive/` on 2026-08-01 by workspace-sync commit `d128664` and survives only in git history at `d128664~1`)
 
 -   **Report:** Power BI report connected to semantic model
 
@@ -725,7 +725,7 @@ Bronze now holds the source's raw day/year-transposed dates — a Copy activity 
 
 ## Semantic Model & Reporting
 
-### Semantic Model: `OEMInsightBI_v2`
+### Semantic Model: `OEMInsightBI`
 
 **Model Type:** Star Schema in **DirectLake** mode
 
@@ -829,7 +829,7 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
 
 -   Time intelligence requires relationship to fact_procurement
 
-### Power BI Report: `report2.Report`
+### Power BI Report: `oem_report.Report`
 
 The report was redesigned and rebuilt from scratch after the semantic model was finalized (task-003, task-013, task-014, task-016). The earlier report was discarded.
 
@@ -1031,11 +1031,11 @@ Fabric UI edits are not a sync path — anything changed there is overwritten by
 
 -   `mapping_*` (2 tables) sits outside the medallion prefixes by design.
 
--   `sample-quality-data` retains its pre-Phase-5 name and does not participate in the pipeline. (`Notebook_1`, previously listed here, was deleted 2026-08-10.)
+-   `sample_quality_data` does not participate in the pipeline. Renamed from `sample-quality-data` on 2026-08-10 — it was the last hyphenated notebook name. (`Notebook_1`, previously listed here, was deleted the same day.)
 
--   **`OEMInsightBI_v2` and `report2` are documented OPEN rename targets, not settled names** — `docs/standards/naming_standards.md` prescribes `OEMInsightBI` and a co-named `oem_report`, noting the live model is "slated to drop the `_v2` suffix", and `docs/architecture/fabric-artifacts-inventory.md` flags both as "Phase 5 rename targets". No decision record retires those targets. So there are **two** open naming families — these plus the concatenated silver tables above — and neither is decided here.
+-   **Artifact rename targets are closed (2026-08-10).** `OEMInsightBI_v2` → `OEMInsightBI` and `report2` → `oem_report`, matching what `docs/standards/naming_standards.md` prescribes (a semantic model and a co-named report reading as one brand). Each was done live-rename-first, then repo lockstep; item IDs are unchanged by a rename, so the report→model binding was never disturbed. **One naming family remains open** — the concatenated silver tables above (Phase 5 Batch C, undecided).
 
--   Remaining non-snake_case names: `sample-quality-data` (hyphenated), plus `OEMInsightBI_v2` / `report2`, which deliberately follow Fabric's PascalCase display-name convention rather than snake_case (`naming_standards.md § Semantic Model & Report Naming`) — that convention is settled; the specific `_v2` / `2` suffixes are what remain open. The Fabric-generated `StagingLakehouseForDataflows_*` / `StagingWarehouseForDataflows_*` (dataflow staging) and `Report Usage Metrics Model` / `Report Usage Metrics Report` names previously listed here were all deleted 2026-08-10, as were `EPI_file2table` / `WGI_file2table`. **`copyjob1` does not exist** in the workspace — 13 items enumerated 2026-08-10.
+-   Remaining non-snake_case names: `OEMInsightBI` and `oem_report` deliberately follow Fabric's PascalCase / project-prefixed display-name convention rather than snake_case (`naming_standards.md § Semantic Model & Report Naming`) — settled, and as of 2026-08-10 the `_v2` / `2` suffixes that were the open part are gone. All notebooks are snake_case. The Fabric-generated `StagingLakehouseForDataflows_*` / `StagingWarehouseForDataflows_*` (dataflow staging) and `Report Usage Metrics Model` / `Report Usage Metrics Report` names previously listed here were all deleted 2026-08-10, as were `EPI_file2table` / `WGI_file2table`. **`copyjob1` does not exist** in the workspace — 13 items enumerated 2026-08-10.
 
 -   **Terminology carve-out — "DQ gate" is deliberate:** spec *prose* canonicalizes on "data quality" over the abbreviation "DQ" (FB-005, promoted 2026-05-17; re-swept 2026-08-10). **"DQ gate" is the single retained exception** — a coined term for the `BLOCKING_CHECKS` failure gate, used in § Technical Decisions and § Remaining Work, where the expanded "data quality gate" reads as needless length. After the 2026-08-10 sweep, and outside this bullet, those are the **only** two standalone occurrences of "DQ" in this spec — `grep -c '\bDQ\b' .claude/spec_v1.md` returns **3**, counting this bullet. A fourth is drift, not this carve-out.
 
@@ -1522,7 +1522,7 @@ See `docs/dax_measure_library.md` for the full measure library. **45 measures li
 
 **Power BI Report:**
 
--   Report ID: `report2.Report` (in `/fabric` folder; the superseded `report.Report` was removed from `fabric/archive/` on 2026-08-01 by workspace-sync commit `d128664` and survives only in git history at `d128664~1`)
+-   Report ID: `oem_report.Report` (in `/fabric` folder; renamed from `report2.Report` on 2026-08-10. The superseded `report.Report` was removed from `fabric/archive/` on 2026-08-01 by workspace-sync commit `d128664` and survives only in git history at `d128664~1`)
 
 -   Portfolio demonstration — no external consumers
 
