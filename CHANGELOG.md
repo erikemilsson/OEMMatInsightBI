@@ -7,6 +7,7 @@ Notable changes to the OEMMatInsightBI project. The project does not cut version
 ## 2026-08 — Pre-publishing curation
 
 ### Changed
+- **Artifact renames (2026-08-10):** `OEMInsightBI_v2` → **`OEMInsightBI`** (dropped the version suffix) and `sample-quality-data` → **`sample_quality_data`** (last hyphenated notebook name). Both done as a live-rename-first lockstep: workspace `displayName` via REST, then repo `git mv` + `.platform`, `report2.Report/definition.pbir` binding path, and the `test_doc_artifact_names` guard. Item IDs are unchanged, so the report→model binding is unaffected. `report2` → `oem_report` remains open.
 - **Doc migration:** domain docs moved from `.claude/support/documents/` → `docs/` as the canonical documentation surface; `.claude/` curtailed to spec, decisions, and agent environment (rigor public, scaffolding gitignored).
 - **DAX library rewritten** against the live TMDL — 45 measures across 8 tables / 10 relationships (was a 2025-11 design doc claiming "no measures").
 - **Architecture docs rewritten** — DirectLake source corrected to `oem_lh` lakehouse (not `oem_wh` warehouse); as-built star schema (replaced fictional `dim_supplier`/`dim_product`/`fact_transactions`); `xxhash64` surrogate keys (not SHA-256/base64); 10-activity pipeline flow.

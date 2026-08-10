@@ -54,7 +54,7 @@
 --
 -- 1. The semantic model read path is DirectLake, NOT the warehouse SQL
 --    endpoint. Every table partition in
---      fabric/OEMInsightBI_v2.SemanticModel/definition/tables/*.tmdl
+--      fabric/OEMInsightBI.SemanticModel/definition/tables/*.tmdl
 --    is  mode: directLake  with  expressionSource: 'DirectLake - oem_lh',
 --    and expressions.tmdl resolves the source to OneLake parquet:
 --      AzureStorage.DataLake("https://onelake.dfs.fabric.microsoft.com/

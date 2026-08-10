@@ -1,8 +1,8 @@
 # DAX Measure Library — OEMMatInsightBI
 
 **Status:** As-built (mirrors the live TMDL)
-**Source of truth:** `fabric/OEMInsightBI_v2.SemanticModel/definition/tables/*.tmdl`
-**Semantic model:** `OEMInsightBI_v2` · DirectLake on the `oem_lh` lakehouse (NOT a warehouse — see `architecture/semantic_model.md`)
+**Source of truth:** `fabric/OEMInsightBI.SemanticModel/definition/tables/*.tmdl`
+**Semantic model:** `OEMInsightBI` · DirectLake on the `oem_lh` lakehouse (NOT a warehouse — see `architecture/semantic_model.md`)
 
 ## Summary
 
@@ -265,9 +265,9 @@ See `data_quality_architecture.md` for the shipped design and `data_quality_fram
 The measures above are transcribed from the live TMDL. To regenerate after a model change, the source of truth is:
 
 ```
-fabric/OEMInsightBI_v2.SemanticModel/definition/tables/*.tmdl
-fabric/OEMInsightBI_v2.SemanticModel/definition/relationships.tmdl
-fabric/OEMInsightBI_v2.SemanticModel/definition/expressions.tmdl
+fabric/OEMInsightBI.SemanticModel/definition/tables/*.tmdl
+fabric/OEMInsightBI.SemanticModel/definition/relationships.tmdl
+fabric/OEMInsightBI.SemanticModel/definition/expressions.tmdl
 ```
 
 Each `measure '<name>' = <expr>` block in a table TMDL is one row in the tables above; `displayFolder:` annotations map to the folder groupings; `formatString:` maps to the Format column.

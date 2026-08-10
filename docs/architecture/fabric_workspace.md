@@ -60,7 +60,7 @@ gold tables in both directions. Snapshot and full rationale:
 > `2binpjytvaeevef26xkmilpx4e-…datawarehouse.fabric.microsoft.com`, distinguished only by
 > database name — which is exactly why the two were easy to conflate.
 
-### Semantic Model: `OEMInsightBI_v2`
+### Semantic Model: `OEMInsightBI`
 
 **Type:** DirectLake
 
@@ -77,7 +77,7 @@ endpoint in the serving path.
 
 ### Power BI Report: `report2.Report`
 
-**Connected Model:** `OEMInsightBI_v2`
+**Connected Model:** `OEMInsightBI`
 
 **Theme:** CY24SU10.json (Fabric default theme)
 
@@ -99,7 +99,7 @@ All PySpark, all attached to the `oem_lh` lakehouse.
 **Not in the pipeline (run on demand):**
 6. **pipeline_error_handler.Notebook** — error-path handling
 7. **data_quality_analysis.Notebook** — ad-hoc quality analysis
-8. **sample-quality-data.Notebook** — seeds sample rows into the observability tables
+8. **sample_quality_data.Notebook** — seeds sample rows into the observability tables
 
 ### Dataflows (0 live, 3 retired)
 1. **bronze_azureSQLdb2table.Dataflow** — ❌ RETIRED 2026-07-31 (deleted from the workspace)

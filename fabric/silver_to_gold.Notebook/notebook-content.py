@@ -4040,7 +4040,7 @@ def populate_gap_registry():
         # Check for resolved gaps (gaps in registry but NOT in current unmapped).
         # Using LEFT JOIN instead of subquery (Delta Lake doesn't support subqueries in UPDATE)
         #
-        # task-027: sample rows seeded by sample-quality-data.Notebook are excluded. They are
+        # task-027: sample rows seeded by sample_quality_data.Notebook are excluded. They are
         # marked with a '[SAMPLE]' prefix in resolution_notes (that notebook's own convention,
         # and how it cleans itself up) and describe a demo lifecycle that no real run can
         # confirm — without this filter the first real run silently auto-resolved every

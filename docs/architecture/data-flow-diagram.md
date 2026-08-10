@@ -43,7 +43,7 @@ graph LR
 
     subgraph Serving["📊 Serving"]
         LH[oem_lh lakehouse<br/>Delta tables]
-        SM[OEMInsightBI_v2<br/>DirectLake semantic model]
+        SM[OEMInsightBI<br/>DirectLake semantic model]
         PBI[Power BI report]
     end
 

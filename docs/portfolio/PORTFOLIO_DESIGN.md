@@ -2,7 +2,7 @@
 **Version:** 1.0 (design spec for the built `report2.Report`)
 **Purpose:** 2-page Power BI report design for portfolio showcase (erikemilsson.com)
 
-> The report this spec describes is **built** (`fabric/report2.Report`) on the `OEMInsightBI_v2` semantic model. The visual specs below are the design; the as-built measure set is documented in [`docs/dax_measure_library.md`](../dax_measure_library.md) (45 measures). Where a visual below names a measure that was reframed during the model's redesign, substitute the nearest as-built measure from the catalogue — e.g. `[Supply Risk (Global)]` for HHI, `Weighted EPI Score` for the spend-weighted sustainability gauge.
+> The report this spec describes is **built** (`fabric/report2.Report`) on the `OEMInsightBI` semantic model. The visual specs below are the design; the as-built measure set is documented in [`docs/dax_measure_library.md`](../dax_measure_library.md) (45 measures). Where a visual below names a measure that was reframed during the model's redesign, substitute the nearest as-built measure from the catalogue — e.g. `[Supply Risk (Global)]` for HHI, `Weighted EPI Score` for the spend-weighted sustainability gauge.
 
 ---
 
@@ -309,7 +309,7 @@ Neutral:
 
 ## Implementation Steps
 
-1. ✅ **Semantic model** — `OEMInsightBI_v2` ships 45 measures (see `dax_measure_library.md`)
+1. ✅ **Semantic model** — `OEMInsightBI` ships 45 measures (see `dax_measure_library.md`)
 2. ✅ **Report** — `report2.Report` built from the model; the two pages follow the layouts above
 3. ✅ **Theme** — applied (colors, fonts from the spec below)
 4. **Portfolio asset capture** (on demand):

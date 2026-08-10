@@ -1,7 +1,7 @@
 # DAX Measures
 
 > **⚠️ Reference only — not deployed.** These `.dax` files are a standalone reference
-> library of data-quality measures; they are **not** part of the live `OEMInsightBI_v2`
+> library of data-quality measures; they are **not** part of the live `OEMInsightBI`
 > semantic model and are not published by `fabric-cicd`. The as-built measures that the
 > report actually consumes live in the TMDL — see
 > [`docs/dax_measure_library.md`](../../docs/dax_measure_library.md) for the 45-measure

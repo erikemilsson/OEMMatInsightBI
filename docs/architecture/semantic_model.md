@@ -2,7 +2,7 @@
 
 ## Overview
 
-**Model:** `OEMInsightBI_v2.SemanticModel`
+**Model:** `OEMInsightBI.SemanticModel`
 **Mode:** DirectLake (queries run directly against Delta tables in the `oem_lh` lakehouse)
 **Schema:** Star schema — 3 fact tables + 5 dimension tables + 1 derived gold table (`gold_supply_risk`)
 **Relationships:** 10, all active, single-direction (dimension → fact)
@@ -142,7 +142,7 @@ Patterns in use: `DIVIDE(..., 0)` safe division, `VAR`/`RETURN`, `CALCULATE` boo
 
 ## Model files
 
-Location: `fabric/OEMInsightBI_v2.SemanticModel/definition/`
+Location: `fabric/OEMInsightBI.SemanticModel/definition/`
 
 - `database.tmdl` — database metadata (compatibility level)
 - `expressions.tmdl` — the `DirectLake - oem_lh` source expression + `PBI_RemovedChildren` allowlist

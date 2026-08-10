@@ -21,7 +21,7 @@ As-built inventory of Fabric artifacts in the `oem_lh` workspace. Mirrors what i
 | `data_quality_checks` | `data_quality_checks` | Pipeline data-quality gate | ✅ Active |
 | `pipeline_error_handler` | `pipeline_error_handler` | Error categorisation + execution-log write; runs on **every** outcome | ✅ Active |
 | `data_quality_analysis` | — | DQ analysis (manual run, not on pipeline path) | ✅ Active (manual) |
-| `sample-quality-data` | — | Demo-seed notebook for sample DQ rows | ⚠️ Demo seed — not part of the production pipeline path |
+| `sample_quality_data` | — | Demo-seed notebook for sample DQ rows | ⚠️ Demo seed — not part of the production pipeline path |
 
 ### 💾 Storage & serving
 
@@ -34,7 +34,7 @@ As-built inventory of Fabric artifacts in the `oem_lh` workspace. Mirrors what i
 
 | Artifact | Type | Purpose | Status |
 |---|---|---|---|
-| `OEMInsightBI_v2` | SemanticModel | Star schema, DirectLake on `oem_lh`, **45 measures** across 8 tables / 10 relationships | ✅ Active |
+| `OEMInsightBI` | SemanticModel | Star schema, DirectLake on `oem_lh`, **45 measures** across 8 tables / 10 relationships | ✅ Active |
 | `report2` | Report | Power BI report over the semantic model | ✅ Active |
 
 > **No Dataflow Gen2 items remain.** The last two (`EPI_file2table`, `WGI_file2table`) were retired 2026-08-10 — see *Previously removed* below.
@@ -58,7 +58,7 @@ As-built inventory of Fabric artifacts in the `oem_lh` workspace. Mirrors what i
 | `bronze_azureSQLdb2table` | Dataflow | Replaced by Copy activities `bronze_copy_procurement_transactional` + `bronze_copy_supplier_ref` (2026-07-31) | `.claude/support/retired/bronze-azuresqldb2table-dataflow/manifest.json` |
 | `StagingLakehouseForDataflows_20250822093021` | SemanticModel | Auto-generated staging model | `.archive/fabric-cleanup-20251215-132143/` |
 | `StagingWarehouseForDataflows_20250822093045` | SemanticModel | Auto-generated staging model | `.archive/fabric-cleanup-20251215-132143/` |
-| `oem_wh.SemanticModel` | SemanticModel | Empty model superseded by `OEMInsightBI_v2` | `.archive/fabric-cleanup-20251215-132143/` |
+| `oem_wh.SemanticModel` | SemanticModel | Empty model superseded by `OEMInsightBI` | `.archive/fabric-cleanup-20251215-132143/` |
 | `oem_lh.SemanticModel` | SemanticModel | Auto-generated from lakehouse | `.archive/fabric-cleanup-20251215-132143/` |
 | `copyjob1.CopyJob` | CopyJob | Experimental/unused copy operation | `.archive/fabric-cleanup-20251215-132143/` |
 
@@ -78,7 +78,7 @@ graph TD
     EH[pipeline_error_handler]
 
     LH[oem_lh.Lakehouse]
-    SM[OEMInsightBI_v2.SemanticModel]
+    SM[OEMInsightBI.SemanticModel]
     Report[report2.Report]
 
     Pipeline --> BC1 & BE & BW & BS & SG & DQ
@@ -106,7 +106,9 @@ The model's DirectLake source is `oem_lh`, read directly over OneLake. EPI/WGI i
 - ✅ `orchestrator_pipeline_bronze_to_gold` — clear, snake_case
 - ✅ `oem_lh` — short, lowercase
 - ✅ `silver_to_gold` — renamed from `silver-to-gold2` in Phase 5 (snake_case, dropped the version stamp)
-- ⚠️ `OEMInsightBI_v2`, `report2` — version suffix / placeholder name; Phase 5 rename targets `OEMInsightBI` / `oem_report`
+- ✅ `OEMInsightBI` — renamed from `OEMInsightBI_v2` on 2026-08-10 (dropped the version suffix)
+- ✅ `sample_quality_data` — renamed from `sample-quality-data` on 2026-08-10 (last hyphenated notebook name)
+- ⚠️ `report2` — placeholder name; remaining rename target is `oem_report` (`standards/naming_standards.md § Semantic Model & Report Naming`)
 - ✅ Bronze activities are snake_case since Phase 4 (`bronze_copy_*`, `bronze_epi`, `bronze_wgi`); the three PascalCase bronze **tables** were renamed to snake_case in Phase 5 batch B
 
 See `standards/naming_standards.md` for the canonical convention (snake_case, layer-prefixed) and the planned reconciliations.

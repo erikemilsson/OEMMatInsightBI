@@ -30,7 +30,7 @@ A Microsoft Fabric solution demonstrating how OEM procurement data can be integr
 | Parity contract | `src/transformations/` is a tested mirror of notebook logic; `tests/` load the notebook's own functions and pin parity against `src/`; intentional semantic gaps are *asserted*, not fixed | [`tests/`](tests/) (via `_notebook_loader.py`), [DEC-002](.claude/support/decisions/decision-002-src-reference-implementation.md) |
 | Data-quality observability | A gold observability surface (`gold_data_gaps`, `gold_gap_registry`, `gold_quality_history`, `gold_low_confidence_audit`) plus a *blocking* DQ gate (`data_quality_checks`, 13-entry `BLOCKING_CHECKS`) | [`docs/data_quality_architecture.md`](docs/data_quality_architecture.md) |
 | Defended decisions | 6 engineering decisions written up for interview discussion (governance-weight inversion, fixed-bound rescaling, blocking DQ gate, etc.) | [`docs/portfolio/CASE_STUDY.md`](docs/portfolio/CASE_STUDY.md) § "decisions worth defending" |
-| Model-as-code | Semantic model defined as TMDL — 14 tables, 10 relationships, 45 measures, DirectLake expression — diffable in git, deployed by `fabric-cicd` | [`fabric/OEMInsightBI_v2.SemanticModel/`](fabric/OEMInsightBI_v2.SemanticModel/), [`docs/dax_measure_library.md`](docs/dax_measure_library.md) |
+| Model-as-code | Semantic model defined as TMDL — 14 tables, 10 relationships, 45 measures, DirectLake expression — diffable in git, deployed by `fabric-cicd` | [`fabric/OEMInsightBI.SemanticModel/`](fabric/OEMInsightBI.SemanticModel/), [`docs/dax_measure_library.md`](docs/dax_measure_library.md) |
 
 ## Project Structure
 
@@ -46,7 +46,7 @@ fabric/                 # All Fabric artifacts
 ├── silver_to_gold.Notebook/            # Silver → Gold: star schema + observability + Delta MERGE
 ├── data_quality_checks.Notebook/        # Terminal blocking DQ gate
 ├── pipeline_error_handler.Notebook/     # Runs on every pipeline outcome
-├── OEMInsightBI_v2.SemanticModel/       # DirectLake on oem_lh — 45 measures, TMDL
+├── OEMInsightBI.SemanticModel/       # DirectLake on oem_lh — 45 measures, TMDL
 ├── report2.Report/                       # 2-page portfolio report
 ├── dax/                                  # Reference-only DAX sketches — not deployed
 └── sql/                                  # SQL finding documents — not deployed
@@ -149,7 +149,7 @@ The `orchestrator_pipeline_bronze_to_gold.DataPipeline` manages the full data fl
 
 **Usage:** First run with `p_full_load=true`; subsequent runs with `p_full_load=false` and `p_from_date` set to the last successful run timestamp. Per-activity retry policy is documented in [`docs/error_recovery_playbook.md`](docs/error_recovery_playbook.md).
 
-### Semantic Model (OEMInsightBI_v2 — DirectLake)
+### Semantic Model (OEMInsightBI — DirectLake)
 
 The semantic model is defined as **TMDL** (model-as-code) and serves from the `oem_lh` lakehouse via **DirectLake** — no warehouse in the serving path, no scheduled refresh needed. The model's single source expression resolves to the lakehouse's OneLake path directly, so all 14 tables read Delta files without a SQL endpoint in between.
 

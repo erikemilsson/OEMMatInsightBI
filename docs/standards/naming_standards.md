@@ -4,7 +4,7 @@
 
 ### Inconsistencies Identified
 - **Table prefixes:** Mix of bronze_/silver_/gold_dim_
-- **Notebook names:** Mix of underscores and hyphens (`data_quality_checks` vs `sample-quality-data`)
+- **Notebook names:** ✅ resolved — all notebooks are snake_case as of 2026-08-10 (`sample-quality-data`, the last hyphenated name, became `sample_quality_data`)
 - **Column names:** Inconsistent (Date vs date, MaterialName vs materialname)
 - **Artifact names:** Mix of camelCase and underscores (`bronze_azureSQLdb2table` vs `orchestrator_pipeline_bronze_to_gold`) — *`bronze_azureSQLdb2table` was retired 2026-07-31; kept here as a naming example only*
 
@@ -80,7 +80,7 @@ data_quality_checks.Notebook   (underscores)
 bronze_ingest_wgi.Notebook     (underscores)
 silver_to_gold.Notebook       (underscores)
 bronze_to_silver.Notebook      (underscores)
-sample-quality-data.Notebook   (hyphens)
+sample_quality_data.Notebook   (underscores — was hyphenated until 2026-08-10)
 ```
 
 ### Pipeline Naming
@@ -120,11 +120,10 @@ display-name conventions (PascalCase, project-prefixed), **not** the snake_case
 `[layer]_[entity]` pattern used for lakehouse tables, notebooks, and pipelines.
 Applying the snake pattern here produces a name no Fabric artifact actually
 carries (the prior `semantic_model_oeminsightbi` recommendation was just such a
-fictional example — the live model is `OEMInsightBI_v2`, slated to drop the
-`_v2` suffix).
+fictional example).
 
-**Semantic model:** `OEMInsightBI`
-**Report:** project-prefixed, co-named with its semantic model so the pair reads as one brand (e.g. `oem_report`)
+**Semantic model:** `OEMInsightBI` — ✅ live as of 2026-08-10; the `_v2` suffix was dropped that day.
+**Report:** project-prefixed, co-named with its semantic model so the pair reads as one brand (e.g. `oem_report`) — ⚠️ **open**: the live report is still `report2`.
 
 ## File & Directory Standards
 

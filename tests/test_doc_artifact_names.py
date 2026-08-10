@@ -7,10 +7,17 @@ them. This test prevents recurrence on the recruiter-facing surfaces.
 
 Renames (old -> new; new is canonical on disk):
   semantic_model_oeminsightbi      -> OEMInsightBI_v2
+  OEMInsightBI_v2                  -> OEMInsightBI                (2026-08-10, dropped _v2)
   clean_columnsAndHeaders.Notebook -> bronze-to-silver.Notebook
   bronze-to-silver.Notebook        -> bronze_to_silver.Notebook   (Phase 5, 2026-08-04)
   silver-to-gold2.Notebook         -> silver_to_gold.Notebook     (Phase 5, 2026-08-04)
+  sample-quality-data.Notebook     -> sample_quality_data.Notebook (2026-08-10)
   report.Report                    -> report2.Report
+
+`report2.Report` is NOT yet renamed. `standards/naming_standards.md` prescribes
+`oem_report`; the live item and the repo folder both still read `report2`, so the
+two agree and nothing is guarded for it yet. Add `report2` to OLD_NAMES only when
+that rename actually lands, or the guard will fire on every correct reference.
 
 Phase 5 batch B (2026-08-05) additionally renamed three bronze lakehouse TABLES:
   bronze_EUSupplyShares            -> bronze_eu_supply_shares
@@ -72,6 +79,12 @@ OLD_NAMES = (
     # `bronze_EPI`/`bronze_WGI` still cannot be added here (legitimate historical
     # activity references on guarded surfaces) — they live in the claim-scoped set below.
     "bronzecopy_",
+    # 2026-08-10 renames. Both probed against CLEAN_SURFACES before adding: neither
+    # fires, so this is free hardening. `OEMInsightBI_v2` is safe to guard even though
+    # the new name `OEMInsightBI` is a substring of it — the check looks for the OLD
+    # literal, so a correct `OEMInsightBI` reference cannot match it.
+    "OEMInsightBI_v2",
+    "sample-quality-data",
 )
 
 # Recruiter-facing / guide surfaces with no legitimate old-name occurrence.
@@ -103,8 +116,8 @@ def test_no_stale_fabric_artifact_names(rel):
         pytest.skip(f"{rel} not present")
     assert not hits, (
         f"{rel} reintroduced pre-rename Fabric artifact name(s): {hits}. "
-        "Use OEMInsightBI_v2 / bronze_to_silver.Notebook / silver_to_gold.Notebook / report2.Report "
-        "(audit C-01, task-021)."
+        "Use OEMInsightBI / bronze_to_silver.Notebook / silver_to_gold.Notebook / "
+        "sample_quality_data.Notebook / report2.Report (audit C-01, task-021)."
     )
 
 

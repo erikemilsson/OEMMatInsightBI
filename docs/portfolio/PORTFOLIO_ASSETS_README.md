@@ -18,7 +18,7 @@ The portfolio centerpiece. Covers the problem, the medallion build, the data-qua
 
 ## 2. Report design — `PORTFOLIO_DESIGN.md`
 
-Power BI report design specification: page layouts, measure wiring, theme, and accessibility notes. Pairs with the live `report2.Report` (built from the `OEMInsightBI_v2` semantic model).
+Power BI report design specification: page layouts, measure wiring, theme, and accessibility notes. Pairs with the live `report2.Report` (built from the `OEMInsightBI` semantic model).
 
 **Demonstrates:** dashboard design thinking (visual hierarchy, storytelling), Power BI best practices (measure organization, DirectLake), and professional handoff-grade documentation.
 
@@ -26,10 +26,10 @@ Power BI report design specification: page layouts, measure wiring, theme, and a
 
 ## 3. DAX measure library — the as-built catalogue
 
-**Source of truth:** `fabric/OEMInsightBI_v2.SemanticModel/definition/tables/*.tmdl` (the live TMDL).
+**Source of truth:** `fabric/OEMInsightBI.SemanticModel/definition/tables/*.tmdl` (the live TMDL).
 **Readable catalogue:** [`docs/dax_measure_library.md`](../dax_measure_library.md) — 45 measures transcribed from the live model.
 
-The model has one canonical version (`OEMInsightBI_v2`, DirectLake on `oem_lh`). Measures live on the table that owns their grain — there is no `_Measures` table — grouped with display folders:
+The model has one canonical version (`OEMInsightBI`, DirectLake on `oem_lh`). Measures live on the table that owns their grain — there is no `_Measures` table — grouped with display folders:
 
 | Group | Table(s) | Measures | What it shows |
 |---|---|---|---|
@@ -53,7 +53,7 @@ The model has one canonical version (`OEMInsightBI_v2`, DirectLake on `oem_lh`).
 
 | Artifact | Path | Why it's worth showing |
 |---|---|---|
-| Semantic model (TMDL) | `fabric/OEMInsightBI_v2.SemanticModel/definition/` | Model-as-code: 14 tables, 10 relationships, 45 measures, DirectLake expression |
+| Semantic model (TMDL) | `fabric/OEMInsightBI.SemanticModel/definition/` | Model-as-code: 14 tables, 10 relationships, 45 measures, DirectLake expression |
 | Pipeline | `fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/` | 10-activity orchestration (Copy + Notebook) with per-activity retry policy |
 | Silver→Gold notebook | `fabric/silver_to_gold.Notebook/` | Star-schema build + observability tables + Delta MERGE |
 | Parity contract | `tests/test_notebook_parity.py`, `src/transformations/` | `src/` is a tested mirror of notebook logic; CI pins parity (Task-032) |
@@ -121,7 +121,7 @@ These are produced from the *real* report on the *real* model — no mockups or 
 | Case study | `docs/portfolio/CASE_STUDY.md` | ✅ Ready |
 | Report design | `docs/portfolio/PORTFOLIO_DESIGN.md` | ✅ Ready |
 | DAX measure catalogue | `docs/dax_measure_library.md` | ✅ Ready (as-built, 45 measures) |
-| Semantic model | `fabric/OEMInsightBI_v2.SemanticModel/` | ✅ Built |
+| Semantic model | `fabric/OEMInsightBI.SemanticModel/` | ✅ Built |
 | Report | `fabric/report2.Report/` | ✅ Built |
 | Pipeline | `fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/` | ✅ Built |
 | Tests | `tests/` | ✅ 235 tests |

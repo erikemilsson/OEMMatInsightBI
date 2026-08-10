@@ -1,6 +1,6 @@
 # Star Schema ERD — OEMMatInsightBI
 
-The as-built semantic model (`OEMInsightBI_v2`, DirectLake on `oem_lh`) is a star schema of 3 fact tables + 5 dimension tables + 1 derived gold table, connected by 10 active single-direction relationships. This diagram mirrors `fabric/OEMInsightBI_v2.SemanticModel/definition/relationships.tmdl`.
+The as-built semantic model (`OEMInsightBI`, DirectLake on `oem_lh`) is a star schema of 3 fact tables + 5 dimension tables + 1 derived gold table, connected by 10 active single-direction relationships. This diagram mirrors `fabric/OEMInsightBI.SemanticModel/definition/relationships.tmdl`.
 
 ## Entity-relationship diagram
 

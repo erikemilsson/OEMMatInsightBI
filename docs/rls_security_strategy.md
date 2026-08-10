@@ -1,6 +1,6 @@
 # Row-Level Security (RLS) Strategy - OEMMatInsightBI
 
-**Status:** Design (Unimplemented) — no RLS roles exist in the shipped semantic model (verified against `fabric/OEMInsightBI_v2.SemanticModel/` TMDL, 2026-08-04)
+**Status:** Design (Unimplemented) — no RLS roles exist in the shipped semantic model (verified against `fabric/OEMInsightBI.SemanticModel/` TMDL, 2026-08-04)
 **Last Updated:** 2026-08-04
 
 ## Executive Summary
