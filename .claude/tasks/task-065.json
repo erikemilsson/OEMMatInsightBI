@@ -1,0 +1,38 @@
+{
+  "spec_version": "spec_v1",
+  "spec_fingerprint": "sha256:57b2ad82f925ce3b44569ffbb45f8e32b5957a89ad05ffefa257c36380345ce6",
+  "created_date": "2026-08-11",
+  "updated_date": "2026-08-11",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "absorbed_into": null,
+  "subtasks": [],
+  "decision_dependencies": [],
+  "user_feedback": null,
+  "source": "session finding under task-061 (2026-08-11); promoted to a task by Erik via /work 2026-08-11",
+  "id": "task-065",
+  "title": "Fix [Latest Match Rate] and [Latest Coverage Rate] — both BLANK by construction",
+  "status": "Pending",
+  "priority": "high",
+  "difficulty": 5,
+  "owner": "both",
+  "phase": "5",
+  "spec_section": "Business Logic & Calculations",
+  "out_of_spec": true,
+  "out_of_spec_approved": true,
+  "dependencies": [],
+  "files_affected": [
+    "fabric/OEMInsightBI.SemanticModel/definition/tables/gold_quality_history.tmdl",
+    "docs/dax_measure_library.md"
+  ],
+  "description": "Both quality measures return BLANK in every filter context. This is a computation defect, not a data gap, and it is already diagnosed with live measurements in docs/dax_measure_library.md:235 (written under task-061, 2026-08-11) — read that note first rather than re-deriving it.\n\nRoot cause: `VAR LatestRun = MAXX(gold_quality_history, gold_quality_history[refresh_timestamp])` takes the max over the WHOLE table, but two notebooks append to gold_quality_history in the same pipeline run, each stamping its own pipeline_run_ts. `silver_to_gold` writes coverage_rate / match_rate; `data_quality_checks` then writes only dq_* rows roughly ten minutes later. The later timestamp therefore always wins and never carries either metric, so the `refresh_timestamp = LatestRun` and `metric_name = \"...\"` filters intersect to nothing. Measured on the live model: 111 match_rate rows exist, newest at 2026-08-11T04:06:33 with value 99.42, while the table max is 2026-08-11T04:17:09 (producer data_quality_checks, all dq_*).\n\nTWO defects, not one — a naive fix ships the second. The producers write WHOLE percentages (85 means 85%) while the measures' format string is `0.0%`, which expects a fraction. Resolving LatestRun alone would render 99.42 as 9941.8%. Fix both or neither.\n\nCandidate approach (not prescriptive): resolve the latest run per metric via CALCULATE(MAX(refresh_timestamp), ALLEXCEPT(...), metric_name = \"...\"), or filter on the `producer` column so only silver_to_gold rows compete for the max. Both measures share the identical pattern and must move together — task-061 noticed only Match Rate; Coverage Rate is blank the same way.\n\nDo not commit or push. Per the project rule, a push to main fires a real Fabric publish — the deploy and the in-report confirmation are Erik's half.",
+  "acceptanceCriteria": [
+    "Both [Latest Match Rate] and [Latest Coverage Rate] return a non-blank value, verified against the live published model (offline DEFINE MEASURE evaluation is acceptable evidence for this half, as it was for task-061).",
+    "The whole-percentage vs 0.0% format-string mismatch is resolved so the rendered value reads as the true percentage (99.42% for the measured newest match_rate row, not 9941.8% and not 0.99%). State explicitly which side was changed — the measure or the format string.",
+    "The latest run is resolved per metric (or per producer) rather than by a table-wide MAX, so a later data_quality_checks append cannot re-blank either measure. Demonstrate this with a case where a dq_* row carries the table max.",
+    "Both measures are changed together and remain structurally identical to each other.",
+    "docs/dax_measure_library.md:235's 'Both currently return BLANK — known defect' note is replaced with the shipped behaviour; the diagnosis is preserved as history rather than deleted outright.",
+    "Erik's half: deploy and confirm in oem_report that both measures render a sensible percentage on a card with no slicer."
+  ],
+  "notes": "Approved by Erik 2026-08-11 (out-of-spec gate) as one of three confirmed defects that had no task behind them. Diagnosed but deliberately NOT fixed under task-061, which was scoped to Weighted EPI Score; task-061's AC4 recorded it as a defect and stopped there.\n\nThe measured evidence in docs/dax_measure_library.md:235 is the starting point — it was produced against the live model, not inferred. Re-measure before changing anything, but do not repeat the diagnosis from scratch.\n\nCAUTION carried from task-061: do not assert DAX semantics without running them. A wrong DIVIDE rationale was supplied in the task-061 dispatch brief, the implementer replaced it with a different wrong one, and only the verifier's measurement caught it."
+}

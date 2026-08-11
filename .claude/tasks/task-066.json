@@ -1,0 +1,38 @@
+{
+  "spec_version": "spec_v1",
+  "spec_fingerprint": "sha256:57b2ad82f925ce3b44569ffbb45f8e32b5957a89ad05ffefa257c36380345ce6",
+  "created_date": "2026-08-11",
+  "updated_date": "2026-08-11",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "absorbed_into": null,
+  "subtasks": [],
+  "decision_dependencies": [],
+  "user_feedback": null,
+  "source": "session finding (2026-08-11) from pipeline run-history review; promoted to a task by Erik via /work 2026-08-11",
+  "id": "task-066",
+  "title": "bronze_wgi fails intermittently with HTTP 502 on scheduled runs",
+  "status": "Pending",
+  "priority": "medium",
+  "difficulty": 5,
+  "owner": "both",
+  "phase": "5",
+  "spec_section": "Orchestration",
+  "out_of_spec": true,
+  "out_of_spec_approved": true,
+  "dependencies": [],
+  "files_affected": [
+    "fabric/bronze_ingest_wgi.Notebook/notebook-content.py",
+    "docs/epi_wgi_ingestion.md"
+  ],
+  "description": "The bronze_wgi ingestion was reported failing with HTTP 502 on 2 of the last 5 scheduled runs (observed 2026-08-11). TREAT THAT COUNT AS UNVERIFIED — it was recorded in a dashboard note and has no durable measurement behind it in the repo. Re-measure the real failure rate from the pipeline run history before diagnosing anything.\n\nMeasurement contract (from project memory, the queryactivityruns API): there is no item id in the path, and the date window is MANDATORY — omit it and you get 200 with an empty body for every run, which reads exactly like 'no failures' and is the trap here. A negative finding about failure frequency needs a positive control: the same query must be shown returning a known-present run.\n\nThis is an intermittent upstream failure, so the discipline in .claude/rules/agents.md § 'Root Cause Over Symptom' applies with force. Establish WHERE the 502 originates before adding any retry: the World Bank API itself, the Fabric HTTP path, or the notebook's own request handling. A retry with backoff is a legitimate fix for a genuinely transient upstream 502 — it is NOT a legitimate fix for a malformed request, an auth expiry, or a rate limit, all of which can also surface as a 5xx and would be papered over by retrying.\n\nWhatever the fix, a PERMANENT failure must still fail loudly. Do not let a bounded retry turn a real outage into a silent partial load — bronze_wgi feeding nothing means the governance half of gold_supply_risk degrades quietly, and the project already has one permanent governance gap (Taiwan) that must not be confused with an ingestion failure.\n\nDo not commit or push. The deploy and the observation window over subsequent scheduled runs are Erik's half.",
+  "acceptanceCriteria": [
+    "The actual failure rate is re-measured from pipeline run history over a stated date window, with a positive control proving the query returns rows at all. Report the real numbers even if they contradict the '2 of 5' claim.",
+    "The 502's origin is established — upstream API, Fabric HTTP path, or notebook request handling — with evidence, not inference. If the evidence is inconclusive, say so and stop rather than guessing.",
+    "The fix matches the diagnosis. If and only if the failure is a transient upstream 5xx, implement a bounded retry with backoff at the fetch.",
+    "A permanent failure still fails the run loudly. Demonstrate that an unrecoverable error is not swallowed and does not produce a silent partial load.",
+    "Any behaviour change is reflected in docs/epi_wgi_ingestion.md.",
+    "Erik's half: deploy, then confirm over subsequent scheduled runs that the failure no longer recurs (or that it now surfaces correctly if the cause was not transient)."
+  ],
+  "notes": "Approved by Erik 2026-08-11 (out-of-spec gate) as one of three confirmed defects that had no task behind them.\n\nThe reported '2 of the last 5 scheduled runs' is the weakest evidence of the three defects — it is a session observation with no artifact in the repo backing it, which is why AC1 makes re-measurement the first deliverable rather than an assumption. If re-measurement shows the failure is gone or was misattributed, an honest null result closes this task; do not manufacture a fix for a problem that is not there.\n\nRelevant hazard from project memory: bronze writes of source CSVs crash at saveAsTable on column names containing spaces (DELTA_INVALID_CHARACTERS_IN_COLUMN_NAMES), and local Spark never invokes a Delta writer, so that class of failure is invisible locally. A 502 is not that failure mode, but if the run history shows a DIFFERENT error alongside the 502s, check for it."
+}
