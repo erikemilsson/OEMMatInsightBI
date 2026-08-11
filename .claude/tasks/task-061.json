@@ -2,7 +2,7 @@
   "spec_version": "1",
   "spec_fingerprint": "sha256:3909f3518fe5715e4722eee44e243ee01e7d84c3e9f6fe89e83cc7356159bcb7",
   "created_date": "2026-08-05",
-  "updated_date": "2026-08-05",
+  "updated_date": "2026-08-10",
   "completion_date": null,
   "verification_attempts": 0,
   "absorbed_into": "",
@@ -21,10 +21,10 @@
   "out_of_spec": true,
   "dependencies": [],
   "files_affected": [
-    "fabric/OEMInsightBI_v2.SemanticModel/",
+    "fabric/OEMInsightBI.SemanticModel/",
     "docs/dax_measure_library.md"
   ],
-  "description": "RECOMMENDATION — beyond the phase acceptance criteria, requires approval before execution.\n\nEvaluated live with NO filter context, [Weighted EPI Score] returns 7945.40 — the SUMX accumulates weighted sub-indicator scores across all 193 countries rather than resolving to the 0-100 band the measure is documented to produce (docs/dax_measure_library.md line 118). In a single-country filter context it behaves as documented, and Erik confirmed the 0-100 rendering on 2026-08-04, so this is a NON-ADDITIVE-AT-TOTAL artifact, not a computation defect.\n\nWorth a decision because an unfiltered card or an uncontexted total in report2 would show a meaningless 7945.40 to a portfolio reviewer. Options: wrap the measure to blank or average outside a country context, OR document the required filter context and confirm no visual can render it uncontexted.\n\nRelated observation while probing: [Latest Match Rate] returns BLANK against current gold_quality_history contents — confirm whether that is expected before the same reviewer meets an empty card.",
+  "description": "RECOMMENDATION \u2014 beyond the phase acceptance criteria, requires approval before execution.\n\nEvaluated live with NO filter context, [Weighted EPI Score] returns 7945.40 \u2014 the SUMX accumulates weighted sub-indicator scores across all 193 countries rather than resolving to the 0-100 band the measure is documented to produce (docs/dax_measure_library.md line 118). In a single-country filter context it behaves as documented, and Erik confirmed the 0-100 rendering on 2026-08-04, so this is a NON-ADDITIVE-AT-TOTAL artifact, not a computation defect.\n\nWorth a decision because an unfiltered card or an uncontexted total in report2 would show a meaningless 7945.40 to a portfolio reviewer. Options: wrap the measure to blank or average outside a country context, OR document the required filter context and confirm no visual can render it uncontexted.\n\nRelated observation while probing: [Latest Match Rate] returns BLANK against current gold_quality_history contents \u2014 confirm whether that is expected before the same reviewer meets an empty card.",
   "acceptanceCriteria": [
     "A decision is recorded: wrap the measure, or document the required filter context.",
     "If wrapped, the measure returns a meaningful value or BLANK at grand total and is unchanged in a single-country context.",
@@ -32,10 +32,10 @@
     "[Latest Match Rate]'s BLANK result is confirmed expected or fixed."
   ],
   "notes": [
-    "CREATED 2026-08-05 by phase-level verification as out_of_spec — no acceptance criterion covers measure totals behaviour.",
+    "CREATED 2026-08-05 by phase-level verification as out_of_spec \u2014 no acceptance criterion covers measure totals behaviour.",
     "OUT OF SPEC: requires [A]ccept / [R]eject / [D]efer before it can be executed. Never auto-execute.",
-    "Not a correctness defect — behaves as documented under filter context.",
-    "OUT-OF-SPEC ACCEPTED 2026-08-05 (Erik, [A]). out_of_spec_approved=true — the task is now dispatchable like any other and runs the full implement -> verify cycle; the out_of_spec flag only excludes it from PHASE detection (so it cannot re-open a closed phase or trigger a re-verify loop), never from per-task verification. Owner is 'both': the measure change is Claude's, but confirming no report2 visual renders Weighted EPI Score without country context needs Erik in the report."
+    "Not a correctness defect \u2014 behaves as documented under filter context.",
+    "OUT-OF-SPEC ACCEPTED 2026-08-05 (Erik, [A]). out_of_spec_approved=true \u2014 the task is now dispatchable like any other and runs the full implement -> verify cycle; the out_of_spec flag only excludes it from PHASE detection (so it cannot re-open a closed phase or trigger a re-verify loop), never from per-task verification. Owner is 'both': the measure change is Claude's, but confirming no report2 visual renders Weighted EPI Score without country context needs Erik in the report."
   ],
   "out_of_spec_approved": true
 }

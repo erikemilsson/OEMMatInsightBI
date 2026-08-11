@@ -2,9 +2,9 @@
   "spec_version": "spec_v1",
   "spec_fingerprint": "sha256:a475793a20943544717579fcc63affe2b17a0df274db98e90f10e24cbcf5c738",
   "created_date": "2026-08-07",
-  "updated_date": "2026-08-07",
-  "completion_date": null,
-  "verification_attempts": 0,
+  "updated_date": "2026-08-10",
+  "completion_date": "2026-08-10",
+  "verification_attempts": 1,
   "absorbed_into": null,
   "subtasks": [],
   "decision_dependencies": [],
@@ -12,7 +12,7 @@
   "source": "verify-agent (phase-level, 2026-08-07)",
   "id": "task-063",
   "title": "Add regression coverage for country alias mappings (mapping_country_aliases_confidence has zero tests)",
-  "status": "Pending",
+  "status": "Finished",
   "priority": "medium",
   "difficulty": 4,
   "owner": "claude",
@@ -21,17 +21,75 @@
   "out_of_spec": true,
   "dependencies": [],
   "files_affected": [
-    "tests/",
-    "src/transformations/",
+    "tests/test_country_mapping.py",
     ".claude/spec_v1.md"
   ],
-  "description": "RECOMMENDATION — beyond the phase acceptance criteria, requires approval before execution. § Testing Strategy self-declares this gap: 'Regression tests for alias mappings — partial: tests/test_material_mapping.py covers MATERIAL_ALIASES (7 tests). Country aliases have zero coverage — mapping_country_aliases_confidence is built in silver_to_gold but no test exercises it.' Confirmed independently: tests/test_material_mapping.py collects exactly 7 tests, and mapping_country_aliases_confidence IS live (present in the 39-table lakehouse enumeration, 2026-08-07), so an untested transform is producing a table the model depends on for country resolution. Mirror the material-alias test shape against the country alias map: that known-dead country names resolve, that every alias target exists in the canonical country dimension, that the confidence banding is assigned as specified, and that an unmapped country surfaces rather than silently defaulting. Follow the DEC-002 / task-032 reference-implementation contract — load the notebook's own functions via load_notebook_functions and pin parity against the src/ mirror, rather than testing only the src/ copy. Build the local SparkSession with .config('spark.sql.ansi.enabled','false') per the project ANSI gotcha.",
+  "description": "RECOMMENDATION \u2014 beyond the phase acceptance criteria, requires approval before execution. \u00a7 Testing Strategy self-declares this gap: 'Regression tests for alias mappings \u2014 partial: tests/test_material_mapping.py covers MATERIAL_ALIASES (7 tests). Country aliases have zero coverage \u2014 mapping_country_aliases_confidence is built in silver_to_gold but no test exercises it.' Confirmed independently: tests/test_material_mapping.py collects exactly 7 tests, and mapping_country_aliases_confidence IS live (present in the 39-table lakehouse enumeration, 2026-08-07), so an untested transform is producing a table the model depends on for country resolution. Mirror the material-alias test shape against the country alias map: that known-dead country names resolve, that every alias target exists in the canonical country dimension, that the confidence banding is assigned as specified, and that an unmapped country surfaces rather than silently defaulting. Follow the DEC-002 / task-032 reference-implementation contract \u2014 load the notebook's own functions via load_notebook_functions and pin parity against the src/ mirror, rather than testing only the src/ copy. Build the local SparkSession with .config('spark.sql.ansi.enabled','false') per the project ANSI gotcha.",
   "acceptanceCriteria": [
     "A test module exercises the country alias mapping logic with at least the four cases named above.",
     "Tests load the notebook's own functions (load_notebook_functions) and assert parity with the src/ mirror, per the DEC-002 contract.",
-    "The full suite passes and § Testing Strategy's 'Country aliases have zero coverage' sentence is updated to match (via /iterate, DEC-016).",
+    "The full suite passes and \u00a7 Testing Strategy's 'Country aliases have zero coverage' sentence is updated to match (via /iterate, DEC-016).",
     "The local SparkSession sets spark.sql.ansi.enabled=false."
   ],
-  "notes": "APPROVED by Erik 2026-08-07 (out-of-spec gate). Created by phase-level verification 2026-08-07. Rationale: no phase acceptance criterion covers alias-mapping regression coverage, but the untested transform demonstrably produces a live lakehouse table (mapping_country_aliases_confidence, present in the 39-table enumeration). Note the spec-edit half of AC3 routes through /iterate (DEC-016).",
-  "out_of_spec_approved": true
+  "notes": "APPROVED by Erik 2026-08-07 (out-of-spec gate). Created by phase-level verification 2026-08-07. Rationale: no phase acceptance criterion covers alias-mapping regression coverage, but the untested transform demonstrably produces a live lakehouse table (mapping_country_aliases_confidence, present in the 39-table enumeration). Note the spec-edit half of AC3 routes through /iterate (DEC-016).\n\n[IMPLEMENTED 2026-08-10] Added tests/test_country_mapping.py (18 tests; suite 282 -> 300, all passing). Seed extracted live from fabric/silver_to_gold.Notebook via ast.literal_eval, following the test_material_mapping.py precedent. AC2 satisfied under a CORRECTED reading (FR-066): there is no src/ mirror for country aliases and the seed is a data literal, not a function, so notebook<->src parity is unsatisfiable as literally written; load_notebook_functions IS used genuinely for the notebook's unmapped_gap in the unmapped-country audit test. Guards mutation-tested: 10 mutations across 2 rounds, each caught by its intended guard, notebook reverted after each (git status fabric/ clean). AC3's spec-text half NOT applied - routes through /iterate per DEC-016; the two verbatim \u00a7 Testing Strategy replacements are held in the session report. Friction: FR-065 (alias_mappings.md names the pre-rename silver-to-gold2 path twice), FR-066 (AC2 unsatisfiable-as-written).",
+  "out_of_spec_approved": true,
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-08-10T20:57:21Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "pass",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "minor",
+          "description": "AC2 unsatisfiable as literally written (no src/ mirror for country aliases; the seed is a data literal, not a FunctionDef). Met under a corrected reading the verifier independently validated. Surfaced as FR-066 rather than silently reinterpreted."
+        },
+        {
+          "severity": "minor",
+          "description": "AC3's spec-text half correctly unapplied pending /iterate; the two verbatim \u00a7 Testing Strategy replacements had no durable home because .claude/support/reference/merge-queue.md did not exist. RESOLVED by the orchestrator 2026-08-10 \u2014 the merge queue was created and both edits written to it."
+        },
+        {
+          "severity": "minor",
+          "description": "Spec line 1313 ('282 tests', dated 2026-08-06) is stale at 300 and must be updated alongside line 1329. Both replacements are queued."
+        }
+      ],
+      "notes": "PASS attempt 1. Verifier re-ran the suite twice with --color=no (300 passed, ~27s) rather than accepting the reported count, and ran 3 independent mutation spot-checks against the live notebook (direction-rule reversal, Brasilia band laundering 0.60->0.95, unmapped_gap struct-field rename), each caught by its intended guard with the notebook reverted after every one and fabric/ confirmed clean. Mutation 3 is the decisive AC2 evidence: it proves load_notebook_functions is executing live production code, not a copy. AC2 adjudicated SOUND, not rubber-stamped -- both premises re-derived independently (src/transformations/ enumerated directly, not by grep absence; load_notebook_functions filters ast.FunctionDef so it structurally cannot extract the literal). AC4 verified at source (conftest.py:36). AC3 half-done by design and correctly routed. Cross-file consistency confirmed against docs/transformations/alias_mappings.md L46-55 and the notebook's real lookup assembly at L716-759."
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-08-10T20:57:21Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "pass",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "AC2 unsatisfiable as literally written (no src/ mirror for country aliases; the seed is a data literal, not a FunctionDef). Met under a corrected reading the verifier independently validated. Surfaced as FR-066 rather than silently reinterpreted."
+      },
+      {
+        "severity": "minor",
+        "description": "AC3's spec-text half correctly unapplied pending /iterate; the two verbatim \u00a7 Testing Strategy replacements had no durable home because .claude/support/reference/merge-queue.md did not exist. RESOLVED by the orchestrator 2026-08-10 \u2014 the merge queue was created and both edits written to it."
+      },
+      {
+        "severity": "minor",
+        "description": "Spec line 1313 ('282 tests', dated 2026-08-06) is stale at 300 and must be updated alongside line 1329. Both replacements are queued."
+      }
+    ],
+    "notes": "PASS attempt 1. Verifier re-ran the suite twice with --color=no (300 passed, ~27s) rather than accepting the reported count, and ran 3 independent mutation spot-checks against the live notebook (direction-rule reversal, Brasilia band laundering 0.60->0.95, unmapped_gap struct-field rename), each caught by its intended guard with the notebook reverted after every one and fabric/ confirmed clean. Mutation 3 is the decisive AC2 evidence: it proves load_notebook_functions is executing live production code, not a copy. AC2 adjudicated SOUND, not rubber-stamped -- both premises re-derived independently (src/transformations/ enumerated directly, not by grep absence; load_notebook_functions filters ast.FunctionDef so it structurally cannot extract the literal). AC4 verified at source (conftest.py:36). AC3 half-done by design and correctly routed. Cross-file consistency confirmed against docs/transformations/alias_mappings.md L46-55 and the notebook's real lookup assembly at L716-759."
+  }
 }
