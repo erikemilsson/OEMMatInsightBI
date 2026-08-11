@@ -2,17 +2,19 @@
   "spec_version": "spec_v1",
   "spec_fingerprint": "sha256:57b2ad82f925ce3b44569ffbb45f8e32b5957a89ad05ffefa257c36380345ce6",
   "created_date": "2026-08-10",
-  "updated_date": "2026-08-10",
-  "completion_date": null,
-  "verification_attempts": 0,
+  "updated_date": "2026-08-11",
+  "completion_date": "2026-08-11",
+  "verification_attempts": 2,
   "absorbed_into": null,
   "subtasks": [],
-  "decision_dependencies": [],
+  "decision_dependencies": [
+    "DEC-015"
+  ],
   "user_feedback": null,
   "source": "/feedback review + /iterate (2026-08-10) \u2014 surfaced while correcting the azure/ 'schema/data' mislabel",
   "id": "task-064",
   "title": "Make the Azure SQL seed rows reproducible from the repo (azure/ is DDL-only)",
-  "status": "Pending",
+  "status": "Finished",
   "priority": "medium",
   "difficulty": 5,
   "owner": "both",
@@ -24,8 +26,10 @@
   "out_of_spec_approved": true,
   "dependencies": [],
   "files_affected": [
-    "azure/",
-    "fabric/",
+    "azure/procurement.sql",
+    "azure/supplier_info.sql",
+    "azure/procurement_seed.sql",
+    "azure/supplier_info_seed.sql",
     ".claude/spec_v1.md"
   ],
   "description": "The spec states in three places that /azure/ holds DDL only \u2014 procurement.sql and supplier_info.sql each contain one CREATE TABLE and zero INSERT statements (\u00a7 Data Architecture Setup Scripts, \u00a7 Expected Data Profiles L1136, \u00a7 Testing Strategy L1327). Those statements are accurate; the gap they describe is real. The synthetic rows backing fact_procurement were seeded by hand outside the repo, so a clean rebuild of the Azure SQL source is impossible from a fresh clone and the row counts in \u00a7 Expected Data Profiles can only be re-derived by measuring the live lakehouse. Close the gap by committing a reproducible seed alongside the DDL: either exported INSERT statements or a deterministic generator with a pinned seed. IMPORTANT \u2014 do NOT export from the laptop. The erik-laptop firewall rule (37.247.31.201/32) was deliberately deleted from the procurement-supplier Azure SQL server on 2026-08-01 (FB-009, commit c0fcb3a) once the pipeline moved to the Fabric Connection oem_azuresql_procurement; re-adding it to run a local export would reopen the security loose end that cleanup closed. Run the export from a Fabric notebook over the existing connection instead, which executes in the Fabric runtime and needs no firewall change. Note the two tables differ in character: supplier_info is reference data (small, stable, a literal INSERT dump is fine) while procurement is transactional volume (a generator may be the better fit). Decide per-table rather than forcing one approach on both.",
@@ -37,5 +41,157 @@
     "The three spec statements that currently say the rows are 'not reproducible from the repo' are updated to match the new reality (routes through /iterate per DEC-016).",
     "No credentials are committed \u2014 the seed artifact contains data only, and connection details stay in the Fabric connection or secure/ (gitignored)."
   ],
-  "notes": "Requested by Erik 2026-08-10 (out-of-spec gate \u2014 the spec documents the gap as current state but nowhere requires reproducibility, so this is new scope rather than a correction). Surfaced during the /feedback review + /iterate pass that relabelled azure/ from 'schema/data' to 'schema (DDL only)'; the relabel made the record honest, this task closes the underlying gap. owner=both: Claude authors the export notebook or generator locally, Erik runs it in the Fabric UI and confirms the round trip, per the project's Fabric-UI/local-code split. The AC5 spec edit routes through /iterate, not a direct write."
+  "notes": "Requested by Erik 2026-08-10 (out-of-spec gate \u2014 the spec documents the gap as current state but nowhere requires reproducibility, so this is new scope rather than a correction). Surfaced during the /feedback review + /iterate pass that relabelled azure/ from 'schema/data' to 'schema (DDL only)'; the relabel made the record honest, this task closes the underlying gap. owner=both: Claude authors the export notebook or generator locally, Erik runs it in the Fabric UI and confirms the round trip, per the project's Fabric-UI/local-code split. The AC5 spec edit routes through /iterate, not a direct write. CONFIRMED by Erik 2026-08-11 ('confirm') - Claude's half is cleared to start. [IMPLEMENTED 2026-08-11] Both tables seeded by literal INSERT dump (132 procurement rows, 11 supplier rows) rather than a generator -- procurement measured at only 132 rows, so exact beats plausible and AC4's determinism requirement is not triggered (stated, not skipped; export run twice, byte-identical). Rows read from the LAKEHOUSE bronze copies over OneLake DFS (Delta v101/v99), never from Azure SQL -- no firewall rule added or requested, FB-009 loose end stays closed (AC3). Verified by executing DDL+seed against in-memory SQLite: both parse, land 132/11 rows, and compare EQUAL to the exported source parquet on every column. Distribution checks pass (kg=108/pcs=24, 11 distinct materials and suppliers, full referential integrity, 12 raw dates transposing to 2024 month-ends). Credential scan clean with a positive control hitting secure/user_creation.sql (AC6); secure/ confirmed gitignored. One deliberate AC2 divergence: UnitPriceEUR written at 2dp to match DECIMAL(18,2) while the live column is float32 -- all 132 values verified as the exact float32 image of their 2dp value, so a rebuild is identical to the cent. SCOPE ADDITION (DEC-015 coupled sub-decision): the DDL created dbo.Procurement/dbo.SupplierInfo, names NO ingestion artifact has ever read -- corrected to dbo.procurement_transactional/dbo.supplier_ref, proven long-standing by the retired dataflow's mashup.pq reading the same corrected names. *** HAZARD: the pre-existing DROP in each DDL now targets the LIVE table instead of a non-existent one -- running the DDL alone destroys live source data. Mitigated by running DDL+seed as one script and by the data now being repo-recoverable, but Erik must accept this consciously. *** AC5's three spec statements are drafted, NOT applied (DEC-016). [VERIFICATION FAIL #1: they were asserted parked but were NOT actually written; remediated same day as merge-queue MQ-002.] Friction: FR-073, FR-074. NOT committed, NOT pushed. [ATTEMPT 2 2026-08-11] Remediation was orchestrator-only -- the deliverables themselves passed 8 of 9 probes and were not touched. MQ-002 appended to .claude/support/reference/merge-queue.md with all three verbatim targets, honouring the verifier's distinction that the \u00a7 Setup Scripts target is an ADDITION (the 'DDL only' description remains literally true) rather than a correction. DEC-015 and these notes corrected to stop asserting a merge-queue state that did not exist.",
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "fail",
+      "timestamp": "2026-08-11T15:13:01Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "fail",
+        "spec_alignment": "fail",
+        "output_quality": "pass",
+        "runtime_validation": "partial",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "major",
+          "description": "AC5's three drafted spec replacements did not exist on disk -- merge-queue.md held only MQ-001, and neither the task notes nor DEC-015 contained the text, while both asserted it was 'parked in the merge queue'. ORCHESTRATOR ERROR (implement-agent cannot write .claude/). REMEDIATED 2026-08-11: MQ-002 appended with all three verbatim targets."
+        },
+        {
+          "severity": "minor",
+          "description": "DEC-015 and task-064 notes carried a stale cross-reference to a merge-queue state that did not exist. Corrected alongside MQ-002."
+        },
+        {
+          "severity": "minor",
+          "description": "secure/grant_permissions.sql grants INSERT/SELECT only on the OLD names [dbo].[Procurement]/[dbo].[SupplierInfo], so the connection principal may lack INSERT on the corrected tables -- concrete evidence for the write-permission caveat and a likely failure point in Erik's run. Surfaced as pre-flight gate 2 in the test protocol."
+        },
+        {
+          "severity": "minor",
+          "description": "procurement_seed.sql header says 'the 12 raw dates are the 12 month-end dates of calendar 2024 after correction' -- 11 of 12 are; raw 2028-02-24 corrects to 2024-02-28 while Feb 2024 has 29 days (leap year). Comment inaccuracy only; the data is faithful to source."
+        },
+        {
+          "severity": "minor",
+          "description": "The corrected DDL now disagrees with spec L140/144/174/192/1481/1552 and four docs/ files still naming dbo.Procurement/dbo.SupplierInfo. No follow-up task exists."
+        },
+        {
+          "severity": "minor",
+          "description": "Informational -- procurement.Region 'NA' vs supplier_ref.Region 'NA/SA' for AltMiner SA is a faithful reproduction of a source-data property, not a seed defect."
+        }
+      ],
+      "notes": "FAIL attempt 1 on ONE narrow gap; 8 of 9 probes passed, several emphatically. DROP escalation ADJUDICATED and mitigations HOLD: the DROP was pre-existing (visible on the diff's '-' lines), only its target moved; both seeds verified to open with DELETE and close with a row-count THROW (50001/50002), idempotent on re-run; the DESTRUCTIVE banner is in all four file headers where a runner sees it; and the Copy source is a bare full-table dataset with no query/filter, so the 132/11 rows ARE the complete source and a rebuild restores every value. Table-name correction JUSTIFIED on evidence the verifier read itself: the retired mashup.pq (L10/L14/L32) and the live pipeline-content.json (L529-530, L596-597) both read the corrected names. AC1 re-run independently in SQLite -> exactly 132/11, with T-SQL fidelity checked (string widths, 2dp precision, 1000-row VALUES limit, quoting, date validity). AC2 spot-checked on real values: all 132 prices exactly 2dp, no two distinct 2dp values share a float32 image, round(float32(v),2)==v throughout; kg=108/pcs=24 corroborated against task-030's independent 2026-07-23 live measurement. AC3 PASS. AC4's 'not triggered' reading is LEGITIMATE -- the criterion is explicitly conditional on a generator being used. AC6 PASS with positive control. Transposed dates PASS -- all 12 in RAW form, zero beginning '2024-', so nothing double-corrects (this one would have been silent and catastrophic). THE FAILURE: AC5's drafted spec text was asserted parked in the merge queue but was never written there -- an orchestrator hand-off gap, not implementer negligence. Remediated same day as MQ-002, including the verifier's distinction that the \u00a7 Setup Scripts target needs an ADDITION (the DDL-only description is still literally true) rather than a correction."
+    },
+    {
+      "attempt": 2,
+      "result": "pass",
+      "timestamp": "2026-08-11T15:18:58Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "partial",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "minor",
+          "description": "MQ-002 Edit 1's annotation says 'extend, do not correct' while the proposed_text also restates both existing bullets (legitimately, to carry the DEC-015 table-name correction). Given an approval note by the orchestrator 2026-08-11, matching MQ-001's precedent."
+        },
+        {
+          "severity": "minor",
+          "description": "secure/grant_permissions.sql grants INSERT/SELECT only on the OLD names [dbo].[Procurement]/[dbo].[SupplierInfo], so the connection principal may lack INSERT on the corrected tables -- carried as pre-flight gate 2."
+        },
+        {
+          "severity": "minor",
+          "description": "procurement_seed.sql header says the 12 raw dates are the 12 month-end dates of 2024 after correction; 11 of 12 are (raw 2028-02-24 -> 2024-02-28, but Feb 2024 has 29 days). Comment inaccuracy only."
+        },
+        {
+          "severity": "minor",
+          "description": "The corrected DDL still disagrees with spec L140/144/174/192/1481/1552 and four docs/ files naming dbo.Procurement/dbo.SupplierInfo (FR-074/FR-075). MQ-002 scopes it out; no follow-up task exists."
+        }
+      ],
+      "notes": "PASS attempt 2. The single attempt-1 failure is closed and nothing else moved. Deliverables confirmed UNCHANGED two ways -- mtimes on all four azure/ files predate attempt 1's verification stamp, while merge-queue.md and DEC-015 are the only artifacts touched after it -- so the full probe set correctly stayed out of scope. MQ-002 exists and is APPLICABLE: all three current_text blocks were checked character-by-character against the live spec by direct Read (not grep, which skips gitignored paths in this harness), including list indentation and em dashes, so /iterate can locate every target and none is stale. No collision with MQ-001, whose targets are distinct lines; verbatim anchors defend against the line drift if MQ-001 applies first. The addition-vs-correction distinction is honoured -- Edit 1 extends rather than corrects, the DDL-only fact survives as 'step 1 of 2', and nowhere is the old text asserted false. Stale cross-references are gone from both DEC-015 and the task notes, with no new claim outrunning reality; a /usr/bin/grep sweep with MQ-001 as positive control found no surviving false merge-queue assertion anywhere else."
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-08-11T15:18:58Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "partial",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "MQ-002 Edit 1's annotation says 'extend, do not correct' while the proposed_text also restates both existing bullets (legitimately, to carry the DEC-015 table-name correction). Given an approval note by the orchestrator 2026-08-11, matching MQ-001's precedent."
+      },
+      {
+        "severity": "minor",
+        "description": "secure/grant_permissions.sql grants INSERT/SELECT only on the OLD names [dbo].[Procurement]/[dbo].[SupplierInfo], so the connection principal may lack INSERT on the corrected tables -- carried as pre-flight gate 2."
+      },
+      {
+        "severity": "minor",
+        "description": "procurement_seed.sql header says the 12 raw dates are the 12 month-end dates of 2024 after correction; 11 of 12 are (raw 2028-02-24 -> 2024-02-28, but Feb 2024 has 29 days). Comment inaccuracy only."
+      },
+      {
+        "severity": "minor",
+        "description": "The corrected DDL still disagrees with spec L140/144/174/192/1481/1552 and four docs/ files naming dbo.Procurement/dbo.SupplierInfo (FR-074/FR-075). MQ-002 scopes it out; no follow-up task exists."
+      }
+    ],
+    "notes": "PASS attempt 2. The single attempt-1 failure is closed and nothing else moved. Deliverables confirmed UNCHANGED two ways -- mtimes on all four azure/ files predate attempt 1's verification stamp, while merge-queue.md and DEC-015 are the only artifacts touched after it -- so the full probe set correctly stayed out of scope. MQ-002 exists and is APPLICABLE: all three current_text blocks were checked character-by-character against the live spec by direct Read (not grep, which skips gitignored paths in this harness), including list indentation and em dashes, so /iterate can locate every target and none is stale. No collision with MQ-001, whose targets are distinct lines; verbatim anchors defend against the line drift if MQ-001 applies first. The addition-vs-correction distinction is honoured -- Edit 1 extends rather than corrects, the DDL-only fact survives as 'step 1 of 2', and nowhere is the old text asserted false. Stale cross-references are gone from both DEC-015 and the task notes, with no new claim outrunning reality; a /usr/bin/grep sweep with MQ-001 as positive control found no surviving false merge-queue assertion anywhere else."
+  },
+  "user_review_pending": true,
+  "interaction_hint": "dashboard",
+  "test_protocol": {
+    "summary": "Rebuild both Azure SQL source tables from the repo in the Fabric runtime, then confirm the pipeline still ingests them. Two pre-flight gates must clear before any script runs -- step 3 onward is DESTRUCTIVE.",
+    "estimated_time": "15-20 minutes",
+    "automated_results": "Local verification complete and passed: DDL+seed executed in SQLite land exactly 132/11 rows and compare EQUAL to the exported source parquet on every column; T-SQL fidelity checked (string widths, 2dp precision, 1000-row VALUES limit, quoting, date validity); distributions pass (kg=108/pcs=24, 11 distinct materials and suppliers, full referential integrity, all 12 dates in RAW transposed form). What remains is Fabric-runtime execution over the live connection.",
+    "steps": [
+      {
+        "type": "visual",
+        "instruction": "PRE-FLIGHT GATE 1 (destructive-action acceptance). Read the DESTRUCTIVE banner atop azure/procurement.sql and azure/supplier_info.sql, and the '! Consequence' table in DEC-015. The DROP was always there, but it now names the LIVE table the pipeline reads -- running a DDL WITHOUT its seed destroys the live source data. Accept consciously or halt.",
+        "expected": "You accept the hazard knowing the data is now fully recoverable from the repo, and commit to running each DDL together with its seed as ONE script."
+      },
+      {
+        "type": "interactive",
+        "instruction": "PRE-FLIGHT GATE 2 (write permission). The oem_azuresql_procurement connection has only ever needed SELECT, and secure/grant_permissions.sql grants INSERT on the OLD names only. Confirm the principal holds INSERT on dbo.procurement_transactional and dbo.supplier_ref; issue the GRANTs first if not.",
+        "expected": "Principal has INSERT on both corrected names. A permissions failure at step 3 points here, not at the seed."
+      },
+      {
+        "type": "interactive",
+        "instruction": "In the Fabric runtime over the oem_azuresql_procurement connection, run azure/procurement.sql immediately followed by azure/procurement_seed.sql as a SINGLE script.",
+        "expected": "Completes with no error; the closing row-count guard does not THROW 50002."
+      },
+      {
+        "type": "interactive",
+        "instruction": "Same way: azure/supplier_info.sql immediately followed by azure/supplier_info_seed.sql as a SINGLE script.",
+        "expected": "Completes with no error; the guard does not THROW 50001."
+      },
+      {
+        "type": "interactive",
+        "instruction": "Query the rebuilt tables: SELECT COUNT(*) FROM dbo.procurement_transactional; SELECT COUNT(*) FROM dbo.supplier_ref;",
+        "expected": "Exactly 132 and 11. UnitPriceEUR now reads as clean 2-decimal values instead of float32 noise -- the one deliberate, documented divergence, identical to the cent."
+      },
+      {
+        "type": "interactive",
+        "instruction": "Idempotency check: re-run each seed alone and re-count.",
+        "expected": "Still 132 and 11 -- each seed opens with a DELETE, so a repeat run neither doubles rows nor trips the guard."
+      },
+      {
+        "type": "interactive",
+        "instruction": "Run the bronze Copy activities (bronze_copy_procurement_transactional, bronze_copy_supplier_ref) and check the bronze tables.",
+        "expected": "Bronze lands 132 and 11 rows from the rebuilt source; silver dates land in calendar 2024 and downstream gold is unchanged from the pre-rebuild state."
+      }
+    ]
+  }
 }
