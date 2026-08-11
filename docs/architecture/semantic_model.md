@@ -129,7 +129,7 @@ See `dax_measure_library.md` §2.5–2.8 and `data_quality_architecture.md` for 
 The model ships **45 measures** across 8 tables — the as-built catalogue is in `dax_measure_library.md`. Headline measures:
 
 - `Total Spend EUR` = `SUM(fact_procurement[spend_eur])`
-- `Weighted EPI Score` — `SUMX` over `fact_epi_score` weighted by `RELATED(gold_dim_indicator[weight])`, restricted to EPI sub-indicators; renders 0–100 once the EPI weights table is loaded
+- `Weighted EPI Score` — `SUMX` over `fact_epi_score` weighted by `RELATED(gold_dim_indicator[weight])`, restricted to EPI sub-indicators, then `AVERAGEX`-ed over the countries in filter context so it reads 0–100 at every grain including the grand total (task-061); renders only once the EPI weights table is loaded
 - `Supply Risk (Global)` / `Supply Risk (EU Sourcing)` / `Supply Risk Contrast` — HHI concentration from `gold_supply_risk`
 - 16 coverage measures on `gold_data_gaps` (EPI/WGI coverage by country and spend)
 - 17 observability measures across `gold_gap_registry`, `gold_quality_history`, `gold_low_confidence_audit`

@@ -2,17 +2,19 @@
   "spec_version": "1",
   "spec_fingerprint": "sha256:3909f3518fe5715e4722eee44e243ee01e7d84c3e9f6fe89e83cc7356159bcb7",
   "created_date": "2026-08-05",
-  "updated_date": "2026-08-10",
-  "completion_date": null,
-  "verification_attempts": 0,
+  "updated_date": "2026-08-11",
+  "completion_date": "2026-08-11",
+  "verification_attempts": 2,
   "absorbed_into": "",
   "subtasks": [],
-  "decision_dependencies": [],
+  "decision_dependencies": [
+    "DEC-014"
+  ],
   "user_feedback": "",
   "source": "verify-agent (phase-level, 2026-08-05)",
   "id": "task-061",
   "title": "Review Weighted EPI Score behaviour at grand total (returns 7945.40 unfiltered)",
-  "status": "Pending",
+  "status": "Finished",
   "priority": "P3",
   "difficulty": 3,
   "owner": "both",
@@ -21,8 +23,9 @@
   "out_of_spec": true,
   "dependencies": [],
   "files_affected": [
-    "fabric/OEMInsightBI.SemanticModel/",
-    "docs/dax_measure_library.md"
+    "fabric/OEMInsightBI.SemanticModel/definition/tables/fact_epi_score.tmdl",
+    "docs/dax_measure_library.md",
+    "docs/architecture/semantic_model.md"
   ],
   "description": "RECOMMENDATION \u2014 beyond the phase acceptance criteria, requires approval before execution.\n\nEvaluated live with NO filter context, [Weighted EPI Score] returns 7945.40 \u2014 the SUMX accumulates weighted sub-indicator scores across all 193 countries rather than resolving to the 0-100 band the measure is documented to produce (docs/dax_measure_library.md line 118). In a single-country filter context it behaves as documented, and Erik confirmed the 0-100 rendering on 2026-08-04, so this is a NON-ADDITIVE-AT-TOTAL artifact, not a computation defect.\n\nWorth a decision because an unfiltered card or an uncontexted total in report2 would show a meaningless 7945.40 to a portfolio reviewer. Options: wrap the measure to blank or average outside a country context, OR document the required filter context and confirm no visual can render it uncontexted.\n\nRelated observation while probing: [Latest Match Rate] returns BLANK against current gold_quality_history contents \u2014 confirm whether that is expected before the same reviewer meets an empty card.",
   "acceptanceCriteria": [
@@ -32,10 +35,152 @@
     "[Latest Match Rate]'s BLANK result is confirmed expected or fixed."
   ],
   "notes": [
+    "[ATTEMPT 2 2026-08-11] Prose-only fix; TMDL untouched (confirmed unchanged from attempt 1) and semantic_model.md untouched (L132 does not repeat the false mechanism). docs/dax_measure_library.md: \u00a7 2.2's 'No 0 fallback' paragraph rewritten around the measured truth (removal is a no-op because the alternate result was unreachable), stating the discriminator inline with the control set; \u00a7 4's pattern bullet rewritten to be correct in its own right -- the EARLIER version ('the Weighted EPI Score collapse-to-0 case is a direct consequence') was wrong for the same reason, since that collapse never occurred; the non-country-grouping caveat added; and \u00a7 2.2's 'Reads 0-100 at every grain' heading clarified so it does not contradict the caveat. All three load-bearing claims re-measured live rather than taken on trust (DIVIDE truth table with 4 positive controls; WGI-context old measure = null not 0; 58 sub-indicators summing to 100.0, min 0.1, zero blank/zero-weight rows). Swept docs/ for the false mechanism elsewhere with a positive control -- no other doc repeats it. NOTE: measured 13 commodity_group rows, not the verifier's 4; the constant (44.141125003963616) and the old value (7945.402500713454) agree exactly.",
+    "[VERIFICATION FAIL #1 2026-08-11] FAIL attempt 1 -- prose/rationale only; the measure itself is correct and NO TMDL change is needed. Verifier independently re-derived AC2 against the live published model: 194 country keys, max |old-new| = 0.0 with blank-status identical on every row; grand total 44.14112500396361 = 7945.402500713454/180; Europe 58.594. TMDL integrity PASS -- lineageTag and PBI_FormatHint are unchanged CONTEXT lines, indentation verified byte-level against HEAD and a sibling multi-line measure. AC1/AC3 pass; AC4 passes on intent (defect confirmed with evidence rather than fixed). The failure: the DIVIDE-removal mechanism is false as written in three durable places. Both the dispatch brief's rationale AND the implementer's replacement were wrong; the alternate result never fires on a BLANK numerator, so the 0 was unreachable and the removal is a no-op.",
     "CREATED 2026-08-05 by phase-level verification as out_of_spec \u2014 no acceptance criterion covers measure totals behaviour.",
     "OUT OF SPEC: requires [A]ccept / [R]eject / [D]efer before it can be executed. Never auto-execute.",
     "Not a correctness defect \u2014 behaves as documented under filter context.",
-    "OUT-OF-SPEC ACCEPTED 2026-08-05 (Erik, [A]). out_of_spec_approved=true \u2014 the task is now dispatchable like any other and runs the full implement -> verify cycle; the out_of_spec flag only excludes it from PHASE detection (so it cannot re-open a closed phase or trigger a re-verify loop), never from per-task verification. Owner is 'both': the measure change is Claude's, but confirming no report2 visual renders Weighted EPI Score without country context needs Erik in the report."
+    "OUT-OF-SPEC ACCEPTED 2026-08-05 (Erik, [A]). out_of_spec_approved=true \u2014 the task is now dispatchable like any other and runs the full implement -> verify cycle; the out_of_spec flag only excludes it from PHASE detection (so it cannot re-open a closed phase or trigger a re-verify loop), never from per-task verification. Owner is 'both': the measure change is Claude's, but confirming no report2 visual renders Weighted EPI Score without country context needs Erik in the report.",
+    "DECISION 2026-08-11 (Erik, verbatim: 'wrap it'): wrap the measure. Option B (document the required filter context) is rejected. Dispatched to implement-agent same day.",
+    "[IMPLEMENTED 2026-08-11] Wrapped the measure in AVERAGEX(VALUES(gold_dim_country[country_key]), <existing body>) and removed the DIVIDE alternate-result 0. Diagnosis confirmed live (executeQueries): 58 sub-indicators summing to weight 100, 180 countries with rows, and SUMX(VALUES(country_key), <per-country measure>) = 7945.40250071345 -- exactly the old grand total, so the total was the SUM of per-country averages. AC2 verified both directions by running the literal file text as DEFINE MEASURE: max delta 0.0 across 194 country keys in single-country context; 44.141 at grand total (58.594 for Europe). AC3 satisfied by its own parenthetical -- the uncontexted value is now meaningful, so no report visual audit is needed. AC4: [Latest Match Rate] is a DEFECT, diagnosed not fixed (out of scope) -- LatestRun takes MAX(refresh_timestamp) over the whole of gold_quality_history, but data_quality_checks stamps a later pipeline_run_ts than silver_to_gold in the same run and writes only dq_* rows, so the winning timestamp never carries the metric; [Latest Coverage Rate] is BLANK identically (the task only noticed Match Rate). NOTE the DIVIDE rationale in the dispatch brief was WRONG and the agent corrected it: DAX's alternate result fires only on a BLANK/0 DENOMINATOR, so a data-less country never hit it. The removal is still load-bearing via a filter context holding no EPI sub-indicator at all (WGI slicer, or the pre-task-056 all-NULL weights), where TotalWeights goes BLANK and the old fallback returned 0 = worst-possible score. Decision persisted as DEC-014. Friction: FR-069 (spec L1457 still says non-additive), FR-070 (task text still says 'report2'). NOT committed, NOT pushed -- deploy + in-report confirmation is Erik's half."
   ],
-  "out_of_spec_approved": true
+  "out_of_spec_approved": true,
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "fail",
+      "timestamp": "2026-08-11T14:33:22Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "fail",
+        "runtime_validation": "partial",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "major",
+          "description": "The stated reason for removing the DIVIDE alternate result is empirically false in all three places it was written (DEC-014 'Coupled sub-decision', dax_measure_library.md \u00a7 2.2, and \u00a7 4's pattern bullet). Measured live with positive controls: DIVIDE(BLANK(),58,0)=BLANK, DIVIDE(BLANK(),BLANK(),0)=BLANK, while DIVIDE(1,BLANK(),0)=0 and DIVIDE(0,BLANK(),7)=7 -- the alternate result never fires on a BLANK numerator. TotalWeights can only go BLANK when EpiSubIndicators is empty or all weights are BLANK, and both force WeightedScores BLANK too, so the 0 was unreachable. Confirmed on the live OLD measure: CALCULATE([Weighted EPI Score], source_system=\"WGI\") = BLANK, not 0. The removal is a defensively-correct no-op; the three passages must say so."
+        },
+        {
+          "severity": "minor",
+          "description": "The false mechanism landed in dax_measure_library.md \u00a7 4 'DAX patterns in use', the canonical reference other measures are written against."
+        },
+        {
+          "severity": "minor",
+          "description": "The confirmed [Latest Match Rate] / [Latest Coverage Rate] defect has no follow-up task; the diagnosis lives only in a docs blockquote and this task's notes."
+        },
+        {
+          "severity": "minor",
+          "description": "Undisclosed consequence of the AVERAGEX wrapper: on any NON-country grouping the measure now returns a constant 44.141125003963616 (measured across 4 commodity_group rows, where the old measure returned a constant 7945.40) -- a self-evidently-broken number becomes a plausible-looking one. Needs a line in DEC-014 Consequences and in the measure docs."
+        },
+        {
+          "severity": "minor",
+          "description": "DEC-014 is stamped decided_by: Erik on his verbatim 'wrap it', but the coupled DIVIDE removal was implementer-added and never put to him; the provenance of the two changes must be distinguished inside the record."
+        }
+      ],
+      "notes": "FAIL attempt 1 -- prose/rationale only; the measure itself is correct and NO TMDL change is needed. Verifier independently re-derived AC2 against the live published model: 194 country keys, max |old-new| = 0.0 with blank-status identical on every row; grand total 44.14112500396361 = 7945.402500713454/180; Europe 58.594. TMDL integrity PASS -- lineageTag and PBI_FormatHint are unchanged CONTEXT lines, indentation verified byte-level against HEAD and a sibling multi-line measure. AC1/AC3 pass; AC4 passes on intent (defect confirmed with evidence rather than fixed). The failure: the DIVIDE-removal mechanism is false as written in three durable places. Both the dispatch brief's rationale AND the implementer's replacement were wrong; the alternate result never fires on a BLANK numerator, so the 0 was unreachable and the removal is a no-op."
+    },
+    {
+      "attempt": 2,
+      "result": "pass",
+      "timestamp": "2026-08-11T14:48:02Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "partial",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "minor",
+          "description": "DEC-014 cited 'the root CLAUDE.md gotcha' for the Taiwan/WGI precedent, but Taiwan/TWN is absent from root CLAUDE.md (probe exit 1; positive control 'Fabric workspace ID' = 1 hit). It lives in auto-memory. DEC-009 does support the substance. FIXED by the orchestrator 2026-08-11 - pointer retargeted."
+        },
+        {
+          "severity": "minor",
+          "description": "The constant was quoted at 17 significant figures (44.141125003963616) but the engine returns 44.14112500396361 over REST; the trailing digit is below API round-trip resolution. FIXED by the orchestrator 2026-08-11 in both DEC-014 and dax_measure_library.md."
+        },
+        {
+          "severity": "minor",
+          "description": "docs/architecture/semantic_model.md L137 and docs/portfolio/PORTFOLIO_ASSETS_README.md L46 still summarise the pattern as 'DIVIDE(..., 0) safe division' - phrasing drift in two summary lines, superseded by \u00a7 4's corrected entry. Neither repeats the false mechanism."
+        },
+        {
+          "severity": "minor",
+          "description": "Carried forward and explicitly out of scope: the confirmed [Latest Match Rate] / [Latest Coverage Rate] defect still has no follow-up task."
+        }
+      ],
+      "notes": "PASS attempt 2. All four attempt-1 findings resolved, every load-bearing claim re-measured live rather than inherited. TMDL confirmed UNMOVED (git diff --numstat still 22/19; lineageTag and PBI_FormatHint unchanged CONTEXT lines). DIVIDE semantics re-derived from scratch with 6 positive controls -- all seven probe results quoted in \u00a7 2.2 match exactly, and CALCULATE([Weighted EPI Score], source_system=\"WGI\") = BLANK on the live old measure with CALCULATE(..., \"EPI\") = 7945.4025 as the control proving the filter fires. \u00a7 4's bullet is correct in its own right and holds at the boundary the controls probe (numerator 0 is non-blank, so DIVIDE(0,BLANK(),7)=7 fires). ROW-COUNT DISCREPANCY RESOLVED IN THE IMPLEMENTER'S FAVOUR: 13 commodity_group rows (12 named + 1 blank member), measured two independent ways; attempt 1's '4' was wrong, and that false figure had been written into this task's own verification record. DEC-014's probe table matches measurement exactly and carries the provenance split. Docs sweep found the false mechanism nowhere else (positive control: 11 hits in dax_measure_library.md). All four ACs pass. Deploy + in-report confirmation is Erik's half."
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-08-11T14:48:02Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "partial",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "DEC-014 cited 'the root CLAUDE.md gotcha' for the Taiwan/WGI precedent, but Taiwan/TWN is absent from root CLAUDE.md (probe exit 1; positive control 'Fabric workspace ID' = 1 hit). It lives in auto-memory. DEC-009 does support the substance. FIXED by the orchestrator 2026-08-11 - pointer retargeted."
+      },
+      {
+        "severity": "minor",
+        "description": "The constant was quoted at 17 significant figures (44.141125003963616) but the engine returns 44.14112500396361 over REST; the trailing digit is below API round-trip resolution. FIXED by the orchestrator 2026-08-11 in both DEC-014 and dax_measure_library.md."
+      },
+      {
+        "severity": "minor",
+        "description": "docs/architecture/semantic_model.md L137 and docs/portfolio/PORTFOLIO_ASSETS_README.md L46 still summarise the pattern as 'DIVIDE(..., 0) safe division' - phrasing drift in two summary lines, superseded by \u00a7 4's corrected entry. Neither repeats the false mechanism."
+      },
+      {
+        "severity": "minor",
+        "description": "Carried forward and explicitly out of scope: the confirmed [Latest Match Rate] / [Latest Coverage Rate] defect still has no follow-up task."
+      }
+    ],
+    "notes": "PASS attempt 2. All four attempt-1 findings resolved, every load-bearing claim re-measured live rather than inherited. TMDL confirmed UNMOVED (git diff --numstat still 22/19; lineageTag and PBI_FormatHint unchanged CONTEXT lines). DIVIDE semantics re-derived from scratch with 6 positive controls -- all seven probe results quoted in \u00a7 2.2 match exactly, and CALCULATE([Weighted EPI Score], source_system=\"WGI\") = BLANK on the live old measure with CALCULATE(..., \"EPI\") = 7945.4025 as the control proving the filter fires. \u00a7 4's bullet is correct in its own right and holds at the boundary the controls probe (numerator 0 is non-blank, so DIVIDE(0,BLANK(),7)=7 fires). ROW-COUNT DISCREPANCY RESOLVED IN THE IMPLEMENTER'S FAVOUR: 13 commodity_group rows (12 named + 1 blank member), measured two independent ways; attempt 1's '4' was wrong, and that false figure had been written into this task's own verification record. DEC-014's probe table matches measurement exactly and carries the provenance split. Docs sweep found the false mechanism nowhere else (positive control: 11 hits in dax_measure_library.md). All four ACs pass. Deploy + in-report confirmation is Erik's half."
+  },
+  "test_protocol": {
+    "summary": "Deploy the wrapped Weighted EPI Score and confirm in oem_report that it reads 0-100 uncontexted, is unchanged per country, and that no visual relies on a non-country grain.",
+    "estimated_time": "10 minutes",
+    "automated_results": "Verified offline against the live published model (dataset f57bdfa4) by running the literal TMDL text as DEFINE MEASURE: grand total 44.14112500396361 (old 7945.402500713453), Europe 58.59427624785278, 194 country keys with 180 non-blank, SUMX(VALUES(country_key), old) = 7945.40250071345 = the old grand total exactly. DIVIDE semantics re-measured with 6 positive controls; all 13 commodity_group rows return the constant. NOT verifiable offline: the deploy itself, the TMDL envelope parse at publish, and how the value renders in an actual report visual.",
+    "steps": [
+      {
+        "type": "interactive",
+        "instruction": "Commit the working tree (fact_epi_score.tmdl, docs/dax_measure_library.md, docs/architecture/semantic_model.md) and push to main. This fires deploy-fabric.yml, which publishes the semantic model via fabric-cicd. Nothing has been committed or pushed by the agents.",
+        "expected": "deploy-fabric.yml green; the OEMInsightBI semantic model updates IN PLACE (fabric-cicd resolves by displayName, no duplicate item). A TMDL envelope parse error would surface here - it is the only check that cannot be run locally."
+      },
+      {
+        "type": "visual",
+        "instruction": "Open oem_report and put [Weighted EPI Score] on a card with NO slicer or filter applied.",
+        "expected": "~44.14, inside the 0-100 band. It must NOT read 7945.40 - that is the pre-change value and means the deploy did not land."
+      },
+      {
+        "type": "visual",
+        "instruction": "Slice that same card to a single country (e.g. Sweden) and compare against the value you confirmed on 2026-08-04.",
+        "expected": "Identical to the pre-change single-country value - the wrapper is a no-op there (max delta 0.0 across all 194 country keys)."
+      },
+      {
+        "type": "visual",
+        "instruction": "Filter the card to region = Europe.",
+        "expected": "~58.59 - the mean across the European countries in context, not a sum."
+      },
+      {
+        "type": "visual",
+        "instruction": "Check whether any visual groups [Weighted EPI Score] by a NON-country axis (commodity_group, material, supplier). If one exists, look at the column.",
+        "expected": "Every row shows the same 44.14. Expected (fact_epi_score has no material grain) but it now reads as a plausible score rather than an obviously-broken 7945.40 - decide whether such a visual should exist at all."
+      }
+    ]
+  },
+  "user_review_pending": true,
+  "interaction_hint": "dashboard"
 }

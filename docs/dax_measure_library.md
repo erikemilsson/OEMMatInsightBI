@@ -95,27 +95,38 @@ Distinct countries that have a top-level EPI score. Format `0`.
 
 **`Weighted EPI Score`** — the portfolio's headline weighted-aggregation measure:
 ```dax
-VAR EpiSubIndicators =
-    FILTER(
-        gold_dim_indicator,
-        gold_dim_indicator[source_system] = "EPI"
-            && gold_dim_indicator[abbrev] <> "EPI"
-            && gold_dim_indicator[type] = "Indicator"
-    )
-VAR WeightedScores =
-    CALCULATE(
-        SUMX(
-            fact_epi_score,
-            fact_epi_score[score] * RELATED(gold_dim_indicator[weight])
-        ),
-        EpiSubIndicators
-    )
-VAR TotalWeights =
-    CALCULATE(SUM(gold_dim_indicator[weight]), EpiSubIndicators)
-RETURN
-    DIVIDE(WeightedScores, TotalWeights, 0)
+AVERAGEX(
+    VALUES(gold_dim_country[country_key]),
+    VAR EpiSubIndicators =
+        FILTER(
+            gold_dim_indicator,
+            gold_dim_indicator[source_system] = "EPI"
+                && gold_dim_indicator[abbrev] <> "EPI"
+                && gold_dim_indicator[type] = "Indicator"
+        )
+    VAR WeightedScores =
+        CALCULATE(
+            SUMX(
+                fact_epi_score,
+                fact_epi_score[score] * RELATED(gold_dim_indicator[weight])
+            ),
+            EpiSubIndicators
+        )
+    VAR TotalWeights =
+        CALCULATE(SUM(gold_dim_indicator[weight]), EpiSubIndicators)
+    RETURN
+        DIVIDE(WeightedScores, TotalWeights)
+)
 ```
-Weighted by `gold_dim_indicator[weight]` (sourced from EPI's `epi2024weights.csv`; see `epi_wgi_ingestion.md` / the Weighted EPI Score note in the root `CLAUDE.md`). The filter excludes the parent `EPI` row and the `Index`/`Objective` rollups so only `type = "Indicator"` sub-indicators contribute — this is why the measure renders a 0–100 score only after the weights table is loaded (a `NULL` weight collapses it to 0 via the `DIVIDE(..., 0)` fallback).
+Weighted by `gold_dim_indicator[weight]` (sourced from EPI's `epi2024weights.csv`; see `epi_wgi_ingestion.md` and `decision-013-epi-weight-sourcing-gold-dim-indicator-rebuild.md`). The 58 sub-indicator weights sum to 100. The filter excludes the parent `EPI` row and the `Index`/`Objective` rollups so only `type = "Indicator"` sub-indicators contribute — which is why the measure renders a 0–100 score only after the weights table is loaded.
+
+**Reads 0–100 at every grain, including the grand total (task-061).** The inner `VAR`/`RETURN` body is the weighted average for *one* country; the `AVERAGEX` wrapper is what makes it safe to place on an uncontexted card. Without the wrapper the denominator did not scale with country cardinality — `TotalWeights` sums the 58 sub-indicator weights (= 100) once regardless of context, while `WeightedScores` fans out over every country in context, so the uncontexted measure returned the *sum* of the per-country scores (measured 7945.40 across 180 countries on 2026-08-11) instead of a score. Wrapped, a single-country context is bit-for-bit unchanged (verified against the live model: max delta 0.0 across all 194 country keys) and the grand total is the mean across the countries in context (44.14 world-wide, 58.59 filtered to `region = "Europe"`). "Every grain" means the value is always a score rather than a running sum — it does **not** mean every axis filters it; see the non-country-grain caveat below.
+
+**No `0` fallback on the `DIVIDE` — defensive hygiene, not a behaviour change.** The pre-task-061 measure ended `DIVIDE(WeightedScores, TotalWeights, 0)`; the `0` was dropped alongside the wrapper. Dropping it changed nothing observable, because **the alternate result was unreachable here**. DAX substitutes the third argument only when the *denominator* is blank or zero **and** the numerator is non-blank; a **blank numerator returns BLANK regardless of the denominator**. Measured on this model 2026-08-11: `DIVIDE(BLANK(), 58, 0)`, `DIVIDE(BLANK(), BLANK(), 0)` and `DIVIDE(BLANK(), 0, 0)` all return BLANK, while the positive controls `DIVIDE(1, BLANK(), 0)`, `DIVIDE(1, 0, 0)` and `DIVIDE(0, 0, 0)` return `0` and `DIVIDE(0, BLANK(), 7)` returns `7`. In this measure `TotalWeights` can only go blank when `EpiSubIndicators` is empty or every visible weight is BLANK — and both of those force `WeightedScores` blank too (a `SUMX` over an empty filtered fact is BLANK; `score × BLANK` is BLANK). Numerator and denominator go blank together, so the `0` branch had no way in. `TotalWeights = 0` exactly is unreachable as well: the 58 sub-indicator weights sum to `100.00000011920929`, the minimum is `0.1`, and no row has a blank or zero weight. Confirmed against the live, still-unwrapped measure for the exact scenario the fallback was supposed to cover — `CALCULATE([Weighted EPI Score], gold_dim_indicator[source_system] = "WGI")` returns BLANK, not `0`.
+
+The `0` stays off because a missing external score must never coerce to `0`: `0` is a legitimate EPI value meaning *worst environmental performance*, so a fallback that ever did fire would mislabel a data gap as a catastrophic score, and BLANK countries are skipped by `AVERAGEX` rather than dragging the mean down. Same rule as the `NULL`-governance handling in `data_quality_framework.md`. But this is insurance against a future edit that makes the numerator non-blank independently of the denominator — **not** a fix for an observed zero. In particular, the pre-task-056 all-NULL-weight state did *not* render `0`: `silver_to_gold.Notebook` (line 1196), `bronze_ingest_epi.Notebook` (lines 232–233) and `decision-013` all record that it rendered BLANK.
+
+**Caveat — the wrapper makes a non-country grain look plausible rather than obviously broken.** `fact_epi_score` has no material grain, so grouping this measure by anything that does not filter countries leaves every row with the same country set, and every row therefore returns the same world-wide mean. Measured 2026-08-11, all 13 `gold_dim_material[commodity_group]` rows return exactly `44.14112500396361` — identical to the grand total. That is expected, not a defect, but it is a *quieter* failure mode than before: the unwrapped measure returned a constant `7945.40` on those same rows, a number no reviewer would accept, whereas the wrapped one returns a constant that reads as a real score. Slice this measure by country or a country attribute, and read a value repeating identically down a non-country axis as the signal that the axis does not filter `fact_epi_score`.
 
 ### 2.3 `fact_supply_share` — supply share (1)
 
@@ -221,6 +232,8 @@ RETURN
     )
 ```
 
+> **Both currently return BLANK — known defect, not a data gap (observed under task-061, 2026-08-11).** `LatestRun` takes the max `refresh_timestamp` over the *whole* table, but two notebooks append to `gold_quality_history` in the same pipeline run, each stamping its own `pipeline_run_ts`: `silver_to_gold` writes `coverage_rate` / `match_rate`, then `data_quality_checks` writes `dq_*` rows ~10 minutes later. The later timestamp therefore always wins and never carries either metric, so the `refresh_timestamp = LatestRun` and `metric_name = "…"` filters intersect to nothing. Measured on the live model: 111 `match_rate` rows exist, the newest at `2026-08-11T04:06:33` with value `99.42`, while the table max is `2026-08-11T04:17:09` (producer `data_quality_checks`, all `dq_*`). The fix is to resolve the latest run *per metric* (`CALCULATE(MAX(refresh_timestamp), ALLEXCEPT(...), metric_name = "…")`) or to filter on `producer`; note also that the producers write whole percentages (`85` = 85%) while the `0.0%` format string expects a fraction, so a naive fix would render `9941.8%`.
+
 ### 2.8 `gold_low_confidence_audit` — low-confidence alias matches (5, folder: `Quality Observability`)
 
 Surfaces the alias-matching friction that the silver→gold confidence threshold defers to human review.
@@ -252,7 +265,7 @@ See `data_quality_architecture.md` for the shipped design and `data_quality_fram
 
 ## 4. DAX patterns in use
 
-- **`DIVIDE(numerator, denominator, 0)`** everywhere a ratio is computed — safe division with explicit zero fallback (the `Weighted EPI Score` collapse-to-0 case is a direct consequence).
+- **`DIVIDE(numerator, denominator, alternate)`** for safe division without the `/0` error. The third argument substitutes **only when the denominator is blank or zero *and* the numerator is non-blank** — a blank numerator returns BLANK whatever the third argument says, so the alternate result can neither rescue a blank numerator nor corrupt one (measured on this model under task-061; discriminator and controls in § 2.2). Supply it where a blank/zero denominator has a real answer (a resolution rate over zero gaps is genuinely 0%). Omit it for scored quantities, where `0` is itself a meaningful value — `Weighted EPI Score` omits it, though *defensively* rather than to change behaviour: its numerator and denominator always go blank together, so the fallback was unreachable in either form.
 - **`VAR` / `RETURN`** for any non-trivial measure (`Weighted EPI Score`, all the coverage-rate and resolution-rate ratios, the latest-run quality metrics) — variables make filter context explicit and avoid re-evaluation.
 - **`CALCULATE` with boolean filter arguments** (`gold_data_gaps[has_epi_score] = TRUE`) for conditional aggregation.
 - **`RELATED`** to pull `weight` from `gold_dim_indicator` into a row-context `SUMX` (`Weighted EPI Score`) — the only measure that crosses a relationship inside a row iteration.
