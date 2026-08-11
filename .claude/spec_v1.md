@@ -2,7 +2,7 @@
 version: 1
 status: active
 created: 2025-11-14
-updated: 2026-08-10
+updated: 2026-08-11
 ---
 
 # OEMMatInsightBI - Project Definition for Claude Code
@@ -137,11 +137,11 @@ Power BI Reports
 
 **Tables Ingested:**
 
--   `dbo.Procurement` → `bronze_procurement_transactional`
+-   `dbo.procurement_transactional` → `bronze_procurement_transactional`
 
 -   Purchase orders, suppliers, materials, dates, amounts
 
--   `dbo.SupplierInfo` → `bronze_supplier_ref`
+-   `dbo.supplier_ref` → `bronze_supplier_ref`
 
 -   Supplier master data (names, locations, metadata)
 
@@ -163,15 +163,21 @@ Power BI Reports
 
 -   `grant_permissions.sql` - Access control
 
-**Schema scripts** (in `/azure` folder — tracked):
+**Schema + seed scripts** (in `/azure` folder — tracked):
 
--   `procurement.sql` - Procurement table schema (DDL only)
+-   `procurement.sql` - DDL for `dbo.procurement_transactional` (step 1 of 2)
 
--   `supplier_info.sql` - Supplier reference schema (DDL only)
+-   `procurement_seed.sql` - the 132 transaction rows as a literal `INSERT` (step 2 of 2)
+
+-   `supplier_info.sql` - DDL for `dbo.supplier_ref` (step 1 of 2)
+
+-   `supplier_info_seed.sql` - the 11 supplier reference rows as a literal `INSERT` (step 2 of 2)
+
+Together these rebuild the Azure SQL source from the repo alone (task-064). Run the DDL before its seed; each seed opens with a `DELETE` so a repeat run is idempotent and closes with a row-count `THROW` guard. **The DDL scripts create `dbo.procurement_transactional` and `dbo.supplier_ref`** — the names the Copy activities actually read. They previously created `dbo.Procurement` / `dbo.SupplierInfo`, names no live artifact has ever read (the retired dataflow read the `_transactional` / `_ref` names too), so the DDL described an object the pipeline could never ingest. **The `DROP` in each DDL now targets the live table** — see DEC-015.
 
 **Key Columns:**
 
-**`dbo.Procurement` table:**
+**`dbo.procurement_transactional` table:**
 
 -   `Date` (DATE) - Transaction date, used for date dimension join
 
@@ -189,7 +195,7 @@ Power BI Reports
 
 -   **Primary key:** None defined (transactional data)
 
-**`dbo.SupplierInfo` table:**
+**`dbo.supplier_ref` table:**
 
 -   `SupplierName` (NVARCHAR(200)) - Supplier identifier, join key from procurement
 
@@ -1133,7 +1139,7 @@ Membership of `BLOCKING_CHECKS` is a deliberate choice per check, not a severity
 
 ### Expected Data Profiles
 
-Synthetic dataset. **`/azure/` holds DDL only** — `procurement.sql` and `supplier_info.sql` each contain one `CREATE TABLE` and **zero `INSERT` statements**; the rows were seeded separately and are not reproducible from the repo. Counts below are measured against the live lakehouse (2026-08-06), not derived from the scripts.
+Synthetic dataset, **reproducible from the repo** since task-064. `/azure/` holds a `CREATE TABLE` script and a matching literal-`INSERT` seed script per table (`procurement.sql` + `procurement_seed.sql`, `supplier_info.sql` + `supplier_info_seed.sql`), so a fresh clone can rebuild both Azure SQL tables with no hand-seeding and no out-of-band file. The seed rows were exported from the lakehouse bronze copy of each table (Delta versions 101 and 99, 2026-08-11) rather than from Azure SQL directly, so no laptop firewall rule was reopened. Counts below are measured against the live lakehouse (2026-08-06) and match the committed seed.
 
 **Procurement Transactions:** **132 records** (measured), key fields: date, materialname, suppliername, quantity, unitpriceeur. Bronze holds the source's raw day/year-transposed dates; silver corrects them to calendar 2024.
 
@@ -1310,7 +1316,7 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 
 ### Current Testing Status
 
-**Unit Tests:** **282 tests** for transformation logic in `tests/` (as of 2026-08-06; originally 33 from task-008, since extended by task-020/027/032, the Phase 2–4 work, and task-060's claim-scoped documentation guard), including the notebook↔`src/` parity contract (task-032). **Integration Tests:** None yet. **Data Validation Tests:** Quality checks in gold layer + observability tables.
+**Unit Tests:** **300 tests** for transformation logic in `tests/` (as of 2026-08-11; originally 33 from task-008, since extended by task-020/027/032, the Phase 2–4 work, task-060's claim-scoped documentation guard, and task-063's country-alias regression coverage), including the notebook↔`src/` parity contract (task-032). **Integration Tests:** None yet. **Data Validation Tests:** Quality checks in gold layer + observability tables.
 
 **Testing Approach:** *(counts in this section are measured against the suite at the date given on the Unit Tests line above)*
 
@@ -1326,9 +1332,9 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 
 -   [ ] Semantic model validation (relationship integrity)
 
--   [ ] Regression tests for alias mappings — **partial:** `tests/test_material_mapping.py` covers `MATERIAL_ALIASES` (7 tests, including that known-dead materials now resolve and that alias targets exist in the commodity map). **Country aliases have zero coverage** — `mapping_country_aliases_confidence` is built in `silver_to_gold` but no test exercises it
+-   [x] Regression tests for alias mappings — `tests/test_material_mapping.py` covers `MATERIAL_ALIASES` (7 tests, including that known-dead materials now resolve and that alias targets exist in the commodity map) and `tests/test_country_mapping.py` covers `country_aliases_with_confidence` (18 tests — the direction rule that keeps an alias target from orphaning against `gold_dim_country`, the confidence banding pinned to `alias_mappings.md`'s `match_type` taxonomy and the 0.95 `gold_low_confidence_audit` threshold, the Congo / Korea / Türkiye groups that must be edited as a set, resolution of the spellings that historically failed, and that an unmapped country lands in the audit under its own spelling rather than silently defaulting). Both seeds are read live from the notebook via `ast`, so editing a seed is what makes the guard fail — task-063
 
-**Test Data:** Synthetic. **`/azure/` contains table DDL only** (two `CREATE TABLE` scripts, zero `INSERT`s) — it does not generate the data, so the Azure SQL rows are not reproducible from the repo. Local unit tests use PySpark test fixtures in `tests/`.
+**Test Data:** Synthetic. **`/azure/` contains DDL plus a committed seed per table** (two `CREATE TABLE` scripts and two literal-`INSERT` scripts totalling 132 procurement rows and 11 supplier rows), so the Azure SQL rows are reproducible from the repo (task-064). Local unit tests use PySpark test fixtures in `tests/`.
 
 ------------------------------------------------------------------------
 
@@ -1478,7 +1484,7 @@ See `docs/dax_measure_library.md` for the full measure library. **45 measures li
 
 -   **Database:** procurement-supplier-db
 
--   **Tables:** dbo.Procurement, dbo.SupplierInfo
+-   **Tables:** dbo.procurement_transactional, dbo.supplier_ref
 
 -   Connection string/endpoint: Managed via the Fabric connection `oem_azuresql_procurement` (credential in Fabric's connection store, never in a tracked file)
 
@@ -1549,7 +1555,7 @@ See `docs/dax_measure_library.md` for the full measure library. **45 measures li
 1.  **Incremental vs Full Load:**
     -   **DECISION:** Incremental load for `fact_procurement` (the only table with ongoing transactional data). External data tables (EPI, WGI, Supply Shares) remain full-load on their annual refresh cycle.
     -   **Pattern (BUILT — task-024, 2026-07-14):** transaction-grain **date-partition delete-insert** over a 7-day look-back window, with the window driven by the `p_from_date` pipeline parameter. Deliberately *not* a natural-key MERGE: two same-day purchases of the same material from the same supplier are legitimate distinct transactions, and a natural-key merge either crashed on multiple source matches or silently collapsed them.
-    -   **Incremental key:** `Date` field from `dbo.Procurement` (transaction date)
+    -   **Incremental key:** `Date` field from `dbo.procurement_transactional` (transaction date)
     -   **High-water mark (BUILT — task-029, 2026-07-28):** the `bronze_load_metadata` table and its parameter flow are implemented notebook-side and verified end to end in Fabric. Gold coordination uses `exclude_execution_id` per DEC-006.
     -   **Separate artifact:** `usp_merge_fact_procurement` (T-SQL MERGE) remains as a skill demonstration of the Delta MERGE pattern in T-SQL — it is **not** the live load path.
     -   **Why:** `mode("overwrite")` erases the Delta log and forces a full DirectLake semantic model reload. Delete-insert preserves the VertiPaq column store while keeping transaction grain.
@@ -1640,7 +1646,7 @@ Quantity: 1000.00
 Unit: "kg"
 UnitPriceEUR: 45.50
 
-(After join with SupplierInfo:)
+(After join with dbo.supplier_ref:)
 HeadquartersCountry: "United States of America"
 ProductionCountry: "Chile"
 ```
