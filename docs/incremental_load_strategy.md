@@ -123,7 +123,7 @@ key at either layer — see § 3.
 ```powerquery
 // HISTORICAL — bronze_azureSQLdb2table.Dataflow, retired 2026-07-31
 Source = Sql.Database("server", "db"),
-Procurement = Source{[Schema="dbo",Item="Procurement"]}[Data]
+Procurement = Source{[Schema="dbo",Item="procurement_transactional"]}[Data]
 // Loads ALL rows every time
 ```
 
@@ -132,7 +132,7 @@ Procurement = Source{[Schema="dbo",Item="Procurement"]}[Data]
 // Modified with parameter support
 let
     Source = Sql.Database("server", "db"),
-    Procurement = Source{[Schema="dbo",Item="Procurement"]}[Data],
+    Procurement = Source{[Schema="dbo",Item="procurement_transactional"]}[Data],
 
     // Get parameter (default to full load if not set)
     FromDate = try #"Parameter: p_from_date" otherwise #datetime(1900, 1, 1, 0, 0, 0),
@@ -162,9 +162,9 @@ let
 
     // Build SQL with WHERE clause
     SqlQuery = if FromDate = "1900-01-01" then
-                  "SELECT * FROM dbo.Procurement"
+                  "SELECT * FROM dbo.procurement_transactional"
                else
-                  "SELECT * FROM dbo.Procurement WHERE Date >= '" & FromDate & "'",
+                  "SELECT * FROM dbo.procurement_transactional WHERE Date >= '" & FromDate & "'",
 
     QueryResult = Sql.Database("server", "db"){[Name=SqlQuery]}[Data]
 in
@@ -1129,12 +1129,12 @@ load_all_layers()
 -- Enable CDC on source table
 EXEC sys.sp_cdc_enable_table
     @source_schema = 'dbo',
-    @source_name = 'Procurement',
+    @source_name = 'procurement_transactional',
     @role_name = 'cdc_admin';
 
 -- Query CDC changes
 SELECT *
-FROM cdc.dbo_Procurement_CT
+FROM cdc.dbo_procurement_transactional_CT
 WHERE __$operation IN (2, 4)  -- Insert and Update
   AND __$start_lsn >= @last_lsn;
 ```

@@ -1,0 +1,171 @@
+{
+  "spec_version": "spec_v1",
+  "spec_fingerprint": "sha256:57b2ad82f925ce3b44569ffbb45f8e32b5957a89ad05ffefa257c36380345ce6",
+  "created_date": "2026-08-11",
+  "updated_date": "2026-08-11",
+  "completion_date": "2026-08-11",
+  "verification_attempts": 3,
+  "absorbed_into": null,
+  "subtasks": [],
+  "decision_dependencies": [],
+  "user_feedback": null,
+  "source": "FR-073 / FR-074, flagged as out of scope by MQ-002 ('Related, NOT included here'); promoted to a task by Erik via /work 2026-08-11",
+  "id": "task-067",
+  "title": "Sweep the stale dbo.Procurement / dbo.SupplierInfo source-table names from spec and docs",
+  "status": "Finished",
+  "priority": "medium",
+  "difficulty": 3,
+  "owner": "claude",
+  "phase": "5",
+  "spec_section": "Data Architecture",
+  "out_of_spec": true,
+  "out_of_spec_approved": true,
+  "dependencies": [],
+  "files_affected": [
+    "docs/schemas/bronze_tables.md",
+    "docs/architecture/data_sources.md",
+    "docs/error_handling_strategy.md",
+    "docs/incremental_load_strategy.md",
+    ".claude/support/reference/merge-queue.md"
+  ],
+  "description": "The spec and four docs/ files still name the Azure SQL source tables `dbo.Procurement` and `dbo.SupplierInfo`. Those objects do not exist. The live Copy activities read `dbo.procurement_transactional` and `dbo.supplier_ref`, and DEC-015 renamed the DDL to match — proven long-standing by the retired dataflow's mashup.pq, which read the corrected names too. The stale names also contradict spec L152's own retirement note.\n\nMQ-002 explicitly scoped this sweep OUT of itself and named it as needing its own entry or task (see merge-queue.md, 'Related, NOT included here'). This is that task.\n\nEnumerated targets, measured 2026-08-11 with a positive control (`procurement_transactional` resolves in 21 files, so the probe works):\n\nSpec (6 lines, ROUTE THROUGH /iterate — DEC-016, do NOT edit directly):\n  L140 `dbo.Procurement` -> bronze_procurement_transactional\n  L144 `dbo.SupplierInfo` -> bronze_supplier_ref\n  L174 **`dbo.Procurement` table:**\n  L192 **`dbo.SupplierInfo` table:**\n  L1481 **Tables:** dbo.Procurement, dbo.SupplierInfo\n  L1552 **Incremental key:** `Date` field from `dbo.Procurement`\n\nDocs (7 lines, direct edits are fine):\n  docs/schemas/bronze_tables.md:4,24\n  docs/architecture/data_sources.md:15,27\n  docs/error_handling_strategy.md:883 (inside a .option(\"dbtable\", ...) code sample)\n  docs/incremental_load_strategy.md:165,167 (inside an M query sample, one with a `WHERE Date >=` predicate)\n\nLEAVE ALONE: azure/procurement.sql:10 and azure/supplier_info.sql:10 say the script 'previously created dbo.Procurement'. That is a correct historical note about the rename and must survive the sweep — a blind find-and-replace would corrupt it into nonsense. The same care applies to the two code samples: renaming the table must not silently change the column identifiers around it.\n\nAlso confirm whether `Date` at L1552 and in the M query is still the correct incremental key column name under the renamed table, rather than assuming the rename touched only the table identifier.",
+  "acceptanceCriteria": [
+    "All 7 stale docs/ references are corrected to dbo.procurement_transactional / dbo.supplier_ref, including the two inside code samples, with surrounding column identifiers left correct.",
+    "The 6 spec lines are drafted as a new merge-queue entry (MQ-003) carrying verbatim current_text and proposed_text per the merge-queue protocol. The spec file itself is NOT edited — DEC-016 routes spec body text through /iterate.",
+    "azure/procurement.sql:10 and azure/supplier_info.sql:10 are unchanged, and this is stated explicitly as a checked outcome rather than left implicit.",
+    "The incremental key column name at spec L1552 and docs/incremental_load_strategy.md is verified against the renamed table rather than carried over unexamined.",
+    "A final sweep shows zero remaining live references to the old names outside the two historical notes, run with a positive control proving the probe works (the project has three known silent-empty grep mechanisms).",
+    "FR-073 and FR-074 are reported as resolved in the return report for the orchestrator to persist."
+  ],
+  "notes": "Approved by Erik 2026-08-11 (out-of-spec gate) as one of three confirmed defects that had no task behind them. This is the accuracy-of-the-record defect of the three — no runtime behaviour changes, so it needs no Fabric deploy and is fully Claude-owned.\n\nThe spec half lands via /iterate along with MQ-001 and MQ-002, so if those are still queued when this task runs, MQ-003 simply joins them in the same drain.\n\nPRECEDENT WARNING from task-064 attempt 1, which FAILED verification on exactly this shape: an implement-agent asserted that spec text had been parked in the merge queue when it had not actually been written. AC2 is satisfied by the text existing in merge-queue.md, not by a claim that it does. Confirm the anchor resolves before reporting.\n\n[IMPLEMENTED 2026-08-11, PASS attempt 3] Docs half applied: 11 sites across 4 files, not the 7 the task enumerated. The extra 4 are derivative spellings two probes missed - the Power Query Schema/Item form (incremental_load_strategy.md L126/L135) and the CDC @source_name / cdc.dbo_X_CT form (L1132/L1137). Spec half parked as MQ-003, SEVEN edits across four sections: the task enumerated six; L1643 '(After join with SupplierInfo:)' is a bare-identifier spelling in the Appendix that surfaced only at verification attempt 2. AC4 answered rather than assumed - `Date` survives the DEC-015 rename (azure/procurement.sql L23, bronze_to_silver L483); only the table identifier moved. AC3 verified positively: both azure/*.sql historical notes verbatim, azure/ git-clean. The '// Loads ALL rows every time' comment was assessed and deliberately LEFT - git history shows the doc block was authored 2025-11-17 when the then-live mashup.pq had no filter; the lookback arrived 2026-04-05. AC6 is a HONEST SPLIT, not a close: FR-073 and FR-074 stay OPEN and flip together when /iterate drains MQ-003, because their spec halves are parked, not applied. TWO ORCHESTRATOR-ONLY REMEDIATIONS (implement-agent is sandboxed from .claude/): Edit 7 was added by the orchestrator, and its first draft wrapped the table name in backticks inside a fenced code block - verify-agent caught it at attempt 3 before it could reach the spec. Friction: FR-075/076 (attempt 1), FR-077 (inaccurate HISTORICAL attribution, fixed), FR-078/079 (two further stale naming surfaces this sweep did NOT cover: the procurement_array parameter's dbo.Suppliers/Materials/Purchases trio, and data_sources.md:49's un-propagated 'schema/data' relabel).",
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "fail",
+      "timestamp": "2026-08-11T19:47:24Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "fail",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "major",
+          "description": "AC5 unmet: docs/incremental_load_strategy.md L126 and L135 retain Source{[Schema=\"dbo\",Item=\"Procurement\"]}[Data] - the same dbo.Procurement reference in Power Query syntax, invisible to the dotted-form-only sweep pattern - in a file that is in files_affected and was edited. Orchestrator independently confirmed: exactly 2 occurrences worktree-wide, no SupplierInfo equivalent."
+        },
+        {
+          "severity": "major",
+          "description": "The partial sweep introduced an intra-document contradiction that did not exist before: L135 names the source table Item=\"Procurement\" while L165/167, twelve lines later in the same subsection for the same ingestion path, name it dbo.procurement_transactional. The file was consistently wrong; it is now inconsistently half-right."
+        },
+        {
+          "severity": "minor",
+          "description": "MQ-003's 'measured:' line paired a count (76) from a recursive worktree scan with a stated methodology (git ls-files) that yields 47. RESOLVED by the orchestrator 2026-08-11 - re-measured at 47 and the sentence restated so method and count come from one command."
+        },
+        {
+          "severity": "minor",
+          "description": "Pre-existing: the L124-126 block labelled HISTORICAL attributes Item=\"Procurement\" to the retired bronze_azureSQLdb2table dataflow, whose committed mashup.pq snapshot reads Item = \"procurement_transactional\" (L10) and supplier_ref (L32) with zero occurrences of the old name. Orchestrator confirmed against the snapshot. Inaccurate history, unlike the correctly-worded azure/*.sql notes; contradicts DEC-015 L62."
+        }
+      ],
+      "notes": "FAIL attempt 1. Verifier re-measured every claim rather than accepting it; most held. CONFIRMED SOUND: MQ-003's six current_text blocks match the spec byte-for-byte via string equality (not by eye), including the four-space indent on Edit 6; the Copy-activity citation (pipeline-content.json L529-530 / L596-597) resolves exactly, so the sweep renamed to the correct target; AC4's Date-survives-the-rename claim re-derived at azure/procurement.sql L23 and bronze_to_silver L483; AC3's two historical notes verbatim and azure/ git-clean; all 7 enumerated docs edits landed at the enumerated lines with surrounding column identifiers untouched. The task-064 attempt-1 failure shape was NOT repeated - the merge-queue text genuinely exists. FAILS ON AC5: a dotted-form-only probe missed the Power Query Schema/Item spelling of the same reference. Orchestrator independently reproduced both hits and the mashup.pq contradiction before routing back."
+    },
+    {
+      "attempt": 2,
+      "result": "fail",
+      "timestamp": "2026-08-11T20:01:44Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "fail",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "major",
+          "description": "AC5 unmet: .claude/spec_v1.md L1643 '(After join with SupplierInfo:)' is a live reference to the old supplier-table name in § Appendix: Sample Data Patterns. Not among MQ-003's six lines, not in its known-good list, belongs to no sanctioned class. Orchestrator independently confirmed: bare 'SupplierInfo' across tracked files resolves to exactly 5 sites - spec 144/192/1481 (MQ-003's), spec 1643 (this miss), and azure/supplier_info.sql:10 (sanctioned historical note). Remedy is orchestrator-only: add Edit 7 to MQ-003."
+        },
+        {
+          "severity": "minor",
+          "description": "MQ-003's 'measured:' line and its known-good note assert coverage broader than what was adjudicated - L1643 appears in neither, so a future sweep re-detects it with no ruling attached. Both should be updated when Edit 7 lands."
+        },
+        {
+          "severity": "minor",
+          "description": "Informational, out of scope: .claude/support/workspace/fabric-queries-2026-07-23.md:14 still reads 'a raw copy of Azure SQL dbo.Procurement'. Dated gitignored scratch space per rules/archiving.md, not in files_affected. Noted so the AC5 census is complete rather than silently truncated."
+        }
+      ],
+      "notes": "FAIL attempt 2 on AC5 again - different derivative, much smaller remedy, and everything attempt 1 failed on is genuinely fixed. CONFIRMED FIXED: L126/L135 now read Item='procurement_transactional' and the intra-document contradiction with L165/167 is gone; the L126 change also repairs attempt-1 minor #4, since the HISTORICAL block now matches the retired mashup.pq snapshot. Verifier re-derived the sweep across FIVE derivative classes with no enumerated list trusted, each zero-claim paired with a positive control. BOTH implementer judgment calls independently upheld: (1) the CDC change at L1132/L1137 is correct - sp_cdc_enable_table defaults the capture instance to <schema>_<table>, so cdc.dbo_procurement_transactional_CT is the right derivation, both halves moved consistently, and it is in scope because a live sample naming a nonexistent table is this task's exact defect class; (2) leaving '// Loads ALL rows every time' is right - `git log --all -S` returns exactly one commit d300053 (2025-11-17) at the pre-migration path, the then-live mashup.pq f08e299 (2025-09-08) had no filter, and the lookback only arrived in c4d425b (2026-04-05), so the comment accurately described then-current behaviour. No M-query collateral damage: the step variable `Procurement =` survives and L142/L144/L151 still resolve; Date/FromDate intact. A useful heuristic surfaced: bare 'SupplierInfo' has ZERO legitimate domain-vocabulary usage project-wide so every hit is a defect, whereas bare 'Procurement' has ~100 legitimate uses and must be judged per site - which is why L1643 slipped past two probes."
+    },
+    {
+      "attempt": 3,
+      "result": "pass",
+      "timestamp": "2026-08-11T20:11:03Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "minor",
+          "description": "Edit 7's proposed_text wrapped the table name in backticks, but spec L1643 sits INSIDE a fenced code block (fence L1634-L1646, body contains zero backticks), so they would have rendered literally. Caught by verify-agent at attempt 3 before reaching the spec. RESOLVED by the orchestrator - unbackticked, with an explicit 'apply exactly as written, NO backticks' warning added to the entry."
+        },
+        {
+          "severity": "minor",
+          "description": "MQ-003's Reason line still read 'these six spec lines are the remainder' after the renumber to seven. RESOLVED by the orchestrator - now reads seven, and also credits the 4 derivative sites the original enumeration missed."
+        },
+        {
+          "severity": "minor",
+          "description": "MQ-003's 'measured:' line cites a git ls-files-scoped probe while its census table adjudicates two untracked paths that probe cannot see. RESOLVED by the orchestrator - a scope caveat now states the census is deliberately broader than the stated methodology, in the safe direction."
+        },
+        {
+          "severity": "minor",
+          "description": "AC6 cannot be met as literally worded. FR-073 and FR-074 are only PARTIALLY resolvable while the spec half sits parked: FR-074's docs half is done and verified on disk, its spec half is MQ-003 Edits 1-7; FR-073's DDL half was closed by task-064, its four spec lines are MQ-003 Edits 1-4. Both stay status 'open' and flip together on the /iterate drain. Reporting either fully resolved now would assert a spec state that does not exist - this task's own defect class."
+        }
+      ],
+      "notes": "PASS attempt 3. Census re-derived from scratch across SEVEN derivative classes with no enumerated list trusted, each absence claim paired with a positive control (the dedicated Grep tool was unavailable, so /usr/bin/grep by absolute path throughout). Every surviving occurrence project-wide falls inside MQ-003's adjudicated census table; ZERO sites outside it. The verifier judged the table's seven rulings on their merits rather than accepting them as written, and all seven hold. THE CLOSING QUESTION, answered explicitly: read literally, AC5 ('zero remaining live references') cannot close until /iterate drains the queue, because AC2 forbids the very spec edit a literal AC5 would require - the two criteria are mutually unsatisfiable by any action available to this task, and were so from the moment it was authored. The only reading under which both hold is 'zero remaining stale references that are not either a sanctioned historical note or parked in the queue with a verbatim, byte-accurate replacement'. Under that reading AC5 is MET. Recorded honestly: the task closes, but the defect does not leave the spec until the drain. All seven current_text blocks verified byte-for-byte by string equality including Edit 6's four-space indent. The zero-legitimate-usage claim for bare 'SupplierInfo' was re-derived and upheld (15 worktree occurrences, every one either the stale identifier or prose about the rename), which is what makes Edit 7's bare-token match safe - and correctly contrasted with bare 'Procurement' (~100 legitimate uses, judged per site). MQ-003 coherent after renumber: 7 blocks numbered 1..7 of 7, zero 'of 6' residue, MQ-001/MQ-002 undamaged. Attempt-2's confirmed-good findings all still hold."
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-08-11T20:11:03Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "not_applicable",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "Edit 7's proposed_text wrapped the table name in backticks, but spec L1643 sits INSIDE a fenced code block (fence L1634-L1646, body contains zero backticks), so they would have rendered literally. Caught by verify-agent at attempt 3 before reaching the spec. RESOLVED by the orchestrator - unbackticked, with an explicit 'apply exactly as written, NO backticks' warning added to the entry."
+      },
+      {
+        "severity": "minor",
+        "description": "MQ-003's Reason line still read 'these six spec lines are the remainder' after the renumber to seven. RESOLVED by the orchestrator - now reads seven, and also credits the 4 derivative sites the original enumeration missed."
+      },
+      {
+        "severity": "minor",
+        "description": "MQ-003's 'measured:' line cites a git ls-files-scoped probe while its census table adjudicates two untracked paths that probe cannot see. RESOLVED by the orchestrator - a scope caveat now states the census is deliberately broader than the stated methodology, in the safe direction."
+      },
+      {
+        "severity": "minor",
+        "description": "AC6 cannot be met as literally worded. FR-073 and FR-074 are only PARTIALLY resolvable while the spec half sits parked: FR-074's docs half is done and verified on disk, its spec half is MQ-003 Edits 1-7; FR-073's DDL half was closed by task-064, its four spec lines are MQ-003 Edits 1-4. Both stay status 'open' and flip together on the /iterate drain. Reporting either fully resolved now would assert a spec state that does not exist - this task's own defect class."
+      }
+    ],
+    "notes": "PASS attempt 3. Census re-derived from scratch across SEVEN derivative classes with no enumerated list trusted, each absence claim paired with a positive control (the dedicated Grep tool was unavailable, so /usr/bin/grep by absolute path throughout). Every surviving occurrence project-wide falls inside MQ-003's adjudicated census table; ZERO sites outside it. The verifier judged the table's seven rulings on their merits rather than accepting them as written, and all seven hold. THE CLOSING QUESTION, answered explicitly: read literally, AC5 ('zero remaining live references') cannot close until /iterate drains the queue, because AC2 forbids the very spec edit a literal AC5 would require - the two criteria are mutually unsatisfiable by any action available to this task, and were so from the moment it was authored. The only reading under which both hold is 'zero remaining stale references that are not either a sanctioned historical note or parked in the queue with a verbatim, byte-accurate replacement'. Under that reading AC5 is MET. Recorded honestly: the task closes, but the defect does not leave the spec until the drain. All seven current_text blocks verified byte-for-byte by string equality including Edit 6's four-space indent. The zero-legitimate-usage claim for bare 'SupplierInfo' was re-derived and upheld (15 worktree occurrences, every one either the stale identifier or prose about the rename), which is what makes Edit 7's bare-token match safe - and correctly contrasted with bare 'Procurement' (~100 legitimate uses, judged per site). MQ-003 coherent after renumber: 7 blocks numbered 1..7 of 7, zero 'of 6' residue, MQ-001/MQ-002 undamaged. Attempt-2's confirmed-good findings all still hold."
+  },
+  "user_review_pending": false
+}

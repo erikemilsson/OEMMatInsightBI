@@ -1,7 +1,7 @@
 # Bronze Layer Table Schemas
 
 ## bronze_procurement_transactional
-Source: Azure SQL dbo.Procurement
+Source: Azure SQL dbo.procurement_transactional
 Grain: One row per material purchase
 ```
 Date                        DATE
@@ -21,7 +21,7 @@ piece. Gold computes `spend_eur = Quantity × UnitPriceEUR` accordingly, and
 Spend EUR`.
 
 ## bronze_supplier_ref
-Source: Azure SQL dbo.SupplierInfo
+Source: Azure SQL dbo.supplier_ref
 Grain: One row per supplier
 ```
 SupplierName                STRING (NVARCHAR(200))

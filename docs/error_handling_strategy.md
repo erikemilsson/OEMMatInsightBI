@@ -880,7 +880,7 @@ def test_azure_sql_connection():
     try:
         df = spark.read.format("sqlserver") \
             .option("url", "jdbc:sqlserver://server.database.windows.net:1433") \
-            .option("dbtable", "dbo.Procurement") \
+            .option("dbtable", "dbo.procurement_transactional") \
             .option("user", "admin") \
             .option("password", dbutils.secrets.get("keyvault", "sql-password")) \
             .load()

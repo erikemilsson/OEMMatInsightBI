@@ -12,7 +12,7 @@ This project integrates data from 4 primary sources: 1 transactional database + 
 
 ### Tables
 
-**dbo.Procurement** → `bronze_procurement_transactional`
+**dbo.procurement_transactional** → `bronze_procurement_transactional`
 - **Purpose:** Purchase order transactions
 - **Grain:** One row per material purchase
 - **Key Columns:**
@@ -24,7 +24,7 @@ This project integrates data from 4 primary sources: 1 transactional database + 
   - `Unit` (NVARCHAR(50)) - Unit of measure (kg, t, g, etc.)
   - `UnitPriceEUR` (DECIMAL(18,2)) - Price per unit in EUR
 
-**dbo.SupplierInfo** → `bronze_supplier_ref`
+**dbo.supplier_ref** → `bronze_supplier_ref`
 - **Purpose:** Supplier master data
 - **Grain:** One row per supplier
 - **Key Columns:**
