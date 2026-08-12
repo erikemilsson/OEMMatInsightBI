@@ -919,7 +919,7 @@ The report was redesigned and rebuilt from scratch after the semantic model was 
 
 **Testing:**
 
--   [x] Unit tests for transformation logic (**282 tests** as of 2026-08-06, `tests/`), including the notebook↔`src/` parity contract (task-032)
+-   [x] Unit tests for transformation logic in `tests/`, including the notebook↔`src/` parity contract (task-032). **Count is not restated here** — see § Testing Strategy → Unit Tests, which is the single dated measurement. This line said "282 tests as of 2026-08-06" until 2026-08-12; MQ-001 corrected the count in § Testing Strategy on 2026-08-11 and missed this duplicate, which is why the number no longer lives in two places.
 
 -   [x] CI pipeline: GitHub Actions with matrix testing (Python 3.10-3.13), resolving dependencies from `uv.lock` so CI and local install the identical pinned `pyspark==4.0.1`
 
@@ -1316,7 +1316,7 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 
 ### Current Testing Status
 
-**Unit Tests:** **300 tests** for transformation logic in `tests/` (as of 2026-08-11; originally 33 from task-008, since extended by task-020/027/032, the Phase 2–4 work, task-060's claim-scoped documentation guard, and task-063's country-alias regression coverage), including the notebook↔`src/` parity contract (task-032). **Integration Tests:** None yet. **Data Validation Tests:** Quality checks in gold layer + observability tables.
+**Unit Tests:** **300 tests** for transformation logic in `tests/` (measured 2026-08-12; originally 33 from task-008, since extended by task-020/027/032, the Phase 2–4 work, task-060's claim-scoped documentation guard, and task-063's country-alias regression coverage), including the notebook↔`src/` parity contract (task-032). **Integration Tests:** None yet. **Data Validation Tests:** Quality checks in gold layer + observability tables.
 
 **Testing Approach:** *(counts in this section are measured against the suite at the date given on the Unit Tests line above)*
 
