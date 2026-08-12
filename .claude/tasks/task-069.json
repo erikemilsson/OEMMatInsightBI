@@ -1,0 +1,40 @@
+{
+  "spec_version": "spec_v1",
+  "spec_fingerprint": "sha256:0bb0aad5d1a442b888672f543db310e4399b6a88a8f578ee3ea24d9f4cee0ded",
+  "created_date": "2026-08-12",
+  "updated_date": "2026-08-12",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "absorbed_into": null,
+  "subtasks": [],
+  "decision_dependencies": [],
+  "user_feedback": null,
+  "source": "Live regression during task-064's step-7 guided walkthrough, 2026-08-12. Rolled back operationally; the repo-vs-live contract is unresolved.",
+  "id": "task-069",
+  "title": "Reconcile azure/procurement.sql column types with the live table — the repo rebuild currently breaks bronze→silver",
+  "status": "Pending",
+  "priority": "high",
+  "difficulty": 5,
+  "owner": "both",
+  "phase": "5",
+  "spec_section": "Data Architecture",
+  "out_of_spec": true,
+  "out_of_spec_approved": false,
+  "dependencies": [],
+  "files_affected": [
+    "azure/procurement.sql",
+    "fabric/bronze_to_silver.Notebook/notebook-content.py",
+    "docs/schemas/bronze_tables.md",
+    ".claude/support/reference/merge-queue.md"
+  ],
+  "description": "task-064 made the Azure SQL source rebuildable from the repo. Running that rebuild on 2026-08-12 BROKE THE PIPELINE, and the repo is still in the state that reproduces the outage.\n\nWHAT HAPPENED. azure/procurement.sql declares Quantity and UnitPriceEUR as DECIMAL(18,2), matching the spec and docs/schemas/bronze_tables.md. The live dbo.procurement_transactional it replaced was hand-created outside the repo with different types — recovered from bronze Delta v101 time travel as Quantity `short` and UnitPriceEUR `double`. Rebuilding from the repo therefore changed bronze's Delta schema to decimal(18,2), and bronze_to_silver could no longer write into silver_procurement, whose columns are still short/double: [DELTA_FAILED_TO_MERGE_FIELDS] Failed to merge fields 'quantity' and 'quantity', 3 consecutive failures.\n\nNote DEC-015 is WRONG on one point that matters for any fix: it calls the live column 'a 4-byte float'. It is a double. The 18.670000076293945 noise is float32 error baked into values stored in an 8-byte column. T-SQL REAL (= FLOAT(24), 4-byte) would land as Spark `float` and still mismatch; only FLOAT (= FLOAT(53)) lands as `double`.\n\nCURRENT STATE. Operationally rolled back: the live table was recreated as Quantity SMALLINT / UnitPriceEUR FLOAT, re-seeded from azure/procurement_seed.sql, and the pipeline is green end to end (bronze 132/11, silver 132, fact_procurement 132, silver dates 2024-01-31..2024-12-31). The rollback DDL exists ONLY as a scratch file from that session — it is NOT in the repo. So azure/procurement.sql now disagrees with the live table it is supposed to reproduce, and re-running it repeats the outage.\n\nTHE DECISION THIS TASK CARRIES. Two defensible directions, and they differ in what they treat as authoritative:\n\n  (A) Change azure/procurement.sql to SMALLINT / FLOAT. The repo then reproduces the live table exactly and the pipeline is safe. Cost: it contradicts the DECIMAL(18,2) contract documented in the spec and docs/schemas/bronze_tables.md, so those need correcting too (spec half via /iterate, DEC-016) — and it enshrines what was probably an accident of hand-creation as the contract. It also keeps the float32 noise story alive in bronze.\n\n  (B) Keep DECIMAL(18,2) and make bronze_to_silver tolerate it. Cast quantity/unitpriceeur explicitly at the silver boundary so silver's schema stops inheriting the source's physical type, and add overwriteSchema to the full-load write at L538 (L560's append path needs the cast, not overwriteSchema). Then re-run the repo DDL for real. Cost: a code change plus a full load, and gold_fact_procurement may need the same treatment one layer down — verify before assuming it does not.\n\nB is the better engineering answer (a silver schema should not be a function of an upstream physical type) but it is the larger change and it moves live data types. A is smaller and truer to what is actually deployed. Do not pick silently — this is a real fork.\n\nWHATEVER IS CHOSEN, the MQ-002 spec text landed 2026-08-11 is currently overstated: it says the Azure rows are reproducible from the repo, which is true of the ROWS and false of the SCHEMA. That correction routes through /iterate.",
+  "acceptanceCriteria": [
+    "The direction (A or B) is chosen explicitly by Erik and recorded as a decision record, not resolved inline.",
+    "After the change, running the repo's DDL+seed against the live database and then running orchestrator_pipeline_bronze_to_gold end to end leaves the pipeline GREEN — this must be demonstrated in Fabric, not argued locally. A SQLite/local pass is explicitly insufficient: that is exactly what missed the defect the first time.",
+    "The declared types in azure/procurement.sql, docs/schemas/bronze_tables.md, and the spec agree with each other AND with the Delta schema that bronze actually lands. Prove the last one by reading the bronze table's schema after a real Copy run, not by inference.",
+    "DEC-015's '4-byte float' claim is corrected to `double` wherever it appears, since a fix built on that premise (choosing REAL) would fail.",
+    "The spec statement that the Azure rows are reproducible from the repo is either made true or narrowed to the rows-not-schema claim, drafted into the merge queue for /iterate (DEC-016) rather than edited directly.",
+    "If direction B is chosen, gold_fact_procurement is checked for the same schema-merge exposure and the finding is reported either way."
+  ],
+  "notes": "Created 2026-08-12 by the orchestrator during task-064's guided walkthrough, immediately after the rollback restored service. NOT yet approved by Erik as out-of-spec work — out_of_spec_approved is false; confirm before dispatching.\n\nowner=both because the verification is a live Fabric pipeline run, which is Erik's half under the project's Fabric-UI/local-code split.\n\nThe rollback DDL used on the night is reproducible from this description (Quantity SMALLINT, UnitPriceEUR FLOAT, everything else unchanged from azure/procurement.sql) — regenerate it rather than hunting for the scratch file, which lives in a session-scoped temp directory and will not survive.\n\nStanding hazard this instantiates: local verification exercises no Delta writer, so column-type and column-name defects are invisible until the Fabric run. Same family as the DELTA_INVALID_CHARACTERS_IN_COLUMN_NAMES gotcha in root CLAUDE.md."
+}
