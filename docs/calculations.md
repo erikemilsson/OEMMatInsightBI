@@ -91,16 +91,52 @@ Clean rules:
 unmapped_impact_score = share_pct (if value is unmapped, else 0)
 ```
 
-## Sustainability Metrics (Planned - Task 02)
+## Sustainability Metrics
 
 ### Weighted EPI Score
+
+Canonical definition — kept in sync with
+[`dax_measure_library.md` § 2.2](dax_measure_library.md), which is the source of truth
+for this measure:
+
 ```dax
-Weighted EPI Score = 
-SUMX(
-    fact_epi_score,
-    fact_epi_score[score] * RELATED(gold_dim_indicator[weight])
-) / SUMX(fact_epi_score, RELATED(gold_dim_indicator[weight]))
+Weighted EPI Score =
+AVERAGEX(
+    VALUES(gold_dim_country[country_key]),
+    VAR EpiSubIndicators =
+        FILTER(
+            gold_dim_indicator,
+            gold_dim_indicator[source_system] = "EPI"
+                && gold_dim_indicator[abbrev] <> "EPI"
+                && gold_dim_indicator[type] = "Indicator"
+        )
+    VAR WeightedScores =
+        CALCULATE(
+            SUMX(
+                fact_epi_score,
+                fact_epi_score[score] * RELATED(gold_dim_indicator[weight])
+            ),
+            EpiSubIndicators
+        )
+    VAR TotalWeights =
+        CALCULATE(SUM(gold_dim_indicator[weight]), EpiSubIndicators)
+    RETURN
+        DIVIDE(WeightedScores, TotalWeights)
+)
 ```
+
+Weighted by `gold_dim_indicator[weight]` (sourced from EPI's `epi2024weights.csv`). The
+58 sub-indicator weights sum to 100; the filter excludes the parent `EPI` row and the
+`Index`/`Objective` rollups so only `type = "Indicator"` sub-indicators contribute.
+
+**Reads 0–100 at every grain, including the grand total (task-061).** The inner
+`VAR`/`RETURN` body is the weighted average for *one* country; the `AVERAGEX` wrapper is
+what makes it safe on an uncontexted card. Without the wrapper the denominator did not
+scale with country cardinality, so the uncontexted measure returned the *sum* of the
+per-country scores rather than a score. `DIVIDE` carries **no** `0` fallback: `0` is a
+legitimate EPI value meaning worst environmental performance, so a missing score must
+stay BLANK rather than coerce to `0`. See `dax_measure_library.md` § 2.2 for the
+measured evidence and the non-country-grain caveat.
 
 ### Spend by EPI Category
 ```dax
@@ -165,7 +201,7 @@ indicator_key = stable_key(["source_system", "abbrev", "variable_name"])
 gap_id        = stable_key(["gap_natural_key", "entity", "gap_type"])
 
 # country_key is ISO3-first, falling back to the name when ISO3 is absent
-# (generate_country_key in silver-to-gold2)
+# (generate_country_key in silver_to_gold)
 country_key = F.when(F.col(iso3_col).isNotNull(), stable_key([iso3_col])) \
                .otherwise(stable_key([name_col]))
 ```

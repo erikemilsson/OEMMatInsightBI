@@ -2,7 +2,7 @@
 
 ## The notebook is canonical — this document is policy, not a copy
 
-The live alias seed lives in **`fabric/silver-to-gold2.Notebook/notebook-content.py`**,
+The live alias seed lives in **`fabric/silver_to_gold.Notebook/notebook-content.py`**,
 in the cell under `## Mapping Tables for Data Standardization`:
 
 | Seed | Symbol in the notebook | Written to |
@@ -135,7 +135,7 @@ into `"Copoer"` — it would not have matched even if it had been seeded.)
 ## Adding a new alias
 
 1. **Edit the notebook seed** — `country_aliases_with_confidence` or `MATERIAL_ALIASES` in
-   `fabric/silver-to-gold2.Notebook`. This is the only supported edit point; the
+   `fabric/silver_to_gold.Notebook`. This is the only supported edit point; the
    `mapping_*_confidence` tables are overwritten from it on every gold run, so appending
    to them directly is lost on the next run.
 2. **Pick `confidence` + `match_type` from the tables above.** Do not invent a

@@ -117,17 +117,36 @@ key at either layer — see § 3.
 
 ### Bronze Layer Strategy
 
-#### Procurement (Incremental)
+#### Procurement — bronze is a full-table copy; incrementality lives in silver
 
-**Current Behavior:**
+**Current behaviour (2026-08-12):** bronze does **not** load incrementally and no longer
+involves a dataflow. Azure SQL is ingested by the Copy activity
+`bronze_copy_procurement_transactional` (`dbo.procurement_transactional` →
+`bronze_procurement_transactional`), which is a **full-table copy on every run** — it
+receives no `p_from_date` and applies no filter. Incremental behaviour starts at silver:
+`silver_procurement` and `fact_procurement` load via delete-insert over a 7-day look-back
+window driven by `p_full_load` / `p_from_date` (§ 3 Silver, § 4–5). The parameter contract
+is unchanged from what the rest of this document describes — only its *location* moved
+from bronze to silver.
+
+> **Everything from here to the end of this sub-section is HISTORICAL.** It records the
+> design that targeted `bronze_azureSQLdb2table.Dataflow`, **retired 2026-07-31** and
+> replaced by the Copy activity above (task-048). The Power Query below was never
+> shipped: the dataflow always full-loaded, and the "Target Behavior" / "SQL Query
+> Pushdown" variants were a plan for an artifact that no longer exists. It is kept for
+> the rationale, not as a description of the live pipeline — do not implement against it.
+
+**Historical — behaviour of the retired dataflow:**
 ```powerquery
 // HISTORICAL — bronze_azureSQLdb2table.Dataflow, retired 2026-07-31
 Source = Sql.Database("server", "db"),
 Procurement = Source{[Schema="dbo",Item="procurement_transactional"]}[Data]
 // Loads ALL rows every time
+// ^ true of the retired dataflow, and still true of the Copy activity that
+//   replaced it — bronze has never loaded incrementally (confirmed task-029).
 ```
 
-**Target Behavior:**
+**Historical — proposed target behaviour (never implemented):**
 ```powerquery
 // Modified with parameter support
 let
@@ -153,7 +172,7 @@ in
     FinalFiltered
 ```
 
-**SQL Query Pushdown (Preferred):**
+**Historical — proposed SQL query pushdown (never implemented):**
 ```powerquery
 // Generate SQL WHERE clause for better performance
 let
@@ -171,10 +190,13 @@ in
     QueryResult
 ```
 
-**Benefits of SQL Pushdown:**
+**Benefits of SQL pushdown** (the rationale that motivated the proposal — retained
+because it still applies if bronze-side filtering is ever revisited on the Copy activity):
 - ✅ Leverages database indexes
 - ✅ Reduces data transfer over network
 - ✅ Faster execution (filter at source vs in memory)
+
+*(End of historical sub-section.)*
 
 #### Reference Tables (Full Refresh)
 

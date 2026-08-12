@@ -1,0 +1,100 @@
+{
+  "spec_version": "spec_v1",
+  "spec_fingerprint": "sha256:0bb0aad5d1a442b888672f543db310e4399b6a88a8f578ee3ea24d9f4cee0ded",
+  "created_date": "2026-08-12",
+  "updated_date": "2026-08-12",
+  "completion_date": "2026-08-12",
+  "verification_attempts": 1,
+  "absorbed_into": null,
+  "subtasks": [],
+  "decision_dependencies": [],
+  "user_feedback": null,
+  "source": "Friction register triage 2026-08-12: six open path_drift / terminology_mismatch / spec_implementation_gap frictions that live entirely in docs/ (not DEC-016-gated). Two of them (FR-078, FR-079) were explicitly named as carry-forward by the 2026-08-11 merge-queue drain (merge-queue.md § Notes carried forward).",
+  "id": "task-068",
+  "title": "Sweep six stale docs/ references surfaced by the friction register (FR-078/079/065/072/053/077)",
+  "status": "Finished",
+  "priority": "medium",
+  "difficulty": 3,
+  "owner": "claude",
+  "phase": "5",
+  "spec_section": "N/A (docs/ only — no spec body text is edited in this task; the spec-side frictions route separately via merge-queue MQ-004 and the FR-035/059/064 investigations)",
+  "out_of_spec": false,
+  "out_of_spec_approved": false,
+  "dependencies": [],
+  "files_affected": [
+    "README.md",
+    "docs/architecture/orchestration.md",
+    "docs/architecture/data_sources.md",
+    "docs/transformations/alias_mappings.md",
+    "docs/calculations.md",
+    "docs/incremental_load_strategy.md"
+  ],
+  "description": "Six open frictions are accuracy-of-the-record drift in docs/ files (and README). None is DEC-016-gated because none edits spec body text; all are direct edits. No Fabric deploy is needed — these are documentation-only corrections. Each target below was re-verified against the current file on 2026-08-12 with a positive control proving the probe works (the project has known silent-empty grep mechanisms — see CLAUDE.md gotcha).\n\n**FR-078** — `procurement_array` parameter default maps three tables that exist nowhere.\n- `README.md:146` — table row `| procurement_array | Array | dbo.Suppliers / dbo.Materials / dbo.Purchases mappings | … |`. The live pipeline's `procurement_array` default maps `dbo.procurement_transactional` / `dbo.supplier_ref` (re-derived from pipeline-content.json). Replace the three non-existent table names with the two real ones (or whatever the live default actually maps — re-derive from `fabric/oem_pipeline.DataPipeline/pipeline-content.json` before editing; do not assume).\n- `docs/architecture/orchestration.md:187-188` — `Source-to-sink mappings (dbo.Suppliers→bronze_suppliers, dbo.Materials→bronze_materials, dbo.Purchases→bronze_purchases)`. Same correction, and the bronze sink names must match what the Copy activities actually write.\n\n**FR-079** — `docs/architecture/data_sources.md:49` still reads `procurement.sql - Procurement table schema/data` and `supplier_info.sql - Supplier reference schema/data`. MQ-002 relabelled the `azure/` source in the spec to the DDL-plus-seed reality (DDL + 132/11 seed rows; the `DROP` targets the live table per DEC-015). The docs line should match: not pure \"schema/data\" but \"DDL + seed (rebuilds dbo.procurement_transactional / dbo.supplier_ref from the repo)\". Cross-check against `azure/procurement.sql` and `azure/supplier_info.sql` and the spec's `§ Data Architecture` Setup Scripts note (spec L168-L176) so the doc, the spec, and the scripts agree.\n\n**FR-065** — `docs/transformations/alias_mappings.md` names a notebook path that no longer exists.\n- Line 5: `The live alias seed lives in **fabric/silver-to-gold2.Notebook/notebook-content.py**`\n- Line 138: `fabric/silver-to-gold2.Notebook`. This is the only supported edit point…`\nThe Phase 5 rename (commit per fabric-cicd displayName rename in place) renamed `silver-to-gold2` → `silver_to_gold`. Verify the on-disk directory name with a Glob before editing, then correct both occurrences. Do NOT touch the notebook itself.\n\n**FR-072** — `docs/calculations.md:96-103` still shows the pre-task-061 SUMX form of `Weighted EPI Score`:\n```\nWeighted EPI Score = \nSUMX(\n    fact_epi_score,\n    fact_epi_score[score] * RELATED(gold_dim_indicator[weight])\n) / SUMX(fact_epi_score, RELATED(gold_dim_indicator[weight]))\n```\nThe canonical definition is now the `AVERAGEX`-wrapped form in `docs/dax_measure_library.md § 2.2` (reads 0–100 at every grain including grand total since task-061). Replace the code block and any surrounding prose so calculations.md and dax_measure_library.md agree. This is the docs half of the same fix that MQ-004 applies to the spec.\n\n**FR-053** — `docs/architecture/data_sources.md` § Update Frequencies (L209) is stale.\n- `| Azure SQL | Daily (planned) | Manual | Implement scheduling |` — task-010 shipped the daily 06:00 Europe/Stockholm schedule on 2026-08-05 (spec § Orchestration L714 records it, schedule id 17288b67-a36f-4db8-88fe-cfa4ce1dba61). Update the row to reflect the live schedule (Daily / 06:00 Europe/Stockholm / next = next 06:00 firing).\n- `| EU CRM | Annual | 2023 | Unknown |` — verify whether the EU CRM update cadence is still correctly described; correct if the 2023 vintage / Unknown next-update is stale.\n\n**FR-077** — `docs/incremental_load_strategy.md:124-126` carries a stale retired-dataflow comment plus a `Source{[Schema=\"dbo\",Item=\"procurement_transactional\"]}[Data]` line under a `// HISTORICAL — bronze_azureSQLdb2table.Dataflow, retired 2026-07-31` comment. The table identifier is correct (DEC-015), but the surrounding block describes a retired dataflow's load behavior as if current. Reconcile the block so it is clearly historical (or remove it if the strategy section has a current equivalent), and ensure the `// Loads ALL rows every time` comment is either correctly framed as the pre-lookback historical behavior or removed (task-067 deliberately left it as historical — re-confirm that intent still holds here before changing it).\n\n**Out of scope for this task (do NOT edit):** spec_v1.md body text (DEC-016 → routes via merge-queue MQ-004 + the FR-035/059/064 investigations); the `azure/*.sql` historical rename notes; any Fabric artifact.",
+  "acceptanceCriteria": [
+    "All six frictions' docs/ targets are corrected and the six files_affected no longer carry the stale text cited above.",
+    "FR-078's corrected table names (and bronze sink names) are re-derived from the live pipeline definition (pipeline-content.json) rather than assumed — the procurement_array default and the Source-to-sink mappings match what the Copy activities actually read and write.",
+    "FR-079's data_sources.md:49 wording matches the spec's Setup Scripts note (spec L168-L176) and the azure/*.sql scripts, so doc, spec, and scripts agree on the DDL-plus-seed reality.",
+    "FR-065's notebook path is verified against the on-disk directory (Glob `fabric/silver_to_gold.Notebook`) before the rename is applied to alias_mappings.md.",
+    "FR-072's calculations.md Weighted EPI Score code block and prose match the canonical docs/dax_measure_library.md § 2.2 AVERAGEX form.",
+    "FR-053's data_sources.md update-frequencies row matches the live 06:00 Europe/Stockholm schedule (spec § Orchestration L714), and the EU CRM row is re-verified.",
+    "FR-077's incremental_load_strategy.md block is clearly historical or removed, with the `// Loads ALL rows every time` comment's status deliberately decided (kept-as-historical or removed), not left ambiguous.",
+    "A final sweep with a positive control (the project has three known silent-empty grep mechanisms — see CLAUDE.md gotcha and the four-silent-empty-grep memory) confirms zero remaining stale references of each kind in the six files.",
+    "FR-078, FR-079, FR-065, FR-072, FR-053, and FR-077 are reported as resolved in the return report for the orchestrator to persist to friction.jsonl."
+  ],
+  "notes": "Approved by Erik 2026-08-12 as part of a three-part friction-register triage (close 7 already-resolved entries — done; draft MQ-004 + 3 investigation stubs into merge-queue.md — done; open this task). This task is the docs-only half; the spec-side frictions (FR-069/071, FR-035, FR-059, FR-064) route separately. owner: claude — no Fabric deploy, no Erik action required.\n\nPRECEDENT WARNING from task-064 attempt 1 and task-067: (1) derivative spellings two probes miss are the usual failure mode — enumerate naming derivatives before declaring a sweep clean (schema/Item forms, @source_name, cdc.dbo_X_CT, bare-identifier spellings in prose). (2) A historical note that says a script 'previously created dbo.X' is correct and must survive a find-and-replace — do not corrupt it. (3) Verify the live pipeline default rather than assuming the rename touched only the table identifier.\n\nThe merge-queue already carries FR-078 and FR-079 by name in its 'Notes carried forward from the drain' section — this task is the task those notes said had no task behind it.\n\nIMPLEMENTED + VERIFIED 2026-08-12 (implement-agent -> verify-agent, pass attempt 1). 6 files, +134/-36.\n\nTHE TASK DESCRIPTION WAS WRONG ON THREE POINTS AND THE IMPLEMENTER CORRECTLY OVERRODE IT — this is the outcome AC2 ('re-derive rather than assume') existed to produce, and it is the second time in two tasks that an 'already re-derived' claim embedded in a dispatch brief was false:\n  (1) The cited pipeline path fabric/oem_pipeline.DataPipeline/pipeline-content.json does not exist. Real path: fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/.\n  (2) FR-078's premise was INVERTED. The live procurement_array default was never stale — it still maps dbo.Suppliers/Materials/Purchases and is consumed by ZERO activities, i.e. it is VESTIGIAL, not mismapped. merge-queue.md:40 stated this correctly; the inversion was introduced in the friction-to-task translation. README's Default column was factually correct all along; its Purpose column ('Controls which source tables the Copy activities ingest') was the actual false claim and is what got replaced. Had the implementer followed the brief literally it would have written a false default into the docs the task exists to correct.\n  (3) The README mermaid diagram carried four tables the pipeline has never produced (bronze_suppliers, bronze_materials, silver_suppliers, silver_materials) — not cited anywhere in the description, caught only by AC8's sweep.\n\nAC7 DECISION RECORDED: '// Loads ALL rows every time' KEPT and framed as historical-and-still-true (it is true of the retired dataflow AND of the Copy activity that replaced it — the procurement Copy carries no sqlReaderQuery and no p_from_date, so bronze has never loaded incrementally). task-067's intent upheld.\n\nMEASUREMENT: the Glob and Grep tools were unavailable to BOTH agents this dispatch, forcing /usr/bin/grep. Both agents independently hit the zsh no-word-split trap (unquoted $FILES passed as one literal filename) and both caught it only because a positive control was paired into the same invocation — 13 false 'no match' results on the implementer side. This is the four-silent-empty-grep gotcha firing for real, twice, in one task.\n\nFRICTIONS: FR-053/065/072/077/078/079 resolved (FR-078 'resolved with correction' — its premise was wrong). New: FR-081 (wrong pipeline path in the task brief), FR-082 (procurement_array is dead weight in the live pipeline — deletable, needs a deploy), FR-083 (README diagram's phantom three-table model), FR-084 (doc-vs-doc contradiction now sharper: pipeline_schedule.md + data-flow-diagram.md still describe procurement_array as live), FR-085 (Phase-5 silver-to-gold2 rename incompletely swept — gold_tables.md:104,239,255 and performance_optimized.md:73 still assert it as a live path).\n\nNOT COMMITTED, NOT DEPLOYED — docs-only, no Fabric artifact touched, no push.",
+  "user_review_pending": false,
+  "task_verification": {
+    "result": "pass",
+    "verified_date": "2026-08-12",
+    "timestamp": "2026-08-12T09:40:49Z",
+    "attempt_number": 1,
+    "verifier": "verify-agent (separate context)",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "not_applicable",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "summary": "All 9 acceptanceCriteria met on attempt 1. The verifier independently RE-DERIVED the three implementer findings that contradicted the task description and confirmed all three: (1) fabric/oem_pipeline.DataPipeline/ does not exist (real path is fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline); (2) procurement_array's default maps dbo.Suppliers/Materials/Purchases — NOT the two new tables the description asserted — and is consumed by ZERO activities (one textual occurrence in pipeline-content.json = the declaration; no ForEach/items/@item construct exists at all, which is dispositive since a Fabric pipeline parameter can only be referenced by literal name; positive controls in the same invocation: p_full_load 5, p_from_date 5, p_epi_year 7, p_execution_id 3), so the 'vestigial' wording written into README.md and orchestration.md is accurate rather than a new false claim; (3) Copy-activity sinks confirmed from parsed datasetSettings and match the doc text and orchestration.md's own Stage 1 table. AC7's keep-vs-remove decision on '// Loads ALL rows every time' is recorded unambiguously and task-067's historical dbo.Procurement/dbo.SupplierInfo framing survived uncorrupted. AC6's EU CRM change was checked against data_sources.md § 4 (L189 already read 'TBD - currently on-demand'), so the removed 'Annual' cadence was genuinely unsupported. Scope clean: no writes to fabric/**, azure/**, or spec_v1.md.",
+    "issues_minor": 4,
+    "evidence": [
+      {
+        "type": "static_analysis",
+        "assertion": "procurement_array consumer set is empty",
+        "outcome": "confirmed",
+        "detail": "1 occurrence (the declaration) vs positive controls p_full_load 5 / p_from_date 5 / p_epi_year 7 / p_execution_id 3 in the same invocation; no ForEach/items/@item construct in pipeline-content.json"
+      },
+      {
+        "type": "static_analysis",
+        "assertion": "Copy-activity source->sink names match the corrected docs",
+        "outcome": "confirmed",
+        "detail": "dbo.procurement_transactional->bronze_procurement_transactional; dbo.supplier_ref->bronze_supplier_ref; two DelimitedText/HttpServerLocation copies -> bronze_global_supply_shares / bronze_eu_supply_shares"
+      },
+      {
+        "type": "static_analysis",
+        "assertion": "calculations.md DAX block matches dax_measure_library.md § 2.2",
+        "outcome": "confirmed",
+        "detail": "character-identical"
+      },
+      {
+        "type": "filesystem",
+        "assertion": "fabric/silver_to_gold.Notebook exists; silver-to-gold2 does not",
+        "outcome": "confirmed",
+        "detail": "on-disk directory listing"
+      }
+    ],
+    "residual": "Four minor pre-existing issues OUTSIDE files_affected, none blocking: (a) docs/guides/pipeline_schedule.md:22,102 still calls procurement_array 'the Azure SQL source->sink list' and says the pipeline accepts three parameters (five are declared) — now sharper against the corrected README/orchestration text; (b) docs/architecture/data-flow-diagram.md:88 renders procurement_array as a live JSON param with the wrong type; (c) residual live-assertion 'silver-to-gold2' references in docs/schemas/gold_tables.md:104,239,255 and docs/performance_optimized.md:73 — FR-065's declared scope was alias_mappings.md only, so the Phase-5 rename sweep is incomplete across docs/; (d) an ambiguous 'four consumption sites' phrasing at orchestration.md:194-195. Filed as FR-084 and FR-085."
+  },
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-08-12T09:40:49Z",
+      "verifier": "verify-agent",
+      "summary": "Pass on attempt 1. All three description-contradicting findings independently re-derived and confirmed; 4 minor pre-existing issues outside files_affected."
+    }
+  ]
+}

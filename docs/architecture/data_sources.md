@@ -43,11 +43,26 @@ This project integrates data from 4 primary sources: 1 transactional database + 
 and `fact_procurement` load via delete-insert over a 7-day look-back window driven by
 `p_full_load` / `p_from_date`. See `incremental_load_strategy.md § 3`.
 
-**Setup Scripts:** (in `/azure` folder)
+**Setup Scripts:**
+
+Credential scripts (in `/secure` — gitignored):
 - `user_creation.sql` - Database user setup
 - `grant_permissions.sql` - Access control
-- `procurement.sql` - Procurement table schema/data
-- `supplier_info.sql` - Supplier reference schema/data
+
+Schema + seed scripts (in `/azure` — tracked). These are **DDL plus seed**, not a
+combined "schema/data" script; each table rebuilds in two ordered steps:
+- `procurement.sql` - DDL for `dbo.procurement_transactional` (step 1 of 2)
+- `procurement_seed.sql` - the 132 transaction rows as a literal `INSERT` (step 2 of 2)
+- `supplier_info.sql` - DDL for `dbo.supplier_ref` (step 1 of 2)
+- `supplier_info_seed.sql` - the 11 supplier reference rows as a literal `INSERT` (step 2 of 2)
+
+Together these rebuild the Azure SQL source from the repo alone (task-064). Run each
+DDL before its seed; each seed opens with a `DELETE` so a repeat run is idempotent and
+closes with a row-count `THROW` guard. The DDL scripts create
+`dbo.procurement_transactional` and `dbo.supplier_ref` — the names the Copy activities
+actually read. They previously created `dbo.Procurement` / `dbo.SupplierInfo`, names no
+live artifact has ever read, so the DDL described an object the pipeline could never
+ingest. **The `DROP` in each DDL targets the live table** — see DEC-015.
 
 ## 2. Environmental Performance Index (EPI)
 
@@ -206,10 +221,19 @@ EU CRM HTTP ───────────> bronze_global_supply_shares      
 
 | Source | Frequency | Last Update | Next Update |
 |--------|-----------|-------------|-------------|
-| Azure SQL | Daily (planned) | Manual | Implement scheduling |
+| Azure SQL | Daily — **live schedule**, 06:00 Europe/Stockholm | Automatic, each 06:00 firing | Next 06:00 Europe/Stockholm firing |
 | EPI | Annual | 2024 vintage (`p_epi_year`) | Pass the new year when Yale publishes |
 | WGI | Annual | Full series from the API each run | Automatic — no vintage to bump |
-| EU CRM | Annual | 2023 | Unknown |
+| EU CRM | On-demand — the source is a pinned 2023 vintage, not an annual feed | 2023 vintage (gold assigns `year=2023`) | None scheduled; bump when the EU publishes a new CRM study |
+
+The whole pipeline runs on **one** schedule, so "Daily" above describes when each source
+is *re-ingested*, not a per-source trigger. Active since 2026-08-05 (task-010): daily at
+06:00 Europe/Stockholm, schedule id `17288b67-a36f-4db8-88fe-cfa4ce1dba61`, enabled, no
+end date in practice. It is configured in Fabric's job scheduler, which is **not** part of
+the pipeline's item definition — it survives `fabric-cicd` publishes and does not appear in
+`pipeline-content.json`. Runs use the pipeline defaults (`p_full_load = false`). The EPI,
+WGI and EU CRM rows describe *source-vintage* cadence, which is independent of that daily
+re-ingestion. Runbook: `docs/guides/pipeline_schedule.md`.
 
 ## Data Quality by Source
 

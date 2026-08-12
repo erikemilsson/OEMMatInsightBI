@@ -79,16 +79,17 @@ flowchart LR
 
     subgraph Bronze["🥉 Bronze Layer (oem_lh)"]
         B1[bronze_procurement_transactional]
-        B2[bronze_suppliers]
-        B3[bronze_materials]
+        B2[bronze_supplier_ref]
+        B3[bronze_global_supply_shares]
+        B6[bronze_eu_supply_shares]
         B4[bronze_epi]
         B5[bronze_wgi]
     end
 
     subgraph Silver["🥈 Silver Layer (oem_lh)"]
         S1[silver_procurement]
-        S2[silver_suppliers]
-        S3[silver_materials]
+        S2[silver_globalsupplyshares]
+        S3[silver_eusupplyshares]
         S4[silver_epi]
         S5[silver_wgi]
     end
@@ -108,19 +109,19 @@ flowchart LR
         DG[gold_data_gaps]
     end
 
-    AZ --> B1 & B2 & B3
+    AZ --> B1 & B2
     EPI --> B4
     WGI --> B5
-    CRM --> B3
+    CRM --> B3 & B6
 
-    B1 --> S1
-    B2 --> S2
-    B3 --> S3
+    B1 & B2 --> S1
+    B3 --> S2
+    B6 --> S3
     B4 --> S4
     B5 --> S5
 
-    S1 & S2 & S3 --> F1
-    S3 --> F2
+    S1 --> F1
+    S2 & S3 --> F2
     S4 & S5 --> D1
     S4 --> F3
 
@@ -143,7 +144,7 @@ The `orchestrator_pipeline_bronze_to_gold.DataPipeline` manages the full data fl
 
 | Name | Type | Default | Purpose |
 |--------|--------|---------|--------|
-| `procurement_array` | Array | dbo.Suppliers / dbo.Materials / dbo.Purchases mappings | Controls which source tables the Copy activities ingest |
+| `procurement_array` | Array | `dbo.Suppliers` / `dbo.Materials` / `dbo.Purchases` → `bronze_suppliers` / `bronze_materials` / `bronze_purchases` | **Vestigial — declared but consumed by no activity.** Its default names three tables that exist in neither the Azure SQL source nor the lakehouse. The Azure SQL Copy activities are hardcoded: `dbo.procurement_transactional` → `bronze_procurement_transactional` and `dbo.supplier_ref` → `bronze_supplier_ref`. See [`orchestration.md`](docs/architecture/orchestration.md) § Pipeline Parameters |
 | `p_full_load` | Bool | `false` | Full refresh vs. incremental Delta MERGE |
 | `p_from_date` | String | `1900-01-01` | Incremental-load watermark (filters `order_date >= p_from_date`) |
 

@@ -184,10 +184,25 @@ to retry 0.**
   in bronze** — the parameter contract is unchanged, only its documented location.
 
 ### procurement_array (Array)
-- **Purpose:** Source-to-sink mappings (`dbo.Suppliers`→`bronze_suppliers`,
-  `dbo.Materials`→`bronze_materials`, `dbo.Purchases`→`bronze_purchases`)
-- **Usage:** **Not consumed by any current activity.** The sink names do not match
-  the tables the pipeline actually produces. Treat as vestigial pending an audit.
+- **Default:** source-to-sink mappings (`dbo.Suppliers`→`bronze_suppliers`,
+  `dbo.Materials`→`bronze_materials`, `dbo.Purchases`→`bronze_purchases`). The
+  `dbo.Materials` entry additionally carries a `TabularTranslator` renaming
+  `Material ID`→`Material_ID` and `Short Name`→`Short_Name`.
+- **Usage:** **Vestigial — declared but consumed by no activity.** Audit completed
+  2026-08-12 (task-068): `procurement_array` occurs exactly once in
+  `pipeline-content.json` — the parameter declaration itself — with no
+  `@pipeline().parameters.procurement_array` reference anywhere (positive control:
+  `p_full_load` occurs 5 times, one declaration plus four consumption sites).
+  Neither the source nor the sink names it maps exist: the Azure SQL source holds
+  `dbo.procurement_transactional` / `dbo.supplier_ref` (see `azure/*.sql`), and the
+  lakehouse holds no `bronze_suppliers` / `bronze_materials` / `bronze_purchases`.
+- **What actually ingests:** the four Copy activities are hardcoded, not driven by
+  this parameter — see the Stage 1 activity table above
+  (`dbo.procurement_transactional`→`bronze_procurement_transactional`,
+  `dbo.supplier_ref`→`bronze_supplier_ref`, plus the two EU CRM HTTP copies into
+  `bronze_global_supply_shares` / `bronze_eu_supply_shares`).
+- **Disposition:** safe to delete from the pipeline definition; left in place because
+  removing it is a Fabric artifact change, out of scope for a docs correction.
 
 ## Error Handling
 
