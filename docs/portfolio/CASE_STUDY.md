@@ -118,7 +118,7 @@ Fabric notebooks cannot import from the repository's `src/` package at runtime, 
 
 Rather than pretend one is the source of truth, the duplication is made a **tested contract**: the pytest suite loads the notebook's own functions and pins them against the `src/` implementations. Where semantics intentionally differ, the *difference itself* is asserted rather than quietly reconciled. Changing one side without the other fails CI by design.
 
-**235 tests** currently run against this arrangement on Python 3.10/3.11/3.12.
+**300 tests** currently run against this arrangement on Python 3.10/3.11/3.12/3.13.
 
 ---
 
@@ -197,7 +197,7 @@ Stated because a risk model without stated boundaries is a liability:
 | `fabric/*.SemanticModel/` | TMDL semantic model — model as code, not `.pbix` |
 | `fabric/sql/` | SQL finding documents (e.g. why `CREATE INDEX` is rejected on Fabric DW) — reference, not deployed |
 | `src/transformations/` | Testable mirror of the notebook logic |
-| `tests/` | 235 pytest tests, incl. the notebook↔module parity contract |
+| `tests/` | 300 pytest tests, incl. the notebook↔module parity contract |
 | `.github/workflows/` | CI (tests) and CD (`fabric-cicd` deployment) |
 | `docs/` | Architecture, schemas, runbooks, measure and quality guides |
 

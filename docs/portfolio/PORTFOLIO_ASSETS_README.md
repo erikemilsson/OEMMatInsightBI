@@ -78,7 +78,7 @@ These are produced from the *real* report on the *real* model — no mockups or 
 
 ## What recruiters / interviewers see
 
-**Technical skills validated:** DAX (time intelligence, weighted aggregation, safe division, `SUMX`/`RELATED`), data modeling (star schema, DirectLake), data engineering (medallion, PySpark, Delta MERGE, incremental load), data quality (ISO 25012 framework, observability tables, blocking gate), CI/CD (`fabric-cicd` deploy, GitHub Actions), testing (235-test parity contract).
+**Technical skills validated:** DAX (time intelligence, weighted aggregation, safe division, `SUMX`/`RELATED`), data modeling (star schema, DirectLake), data engineering (medallion, PySpark, Delta MERGE, incremental load), data quality (ISO 25012 framework, observability tables, blocking gate), CI/CD (`fabric-cicd` deploy, GitHub Actions), testing (300-test parity contract).
 
 **Engineering judgment demonstrated:** honest null-result handling (Taiwan WGI gap surfaced, not coerced to 0), measured baselines over guessed numbers, the parity contract as deliberate drift-prevention, six defended decisions in the case study.
 
@@ -100,7 +100,7 @@ These are produced from the *real* report on the *real* model — no mockups or 
 > ✅ A medallion lakehouse (Bronze/Silver/Gold) with PySpark + Delta MERGE and an incremental-load strategy with measured runtimes
 > ✅ A DirectLake semantic model with 45 DAX measures, including a data-quality observability layer (coverage %, gap registry, threshold breaches)
 > ✅ Real external data (Yale EPI, World Bank WGI, EU CRM supply shares) automated via HTTP/API ingestion, joined to a synthetic procurement ledger
-> ✅ A 235-test parity contract that pins notebook logic to a tested `src/` mirror, and an honest null-result (Taiwan's permanent WGI gap surfaced, not coerced to zero)
+> ✅ A 300-test parity contract that pins notebook logic to a tested `src/` mirror, and an honest null-result (Taiwan's permanent WGI gap surfaced, not coerced to zero)
 >
 > The procurement ledger is synthetic, so the project makes claims about *method and engineering*, not discovered business facts — I've written that up explicitly in the case study.
 >
@@ -124,5 +124,5 @@ These are produced from the *real* report on the *real* model — no mockups or 
 | Semantic model | `fabric/OEMInsightBI.SemanticModel/` | ✅ Built |
 | Report | `fabric/oem_report.Report/` | ✅ Built |
 | Pipeline | `fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/` | ✅ Built |
-| Tests | `tests/` | ✅ 235 tests |
+| Tests | `tests/` | ✅ 300 tests |
 | Screenshots / PDF / PBIX | produced from the live report | ⏳ Capture on demand |

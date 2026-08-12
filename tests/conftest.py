@@ -5,10 +5,30 @@ This module provides shared fixtures for unit and integration tests,
 including SparkSession setup and sample data generators.
 """
 
+import os
+import sys
+
 import pytest
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, DateType
 from datetime import date
+
+# Pin PySpark's worker interpreter to the one running the tests.
+#
+# Without this, Spark launches Python workers via whatever bare `python3` is
+# first on PATH, which is NOT necessarily the driver interpreter. When they
+# differ, every Spark action dies with Py4JJavaError wrapping
+# PYTHON_VERSION_MISMATCH — a traceback that reads exactly like a code defect
+# and sends you hunting through transformation logic that is fine.
+#
+# Observed 2026-08-12: a run in this repo reported 143 failed / 157 passed,
+# all from this cause (worker 3.9 vs driver 3.12), after a python.org 3.13
+# framework install was removed and `python3` fell through to macOS's
+# /usr/bin/python3. Setting these two vars produced 300/300 with no code change.
+#
+# setdefault, not assignment — an explicit override in the environment wins.
+os.environ.setdefault("PYSPARK_PYTHON", sys.executable)
+os.environ.setdefault("PYSPARK_DRIVER_PYTHON", sys.executable)
 
 
 @pytest.fixture(scope="session")

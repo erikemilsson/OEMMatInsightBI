@@ -74,7 +74,7 @@
 **A:** `/fabric/*.Notebook/` - `bronze_to_silver.Notebook` (silver) and `silver_to_gold.Notebook` (gold).
 
 ### Q: How do I test my changes?
-**A:** Run unit tests with `pytest tests/ -v`. Framework complete with 35+ test cases. See `/tests/README.md`.
+**A:** Run unit tests with `uv run pytest tests/ -v` — uv provisions the pinned interpreter and dependencies on first run, so there is no venv to create or activate. 300 tests, ~30s. See [`CONTRIBUTING.md`](../../CONTRIBUTING.md) for the full setup.
 
 ### Q: Can I run this locally?
 **A:** Partial - unit tests can run locally. Full pipeline requires Microsoft Fabric workspace access.

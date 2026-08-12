@@ -5,8 +5,8 @@ Welcome! This guide will help you set up your development environment and contri
 ## 📋 Prerequisites
 
 ### Required Software
-- **Python 3.10+** (3.11 or 3.12 recommended)
-- **Java 11+** (required for PySpark)
+- **[`uv`](https://docs.astral.sh/uv/)** — manages Python for this repo; you do not need a system Python
+- **Java 17** (required for PySpark 4.x; what CI uses)
 - **Git 2.x+**
 - **Microsoft Fabric** workspace access (for integration testing)
 - **Power BI Desktop** (optional, for report development)
@@ -24,50 +24,52 @@ cd OEMMatInsightBI
 ```
 
 ### 2. Set Up Python Environment
+
+Python and its dependencies are managed by [`uv`](https://docs.astral.sh/uv/). Install uv, then there is no further setup step:
+
 ```bash
-# Create virtual environment
-python3 -m venv .venv
-
-# Activate virtual environment
-# On macOS/Linux:
-source .venv/bin/activate
-# On Windows:
-# .venv\Scripts\activate
-
-# Upgrade pip
-python -m pip install --upgrade pip
-
-# Install dependencies
-pip install -r requirements-test.txt
+uv run pytest tests/ -v
 ```
+
+On first run uv reads `.python-version` (3.13) and `pyproject.toml`, downloads the interpreter if needed, creates `.venv`, installs the pinned dev dependencies, and runs. You do not create or activate a venv yourself, and you do not need a system Python.
+
+Useful variants:
+
+```bash
+uv run pytest tests/ -q                 # quiet
+uv run pytest tests/test_watermark.py   # one file
+uv run --python 3.10 pytest tests/      # check the CI floor locally
+uv sync                                 # materialise .venv without running anything
+```
+
+> **Do not `pip install` into this project.** `pyproject.toml` is the single source of truth for the test runtime. `pyspark` is pinned to exactly `4.0.1` because the repo's cast/ANSI semantics notes are written against that version — a floating range let `4.2.0` resolve, which changes behaviour with no diff to explain it.
 
 ### 3. Verify Java Installation
 ```bash
 java -version
-# Should show: openjdk version "11.0.x" or higher
+# Should show: openjdk version "17.0.x" (what CI uses and what PySpark 4.x expects)
 ```
 
 If Java is not installed:
-- **macOS**: `brew install openjdk@11`
-- **Ubuntu**: `sudo apt install openjdk-11-jdk`
+- **macOS**: `brew install openjdk@17`
+- **Ubuntu**: `sudo apt install openjdk-17-jdk`
 - **Windows**: Download from [AdoptOpenJDK](https://adoptopenjdk.net/)
 
 ### 4. Run Tests
 ```bash
 # Run all tests
-pytest tests/ -v
-
-# Run with coverage
-pytest tests/ --cov=src --cov-report=html
+uv run pytest tests/ -v
 
 # Run specific test file
-pytest tests/test_key_generation.py -v
+uv run pytest tests/test_key_generation.py -v
 
 # Run tests matching pattern
-pytest tests/ -k "test_stable_key" -v
+uv run pytest tests/ -k "test_stable_key" -v
 ```
 
-Expected output: **235 tests passing** in under a minute
+Expected output: **300 tests passing** in about 30 seconds.
+
+> Coverage is deliberately not wired up: `pytest-cov` is not a dependency and no CI step consumes it. `--cov` will error. Add it to `pyproject.toml` first if you want it.
 
 ## 📁 Project Structure
 
@@ -88,7 +90,9 @@ OEMMatInsightBI/
 ├── src/                 # Source code
 │   └── transformations/ # Reusable functions
 ├── tests/               # Unit tests
-├── requirements-test.txt # Python dependencies
+├── pyproject.toml       # Python dependencies + requires-python (uv-managed)
+├── .python-version      # Pinned local interpreter (3.13)
+├── uv.lock              # Resolved dependency lock — commit it
 └── pytest.ini           # Pytest configuration
 ```
 
@@ -119,11 +123,11 @@ git checkout -b feature/your-feature-name
 ### 3. Test Your Changes
 ```bash
 # Run tests
-pytest tests/ -v
+uv run pytest tests/ -v
 
-# Check code style (optional)
-black src/ tests/ --check
-flake8 src/ tests/
+# Check code style (optional) — lint tools live in their own group
+uv run --group lint black src/ tests/ --check
+uv run --group lint flake8 src/ tests/
 ```
 
 ### 4. Commit Your Changes
@@ -177,13 +181,13 @@ Common fixtures in `tests/conftest.py`:
 ### Running Specific Tests
 ```bash
 # Run tests by marker
-pytest -m unit
+uv run pytest -m unit
 
 # Run with verbose output
-pytest -v --tb=short
+uv run pytest -v --tb=short
 
 # Run until first failure
-pytest -x
+uv run pytest -x
 ```
 
 ## 🐛 Debugging Tips
@@ -196,26 +200,28 @@ pytest -x
 java -version
 
 # Set JAVA_HOME if needed
-export JAVA_HOME=$(/usr/libexec/java_home -v 11)
+export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 ```
 
 #### Import Errors
 ```bash
-# Ensure virtual environment is activated
-which python
-# Should show: /path/to/OEMMatInsightBI/.venv/bin/python
+# Check which interpreter uv is actually using
+uv run python -V          # expect 3.13.x
+uv run python -c "import pyspark; print(pyspark.__version__)"   # expect 4.0.1
 
-# Reinstall dependencies
-pip install -r requirements-test.txt --force-reinstall
+# Rebuild the environment from scratch
+rm -rf .venv && uv sync
 ```
+
+> If a bare `python3 -V` disagrees with `uv run python -V`, that is expected and not a problem — `uv run` is the entry point. Only a bare `python3` matters for tools that shell out to one.
 
 #### Test Failures
 ```bash
 # Run single test with debugging
-pytest tests/test_file.py::test_function -vv --tb=long
+uv run pytest tests/test_file.py::test_function -vv --tb=long
 
 # Use pytest debugger
-pytest --pdb tests/test_file.py
+uv run pytest --pdb tests/test_file.py
 ```
 
 ## 📝 Code Style

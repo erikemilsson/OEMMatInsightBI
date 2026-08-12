@@ -89,5 +89,5 @@ Also: [business_context.md](./business_context.md) (problem, stakeholders, busin
 
 - **Semantic model:** 45 measures, 14 tables, 10 relationships (DirectLake on `oem_lh`)
 - **Pipeline:** 10 activities, daily 06:00 Europe/Stockholm, measured ~16.6 min functional total
-- **Tests:** 235 pytest tests (local PySpark over in-memory fixtures; `src/` is a tested mirror of the notebook logic)
+- **Tests:** 300 pytest tests (local PySpark over in-memory fixtures; `src/` is a tested mirror of the notebook logic)
 - **Docs:** this directory is the canonical documentation surface

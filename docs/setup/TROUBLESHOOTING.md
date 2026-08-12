@@ -162,15 +162,12 @@ ModuleNotFoundError: No module named 'pyspark'
 
 **Solution:**
 ```bash
-# Activate virtual environment
-source .venv/bin/activate  # Or: .venv\Scripts\activate on Windows
-
-# Install test dependencies
-pip install -r requirements-test.txt
-
-# Run tests
-pytest tests/ -v
+uv run pytest tests/ -v
 ```
+
+`uv run` provisions the interpreter and dependencies from `pyproject.toml` before running, so a missing `pyspark` resolves itself. If it persists, rebuild: `rm -rf .venv && uv sync`.
+
+**If you instead see `Py4JJavaError` mentioning `PYTHON_VERSION_MISMATCH`** — that is Spark launching worker processes with a *different* interpreter than the driver. It produces a traceback that reads exactly like a code defect (a run in this repo once reported 143 failed / 157 passed from this alone). `tests/conftest.py` now pins `PYSPARK_PYTHON` / `PYSPARK_DRIVER_PYTHON` to `sys.executable`, so it should not recur; if it does, check whether something in your environment is overriding those two variables.
 
 ---
 

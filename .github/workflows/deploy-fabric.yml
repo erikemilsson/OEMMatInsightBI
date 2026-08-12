@@ -68,12 +68,19 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
-        # No `cache: pip` — the repo has no requirements.txt/pyproject.toml for
-        # setup-python to key the cache on (only requirements-test.txt, which the
-        # default glob ignores). The existing test.yml follows the same no-cache
-        # pattern. The pip install below is two packages; caching isn't worth a
-        # dependency file. (Removing cache: pip fixes the "No file matched
-        # requirements.txt or pyproject.toml" failure on real Actions runs.)
+        # Still no `cache: pip`, but the reason changed on 2026-08-12.
+        #
+        # A pyproject.toml now EXISTS, so `cache: pip` would find it and stop
+        # erroring — but it would key the cache on a file that has nothing to do
+        # with what this job installs. pyproject.toml declares the TEST runtime
+        # (pyspark, pytest); this job installs fabric-cicd + azure-identity,
+        # which appear in it nowhere. The cache would be invalidated by pyspark
+        # bumps and unaffected by a fabric-cicd bump — precisely backwards.
+        #
+        # This job is also deliberately NOT on uv (test.yml is). It installs two
+        # pinned packages and needs no interpreter management; adding a
+        # dependency-resolution layer to the deploy path would put publish
+        # reliability behind a lockfile for no benefit.
 
     - name: Install fabric-cicd
       run: |

@@ -11,15 +11,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.10', '3.11', '3.12']
+        # 3.13 is included because it is the repo's pinned local default
+        # (.python-version). Before it was added, the version developers
+        # actually ran was the one version CI never exercised.
+        python-version: ['3.10', '3.11', '3.12', '3.13']
 
     steps:
     - uses: actions/checkout@v4
-
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
 
     - name: Set up Java 17 (required for PySpark)
       uses: actions/setup-java@v4
@@ -27,26 +25,23 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Cache pip dependencies
-      uses: actions/cache@v4
+    # uv resolves from pyproject.toml's `dev` dependency group and provisions
+    # the interpreter itself, so CI and local install the identical pinned
+    # pyspark. Replaces setup-python + a hand-maintained requirements file.
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v7
       with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('requirements-test.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements-test.txt
+        enable-cache: true
+        cache-dependency-glob: "uv.lock"
 
     - name: Run tests with pytest
       run: |
-        pytest tests/ -v --tb=short --color=yes
+        uv run --python ${{ matrix.python-version }} pytest tests/ -v --tb=short --color=yes
 
     - name: Generate test report
       run: |
-        pytest tests/ --junitxml=test-results.xml --html=test-report.html --self-contained-html
+        uv run --python ${{ matrix.python-version }} pytest tests/ \
+          --junitxml=test-results.xml --html=test-report.html --self-contained-html
       if: always()
 
     - name: Upload test results

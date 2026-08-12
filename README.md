@@ -1,7 +1,7 @@
 # OEMMatInsightBI
 
 ![Tests](https://github.com/erikemilsson/OEMMatInsightBI/actions/workflows/test.yml/badge.svg)
-![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)
+![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)
 ![PySpark](https://img.shields.io/badge/PySpark-3.4%2B-orange)
 ![Fabric](https://img.shields.io/badge/Microsoft-Fabric-purple)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -51,11 +51,11 @@ fabric/                 # All Fabric artifacts
 ├── dax/                                  # Reference-only DAX sketches — not deployed
 └── sql/                                  # SQL finding documents — not deployed
 src/transformations/    # Tested PySpark mirror of notebook logic (key generation, data quality)
-tests/                  # 235 pytest tests (parity contract + transform units)
+tests/                  # 300 pytest tests (parity contract + transform units)
 docs/                   # Canonical documentation surface (architecture, schemas, guides)
 ```
 
-**Local development:** Clone, install `requirements-test.txt`, run `pytest tests/` to validate transformation logic locally before deploying to Fabric notebooks. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full setup and [`docs/setup/TROUBLESHOOTING.md`](docs/setup/TROUBLESHOOTING.md) for common issues.
+**Local development:** Clone, then `uv run pytest tests/` — uv provisions the pinned interpreter and dependencies from `pyproject.toml` on first run. Validate transformation logic locally before deploying to Fabric notebooks. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full setup and [`docs/setup/TROUBLESHOOTING.md`](docs/setup/TROUBLESHOOTING.md) for common issues.
 
 ## Use Case
 
@@ -186,19 +186,22 @@ Unit tests validate transformation functions locally before deployment to Fabric
 
 **Quick start:**
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements-test.txt
-pytest tests/ -v                          # 235 tests
-pytest tests/ --cov=src --cov-report=html # with coverage
+uv run pytest tests/ -v     # 300 tests
 ```
 
-**Requirements:** Python 3.12+, Java 11+ (for PySpark). Tests run on Python 3.10, 3.11, and 3.12 in CI.
+That is the whole setup. `uv` reads `.python-version` and `pyproject.toml`, provisions Python 3.13 and the pinned `pyspark==4.0.1`, creates `.venv`, and runs — no manual venv, no activation, no install step.
+
+**Requirements:** [`uv`](https://docs.astral.sh/uv/) and a JDK (Java 17 — what CI uses and what `pyspark` 4.x expects). Python itself is managed by uv; you do not need one installed.
+
+Tests run on Python 3.10, 3.11, 3.12 and 3.13 in CI. 3.13 is the pinned local default, so the version you develop against is covered.
+
+> Coverage is not wired up — `pytest-cov` is not a dependency and no CI step consumes it. Add it deliberately if you want it rather than assuming `--cov` works.
 
 ## CI/CD Pipeline
 
 GitHub Actions for continuous integration and `fabric-cicd` for deployment:
 
-- ✅ **Unit tests:** 235 tests, matrix-tested on Python 3.10 / 3.11 / 3.12
+- ✅ **Unit tests:** 300 tests, matrix-tested on Python 3.10 / 3.11 / 3.12 / 3.13
 - ✅ **Code quality:** Black formatting, Flake8 / Pylint
 - ✅ **Fabric validation:** JSON schema validation for pipeline configurations
 - ✅ **Deploy:** `fabric-cicd` publishes the workspace from `fabric/` on merge

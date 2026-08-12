@@ -1,0 +1,129 @@
+{
+  "spec_version": "spec_v1",
+  "spec_fingerprint": "sha256:0bb0aad5d1a442b888672f543db310e4399b6a88a8f578ee3ea24d9f4cee0ded",
+  "created_date": "2026-08-12",
+  "updated_date": "2026-08-12",
+  "completion_date": "2026-08-12",
+  "verification_attempts": 3,
+  "absorbed_into": null,
+  "subtasks": [],
+  "decision_dependencies": [],
+  "user_feedback": null,
+  "source": "Erik adopted uv as the machine-wide Python manager on 2026-08-12 after a python.org 3.13 framework install was deleted and bare `python3` fell through to macOS 3.9.6. He asked for the project half in the same session.",
+  "id": "task-070",
+  "title": "Adopt uv for the project's Python runtime — pyproject.toml + .python-version + uv.lock, retire requirements-test.txt",
+  "status": "Finished",
+  "priority": "medium",
+  "difficulty": 3,
+  "owner": "claude",
+  "phase": "5",
+  "spec_section": "Testing Strategy",
+  "out_of_spec": true,
+  "out_of_spec_approved": true,
+  "dependencies": [],
+  "files_affected": [
+    "pyproject.toml",
+    ".python-version",
+    "uv.lock",
+    "requirements-test.txt",
+    "tests/conftest.py",
+    ".github/workflows/test.yml",
+    ".github/workflows/deploy-fabric.yml",
+    "README.md",
+    "CONTRIBUTING.md",
+    "docs/setup/TROUBLESHOOTING.md",
+    "CLAUDE.md",
+    "docs/README.md",
+    "docs/guides/FAQ.md",
+    "docs/portfolio/CASE_STUDY.md",
+    "docs/portfolio/PORTFOLIO_ASSETS_README.md",
+    ".claude/support/reference/merge-queue.md"
+  ],
+  "description": "Erik's machine now manages Python with uv (`uv python install 3.13 --default`; `~/.local/bin/python3` -> 3.13.15). His stated per-project convention: commit `.python-version` + `pyproject.toml` (`requires-python`), then `uv run <cmd>`. This repo had none of that — only `requirements-test.txt`.\n\nTWO REAL PROBLEMS THIS FIXES, not just ergonomics:\n\n1. LOCAL/CI VERSION GAP. CI ran a `['3.10','3.11','3.12']` matrix. The new local default is 3.13. So the version developers actually run was the one version CI never exercised — the same shape as the standing ANSI hazard, where local and the target runtime diverge silently and only bite in the dangerous direction.\n\n2. FLOATING PYSPARK PIN. `requirements-test.txt` declared `pyspark>=4.0.0,<5.0.0` while its own comment, root CLAUDE.md § Gotchas, `tests/conftest.py` and the DQ framework all describe 4.0.1 as *the* verification runtime and reason about its specific cast/ANSI semantics. Measured: that range resolves to **4.2.0** today. A fresh install could therefore change transformation behaviour with no diff to explain it.\n\nAlso pins the PySpark worker interpreter in `tests/conftest.py`. When the driver and worker interpreters differ, every Spark action dies with `Py4JJavaError` wrapping `PYTHON_VERSION_MISMATCH` — a traceback that reads exactly like a code defect. Observed in this repo on 2026-08-12: 143 failed / 157 passed from that cause alone, resolved to 300/300 by setting the two env vars with no code change.",
+  "acceptanceCriteria": [
+    "`uv run pytest tests/` passes all 300 tests on the pinned 3.13 with no manual venv creation, activation or install step.",
+    "The CI floor still passes: `uv run --python 3.10 pytest tests/` is green, so extending the matrix does not ship a version that was never tried.",
+    "`pyproject.toml` is non-packaging (`tool.uv.package = false`). Installing `src/` would make `tests/` import the installed copy rather than the working tree, silently voiding the src/-vs-notebook parity contract that `load_notebook_functions` enforces.",
+    "`pyspark` is pinned exactly to `4.0.1`, matching every doc that reasons about its cast/ANSI semantics — not a range.",
+    "`.python-version`, `pyproject.toml` and `uv.lock` are all tracked (none gitignored).",
+    "CI's test matrix includes 3.13 — the pinned local default — and resolves dependencies from the same lock as local rather than a separate requirements file.",
+    "`requirements-test.txt` is removed AND every live reference to it is updated: README.md, CONTRIBUTING.md, docs/setup/TROUBLESHOOTING.md, .github/workflows/test.yml. A sweep with a positive control confirms none survive outside archived task JSON and workspace scratch.",
+    "deploy-fabric.yml's comment claiming 'the repo has no requirements.txt/pyproject.toml' is corrected — that statement became false with this change, and a future reader acting on it would add a pip cache keyed on a file unrelated to what that job installs.",
+    "tests/conftest.py pins PYSPARK_PYTHON / PYSPARK_DRIVER_PYTHON to sys.executable via setdefault, so an explicit environment override still wins.",
+    "Root CLAUDE.md's 'pyspark 4.0.1 and OpenJDK 17 are installed' gotcha is corrected — a bare `python3` is no longer the project interpreter and must not be assumed to be."
+  ],
+  "notes": "Approved by Erik 2026-08-12 in-session (\"let's handle the uv adoption\"). Out-of-spec: no spec section asked for a dependency-management change.\n\nDeliberately NOT migrated: `deploy-fabric.yml` stays on plain pip. It installs `fabric-cicd==1.2.0` (pinned) plus `azure-identity` (unpinned) and needs no interpreter management; putting the publish path behind a lockfile would add a failure mode to deploys for no benefit. Reasoning recorded in the workflow comment so it does not read as an oversight.\n\nVERIFICATION ATTEMPT 1 FAILED — and the finding was correct. Recorded here rather than quietly fixed, because the failure mode is instructive:\n  * ROOT CAUSE: rewriting CONTRIBUTING.md § 2 to uv DELETED the `source .venv/bin/activate` + `pip install` steps that ten later bare `pytest` commands (L61-225) silently depended on. Editing a setup section broke consumers further down the same file — a dependency invisible unless you re-read the whole document rather than the block you changed.\n  * AGGRAVATING: this task's own notes ASSERTED corrections that had not been made (\"README's quick-start said 235 tests (now 300)\", \"CONTRIBUTING and TROUBLESHOOTING said Java 11+ where CI uses 17\"). Both were true only of the specific blocks edited, not of the files. A single grep falsified them. Claiming a sweep on the strength of the edits you happen to have made is exactly the over-claim the project's measurement discipline exists to stop, and it was done by the orchestrator inline, skipping the self-sweep an implement-agent applies.\n\nFIXED IN ATTEMPT 2: all 10 bare `pytest` -> `uv run pytest`; Java 11 -> 17 at all five sites (prerequisite line, the expected `java -version` output, brew, apt, JAVA_HOME export) so the install instructions stop contradicting the verify step directly beneath them; 235 -> 300 at four sites; README L204's matrix corrected to 3.10/3.11/3.12/3.13 and the Python badge with it; the `--cov` command removed and replaced with an explicit note that coverage is not wired up. TWO ADDITIONAL BREAKS THE VERIFIER DID NOT FLAG, found by the same sweep: bare `black` and `flake8` (HEAD L125-126) were equally uninstallable — a `lint` dependency group was added to pyproject.toml and those commands now read `uv run --group lint ...`. Also bumped `astral-sh/setup-uv` v6 -> v7 (verified via git ls-remote: floating majors v1..v7 all exist and v8 simply does not yet, v7 being current; `enable-cache` and `cache-dependency-glob` re-confirmed as real inputs at that tag, since inputs can change across majors).\n\nMeasured after the fix: `uv run pytest` = 300 passed in 28.00s (3.13.15); `uv run --python 3.10 pytest` = 300 passed in 54.47s (verifier's own measurement); `uv run --group lint black --version` = black 26.5.1 on 3.13.15. The loose range's resolution to pyspark 4.2.0 was independently re-measured by the verifier with `uv pip compile`, confirming the pin's justification.\n\nSTAGING NOTE (verifier catch, minor but real): `requirements-test.txt`'s deletion was staged while `.python-version`, `pyproject.toml` and `uv.lock` were untracked. A plain `git commit` would have landed the removal WITHOUT the replacements, leaving the repo with no dependency manifest at all. All four paths must be staged together.\n\nVERIFICATION ATTEMPT 2 FAILED — same shape, wider radius, and the verifier named the lesson precisely: the sweep was scoped to the files I EDITED rather than to the VALUES the change invalidated. Attempt 1 missed ten consumers in the same file; attempt 2 missed two consumers one directory over. Both were findable by one repo-wide grep for the invalidated values (old test count, old version matrix, bare tool invocations whose setup steps were deleted).\n\nFIXED IN ATTEMPT 3 — repo-wide this time, each sweep paired with a positive control:\n  * docs/portfolio/CASE_STUDY.md:121 — CI matrix 3.10/3.11/3.12 -> 3.10/3.11/3.12/3.13 and 235 -> 300. This is the file README designates the portfolio centerpiece, i.e. the document an interviewer actually reads.\n  * docs/guides/FAQ.md:77 — bare `pytest tests/ -v` -> `uv run pytest tests/ -v`, orphaned because this change deleted every documented venv-activation step in README AND CONTRIBUTING. Also dropped the '35+ test cases' claim (it is 300) and the pointer to `/tests/README.md`, which does not exist (FR-091).\n  * Pre-existing stale 235s swept in the same pass since the sweep was already running: docs/README.md:92, CASE_STUDY.md:200, PORTFOLIO_ASSETS_README.md:81/103/127. Not caused by this task — disclosed, not smuggled.\n  * MY OWN GREP MISSED FAQ.md FIRST TIME because it anchored to line start (`^\\s*pytest `) while the command was inline in prose inside backticks. Re-run unanchored, it surfaced immediately. Same failure family as the project's four silent-empty grep mechanisms: the probe was wrong, not the tree.\n\nSPEC SITES ROUTED, NOT EDITED: spec L88 (Python 3.12 + hand-built .venv), L924 and L1325 (matrix 3.10-3.12, stated twice with DIFFERENT dashes — ASCII hyphen at 924, en dash at 1325, so a single find-and-replace misses one) are all falsified by this change. Parked as MQ-006 for /iterate per DEC-016. The verifier explicitly instructed that the implementer must not edit the spec while fixing docs.\n\nVERIFIED PASS 2026-08-12 (attempt 3, verify-agent, fresh context). It ran its OWN repo-wide value-sweep rather than inheriting attempt 2's findings, and confirmed zero live consumers left falsified. Two details worth keeping:\n  * It checked MQ-006's three `current_text` strings against the spec PROGRAMMATICALLY and confirmed all match byte-for-byte including U+2013 EN DASH at L1325 vs ASCII hyphen at L924 — the asymmetry that would make a single find-and-replace silently miss one at apply time.\n  * ITS OWN FIRST PROBE FAILED THE SAME WAY MINE DID. Its command-shaped `pytest` sweep excluded a leading backtick, and the positive control against HEAD's FAQ.md came back empty — i.e. the probe would have reproduced exactly the mis-anchoring that hid FAQ.md:77 from me. It caught this because it ran the control on an ABSENCE sweep, not just on an absence finding. That is the generalisable lesson from this task, and it is stronger than the rule currently written down.\n\nIMPRECISIONS IN THESE NOTES, corrected in place 2026-08-12 rather than appended (leaving a wrong sentence standing with a correction below it is the same defect this task kept failing on): `azure-identity` is unpinned; the Java sweep was five sites not four; the 235->300 correction was four sites not three; the `black`/`flake8` citation is HEAD L125-126; and v8's absence is simply that v7 is current, not SHA-pinning.",
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "fail",
+      "timestamp": "2026-08-12T20:14:03Z",
+      "verifier": "verify-agent",
+      "summary": "FAIL on an incomplete documentation sweep. The CI workflow — the surface flagged as unverifiable — was verified CORRECT on all six sub-checks against primary sources. The failure was mine and self-inflicted: editing CONTRIBUTING.md § 2 to uv REMOVED the venv-activation + pip-install steps that made ten later bare `pytest` invocations runnable, so a contributor reading top-to-bottom now hits `pytest: command not found`. Plus stale claims my own task notes asserted were already corrected: 235 test counts at README L54/L204 and CONTRIBUTING L73, Java 11 at CONTRIBUTING L9/L54/L55/L204, a `--cov` flag that errors, and README L204 misstating the very CI matrix AC6 exists to extend."
+    },
+    {
+      "attempt": 2,
+      "result": "fail",
+      "timestamp": "2026-08-12T20:23:20Z",
+      "verifier": "verify-agent",
+      "summary": "FAIL again, same defect class one directory over. All 10 ACs met and independently re-measured (300 on 3.13 and on 3.10; lint group correct and not default-installed; setup-uv@v7 inputs verified at that tag; staging fixed) — but the sweep was still FILE-scoped rather than repo-scoped, so two consumers this change itself falsified survived in docs/: CASE_STUDY.md:121 (CI matrix, in the portfolio centerpiece) and FAQ.md:77 (bare `pytest`, orphaned by deleting every documented activation step). The verifier's framing was decisive — failing README L204 for exactly this while passing CASE_STUDY L121 would be two standards for one sentence."
+    },
+    {
+      "attempt": 3,
+      "result": "pass",
+      "timestamp": "2026-08-12T20:38:16Z",
+      "verifier": "verify-agent",
+      "summary": "PASS. Independent repo-wide value-sweep clean; core re-measured; spec routed via MQ-006 with byte-verified current_text. Five minor issues, three pre-existing."
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "verified_date": "2026-08-12",
+    "timestamp": "2026-08-12T20:38:16Z",
+    "attempt_number": 3,
+    "verifier": "verify-agent (separate context)",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "pass",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "summary": "Pass on attempt 3 after two failures of the same class (file-scoped rather than value-scoped doc sweep). Verifier ran an independent repo-wide sweep across every invalidated value in all its spellings — old test count, CI matrix in four spellings incl. en dash, requirements-test.txt, venv-activation instructions, and unanchored bare tool invocations — with a positive control per probe, and found zero live survivors. Measured: 300 passed on 3.13.15 (26.97s) and on 3.10 (52.15s); tool.uv.package=false effective (no dist-info, no src .pth, src.transformations resolves to the working tree, so the parity contract holds); pyspark==4.0.1 in pyproject, uv.lock and runtime; the old range independently re-measured to 4.2.0, confirming the pin's justification; lint group present, NOT default-installed, and functional on demand; setup-uv@v7 tag real with both inputs valid at that tag; all four manifest paths staged in one index. Spec correctly ROUTED not edited — spec_v1.md byte-identical to HEAD, MQ-006's current_text verified to match byte-for-byte including the hyphen/en-dash asymmetry between L924 and L1325.",
+    "evidence": [
+      {
+        "type": "test_suite",
+        "assertion": "300 tests pass on the pinned 3.13",
+        "outcome": "confirmed",
+        "detail": "26.97s, pyspark 4.0.1"
+      },
+      {
+        "type": "test_suite",
+        "assertion": "300 tests pass on the CI floor 3.10",
+        "outcome": "confirmed",
+        "detail": "52.15s"
+      },
+      {
+        "type": "static_analysis",
+        "assertion": "src/ not installed; parity contract intact",
+        "outcome": "confirmed",
+        "detail": "no dist-info, no src .pth; src.transformations.__file__ in working tree"
+      },
+      {
+        "type": "static_analysis",
+        "assertion": "MQ-006 current_text matches spec byte-for-byte",
+        "outcome": "confirmed",
+        "detail": "L88, L924 (ASCII hyphen), L1325 (U+2013 en dash) all verified programmatically"
+      },
+      {
+        "type": "external_source",
+        "assertion": "setup-uv@v7 real; enable-cache + cache-dependency-glob valid at v7",
+        "outcome": "confirmed",
+        "detail": "git ls-remote shows v1..v7, no v8; action.yml read at ref v7"
+      }
+    ],
+    "residual": "Five minor issues, none blocking and three of them pre-existing. NOT caused by this change: docs/setup/TROUBLESHOOTING.md claims pytest.ini is 'already configured' with `pythonpath = src` — it has no such key, and imports actually resolve via tests/__init__.py putting the repo root on sys.path (filed FR-092); and .implementation/ + .archive/ still say 'Python 3.12+', both gitignored scratch, not published surfaces. Caused by this task but cosmetic: three note imprecisions, corrected in place."
+  }
+}

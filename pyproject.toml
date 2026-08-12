@@ -1,0 +1,52 @@
+[project]
+name = "oemmatinsightbi"
+version = "0.0.0"
+description = "Microsoft Fabric medallion BI solution for OEM procurement material sourcing analysis."
+requires-python = ">=3.10"
+dependencies = []
+
+# ---------------------------------------------------------------------------
+# NOT AN INSTALLABLE PACKAGE — deliberately.
+#
+# `tests/` imports `from src.transformations...`, which resolves because
+# `tests/__init__.py` exists and pytest therefore puts the REPO ROOT on
+# sys.path. Adding a build backend would install `src/` into the venv and
+# change that resolution — the tests would then import the *installed* copy
+# rather than the working tree, which silently breaks the src/-vs-notebook
+# parity contract (`tests/` loads each notebook's own functions via
+# `load_notebook_functions` and pins them against `src/`; see root CLAUDE.md).
+#
+# So this file exists purely to manage the interpreter and the dev
+# dependencies. `uv run pytest` is the entry point.
+# ---------------------------------------------------------------------------
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    # PINNED EXACTLY, not ranged. The previous `pyspark>=4.0.0,<5.0.0` in
+    # requirements-test.txt allowed 4.2.0 to resolve while every doc in this
+    # repo — root CLAUDE.md § Gotchas, tests/conftest.py, the DQ framework —
+    # describes 4.0.1 as *the* verification runtime and reasons about its
+    # specific cast/ANSI semantics. A floating range means a fresh `uv sync`
+    # can change transformation behaviour with no diff to explain it, which is
+    # the exact failure mode this project's hazard list is built around.
+    # Bump this deliberately, and re-check the ANSI note in conftest.py when
+    # you do.
+    "pyspark==4.0.1",
+    "pytest>=8.0.0",
+    "pytest-html>=4.1.0",
+]
+
+# Separate group, NOT installed by default — `uv run --group lint black src/ tests/`.
+# Matches what test.yml's code-quality job installs. Kept out of `dev` so the
+# common path (`uv run pytest`) does not pay for three linters it never calls.
+#
+# Deliberately NOT including pytest-cov: nothing in CI consumes coverage, and
+# README/CONTRIBUTING previously advertised `--cov` flags that simply errored.
+# Add it here first if you want coverage, rather than documenting it as working.
+lint = [
+    "black",
+    "flake8",
+    "pylint",
+]
