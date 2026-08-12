@@ -85,7 +85,7 @@ updated: 2026-08-12
 
 **Development Environment:**
 
--   Python 3.12 (local virtual environment: `.venv`)
+-   Python 3.13, managed by [uv](https://docs.astral.sh/uv/) — pinned in `.python-version`, dependencies and `requires-python` in `pyproject.toml`, resolved in `uv.lock`. `uv run <cmd>` creates and uses `.venv` automatically; it is never hand-created or activated, and a bare `python3` is **not** the project interpreter.
 
 -   PySpark (Fabric notebooks)
 
@@ -921,7 +921,7 @@ The report was redesigned and rebuilt from scratch after the semantic model was 
 
 -   [x] Unit tests for transformation logic (**282 tests** as of 2026-08-06, `tests/`), including the notebook↔`src/` parity contract (task-032)
 
--   [x] CI pipeline: GitHub Actions with matrix testing (Python 3.10-3.12)
+-   [x] CI pipeline: GitHub Actions with matrix testing (Python 3.10-3.13), resolving dependencies from `uv.lock` so CI and local install the identical pinned `pyspark==4.0.1`
 
 **Orchestration:**
 
@@ -1139,7 +1139,7 @@ Membership of `BLOCKING_CHECKS` is a deliberate choice per check, not a severity
 
 ### Expected Data Profiles
 
-Synthetic dataset, **reproducible from the repo** since task-064. `/azure/` holds a `CREATE TABLE` script and a matching literal-`INSERT` seed script per table (`procurement.sql` + `procurement_seed.sql`, `supplier_info.sql` + `supplier_info_seed.sql`), so a fresh clone can rebuild both Azure SQL tables with no hand-seeding and no out-of-band file. The seed rows were exported from the lakehouse bronze copy of each table (Delta versions 101 and 99, 2026-08-11) rather than from Azure SQL directly, so no laptop firewall rule was reopened. Counts below are measured against the live lakehouse (2026-08-06) and match the committed seed.
+Synthetic dataset, **reproducible from the repo** since task-064 — rows for both tables, and for `dbo.procurement_transactional` the declared column types as well since task-069, verified by re-running the DDL against the live database and reading the landed Delta schema. `dbo.supplier_ref`'s DDL has not been re-run since, so its schema agreement is asserted rather than measured. `/azure/` holds a `CREATE TABLE` script and a matching literal-`INSERT` seed script per table (`procurement.sql` + `procurement_seed.sql`, `supplier_info.sql` + `supplier_info_seed.sql`), so a fresh clone can rebuild both Azure SQL tables with no hand-seeding and no out-of-band file. The seed rows were exported from the lakehouse bronze copy of each table (Delta versions 101 and 99, 2026-08-11) rather than from Azure SQL directly, so no laptop firewall rule was reopened. Counts below are measured against the live lakehouse (2026-08-06) and match the committed seed.
 
 **Procurement Transactions:** **132 records** (measured), key fields: date, materialname, suppliername, quantity, unitpriceeur. Bronze holds the source's raw day/year-transposed dates; silver corrects them to calendar 2024.
 
@@ -1322,7 +1322,7 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 
 -   [x] Unit tests for transformation functions (stable_key, clean_and_rename, etc.) — task-008
 
--   [x] CI pipeline: GitHub Actions matrix testing (Python 3.10–3.12)
+-   [x] CI pipeline: GitHub Actions matrix testing (Python 3.10–3.13)
 
 -   [ ] Schema validation tests
 
@@ -1334,7 +1334,7 @@ The warehouse hosts SQL views and stored procedures that complement PySpark note
 
 -   [x] Regression tests for alias mappings — `tests/test_material_mapping.py` covers `MATERIAL_ALIASES` (7 tests, including that known-dead materials now resolve and that alias targets exist in the commodity map) and `tests/test_country_mapping.py` covers `country_aliases_with_confidence` (18 tests — the direction rule that keeps an alias target from orphaning against `gold_dim_country`, the confidence banding pinned to `alias_mappings.md`'s `match_type` taxonomy and the 0.95 `gold_low_confidence_audit` threshold, the Congo / Korea / Türkiye groups that must be edited as a set, resolution of the spellings that historically failed, and that an unmapped country lands in the audit under its own spelling rather than silently defaulting). Both seeds are read live from the notebook via `ast`, so editing a seed is what makes the guard fail — task-063
 
-**Test Data:** Synthetic. **`/azure/` contains DDL plus a committed seed per table** (two `CREATE TABLE` scripts and two literal-`INSERT` scripts totalling 132 procurement rows and 11 supplier rows), so the Azure SQL rows are reproducible from the repo (task-064). Local unit tests use PySpark test fixtures in `tests/`.
+**Test Data:** Synthetic. **`/azure/` contains DDL plus a committed seed per table** (two `CREATE TABLE` scripts and two literal-`INSERT` scripts totalling 132 procurement rows and 11 supplier rows), so the Azure SQL rows are reproducible from the repo (task-064), and since task-069 `bronze_to_silver` casts at the silver boundary, so re-running the procurement DDL no longer retypes silver out from under the pipeline (DEC-016). Local unit tests use PySpark test fixtures in `tests/`.
 
 ------------------------------------------------------------------------
 
