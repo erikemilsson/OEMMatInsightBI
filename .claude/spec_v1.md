@@ -2,7 +2,7 @@
 version: 1
 status: active
 created: 2025-11-14
-updated: 2026-08-11
+updated: 2026-08-12
 ---
 
 # OEMMatInsightBI - Project Definition for Claude Code
@@ -1460,7 +1460,7 @@ See `docs/dax_measure_library.md` for the full measure library. **45 measures li
 
 -   Avg EPI Score = AVERAGE(fact_epi_score\[score\])
 
--   Weighted EPI Score = weight-weighted EPI across sub-indicators. **Requires a country filter context** — non-additive at grand total, where the SUMX accumulates across all countries (task-061)
+-   Weighted EPI Score = `AVERAGEX`-wrapped weight-weighted EPI across sub-indicators. **Reads 0–100 at every grain, including the grand total** (44.14 world-wide across 180 countries, 58.59 filtered to `region = "Europe"`), since task-061 wrapped the per-country weighted average in `AVERAGEX(VALUES(gold_dim_country[country_key]), …)` so the denominator scales with country cardinality rather than summing the 58 fixed weights once. A single-country context is bit-for-bit unchanged (max delta 0.0 across all 194 country keys). Slice by country or a country attribute; a value repeating identically down a non-country axis signals that the axis does not filter `fact_epi_score`. Canonical definition: `docs/dax_measure_library.md § 2.2`.
 
 -   Supply Concentration Index = MAX(fact_supply_share\[share_pct\]) filtered to `supply_mix = 'global'` *(secondary lens)*
 
