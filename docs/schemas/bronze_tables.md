@@ -13,6 +13,8 @@ Unit                        STRING (NVARCHAR(50))   -- observed domain: kg, pcs
 UnitPriceEUR                DECIMAL(18,2)           -- per the row's Unit (EUR/kg, EUR/piece)
 ```
 
+> **The `DECIMAL(18,2)` declarations are the ratified contract (DEC-016, 2026-08-12) — do not "correct" them to match the live table.** The live `dbo.procurement_transactional` is currently `SMALLINT` / `FLOAT`, a hand-created shape that predates the repo's DDL; `azure/procurement.sql` re-establishes the declared types and is intended to be re-run. This file declares the **source** contract. What `silver_procurement` holds is now declared independently — `bronze_to_silver` casts both columns to `decimal(18,2)` rather than inheriting whatever the source's physical type happens to be (task-069), so a future source-type change can no longer silently retype silver. See `docs/data_quality_framework.md § 7.3`.
+
 **`UnitPriceEUR` is per the row's `Unit`, not per kilogram** (confirmed against the
 live source 2026-07-23, task-030 AC3). The observed `Unit` domain is `kg` (108 rows)
 and `pcs` (24 rows — electronic control units, tyres); a `pcs` price can only be per

@@ -4,28 +4,35 @@
   "created_date": "2026-08-12",
   "updated_date": "2026-08-12",
   "completion_date": null,
-  "verification_attempts": 0,
+  "verification_attempts": 1,
   "absorbed_into": null,
   "subtasks": [],
-  "decision_dependencies": [],
+  "decision_dependencies": [
+    "DEC-016"
+  ],
   "user_feedback": null,
   "source": "Live regression during task-064's step-7 guided walkthrough, 2026-08-12. Rolled back operationally; the repo-vs-live contract is unresolved.",
   "id": "task-069",
   "title": "Reconcile azure/procurement.sql column types with the live table — the repo rebuild currently breaks bronze→silver",
-  "status": "Pending",
+  "status": "In Progress",
   "priority": "high",
   "difficulty": 5,
   "owner": "both",
   "phase": "5",
   "spec_section": "Data Architecture",
   "out_of_spec": true,
-  "out_of_spec_approved": false,
+  "out_of_spec_approved": true,
   "dependencies": [],
   "files_affected": [
-    "azure/procurement.sql",
     "fabric/bronze_to_silver.Notebook/notebook-content.py",
+    "fabric/silver_to_gold.Notebook/notebook-content.py",
+    "fabric/data_quality_checks.Notebook/notebook-content.py",
+    "azure/procurement.sql",
+    "azure/procurement_seed.sql",
     "docs/schemas/bronze_tables.md",
-    ".claude/support/reference/merge-queue.md"
+    "docs/data_quality_framework.md",
+    ".claude/support/reference/merge-queue.md",
+    ".claude/support/decisions/decision-015-azure-sql-seed-strategy.md"
   ],
   "description": "task-064 made the Azure SQL source rebuildable from the repo. Running that rebuild on 2026-08-12 BROKE THE PIPELINE, and the repo is still in the state that reproduces the outage.\n\nWHAT HAPPENED. azure/procurement.sql declares Quantity and UnitPriceEUR as DECIMAL(18,2), matching the spec and docs/schemas/bronze_tables.md. The live dbo.procurement_transactional it replaced was hand-created outside the repo with different types — recovered from bronze Delta v101 time travel as Quantity `short` and UnitPriceEUR `double`. Rebuilding from the repo therefore changed bronze's Delta schema to decimal(18,2), and bronze_to_silver could no longer write into silver_procurement, whose columns are still short/double: [DELTA_FAILED_TO_MERGE_FIELDS] Failed to merge fields 'quantity' and 'quantity', 3 consecutive failures.\n\nNote DEC-015 is WRONG on one point that matters for any fix: it calls the live column 'a 4-byte float'. It is a double. The 18.670000076293945 noise is float32 error baked into values stored in an 8-byte column. T-SQL REAL (= FLOAT(24), 4-byte) would land as Spark `float` and still mismatch; only FLOAT (= FLOAT(53)) lands as `double`.\n\nCURRENT STATE. Operationally rolled back: the live table was recreated as Quantity SMALLINT / UnitPriceEUR FLOAT, re-seeded from azure/procurement_seed.sql, and the pipeline is green end to end (bronze 132/11, silver 132, fact_procurement 132, silver dates 2024-01-31..2024-12-31). The rollback DDL exists ONLY as a scratch file from that session — it is NOT in the repo. So azure/procurement.sql now disagrees with the live table it is supposed to reproduce, and re-running it repeats the outage.\n\nTHE DECISION THIS TASK CARRIES. Two defensible directions, and they differ in what they treat as authoritative:\n\n  (A) Change azure/procurement.sql to SMALLINT / FLOAT. The repo then reproduces the live table exactly and the pipeline is safe. Cost: it contradicts the DECIMAL(18,2) contract documented in the spec and docs/schemas/bronze_tables.md, so those need correcting too (spec half via /iterate, DEC-016) — and it enshrines what was probably an accident of hand-creation as the contract. It also keeps the float32 noise story alive in bronze.\n\n  (B) Keep DECIMAL(18,2) and make bronze_to_silver tolerate it. Cast quantity/unitpriceeur explicitly at the silver boundary so silver's schema stops inheriting the source's physical type, and add overwriteSchema to the full-load write at L538 (L560's append path needs the cast, not overwriteSchema). Then re-run the repo DDL for real. Cost: a code change plus a full load, and gold_fact_procurement may need the same treatment one layer down — verify before assuming it does not.\n\nB is the better engineering answer (a silver schema should not be a function of an upstream physical type) but it is the larger change and it moves live data types. A is smaller and truer to what is actually deployed. Do not pick silently — this is a real fork.\n\nWHATEVER IS CHOSEN, the MQ-002 spec text landed 2026-08-11 is currently overstated: it says the Azure rows are reproducible from the repo, which is true of the ROWS and false of the SCHEMA. That correction routes through /iterate.",
   "acceptanceCriteria": [
@@ -36,5 +43,73 @@
     "The spec statement that the Azure rows are reproducible from the repo is either made true or narrowed to the rows-not-schema claim, drafted into the merge queue for /iterate (DEC-016) rather than edited directly.",
     "If direction B is chosen, gold_fact_procurement is checked for the same schema-merge exposure and the finding is reported either way."
   ],
-  "notes": "Created 2026-08-12 by the orchestrator during task-064's guided walkthrough, immediately after the rollback restored service. NOT yet approved by Erik as out-of-spec work — out_of_spec_approved is false; confirm before dispatching.\n\nowner=both because the verification is a live Fabric pipeline run, which is Erik's half under the project's Fabric-UI/local-code split.\n\nThe rollback DDL used on the night is reproducible from this description (Quantity SMALLINT, UnitPriceEUR FLOAT, everything else unchanged from azure/procurement.sql) — regenerate it rather than hunting for the scratch file, which lives in a session-scoped temp directory and will not survive.\n\nStanding hazard this instantiates: local verification exercises no Delta writer, so column-type and column-name defects are invisible until the Fabric run. Same family as the DELTA_INVALID_CHARACTERS_IN_COLUMN_NAMES gotcha in root CLAUDE.md."
+  "notes": "Created 2026-08-12 by the orchestrator during task-064's guided walkthrough, immediately after the rollback restored service. NOT yet approved by Erik as out-of-spec work — out_of_spec_approved is false; confirm before dispatching.\n\nowner=both because the verification is a live Fabric pipeline run, which is Erik's half under the project's Fabric-UI/local-code split.\n\nThe rollback DDL used on the night is reproducible from this description (Quantity SMALLINT, UnitPriceEUR FLOAT, everything else unchanged from azure/procurement.sql) — regenerate it rather than hunting for the scratch file, which lives in a session-scoped temp directory and will not survive.\n\nStanding hazard this instantiates: local verification exercises no Delta writer, so column-type and column-name defects are invisible until the Fabric run. Same family as the DELTA_INVALID_CHARACTERS_IN_COLUMN_NAMES gotcha in root CLAUDE.md.\n\n2026-08-12 — OUT-OF-SPEC APPROVED by Erik. Opened, then BLOCKED on DEC-016 (.claude/support/decisions/decision-016-bronze-silver-column-type-contract.md), which AC1 requires. research-agent populated the record; Erik selects.\n\nTHE FORK GREW A THIRD OPTION AND THE RESEARCH CHANGED WHAT THE ORIGINAL TWO MEAN:\n  - Direction B AS FRAMED IN THIS TASK IS THE MIGRATION ERIK ALREADY DECLINED on 2026-08-06 (task-059's documented acceptance) — steps 2-5 of the 5-step path at docs/data_quality_framework.md:1181-1187, in full. Scope unchanged; only the justification is new (a reproducibility-contract failure rather than a precision preference). Re-presenting it as new work would have been the failure mode.\n  - B-MINIMAL is new and is the only formulation genuinely narrower than what was declined: cast at silver AND pin gold back to double (silver_to_gold L1673 spend_eur_expr, L1832 unitprice_eur), so ONE layer moves instead of three, the TMDL is untouched, and migration step 4 becomes a verified no-op.\n  - DIRECTION B CARRIES AN UNQUANTIFIED DIRECTLAKE RISK the task never named: spend_eur becomes decimal(18,2) x decimal(18,2) = decimal(37,4) by Spark's multiply rule, against Power BI's fixed-decimal decimal(19,4). Representability unverified, invisible to every local test, and it would surface in the report layer only AFTER both notebooks succeeded. B-minimal eliminates it.\n  - DIRECTION A IS THE LARGER DOCUMENTATION CHANGE, ~3:1 (~11 line-ranges across 7 files incl. two gated spec lines), and it does not merely leave data_type_consistency failing at 75.00 — it RETIRES THE INTENT the check asserts, while the notebook's own do-not-relabel block forbids the obvious escape. It also converts the latent 16-bit quantity ceiling (32,767 vs observed max 3,293) into a deliberately chosen contract.\n  - A'S STATED COST MAY ALREADY BE FALSE: 'keeps the float32 noise story alive' — the 2026-08-12 re-seed wrote clean 2dp literals into a FLOAT(53) column, so the visible noise is likely already gone and § 7.3:1171's '124 of 132' is likely stale. One live read (L1) settles it.\n\nCORRECTIONS TO THIS TASK'S OWN FRAMING (from research): the fix at L538 is incomplete — the first-load branch at L543 is a SECOND unprotected overwrite in the same try block. gold_fact_procurement's exposure is partial, not total: quantity_base is already insulated by an explicit .cast('double') at L1779-1780; only unitprice_eur and spend_eur are exposed, and gold's full-load path already carries overwriteSchema (write_tbl L104), so no gold code change is required for the WRITE to succeed — only for the TYPES to be pinned.\n\nSCOPE GAPS FILED: FR-086 (AC4 has FIVE sites, none in files_affected — and it is a PRECONDITION for direction A, not a follow-up, since a DDL built on DEC-015's premise would say REAL and break silver from the opposite side), FR-087 (docs/architecture/data_sources.md:23,25 absent from files_affected), FR-088 (§ 7.3:1171 measurement stale). files_affected deliberately NOT widened yet — A and B have very different blast radii, so it is re-derived once the direction is chosen.\n\n2026-08-12 — CLAUDE'S HALF IMPLEMENTED AND VERIFIED (pass, attempt 1). DEC-016 = Option B-minimal, chosen by Erik with the research payload in hand. 9 files, +233/-57, of which exactly FIVE are code lines:\n  1-2. bronze_to_silver: .cast('decimal(18,2)') on quantity and unitpriceeur at the silver boundary — silver's schema is now DECLARED, not inherited from an upstream physical type. That inheritance was the actual defect.\n  3-4. bronze_to_silver: overwriteSchema on BOTH overwrite branches (L577 full-load, L582 first-load). The first-load branch is the one this task's own description missed; leaving it would have kept a latent repeat.\n  5. silver_to_gold: (quantity * unitpriceeur).cast('double') at L1689 and unitpriceeur.cast('double') at L1852.\nTHE APPEND PATHS DELIBERATELY GOT NO mergeSchema — adding it would re-hide exactly the drift this task exists to expose. Three new comments say so in place, so a future maintainer does not 'fix' it that way.\n\nWHY THE CAST ORDERING MATTERS AND WAS CHECKED SPECIFICALLY: the multiplication happens in decimal and only the RESULT is cast. The operand-cast form is visually near-identical in a diff. Measured on 3293.00 x 17.31 (exact 57001.8300): shipped form 57001.83 (err 0.0); operand-cast 57001.829999999994; the pre-change float32-image path 57001.82824134827 (err 1.76e-03).\n\nTMDL UNTOUCHED — zero diff lines. That is the whole difference between B-minimal and the three-layer B, and it is what keeps the unverified decimal(37,4)-vs-Power-BI-fixed-decimal(19,4) DirectLake risk off the table entirely.\n\nTHE QUALITY CHECK WAS EARNED, NOT SILENCED: type_consistency_checks still expects 'decimal' for both columns, byte-identical. The layer moved to meet the expectation. The do-not-relabel block survives and was rewritten forward-looking ('If this check regresses below 100.0, the layer moved — fix bronze_to_silver, not this dict').\n\nAC4 CLOSED AT SIX SITES, not the five DEC-016 enumerated — the implementer found a sixth identical stale claim in validate_data_type_consistency's own docstring, which only reading around the named line range would catch. Verifier swept for a seventh and found none.\n\nAC6 EXTENDED: gold_low_confidence_audit.spend_impact stays double only because unionByName coerces the decimal(38,4) branch against a CAST(NULL AS DOUBLE) branch — measured, schema-deterministic, so no change needed, but it is luck rather than a pin. Filed as FR-089.\n\nAC5 closed on the orchestrator side after verification flagged it open: MQ-005 parked in merge-queue.md, GATED so it cannot drain before AC2 closes.\n\nREMAINING: Erik's half — a 4-step Fabric run plus 8 measurements (test_protocol). THE ORDER IS LOAD-BEARING: deploy the notebooks, run p_full_load=true, THEN run the DDL, then run normally. Running the DDL before the notebook reproduces the 2026-08-12 outage.",
+  "user_review_pending": true,
+  "interaction_hint": "cli_direct",
+  "task_verification": {
+    "result": "pass",
+    "scope": "Claude's half only — AC2 (live Fabric green run) and AC3's landed-Delta-schema conjunct remain Erik's half and are NOT claimed",
+    "verified_date": "2026-08-12",
+    "timestamp": "2026-08-12T15:00:17Z",
+    "attempt_number": 1,
+    "verifier": "verify-agent (separate context)",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "partial",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "summary": "Verified against DEC-016 § Decision (B-minimal), treated as authoritative over task-069's pre-research A-vs-B framing. Every load-bearing claim re-derived independently. CAST ORDERING CORRECT — L1689 ships (a*b).cast('double'), the RESULT form, not the operand form; measured on 3293.00 x 17.31 (exact 57001.8300): shipped 57001.83 err 0.0; operand-cast 57001.829999999994; pre-change float32-image path 57001.82824134827 err 1.76e-03. TMDL UNTOUCHED — zero diff lines under fabric/OEMInsightBI.SemanticModel/; unitprice_eur L89, spend_eur L100, quantity_base L78 all still dataType: double. This is what makes it B-minimal rather than B. BOTH overwrite branches protected (L577 full-load, L582 first-load); append paths byte-unchanged and got NO mergeSchema (grep: 'mergeSchema' appears at exactly 3 sites, all new comment prose explaining why it must not be added; positive control overwriteSchema at 14 sites). DO-NOT-RELABEL BLOCK SURVIVES AND IS STRENGTHENED — type_consistency_checks still expects 'decimal' for both columns, byte-identical (unchanged context lines in the diff). The layer was fixed and the expectation held fixed: the opposite of a Root-Cause-Over-Symptom violation. TYPE ALGEBRA re-derived on a real local SparkSession with spark.sql.ansi.enabled=false (confirmed in-session): decimal(18,2)*decimal(18,2) -> decimal(37,4); (a*b).cast('double') -> double. AC4 6/6 sites correct with no 7th (repo-wide case-insensitive sweep over 13 matching files, every match read individually; remaining hits are the corrections themselves, DEC-016's explanations, task-064.json which already stated it correctly, and the FR bug reports quoting the error). AC6 EXTENDED beyond the reported finding: gold_low_confidence_audit.spend_impact confirmed by measurement to stay double via unionByName coercion against a CAST(NULL AS DOUBLE) branch — schema-deterministic, so no code change needed, but unpinned. All other consumers safe. PARITY CONTRACT verified not assumed — edits are inline cell code plus docstring/comment only; validate_data_type_consistency's body unchanged; no src/transformations/ movement required. TESTS 300 passed / 0 failed; ast.parse clean on all three edited notebooks. DOCS HONEST — § 7 records 75.00 -> 100.00 as an expectation with an explicit 'not yet a measurement' banner, and the '124 of 132' figure is marked STALE with the predicted value and the settling SQL rather than deleted or silently updated. No doc asserts a live outcome that has not happened.",
+    "evidence": [
+      {
+        "type": "static_analysis",
+        "assertion": "spend_eur casts the RESULT of the multiplication, not the operands",
+        "outcome": "confirmed",
+        "detail": "L1689 (a*b).cast('double'); measured err 0.0 vs 1.76e-03 on the pre-change path"
+      },
+      {
+        "type": "static_analysis",
+        "assertion": "fact_procurement.tmdl has zero diff lines",
+        "outcome": "confirmed",
+        "detail": "git diff --stat over the SemanticModel path is empty; all three columns still dataType: double"
+      },
+      {
+        "type": "spark_execution",
+        "assertion": "decimal(18,2)*decimal(18,2) -> decimal(37,4); .cast('double') pins it",
+        "outcome": "confirmed",
+        "detail": "local SparkSession, ANSI disabled to match Fabric, conf verified in-session"
+      },
+      {
+        "type": "spark_execution",
+        "assertion": "gold_low_confidence_audit.spend_impact stays double via unionByName coercion",
+        "outcome": "confirmed",
+        "detail": "SUM(decimal product) -> decimal(38,4) alone; unionByName against CAST(NULL AS DOUBLE) -> double"
+      },
+      {
+        "type": "test_suite",
+        "assertion": "pytest baseline preserved",
+        "outcome": "confirmed",
+        "detail": "300 passed, 0 failed"
+      },
+      {
+        "type": "static_analysis",
+        "assertion": "type_consistency_checks expectation dict byte-identical",
+        "outcome": "confirmed",
+        "detail": "both entries appear as unchanged context lines; do-not-relabel block intact and strengthened"
+      }
+    ],
+    "residual": "AC2 OPEN by design — Erik's half. A green live Fabric run following the repo DDL re-run is the only evidence that closes it, and the Delta half is not merely untested but STRUCTURALLY UNREPRODUCIBLE locally (delta-spark not installed; local Spark never invokes a Delta writer, so DELTA_FAILED_TO_MERGE_FIELDS cannot be raised). AC3's third conjunct (bronze's landed Delta schema) is likewise live-only and must be READ after a real Copy run, not inferred. Both are covered by the 4-step + 8-measurement test_protocol. AC5's orchestrator half closed after verification: MQ-005 parked in merge-queue.md, GATED so it cannot drain before AC2 closes — DEC-016 chose the make-it-true branch, so draining early would swap one untrue spec statement for another in the opposite direction. Fallback narrowing wording carried in the entry if the DDL re-run is abandoned. MINOR, no change now: gold_low_confidence_audit.spend_impact is unpinned (safe by coercion, not by design) — removing or retyping the supply-share union branch would silently retype a DirectLake column."
+  },
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-08-12T15:00:17Z",
+      "verifier": "verify-agent",
+      "summary": "Pass on attempt 1 for Claude's half. An earlier dispatch of the same verification was cut off by a session usage limit after 4 tool calls; verification_attempts was deliberately NOT incremented for that, since an infrastructure interruption is not a verification signal."
+    }
+  ]
 }

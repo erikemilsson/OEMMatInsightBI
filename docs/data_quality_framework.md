@@ -1100,13 +1100,15 @@ WHERE  entity = 'gate'
 
 Three checks record a non-`pass` row on **every** pipeline run. None is a broken gate, and none is a defect the pipeline should repair silently — but until 2026-08-06 none was documented either, so a reader meeting `dq_data_type_consistency = 75.0` in `gold_quality_history` had nowhere to look. This section is that place.
 
+> **Update 2026-08-12 (task-069 / DEC-016).** One of the three — `data_type_consistency` — is no longer expected to fail. `bronze_to_silver` now casts `quantity` / `unitpriceeur` to `decimal(18,2)` at the silver boundary, so the intent the check asserts is implemented rather than merely declared. **This is an expectation, not yet a measurement:** it is confirmed only by a live Fabric run (`p_full_load = true`, then the repo DDL + seed, then a normal incremental run). Until that run lands, read § 7.3 for what changed and why. The other two remain accepted as written.
+
 None of the three is in `BLOCKING_CHECKS`, so the gate correctly does not raise on them (§ "Score severity vs. the blocking gate" above). They stay in the check set deliberately: each makes a real property of the data visible, and removing one — or relabelling its expectation to force a green score — would hide the property instead of resolving it.
 
 | Check | Table | Score | `status` | `breach_flag` | Disposition |
 |---|---|---|---|---|---|
 | `date_range_validation` | `bronze_procurement_transactional` | `0.0` | `warning` | `true` | **Expected by design** — bronze is byte-faithful to a malformed source |
 | `business_rule_validation` | `silver_procurement` | `81.82` | `fail` | `false` | **Accepted** — a dimensionally impossible conversion |
-| `data_type_consistency` | `silver_procurement` | `75.00` | `fail` | `false` | **Accepted** — divergence recorded; migration path in 7.3 |
+| `data_type_consistency` | `silver_procurement` | `75.00` → **`100.00` expected** | `fail` → `pass` expected | `false` | **Acceptance revisited 2026-08-12 (DEC-016)** — the silver layer was fixed, not the expectation; see 7.3. Pending live confirmation |
 
 **Measurement provenance.** Every figure below was measured on **2026-08-06** directly from the Delta transaction log and data files over the OneLake DFS API (`silver_procurement` at version 93 — checkpoint `…090.checkpoint.parquet` plus commits 091–093), *not* inferred from the check's own score. Each score is then reproduced arithmetically from the measured data. If these numbers ever stop reconciling, the data changed — the reading was not loose.
 
@@ -1139,9 +1141,11 @@ The 24 violating rows are **two materials only**, 12 months each:
 
 **This check is the mechanism that makes those NULLs visible**, and it fires one layer earlier than the NULLs themselves. That is why it must keep failing: silencing it would restore the pre-task-030 situation in which a non-mass unit was invisible. It is advisory by design — promoting it to `BLOCKING_CHECKS` would halt the pipeline on the first exotic unit, which is a separate decision (see the in-notebook rationale on Check 7).
 
-### 7.3 `data_type_consistency = 75.00` on `silver_procurement` — accepted
+### 7.3 `data_type_consistency = 75.00` on `silver_procurement` — accepted 2026-08-06, **acceptance revisited 2026-08-12 (DEC-016)**
 
-**Measured schema** (Delta types, exactly as `spark.table(...).schema` reports them):
+> **Read this first.** The measurement below is real and stands as the record of what was true on 2026-08-06. The **disposition** has changed. On 2026-08-12 the acceptance was revisited — **not because the precision judgement changed, but because a different defect surfaced that the acceptance had been silently underwriting: the repo's own committed DDL could not be run against its own database.** See "Why the acceptance was revisited" below for what changed, what was fixed, and what remains accepted.
+
+**Measured schema, 2026-08-06** (Delta types, exactly as `spark.table(...).schema` reported them at the time):
 
 | Column | Expected by the check | **Actual** | Conforms |
 |---|---|---|---|
@@ -1156,7 +1160,7 @@ The 24 violating rows are **two materials only**, 12 months each:
 
 6 of 8 conform → score `= 6/8 × 100 = 75.00`. Both columns **exist**, so this is a type mismatch, not the `column missing` branch.
 
-**Root cause — the expectation was never true at any layer.** `decimal` appears nowhere in the chain:
+**Root cause as diagnosed 2026-08-06 — the expectation was never true at any layer.** `decimal` appeared nowhere in the chain:
 
 | Layer | `quantity` | price / spend |
 |---|---|---|
@@ -1164,27 +1168,75 @@ The 24 violating rows are **two materials only**, 12 months each:
 | `silver_procurement` | `short` | `unitpriceeur double` |
 | `fact_procurement` | `quantity_base double` | `unitprice_eur double`, `spend_eur double` |
 
-`bronze_to_silver` applies **no cast** to these columns — it joins the two bronze tables, lowercases column names and replaces spaces with underscores, and drops `region`. Silver therefore inherits Azure SQL's types verbatim. The check's expectation of `decimal` describes an *intent* that no layer implements, and its own docstring compounded this by citing "DECIMAL bronze quantity" — bronze `Quantity` is `short`, and never was DECIMAL. (That docstring is corrected as of 2026-08-06.)
+`bronze_to_silver` applied **no cast** to these columns — it joined the two bronze tables, lowercased column names and replaced spaces with underscores, and dropped `region`. Silver therefore inherited Azure SQL's types verbatim. The check's expectation of `decimal` described an *intent* that no layer implemented, and its own docstring compounded this by citing "DECIMAL bronze quantity" — bronze `Quantity` was `short`, and never was DECIMAL. (That docstring was corrected on 2026-08-06.)
 
-**Two real sub-findings, recorded rather than fixed:**
+**This is the sentence that dated fastest, and it is the whole reason for the revisit:** *"silver inherits Azure SQL's types verbatim"* is not just a description of a mismatch — it is a **coupling**, and a coupling is a live hazard rather than a cosmetic gap. It means the silver schema is whatever the upstream physical type happens to be, so any change to the source's declared types breaks the silver write. On 2026-08-12 that is exactly what happened. See below.
 
-1. **`unitpriceeur` carries float32-widening noise.** 124 of 132 values have more than two decimal places — e.g. `17.309999465942383` for an intended `17.31`, `1.350000023841858` for `1.35`. The magnitudes are exactly what a REAL/`float32` source column widened to `float64` produces. Because `spend_eur = quantity × unitpriceeur`, that noise propagates into gold and into `Total Spend EUR`. At 132 rows the absolute error is sub-cent, but storing money as a float is a genuine anti-pattern rather than a cosmetic one.
-2. **`quantity` is 16-bit.** `short` caps at 32,767. Observed range is 108 → 3,293, so headroom is ~29,000 — no current overflow, but a single order of 33,000+ units would silently exceed the type.
+**Two real sub-findings, recorded rather than fixed (2026-08-06):**
 
-**Why accepted (decision, 2026-08-06).** Fixing the types is not a cast edit — it is a three-layer schema migration on a live, scheduled, fully-verified pipeline:
+1. **`unitpriceeur` carries float32-image rounding noise.** 124 of 132 values had more than two decimal places — e.g. `17.309999465942383` for an intended `17.31`, `1.350000023841858` for `1.35`. The magnitudes are exactly what a `float32` value widened to `float64` produces. Because `spend_eur = quantity × unitpriceeur`, that noise propagated into gold and into `Total Spend EUR`. At 132 rows the absolute error is sub-cent, but storing money as a float is a genuine anti-pattern rather than a cosmetic one.
+
+   > ⚠ **THE "124 of 132" FIGURE IS STALE AND MUST BE RE-MEASURED — DO NOT CITE IT AS CURRENT.** It is preserved here because it is the measurement the 2026-08-06 decision was made on, and deleting it would erase the evidence. But on **2026-08-12** the live table was re-seeded from `azure/procurement_seed.sql`, which writes clean 2-decimal literals. **Predicted current value: 0 of 132.** One live read settles it:
+   > `SELECT COUNT(*) FROM oem_lh.bronze_procurement_transactional WHERE UnitPriceEUR <> ROUND(UnitPriceEUR, 2)`.
+   > Note also that the noise was never evidence of a *4-byte* column: the live column is `FLOAT`, and `FLOAT` with no length is `FLOAT(53)` — an 8-byte double. T-SQL `REAL` is the 4-byte type (`REAL` = `FLOAT(24)`). The float32 error was already baked into the stored values by an earlier stage of the source's history. DEC-015 and two SQL header comments carried the wrong "4-byte float" reading; all are corrected as of 2026-08-12 (task-069 AC4), because a rebuild that declared `REAL` would land Spark `float` and break silver from the opposite side.
+
+2. **`quantity` is 16-bit.** `short` caps at 32,767. Observed range is 108 → 3,293, so headroom is ~29,000 — no current overflow, but a single order of 33,000+ units would silently exceed the type. *(Removed by the 2026-08-12 change: silver's `quantity` is now `decimal(18,2)`.)*
+
+**Why it was accepted (decision, 2026-08-06).** Fixing the types is not a cast edit — it is a three-layer schema migration on a live, scheduled, fully-verified pipeline:
 
 - The default write path is the incremental delete-insert ending in `mode("append")`. **An append whose DataFrame schema differs from the table's is rejected**, and that failure writes a `FAILED` watermark row and re-raises — halting the pipeline. So the change requires `.option("overwriteSchema","true")` on the full-load branch *plus* one `p_full_load = true` run to re-establish the schema before incrementals resume.
 - It propagates: decimal inputs make `fact_procurement.spend_eur` decimal, changing the **gold** schema and the DirectLake semantic model's column types (TMDL).
 
-Weighed against sub-cent precision noise on a 132-row synthetic dataset, that migration was judged the wrong trade at this point in the project. **The check is left failing on purpose** — it is the standing, visible record of the divergence, and the expectation was *not* relabelled to `short`/`double`, because an expectation edited to match whatever exists is a tautology that carries no information.
+Weighed against sub-cent precision noise on a 132-row synthetic dataset, that migration was judged the wrong trade at this point in the project. **The check was left failing on purpose** — it was the standing, visible record of the divergence, and the expectation was *not* relabelled to `short`/`double`, because an expectation edited to match whatever exists is a tautology that carries no information.
 
-**Migration path, if it is ever wanted** (in order):
+**Migration path, as recorded 2026-08-06** (in order):
 
 1. Decide the intended contract per column — `unitpriceeur → decimal(18,2)` is unambiguous for money; `quantity` is a count, so `integer` is arguably more correct than `decimal`, and the check's expectation should be updated to whatever is *decided* rather than to what is *observed*.
 2. Add the casts in `bronze_to_silver` immediately after the rename/drop step, and `.option("overwriteSchema","true")` to the full-load write.
 3. Run once with `p_full_load = true` (lossless here — bronze is a full copy every run, and silver full-load reads all of bronze).
 4. Verify `fact_procurement`'s resulting types and update the TMDL column types if they shifted.
 5. Confirm `data_type_consistency` reaches 100.0 for the *right* reason, and that `Total Spend EUR` changes only by the recovered precision.
+
+---
+
+#### Why the acceptance was revisited (2026-08-12, DEC-016)
+
+**The precision judgement above was not overturned.** Sub-cent noise on 132 synthetic rows is still not, on its own, worth a live schema migration. What changed is that a *second* defect surfaced which the acceptance had been quietly underwriting.
+
+**What happened.** task-064 made the Azure SQL source rebuildable from the repo, committing `azure/procurement.sql` with `Quantity` and `UnitPriceEUR` declared `DECIMAL(18,2)` — matching the spec and `docs/schemas/bronze_tables.md`. Running that committed DDL for the first time on 2026-08-12 changed bronze's Delta schema to `decimal(18,2)`. Silver's columns were still `short`/`double`, and because silver *inherited* rather than *declared* its types, `bronze_to_silver` could no longer write:
+
+```
+[DELTA_FAILED_TO_MERGE_FIELDS] Failed to merge fields 'quantity' and 'quantity'
+```
+
+Three consecutive pipeline failures. Rolled back operationally the same night (live table recreated `SMALLINT`/`FLOAT`, re-seeded, pipeline green end to end), but the rollback left the repo disagreeing with the database it is supposed to reproduce. **The reproducibility contract task-064 exists to provide was false: the repo's own DDL could not be run.**
+
+**That is a different and stronger argument for the same work.** In August the only reason to migrate was precision. Now the reason is that the repo cannot rebuild its own source. Two further things had also changed: the Azure-DDL half of the migration was already paid for by task-064, and the bronze half was no longer theoretical — the Copy activity had been *observed* landing `decimal(18,2)`.
+
+**What was actually done — one layer, not three.** DEC-016 selected **Option B-minimal**, which is narrower than the migration declined on 2026-08-06 (Erik's recorded objection was specifically *"a three-layer schema migration"*):
+
+| Layer | Moves? |
+|---|---|
+| `silver_procurement` | **Yes** — `quantity` / `unitpriceeur` cast to `decimal(18,2)` in `bronze_to_silver`, `overwriteSchema` on **both** overwrite branches |
+| `gold_fact_procurement` | **No** — `spend_eur` and `unitprice_eur` explicitly `.cast("double")` in `silver_to_gold` |
+| Semantic model (TMDL) | **No** — `fact_procurement.tmdl` untouched; migration step 4 is a verified no-op |
+
+Pinning gold is load-bearing, not polish. Left alone, `decimal(18,2) × decimal(18,2)` becomes `decimal(37,4)` by Spark's multiply rule, against Power BI's fixed-decimal `decimal(19,4)` — an unverified DirectLake representability risk that is invisible to every local test and would surface in the *report* layer only after both notebooks had already succeeded. Pinning removes the question entirely.
+
+**What remains accepted.** **Money is still stored as `double` in `gold_fact_procurement`** — a real anti-pattern, deliberately kept one layer down. Two things mitigate it: the multiplication is performed exactly in decimal and only the *result* is cast, so the stored value is the nearest double to the true cent rather than a product of float-image inputs; and gold already used exactly this pattern for `quantity_base` (explicit `.cast("double")`), so this is the established local convention rather than a new concession. Sub-finding 1's underlying complaint — money as binary float — is therefore *reduced, not eliminated*.
+
+**Expected consequences — to be confirmed on a live run, not assumed.** Local verification is structurally incapable of settling any of these: `delta-spark` is not installed and local Spark never invokes a Delta writer, so `DELTA_FAILED_TO_MERGE_FIELDS` cannot be reproduced locally. Same hazard family as `DELTA_INVALID_CHARACTERS_IN_COLUMN_NAMES`.
+
+| # | Expectation | How it is confirmed |
+|---|---|---|
+| 1 | `data_type_consistency` moves **75.00 → 100.00** — and for migration step 5's reason: the layer implements the declared intent, rather than the expectation being bent to fit | `gold_quality_history` after a live run |
+| 2 | Bronze lands `decimal(18,2)` after the repo DDL + seed are re-run | `spark.table("oem_lh.bronze_procurement_transactional").schema` — **read it, do not infer it** |
+| 3 | The incremental append survives the first *scheduled* run after the full-load rewrite | A normal (`p_full_load = false`) run completing without a `FAILED` watermark row |
+| 4 | `fact_procurement.unitprice_eur` and `spend_eur` are still `double`; the TMDL needs no edit | `spark.table("oem_lh.gold_fact_procurement").schema` |
+| 5 | `Total Spend EUR` moves **only by recovered precision** against the task-024 baseline `sum_spend_eur = 3273776.03` | Movement beyond sub-cent means semantics changed, not just precision — investigate, do not accept |
+| 6 | The >2dp count on `bronze.UnitPriceEUR` is **0 of 132** (was 124) | Settles the stale figure flagged in sub-finding 1 above |
+
+Migration steps 2, 3 and 5 are executed at the **silver layer only**; step 4 becomes a verified no-op by construction; step 1's open question (whether `quantity` should have been `integer` rather than `decimal`) is **not** resolved by this change — `decimal(18,2)` was inherited from `azure/procurement.sql`'s existing declaration rather than re-decided.
 
 ### 7.4 Why the mismatch list is not in `gold_quality_history`
 

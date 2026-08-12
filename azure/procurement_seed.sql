@@ -25,14 +25,24 @@
 -- 101) on 2026-08-11. Bronze is a byte-faithful full-load Copy of
 -- dbo.procurement_transactional, so these values are the source values.
 --
--- ONE DELIBERATE DIVERGENCE FROM THE LIVE COLUMN: UnitPriceEUR is written here at
--- 2 decimal places, matching the DECIMAL(18,2) declared in the DDL. The live
--- column is a 4-byte float, so the exported values carry float32 noise
--- (18.67 lands as 18.670000076293945). All 132 exported values were verified to be
--- the exact float32 image of their 2-decimal value (max abs diff 0.0), so rounding
--- recovers the intended figure rather than losing information. A rebuild from this
--- file therefore yields clean decimals where the current live table yields noisy
--- floats; the values are identical to the cent.
+-- ONE DELIBERATE DIVERGENCE FROM THE LIVE COLUMN AS EXPORTED: UnitPriceEUR is written
+-- here at 2 decimal places, matching the DECIMAL(18,2) declared in the DDL. The exported
+-- values carried float32 noise (18.67 appearing as 18.670000076293945). That noise is
+-- rounding error baked into the stored numbers by some earlier stage of the source's
+-- history — it is NOT evidence of a 4-byte column. The live column is FLOAT, and FLOAT
+-- with no length is FLOAT(53): an 8-byte double. (T-SQL REAL is the 4-byte type;
+-- REAL = FLOAT(24). Microsoft Learn, "float and real (Transact-SQL)": "The ISO synonym
+-- for real is float(24)".) An earlier version of this comment said "4-byte float"; the
+-- claim was wrong and load-bearing, since a rebuild that declared REAL would land Spark
+-- `float` and break silver from the opposite side. All 132 exported values were verified
+-- to be the exact float32 image of their 2-decimal value (max abs diff 0.0), so rounding
+-- recovers the intended figure rather than losing information.
+--
+-- CONSEQUENCE OF THE 2026-08-12 RE-SEED: this file has already been run against the live
+-- table, writing clean 2-decimal literals. The visible >2dp noise in bronze is therefore
+-- expected to be GONE (predicted 0 of 132 values with >2dp, was 124 of 132). That
+-- prediction is unconfirmed — it needs one live read. See docs/data_quality_framework.md
+-- § 7.3, where the stale figure is flagged pending re-measurement.
 --
 -- Row order is sorted by (MaterialName, Date) for a readable diff. The table has no
 -- primary key and no downstream logic depends on physical row order.

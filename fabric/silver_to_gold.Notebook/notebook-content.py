@@ -1665,12 +1665,28 @@ unit_key = F.lower(F.trim(F.col("p.unit")))
 # spend_impact as raw quantity * unitpriceeur (i.e. per_row_unit).
 UNITPRICE_BASIS = "per_row_unit"
 
+# task-069 / DEC-016 (Option B-minimal, 2026-08-12) — GOLD IS PINNED TO `double`.
+# Silver's quantity/unitpriceeur are now decimal(18,2) (declared, not inherited). Left
+# alone, Spark's decimal-multiply rule DECIMAL(p1+p2+1, s1+s2) would make spend_eur
+# decimal(37,4) — a type nobody chose, against Power BI's fixed-decimal decimal(19,4).
+# DirectLake requires the semantic-model type to match the lakehouse type, so that would
+# be an unverified representability risk surfacing in the REPORT layer only, after both
+# notebooks had already succeeded. The `.cast("double")` below keeps
+# fact_procurement.tmdl (unitprice_eur L88-89, spend_eur L99-100, both dataType: double)
+# untouched, so exactly one layer's schema moves: silver.
+#
+# CAST THE RESULT, NEVER THE OPERANDS. The multiplication happens exactly in decimal and
+# only then rounds to the nearest double, so the stored value is ~10^8 closer to the true
+# cent than the old float-image inputs produced. Casting the operands to double first
+# would throw that entire precision benefit away while looking identical in a diff.
+# quantity_base (L1777-1780) already uses exactly this pattern — it is the local
+# convention, not a new concession.
 if UNITPRICE_BASIS == "per_row_unit":
     # Price is EUR per the row's own Unit: multiply the ORIGINAL quantity. No conversion
     # on the price side (converting both sides would double-count), and — crucially —
     # spend does NOT depend on quantity_base, so a non-mass unit (pcs) still gets a real
     # spend even though its quantity_base is NULL.
-    spend_eur_expr = F.col("p.quantity") * F.col("p.unitpriceeur")
+    spend_eur_expr = (F.col("p.quantity") * F.col("p.unitpriceeur")).cast("double")
 elif UNITPRICE_BASIS == "per_kg":
     # Retained for completeness. Price is EUR per kilogram: multiply the kg-normalized
     # quantity. DO NOT use with the current data — it NULLs out every pcs row's spend,
@@ -1829,7 +1845,11 @@ fact_procurement_complete = (
         F.col("supplier_hq_country_key_final").alias("supplier_hq_country_key"),
         F.col("production_country_key_final").alias("production_country_key"),
         F.col("quantity_base"),
-        F.col("p.unitpriceeur").alias("unitprice_eur"),
+        # task-069 / DEC-016: pinned to double. Silver now lands decimal(18,2); without
+        # this cast fact_procurement.unitprice_eur would become decimal(18,2) and
+        # fact_procurement.tmdl L88-89 (dataType: double) would need to change with it.
+        # Pinning here is what keeps the TMDL — and DirectLake — out of this change.
+        F.col("p.unitpriceeur").cast("double").alias("unitprice_eur"),
         F.col("spend_eur"),
         F.col("data_quality_score"),
         F.col("quality_category"),

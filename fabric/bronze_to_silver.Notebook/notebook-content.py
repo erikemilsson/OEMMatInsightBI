@@ -505,8 +505,32 @@ left_join_df = df1.join(df2, ["SupplierName"], "left")
 new_columns = [c.lower().replace(' ', '_') for c in left_join_df.columns]
 df_joined = left_join_df.toDF(*new_columns)
 
-# Drop region column (not needed in silver layer)
-silver_df = df_joined.drop("region").cache()  # task-012_3: reused in write + count + watermark (3+ actions)
+# task-069 / DEC-016 (Option B-minimal, 2026-08-12): DECLARE silver's numeric types
+# instead of inheriting bronze's physical type.
+#
+# THE DEFECT THIS FIXES: silver_procurement's schema used to be a function of whatever
+# Azure SQL happened to declare. The live dbo.procurement_transactional was hand-created
+# outside the repo as SMALLINT / FLOAT, landing Spark `short` / `double`. When task-064's
+# committed DDL (azure/procurement.sql — DECIMAL(18,2) for both) was actually run on
+# 2026-08-12, bronze's Delta schema became decimal(18,2), silver's was still short/double,
+# and the write died with [DELTA_FAILED_TO_MERGE_FIELDS] on `quantity` — three consecutive
+# pipeline failures. The repo's own DDL could not be run against its own database.
+#
+# Casting here makes decimal(18,2) silver's DECLARED contract, matching azure/procurement.sql
+# and docs/schemas/bronze_tables.md. It also makes the source's physical type irrelevant:
+# short, double, decimal or string all land as decimal(18,2) in silver from now on.
+#
+# THE CAST ALONE IS NOT ENOUGH — the existing table still carries the old schema, so the
+# two overwrite branches below both need overwriteSchema and the first run after this
+# change must be p_full_load=true. See the write cell for why the append path needs no
+# mergeSchema (and must not get one).
+silver_df = (
+    df_joined
+    .drop("region")  # not needed in silver layer
+    .withColumn("quantity", F.col("quantity").cast("decimal(18,2)"))
+    .withColumn("unitpriceeur", F.col("unitpriceeur").cast("decimal(18,2)"))
+    .cache()  # task-012_3: reused in write + count + watermark (3+ actions)
+)
 
 display(silver_df)
 
@@ -533,14 +557,29 @@ display(silver_df)
 # new max date loaded (advances the watermark) or FAILED with the effective_from_date that was
 # attempted (does NOT advance — next run re-reads from the same watermark). The FAILED row's
 # last_load_date records "what we tried to load from", not a new max.
+#
+# task-069 / DEC-016: overwriteSchema on BOTH overwrite branches. Delta's overwrite mode
+# replaces the DATA but keeps the existing schema unless told otherwise, so without this
+# option the quantity/unitpriceeur casts added above would fail against a silver_procurement
+# that still carries short/double — the exact DELTA_FAILED_TO_MERGE_FIELDS outage of
+# 2026-08-12. Both branches are protected deliberately: the first-load branch is reachable
+# whenever the table is absent (a rebuilt lakehouse, a dropped table), and leaving it
+# unprotected would be a latent repeat of the same defect on the day it fires.
+#
+# The append branch below gets NO mergeSchema, and that is deliberate. Once the table has
+# been rewritten with decimal(18,2) by a p_full_load=true run, the cast DataFrame matches
+# the target exactly and the append needs no schema tolerance. Adding mergeSchema there
+# would silently accept future upstream type drift — the very failure this change exists
+# to make loud. If the append ever fails on a merge-fields error, the answer is a
+# p_full_load=true run, not a wider write option.
 try:
     if is_full_load:
-        silver_df.write.format("delta").mode("overwrite").saveAsTable("silver_procurement")
+        silver_df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable("silver_procurement")
         print(f"Procurement: full overwrite complete ({silver_df.count():,} rows)")
     else:
         if not spark.catalog.tableExists("oem_lh.silver_procurement"):
             # First load — create table via overwrite
-            silver_df.write.format("delta").mode("overwrite").saveAsTable("silver_procurement")
+            silver_df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable("silver_procurement")
             print(f"Procurement: initial table created ({silver_df.count():,} rows)")
         else:
             # Incremental: delete-insert over the look-back window. Delete boundary = the minimum date

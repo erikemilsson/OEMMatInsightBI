@@ -1144,10 +1144,16 @@ def validate_data_type_consistency(table_name, expected_types):
     NOTE (corrected 2026-08-06, task-059): an earlier version of this docstring cited
     "DECIMAL bronze quantity surfaced as the expected silver numeric type" as the
     example. That was factually wrong and sent a later diagnosis down the wrong path —
-    bronze Quantity is `short` and never was DECIMAL. bronze_to_silver applies NO cast
-    to these columns (it renames and drops `region` only), so silver inherits Azure
-    SQL's types verbatim. This check asserts an INTENT, and on silver_procurement that
-    intent is currently unmet by design — see docs/data_quality_framework.md § 7.3.
+    bronze Quantity was `short` and never was DECIMAL.
+
+    UPDATED 2026-08-12 (task-069 / DEC-016): the sentence that used to follow — "silver
+    inherits Azure SQL's types verbatim" — is no longer true, and its being true was the
+    defect. bronze_to_silver now casts quantity/unitpriceeur to decimal(18,2) at the
+    silver boundary, so silver's schema is DECLARED rather than inherited from an
+    upstream physical type. This check still asserts an INTENT; on silver_procurement
+    that intent is now implemented, so it should read 100.0 rather than 75.0. See
+    docs/data_quality_framework.md § 7.3, which keeps the 2026-08-06 measurement AND
+    records why the acceptance was revisited.
 
     Args:
         table_name: Fully qualified silver table name
@@ -1196,24 +1202,43 @@ print("\n--- Silver Check 9: Data Type Consistency ---")
 # supplier_ref, columns lowercased/underscored. Descriptive columns must remain
 # strings; date must remain a date; the numeric columns are the declared INTENT.
 #
-# THIS CHECK FAILS AT 75.0 ON EVERY RUN, AND THAT IS A RECORDED DECISION —
-# NOT AN UNNOTICED DEFECT. Measured 2026-08-06 (task-059) from the Delta log:
-#   quantity     -> short   (expected decimal)  MISMATCH
-#   unitpriceeur -> double  (expected decimal)  MISMATCH
-#   the other 6 columns conform  =>  6/8 = 75.0
-# Root cause: bronze_to_silver applies NO cast to these two columns, so silver
-# inherits Azure SQL's types (Quantity SMALLINT -> short, UnitPriceEUR REAL ->
-# double). `decimal` appears nowhere in bronze, silver OR gold — the expectation
-# describes an intent no layer implements.
+# THIS CHECK USED TO FAIL AT 75.0 ON EVERY RUN. task-069 / DEC-016 (2026-08-12,
+# Option B-minimal) FIXED THE LAYER RATHER THAN THE EXPECTATION. History, so the
+# 100.0 is read as earned and not as a relabelling:
 #
-# DO NOT "fix" this by relabelling the expectations to short/double. An expectation
-# edited to match whatever exists is a tautology that carries no information, and
-# rules/agents.md § Root Cause Over Symptom treats it as silencing. The divergence is
-# accepted and documented WITH its measured evidence, the two genuine sub-findings
-# (float32 noise in a money column; a 16-bit ceiling on quantity) and a five-step
-# migration path in docs/data_quality_framework.md § 7.3. Read that before changing
-# this dict — in particular, casting here breaks the incremental mode("append") write
-# unless overwriteSchema + a p_full_load=true run land in the same change.
+#   Measured 2026-08-06 (task-059) from the Delta log:
+#     quantity     -> short   (expected decimal)  MISMATCH
+#     unitpriceeur -> double  (expected decimal)  MISMATCH
+#     the other 6 columns conform  =>  6/8 = 75.0
+#   Root cause at the time: bronze_to_silver applied NO cast to these two columns, so
+#   silver inherited Azure SQL's physical types (Quantity SMALLINT -> short,
+#   UnitPriceEUR FLOAT -> double). `decimal` appeared nowhere in bronze, silver OR
+#   gold — the expectation described an intent no layer implemented.
+#
+#   NOTE: an earlier version of this comment wrote that mapping as "UnitPriceEUR REAL
+#   -> double". That was wrong. T-SQL REAL = FLOAT(24), a 4-byte type that lands as
+#   Spark `float`, not `double`. Only FLOAT (= FLOAT(53)) lands as `double`. Microsoft
+#   Learn, "float and real (Transact-SQL)": "The ISO synonym for real is float(24)".
+#   DEC-015 carried the same error ("4-byte float"), and it was load-bearing — a fix
+#   built on that premise would have declared REAL in the DDL and broken silver from
+#   the opposite side.
+#
+# CURRENT STATE: bronze_to_silver now casts both columns to decimal(18,2) at the silver
+# boundary, with overwriteSchema on both overwrite branches. silver_procurement's schema
+# is DECLARED, not inherited from the source's physical type, and it matches
+# azure/procurement.sql, docs/schemas/bronze_tables.md and the spec. The expectations
+# below therefore describe an intent the layer now implements, and the check is expected
+# to read 8/8 = 100.0. That expectation is unconfirmed until a live Fabric run — local
+# verification cannot exercise a Delta writer at all.
+#
+# STILL DO NOT "fix" a future failure here by relabelling the expectations to whatever
+# silver happens to hold. An expectation edited to match whatever exists is a tautology
+# that carries no information, and rules/agents.md § Root Cause Over Symptom treats it
+# as silencing. If this check regresses below 100.0, the layer moved — read
+# docs/data_quality_framework.md § 7.3 (which records both the 2026-08-06 acceptance and
+# its 2026-08-12 revisit) and fix bronze_to_silver, not this dict. In particular, a cast
+# change here without overwriteSchema AND a p_full_load=true run breaks the incremental
+# mode("append") write — that is the exact outage DEC-016 exists to close.
 type_consistency_checks = {
     "oem_lh.silver_procurement": {
         "date": "date",

@@ -14,9 +14,26 @@
 -- would never ingest. Corrected to the name the pipeline actually reads.
 --
 -- COLUMN TYPES. `Quantity` and `UnitPriceEUR` are declared DECIMAL(18,2), matching
--- the documented contract in the spec and docs/schemas/bronze_tables.md. The live
--- column is currently a 4-byte float, which is why bronze shows values like
--- 18.670000076293945 for a price of 18.67; see azure/procurement_seed.sql.
+-- the documented contract in the spec and docs/schemas/bronze_tables.md. DEC-016
+-- (2026-08-12, Option B-minimal) RATIFIED these declarations — they are the contract,
+-- and this file is not to be edited to match whatever the live table happens to hold.
+--
+-- The live column is currently SMALLINT / FLOAT, a hand-created shape that predates
+-- this file. FLOAT with no length is FLOAT(53) — an 8-byte double, NOT a 4-byte float.
+-- (T-SQL REAL is the 4-byte type: REAL = FLOAT(24). Microsoft Learn, "float and real
+-- (Transact-SQL)": "The ISO synonym for real is float(24)".) An earlier version of this
+-- comment and DEC-015 both said "4-byte float"; that was wrong, and it mattered — a fix
+-- built on that premise would have declared REAL, which lands as Spark `float` and would
+-- have broken silver from the opposite side. The 18.670000076293945-style values are
+-- float32 rounding error already baked into the stored numbers, held in an 8-byte
+-- column; see azure/procurement_seed.sql.
+--
+-- RUNNING THIS FILE CHANGES BRONZE'S DELTA TYPES from short/double to decimal(18,2).
+-- That is intended under DEC-016, but it is only safe once bronze_to_silver's
+-- decimal(18,2) casts + overwriteSchema (task-069) are DEPLOYED and the next silver run
+-- is p_full_load=true. Running it before that reproduces the 2026-08-12
+-- DELTA_FAILED_TO_MERGE_FIELDS outage. Order: deploy the notebook, run full-load, then
+-- run this DDL + seed, then run a normal scheduled (incremental) run to prove the append.
 
 IF OBJECT_ID('dbo.procurement_transactional') IS NOT NULL DROP TABLE dbo.procurement_transactional;
 CREATE TABLE dbo.procurement_transactional (
