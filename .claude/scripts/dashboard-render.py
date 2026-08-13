@@ -1048,8 +1048,15 @@ def _html_needs_you(active, decisions, phases_model, status_map, sidecar,
                             f'<code>/work {_esc(t.get("id"))}</code>'))
         elif owner == "human" and deps_ok and status != "Blocked":
             rows.append(row(f'{tid} — yours to do{cmd}'))
-        elif owner == "both" and t.get("user_review_pending"):
-            rows.append(row(f'{tid} — Claude\'s half verified; your review closes it{cmd}'))
+    # both-owned awaiting review is set together with status "Finished" by the
+    # State Persistence Protocol (verify pass -> Finished + user_review_pending),
+    # so it can never appear in open_tasks (which excludes Finished). Scan the
+    # full non_absorbed set instead, or this row is structurally unreachable.
+    for t in sorted(non_absorbed, key=lambda t: numeric_key(t.get("id"))):
+        if t.get("owner") == "both" and t.get("user_review_pending"):
+            tid = f'<span class="tid">{_esc(t.get("id"))}</span>{_esc(t.get("title") or "")}'
+            rows.append(row(f'{tid} — Claude\'s half verified; your review closes it → run '
+                            f'<code>/work complete {_esc(t.get("id"))}</code>'))
     sub("Your Tasks", rows)
 
     # Reviews — out-of-spec awaiting approval
