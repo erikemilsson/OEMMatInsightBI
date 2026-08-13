@@ -43,7 +43,7 @@ The model has one canonical version (`OEMInsightBI`, DirectLake on `oem_lh`). Me
 
 **The interview narrative:** the model deliberately foregrounds **data-quality observability** — coverage %, gap resolution, threshold breaches, low-confidence audit — because *is the data trustworthy, and where are the holes* became the project's centre of gravity. That is a data-engineering judgment about what a model should surface, not just DAX breadth.
 
-**DAX patterns in use:** `DIVIDE(...,0)` safe division, `VAR`/`RETURN`, `CALCULATE` boolean filters, `RELATED` inside `SUMX` (weighted EPI), `MAXX`-isolated latest-run metrics, display folders.
+**DAX patterns in use:** `DIVIDE(...,0)` safe division, `VAR`/`RETURN`, `CALCULATE` boolean filters, `RELATED` inside `SUMX` (weighted EPI), per-metric latest-run isolation via nested `CALCULATE(MAX(...))`, display folders.
 
 **Portfolio use:** link the specific `.tmdl` files as code samples; the catalogue doc is the readable companion.
 

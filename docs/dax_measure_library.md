@@ -215,24 +215,35 @@ Point-in-time quality metrics per pipeline run.
 
 | Measure | DAX | Format |
 |---|---|---|
-| `Latest Coverage Rate` | latest run's `coverage_rate` metric value (see below) | `0.0%` |
-| `Latest Match Rate` | latest run's `match_rate` metric value | `0.0%` |
+| `Latest Coverage Rate` | `coverage_rate` at *its own* latest run, ÷ 100 (see below) | `0.0%` |
+| `Latest Match Rate` | `match_rate` at *its own* latest run, ÷ 100 | `0.0%` |
 | `Pipeline Runs Count` | `DISTINCTCOUNT(gold_quality_history[refresh_timestamp])` | `#,##0` |
 | `Threshold Breaches` | `CALCULATE(COUNTROWS(gold_quality_history), gold_quality_history[breach_flag] = TRUE)` | `#,##0` |
 | `Quality Metrics Count` | `COUNTROWS(gold_quality_history)` | `#,##0` |
 
-`Latest Coverage Rate` (the `Latest Match Rate` measure follows the same pattern with `metric_name = "match_rate"`):
+`Latest Coverage Rate` (the `Latest Match Rate` measure is structurally identical, with `metric_name = "match_rate"` in both places):
 ```dax
-VAR LatestRun = MAXX(gold_quality_history, gold_quality_history[refresh_timestamp])
-RETURN
+VAR LatestRun =
+    CALCULATE(
+        MAX(gold_quality_history[refresh_timestamp]),
+        gold_quality_history[metric_name] = "coverage_rate"
+    )
+VAR LatestValue =
     CALCULATE(
         AVERAGE(gold_quality_history[metric_value]),
         gold_quality_history[refresh_timestamp] = LatestRun,
         gold_quality_history[metric_name] = "coverage_rate"
     )
+RETURN
+    DIVIDE(LatestValue, 100)
 ```
 
-> **Both currently return BLANK — known defect, not a data gap (observed under task-061, 2026-08-11).** `LatestRun` takes the max `refresh_timestamp` over the *whole* table, but two notebooks append to `gold_quality_history` in the same pipeline run, each stamping its own `pipeline_run_ts`: `silver_to_gold` writes `coverage_rate` / `match_rate`, then `data_quality_checks` writes `dq_*` rows ~10 minutes later. The later timestamp therefore always wins and never carries either metric, so the `refresh_timestamp = LatestRun` and `metric_name = "…"` filters intersect to nothing. Measured on the live model: 111 `match_rate` rows exist, the newest at `2026-08-11T04:06:33` with value `99.42`, while the table max is `2026-08-11T04:17:09` (producer `data_quality_checks`, all `dq_*`). The fix is to resolve the latest run *per metric* (`CALCULATE(MAX(refresh_timestamp), ALLEXCEPT(...), metric_name = "…")`) or to filter on `producer`; note also that the producers write whole percentages (`85` = 85%) while the `0.0%` format string expects a fraction, so a naive fix would render `9941.8%`.
+Two things are load-bearing here, and **shipping only the first re-introduces the second**:
+
+1. **`LatestRun` is resolved per metric, not table-wide.** The `metric_name` boolean filter inside `CALCULATE` overrides any `metric_name` filter in the outer context, so each measure finds the newest run *that actually carries its own metric*. Filters on every other column (a date slicer, `entity`, `layer`, `producer`) still apply, so the measure stays responsive exactly as the previous `MAXX` form was — measured: slicing to `refresh_timestamp < 2026-07-23` returns `99.436%` against `99.418%` unfiltered, and slicing by `entity` splits the unfiltered figure into its two constituent rows (`fact_procurement` `99.091%`, `fact_supply_share` `99.745%`, mean `99.418%`). With no slicer the measure therefore averages *all* entity rows of that metric in the latest run, which is the pre-existing `AVERAGE` grain, not something this fix introduced.
+2. **`DIVIDE(…, 100)` converts the stored whole percentage to a fraction.** The producers write `99.42` to mean 99.42%, but `0.0%` is a *percent* format string and multiplies by 100 on render. **The measure side was changed, not the format string** — `0.0%` is retained so these two match the model's other rate measures (`Gap Resolution Rate` = `0.4` → `40.0%`), which all store a fraction under a percent format. Measured control: `FORMAT(99.41791580255338, "0.0%;-0.0%;0.0%")` = `"9941.8%"`, which is precisely what a `LatestRun`-only fix would have shipped.
+
+> **History — the defect this replaced (diagnosed under task-061 2026-08-11, fixed under task-065 2026-08-12).** Both measures previously read `VAR LatestRun = MAXX(gold_quality_history, gold_quality_history[refresh_timestamp])`, taking the max `refresh_timestamp` over the *whole* table. Two notebooks append to `gold_quality_history` in the same pipeline run, each stamping its own `pipeline_run_ts`: `silver_to_gold` writes `coverage_rate` / `match_rate`, then `data_quality_checks` writes `dq_*` rows ~10 minutes later. The later timestamp therefore always won and never carried either metric, so the `refresh_timestamp = LatestRun` and `metric_name = "…"` filters intersected to nothing and both measures returned BLANK in every filter context — a computation defect, not a data gap. Measured 2026-08-11: newest `match_rate` at `2026-08-11T04:06:33` = `99.42`, table max `2026-08-11T04:17:09` (producer `data_quality_checks`, all `dq_*`). Still reproducible on the live model 2026-08-12 with a fresh pipeline run — table max `2026-08-12T16:06:16.627`, producer `data_quality_checks`, **zero** `match_rate` rows at that timestamp, and both published measures `ISBLANK` = `TRUE` — while the new expressions return `99.4%` / `99.9%` over the same data. `producer` was considered as the discriminator and rejected: the column was added part-way through the table's life, so **541 of 3,361 rows carry a NULL `producer`** — every one of them stamped at or before `2026-07-22T19:53:09.09`, with the first non-NULL at `2026-07-22T23:55:45.623`. A `producer = "silver_to_gold"` filter would therefore silently drop the table's own history, whereas `metric_name` is populated on every row.
 
 ### 2.8 `gold_low_confidence_audit` — low-confidence alias matches (5, folder: `Quality Observability`)
 
@@ -269,7 +280,7 @@ See `data_quality_architecture.md` for the shipped design and `data_quality_fram
 - **`VAR` / `RETURN`** for any non-trivial measure (`Weighted EPI Score`, all the coverage-rate and resolution-rate ratios, the latest-run quality metrics) — variables make filter context explicit and avoid re-evaluation.
 - **`CALCULATE` with boolean filter arguments** (`gold_data_gaps[has_epi_score] = TRUE`) for conditional aggregation.
 - **`RELATED`** to pull `weight` from `gold_dim_indicator` into a row-context `SUMX` (`Weighted EPI Score`) — the only measure that crosses a relationship inside a row iteration.
-- **`MAXX` + `CALCULATE`** to isolate the latest pipeline run (`gold_quality_history` measures) rather than relying on a TOPN visual.
+- **Nested `CALCULATE(MAX(…), <same-column filter>)`** to isolate the latest pipeline run *for one metric* (`gold_quality_history` measures) rather than relying on a TOPN visual. The inner filter is what makes it correct: a bare `MAXX` over the table finds the newest row of *any* metric, which in a table several producers append to is usually not a row the measure wants (§ 2.7).
 - **`FORMAT`-concatenated text measures** (`EPI Gap Summary`, `Coverage Summary`) for headline cards.
 - **Display folders** (`Data Gaps`, `Quality Observability`) keep the field list scannable rather than hiding measures in a `_Measures` table.
 

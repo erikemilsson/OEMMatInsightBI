@@ -134,7 +134,7 @@ The model ships **45 measures** across 8 tables — the as-built catalogue is in
 - 16 coverage measures on `gold_data_gaps` (EPI/WGI coverage by country and spend)
 - 17 observability measures across `gold_gap_registry`, `gold_quality_history`, `gold_low_confidence_audit`
 
-Patterns in use: `DIVIDE(..., 0)` safe division, `VAR`/`RETURN`, `CALCULATE` boolean filters, `RELATED` inside `SUMX`, `MAXX`-isolated latest-run metrics, display folders (`Data Gaps`, `Quality Observability`).
+Patterns in use: `DIVIDE(..., 0)` safe division, `VAR`/`RETURN`, `CALCULATE` boolean filters, `RELATED` inside `SUMX`, per-metric latest-run isolation via nested `CALCULATE(MAX(...))`, display folders (`Data Gaps`, `Quality Observability`).
 
 ## Row-level security
 
