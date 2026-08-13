@@ -1,0 +1,37 @@
+{
+  "spec_version": "spec_v1",
+  "spec_fingerprint": "sha256:eb7d4ec42ceefa9a3e709d879fd269fd0f6c07b4f432dc5a6a68a3f7cc1e6845",
+  "created_date": "2026-08-13",
+  "updated_date": "2026-08-13",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "absorbed_into": null,
+  "subtasks": [],
+  "decision_dependencies": [],
+  "user_feedback": null,
+  "source": "issues_discovered (non_blocking, suggested_action: create new task) from task-066's implement-agent report, 2026-08-13",
+  "id": "task-073",
+  "title": "bronze_wgi's DQ row-count band (50-500,000) is too wide to catch a lost indicator",
+  "status": "Pending",
+  "priority": "low",
+  "difficulty": 3,
+  "owner": "both",
+  "phase": "5",
+  "spec_section": "Data Quality & Validation",
+  "out_of_spec": true,
+  "out_of_spec_approved": false,
+  "dependencies": [],
+  "files_affected": [
+    "fabric/data_quality_checks.Notebook/notebook-content.py",
+    "docs/data_quality_framework.md"
+  ],
+  "description": "bronze_wgi's row-count DQ check uses a (50, 500000) band against a normal load of ~31,000 rows across 6 governance indicators (~5,000 rows each). That band is wide enough that losing an entire indicator's worth of rows — the exact failure mode task-066 found and closed with an ingest-side completeness guard (all-6-indicators check before the overwrite) — would sail through this check undetected, dropping to ~26,000 rows and still landing well inside 50-500,000.\n\ntask-066's fix already prevents the silent write at the source (the notebook now raises before overwriting bronze_wgi if any indicator is missing), so this is defense-in-depth rather than closing an active hole. But the DQ check's stated purpose is to catch exactly this class of defect, and right now it structurally cannot for this table.\n\nRe-derive an appropriate band from the real per-indicator row counts (measure live, don't guess) rather than picking a round number.",
+  "acceptanceCriteria": [
+    "The real per-indicator and total row counts for bronze_wgi are measured from a live run, not assumed.",
+    "A tightened row-count band (or an indicator-count check, or both) is proposed and implemented such that losing one of the six indicators would actually fail the DQ check.",
+    "The new band/check is demonstrated NOT to false-positive against normal run-to-run variation (WGI is annual data, so row counts should be nearly static between runs — verify this assumption against real history rather than asserting it).",
+    "docs/data_quality_framework.md is updated to reflect the new band/check and why the old one was insufficient.",
+    "Erik's half: deploy and confirm the tightened check still passes on a normal run."
+  ],
+  "notes": "Created by the orchestrator from task-066's issues_discovered array (2026-08-13). Not yet reviewed by Erik under the out-of-spec gate — out_of_spec_approved is false. Defense-in-depth follow-up to task-066, which already closed the actual silent-write risk at the ingestion source; this task is about making the DQ layer independently capable of catching the same class of defect, not about an active production risk."
+}

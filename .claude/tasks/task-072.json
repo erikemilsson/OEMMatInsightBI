@@ -1,0 +1,33 @@
+{
+  "spec_version": "spec_v1",
+  "spec_fingerprint": "sha256:eb7d4ec42ceefa9a3e709d879fd269fd0f6c07b4f432dc5a6a68a3f7cc1e6845",
+  "created_date": "2026-08-13",
+  "updated_date": "2026-08-13",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "absorbed_into": null,
+  "subtasks": [],
+  "decision_dependencies": [],
+  "user_feedback": null,
+  "source": "issues_discovered (non_blocking, suggested_action: create new task) from task-066's implement-agent report, 2026-08-13",
+  "id": "task-072",
+  "title": "bronze_ingest_wgi's parameters-cell comment is misleading — no Fabric parameter actually overrides p_start_year/p_end_year",
+  "status": "Pending",
+  "priority": "low",
+  "difficulty": 2,
+  "owner": "both",
+  "phase": "5",
+  "spec_section": "Orchestration",
+  "out_of_spec": true,
+  "out_of_spec_approved": false,
+  "dependencies": [],
+  "files_affected": [
+    "fabric/bronze_ingest_wgi.Notebook/notebook-content.py"
+  ],
+  "description": "bronze_ingest_wgi's first cell is commented 'Pipeline parameters — overridden by Fabric pipeline at runtime', but the pipeline (per pipeline-content.json) passes NO parameters to this notebook, and the notebook has no Fabric parameters cell (the `# PARAMETERS CELL ********************` marker, per project memory on how Fabric actually serializes parameter cells). p_start_year/p_end_year are therefore permanently the hardcoded 1996/2023 values in the file — a future maintainer could read the comment, believe changing a pipeline parameter moves the WGI ingestion window, and be wrong.\n\nThis is unlike bronze_epi, which DOES receive pipeline parameters (confirmed during task-066's self-review). The fix is a comment correction, not a behavior change — unless the intent is for the window to actually be parameterized, in which case that's a bigger question for Erik, not an implicit scope expansion here.",
+  "acceptanceCriteria": [
+    "The misleading comment is corrected to state plainly that p_start_year/p_end_year are hardcoded and not overridden by any pipeline parameter, contrasting with bronze_epi's actual parameterization if that helps a future reader.",
+    "No behavior change — this is a documentation/comment fix only, unless Erik indicates during review that the window should actually become parameterized (in which case that's a scope decision, not an assumption)."
+  ],
+  "notes": "Created by the orchestrator from task-066's issues_discovered array (2026-08-13). Not yet reviewed by Erik under the out-of-spec gate — out_of_spec_approved is false."
+}

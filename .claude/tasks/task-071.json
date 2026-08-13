@@ -1,0 +1,37 @@
+{
+  "spec_version": "spec_v1",
+  "spec_fingerprint": "sha256:eb7d4ec42ceefa9a3e709d879fd269fd0f6c07b4f432dc5a6a68a3f7cc1e6845",
+  "created_date": "2026-08-13",
+  "updated_date": "2026-08-13",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "absorbed_into": null,
+  "subtasks": [],
+  "decision_dependencies": [],
+  "user_feedback": null,
+  "source": "issues_discovered (non_blocking, suggested_action: create new task) from task-065's implement-agent report, 2026-08-12 — found in passing while measuring gold_quality_history live for the Latest Match/Coverage Rate fix, not part of task-065's declared scope",
+  "id": "task-071",
+  "title": "gold_quality_history.external_coverage_rate reads 158.33% — implausible, likely denominator defect in producer",
+  "status": "Pending",
+  "priority": "low",
+  "difficulty": 4,
+  "owner": "both",
+  "phase": "5",
+  "spec_section": "Data Quality & Validation",
+  "out_of_spec": true,
+  "out_of_spec_approved": false,
+  "dependencies": [],
+  "files_affected": [
+    "fabric/silver_to_gold.Notebook/notebook-content.py",
+    "fabric/data_quality_checks.Notebook/notebook-content.py"
+  ],
+  "description": "UNVERIFIED, TREAT AS A LEAD NOT A CONFIRMED DEFECT. task-065's implement-agent measured gold_quality_history's external_coverage_rate metric at 158.33 (i.e. 158.33%) at every recent pipeline run while querying the live model for an unrelated fix. A coverage rate over 100% is not coherent — it implies a numerator exceeding its denominator, most likely because the producer notebook computes them from mismatched row populations (e.g. a filtered numerator over an unfiltered, or differently-scoped, denominator).\n\nThis was a side observation, not a targeted measurement — re-confirm the 158.33% figure independently before diagnosing anything further, and identify which of the two candidate producer notebooks (silver_to_gold or data_quality_checks — whichever actually writes metric_name='external_coverage_rate' rows) owns the computation. files_affected above lists both candidates; narrow to the actual one before editing.\n\nNo measure in gold_quality_history.tmdl currently surfaces external_coverage_rate directly (per task-065's measurement), so there is no known user-facing symptom yet — this is purely a data-quality-observability defect until proven otherwise.\n\nDo not commit or push without confirming with Erik first, consistent with the rest of Phase 5's out-of-spec defect tasks.",
+  "acceptanceCriteria": [
+    "The 158.33% figure is independently re-measured against the live model (not taken on task-065's word), across at least the most recent 3 pipeline runs, to confirm it is a persistent pattern and not a one-off.",
+    "The producer of the external_coverage_rate metric_name row is identified with evidence (which notebook, which computation), and the numerator/denominator populations are shown to be mismatched — or shown NOT to be, in which case this closes as an honest null result (the number may be legitimate if the metric's definition genuinely allows >100%, e.g. it's a coverage ratio against a shrinking baseline).",
+    "If a defect is confirmed: the computation is fixed so the metric reads as a coherent percentage (0-100% or whatever range the metric's definition actually implies), and the fix is demonstrated against a live re-run, not just reasoned about.",
+    "If no defect is confirmed: docs/data_quality_framework.md or docs/data_quality_architecture.md records what the 158.33% actually means, so it isn't re-flagged as a mystery in a future session.",
+    "Erik's half: deploy (if a fix was made) and confirm the corrected value on a subsequent scheduled or manual run."
+  ],
+  "notes": "Created by the orchestrator from task-065's issues_discovered array (2026-08-13). This is a passive discovery, not yet reviewed by Erik under the out-of-spec gate — out_of_spec_approved is false. Needs [A]/[R]/[D] before it is dispatchable, per .claude/rules/spec-workflow.md's Propose-Approve-Apply discipline for out-of-spec work.\n\nRelated: task-065 and task-066 are the other two out-of-spec Phase 5 defect-queue tasks from the same 2026-08-11 approval batch; this one arrived a session later via a different route (implementation side-finding rather than a session-observation Erik promoted directly)."
+}
