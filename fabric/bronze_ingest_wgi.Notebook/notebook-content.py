@@ -124,10 +124,53 @@ API_BASE = "https://api.worldbank.org/v2"
 # actually fixed the degraded-API case.
 API_PAGE_SIZE = 1000     # measured optimum - read the note above before changing
 API_READ_TIMEOUT = 120   # was 60 — the server is slow, not absent; give it room to answer
-API_MAX_RETRIES = 5      # was 3
-API_BACKOFF_BASE = 5     # seconds; doubles per attempt -> 5, 10, 20, 40
-API_BACKOFF_CAP = 60     # seconds; ceiling on any single wait
+API_MAX_RETRIES = 8      # was 5 (task-066); see the 502 note below
+API_BACKOFF_BASE = 5     # seconds; doubles per attempt -> 5, 10, 20, 40, 80, 120, 120
+API_BACKOFF_CAP = 120    # seconds; ceiling on any single wait (was 60, task-066)
 API_BACKOFF_JITTER = 0.25  # +/- fraction added to each wait, to de-synchronise retries
+
+# --- HTTP 502 from the World Bank API (task-066, measured 2026-08-13) ----------------
+# MEASUREMENT. Over the 9 scheduled runs since the 06:00 schedule went live (2026-08-05
+# 20:20 test firing through 2026-08-13), bronze_wgi failed the run on 2 of them:
+#   2026-08-07 run a80a0c3c  and  2026-08-09 run 7e3f55df
+# Both failed all three notebook attempts (1 original + the activity's 2 pipeline
+# retries) with the SAME shape:
+#   RuntimeError: World Bank API call failed for GOV_WGI_PV.EST (page 3) after 5
+#   attempts: 502 Server Error: Bad Gateway for url: https://api.worldbank.org/...
+#
+# ORIGIN — upstream, not us, and not Fabric. Three independent lines of evidence:
+#   1. bronze_wgi is a NOTEBOOK activity issuing a direct `requests.get` from the Spark
+#      driver. There is no Fabric HTTP connector / Copy activity anywhere in the path,
+#      so the 502 cannot be a Fabric connector artefact — it is the status line the
+#      upstream host returned to `raise_for_status()`.
+#   2. The failing request is well-formed. Replaying the exact failing URL (PV.EST
+#      page 3) on 2026-08-13 returned HTTP 200 in 3.2s with pages=6, total=5400, and a
+#      40-request burst across all 6 indicators returned 40x HTTP 200, none slower than
+#      10s. The request is fine; the gateway was not.
+#   3. The failing indicator/page DIFFERS per attempt (PV p3, CC p3, PV p3 on 08-09;
+#      GE p1, RQ p5, GE p1 on 08-07). A malformed request would fail deterministically
+#      on the same page every time.
+#
+# WHY A RETRY IS THE RIGHT FIX HERE — and why that is not a general licence to retry:
+# this API signals BAD INPUT IN-BAND, as HTTP 200 with a one-element body
+# `[{"message":[{"id":"120","key":"Invalid value", ...}]}]` (probed live 2026-08-13
+# with a bogus indicator code). It does NOT use 4xx for bad input. The requests carry
+# no credential (World Bank Open Data is unauthenticated), so an auth expiry cannot
+# present here at all. A 5xx from this host is therefore necessarily gateway /
+# infrastructure level, i.e. genuinely transient. The in-band 200-error case is handled
+# separately below, as a PERMANENT failure — see fetch_indicator.
+#
+# WHY THE BUDGET GREW. The old policy spent 5+10+20+40 = 75s of backoff before giving
+# up. That was not enough: on 08-07 attempt 2 ran 41 MINUTES and reached the 5th of 6
+# indicators, so the great majority of requests were succeeding throughout the degraded
+# window — isolated requests 502'd, and each one burned the whole 75s budget and then
+# killed the entire run. 8 attempts with a 120s cap spends 5+10+20+40+80+120+120 = 395s
+# (~6.6 min) per request before declaring defeat, which covers an isolated gateway
+# wobble while staying hard-bounded. Worst case per run is bounded by the activity's
+# 12-hour timeout; a healthy run is unaffected because this is the FAILURE PATH ONLY.
+#
+# NOT A CURE-ALL. A multi-hour upstream outage will still fail this run, loudly and by
+# design — see the completeness guards in fetch_indicator and before the write.
 
 # Date range from parameters
 start_year = p_start_year.strip()
@@ -150,6 +193,68 @@ for api_code, (short_code, name) in WGI_INDICATORS.items():
 
 # CELL ********************
 
+def is_transient_request_error(exc):
+    """Is this requests exception worth retrying? (task-066)
+
+    Retrying a permanent error is not resilience — it delays a loud failure by the
+    whole backoff budget and then reports it as an exhausted-retry message, which
+    reads like an outage when it is actually a broken request. So classify first.
+
+    TRANSIENT (retry):
+      * HTTP 5xx — for this host, necessarily gateway/infrastructure level. See the
+        502 note in the config cell: the World Bank API reports bad input in-band as
+        HTTP 200, never as 4xx/5xx, and the requests are unauthenticated, so neither
+        a malformed request nor an auth expiry can surface here as a 5xx.
+      * HTTP 429 — rate limiting. Retryable, but only while honouring Retry-After
+        (see retry_delay); hammering a 429 on a blind exponential schedule is exactly
+        the papering-over this classification exists to prevent.
+      * Transport-level failures with no HTTP response at all: read/connect timeout,
+        connection reset, truncated body.
+
+    PERMANENT (raise immediately):
+      * Any other 4xx. Nothing this notebook can wait out — the request itself, the
+        URL, or an access rule is wrong, and it needs a human.
+    """
+    response = getattr(exc, "response", None)
+    if response is not None:
+        status = response.status_code
+        if status == 429 or 500 <= status <= 599:
+            return True
+        return False  # 4xx and anything else with a real status line: permanent
+    return isinstance(
+        exc,
+        (
+            requests.exceptions.Timeout,
+            requests.exceptions.ConnectionError,
+            requests.exceptions.ChunkedEncodingError,
+        ),
+    )
+
+
+def retry_delay(attempt, response=None):
+    """Backoff for one retry: capped exponential + jitter, or the server's Retry-After.
+
+    Doubling gives the remote side progressively more room to recover; the cap stops a
+    single dead page stalling the notebook; the jitter de-synchronises retries so
+    successive pages don't re-hit the API in lockstep (task-050).
+
+    If the server sent Retry-After (429/503), that instruction wins — it is the one
+    number the remote side actually told us, and ignoring it is how a polite retry
+    turns into a hammer (task-066).
+    """
+    if response is not None:
+        header = response.headers.get("Retry-After")
+        if header:
+            try:
+                # Retry-After is delta-seconds in every form this API would send.
+                return min(max(float(header), 0.0), API_BACKOFF_CAP)
+            except ValueError:
+                pass  # http-date form — fall through to exponential backoff
+    delay = min(API_BACKOFF_BASE * (2 ** (attempt - 1)), API_BACKOFF_CAP)
+    delay += random.uniform(-API_BACKOFF_JITTER, API_BACKOFF_JITTER) * delay
+    return max(delay, 0.0)
+
+
 def fetch_indicator(api_code, short_code, series_name, start_year, end_year,
                     max_retries=API_MAX_RETRIES):
     """
@@ -164,6 +269,10 @@ def fetch_indicator(api_code, short_code, series_name, start_year, end_year,
     records = []
     page = 1
     total_pages = 1  # Will be updated from API response
+    # Completeness accounting (task-066): the API declares how many entries exist for
+    # this indicator; we verify we actually walked all of them before returning.
+    entries_seen = 0
+    declared_total = None
 
     while page <= total_pages:
         url = f"{API_BASE}/country/all/indicator/{api_code}"
@@ -181,18 +290,20 @@ def fetch_indicator(api_code, short_code, series_name, start_year, end_year,
                 response.raise_for_status()
                 break
             except requests.exceptions.RequestException as e:
+                # Classify BEFORE retrying (task-066). A permanent error must fail now
+                # and say so, not 6 minutes later disguised as an exhausted retry.
+                if not is_transient_request_error(e):
+                    status = getattr(getattr(e, "response", None), "status_code", None)
+                    raise RuntimeError(
+                        f"World Bank API returned a PERMANENT error for {api_code} "
+                        f"(page {page}) — HTTP {status}; not retried, this needs a human: {e}"
+                    ) from e
                 if attempt == max_retries:
                     raise RuntimeError(
                         f"World Bank API call failed for {api_code} "
                         f"(page {page}) after {max_retries} attempts: {e}"
                     ) from e
-                # Exponential backoff, capped, with jitter (task-050). Doubling gives the
-                # remote side progressively more room to recover; the cap stops a single
-                # dead page stalling the notebook; the jitter de-synchronises retries so
-                # successive pages don't re-hit the API in lockstep.
-                delay = min(API_BACKOFF_BASE * (2 ** (attempt - 1)), API_BACKOFF_CAP)
-                delay += random.uniform(-API_BACKOFF_JITTER, API_BACKOFF_JITTER) * delay
-                delay = max(delay, 0.0)
+                delay = retry_delay(attempt, getattr(e, "response", None))
                 print(
                     f"  Retry {attempt}/{max_retries} for {api_code} page {page} "
                     f"in {delay:.1f}s: {e}"
@@ -201,19 +312,45 @@ def fetch_indicator(api_code, short_code, series_name, start_year, end_year,
 
         data = response.json()
 
-        # World Bank API returns [metadata, records] — check for valid response
+        # World Bank API returns [metadata, records] on success.
+        #
+        # It reports BAD INPUT IN-BAND, as HTTP 200 with a ONE-element body:
+        #   [{"message":[{"id":"120","key":"Invalid value","value":"..."}]}]
+        # (probed live 2026-08-13 with a bogus indicator code). This is a PERMANENT
+        # error wearing a 200, and it is not hypothetical: the World Bank already
+        # re-coded WGI once (see the WGI_INDICATORS note above, 2026-07-26) and the
+        # next re-code lands here. This branch used to `break`, which silently
+        # returned however many records had accumulated and let the run go GREEN with
+        # an indicator missing — the write below is mode("overwrite"), so that would
+        # have destroyed the good snapshot and quietly degraded the governance half of
+        # gold_supply_risk. Fail loudly instead (task-066).
         if not isinstance(data, list) or len(data) < 2:
-            print(f"  WARNING: Unexpected API response for {api_code} page {page}")
-            break
+            detail = ""
+            if isinstance(data, list) and data and isinstance(data[0], dict):
+                detail = f" — upstream said: {data[0].get('message', data[0])}"
+            raise RuntimeError(
+                f"World Bank API returned an in-band error (HTTP 200, unexpected body) "
+                f"for {api_code} page {page}{detail}. This is a PERMANENT error — the "
+                f"indicator code or a parameter is no longer valid. Not retried."
+            )
 
         metadata = data[0]
         entries = data[1]
 
+        # Likewise a null record set. A page past the end returns [], not None, so
+        # None means the indicator itself yielded nothing — never true for the 6 WGI
+        # series (each declares total=5400). Previously a silent `break`.
         if entries is None:
-            print(f"  No data returned for {api_code} page {page}")
-            break
+            raise RuntimeError(
+                f"World Bank API returned no record set (null) for {api_code} page "
+                f"{page}. Expected data for every WGI indicator; refusing to write a "
+                f"partial snapshot."
+            )
 
         total_pages = metadata.get("pages", 1)
+        if declared_total is None:
+            declared_total = metadata.get("total")
+        entries_seen += len(entries)
 
         for entry in entries:
             # Skip entries with no value
@@ -232,20 +369,45 @@ def fetch_indicator(api_code, short_code, series_name, start_year, end_year,
 
         page += 1
 
+    # Pagination completeness (task-066). `total` is the upstream's own count of
+    # entries for this indicator, so this is an exact "did I get everything" test
+    # rather than a guess at a plausible floor. A short read here means pagination
+    # stopped early — write nothing rather than a truncated snapshot.
+    if declared_total is not None and entries_seen != declared_total:
+        raise RuntimeError(
+            f"Incomplete pagination for {api_code}: walked {entries_seen} entries but "
+            f"the API declared {declared_total} across {total_pages} pages. Refusing "
+            f"to write a partial snapshot."
+        )
+
     return records
 
 
 # Fetch all indicators
 all_records = []
+per_indicator_counts = {}
 for api_code, (short_code, series_name) in WGI_INDICATORS.items():
     print(f"  Fetching {short_code} (API {api_code})...")
     indicator_records = fetch_indicator(api_code, short_code, series_name, start_year, end_year)
+    # An indicator that yields zero usable records is a failure, not an empty result:
+    # every WGI series has data for this window. Catching it here names the culprit,
+    # instead of letting a 1-of-6 shortfall vanish into a still-plausible total
+    # (task-066 — the bronze_wgi DQ row-count band is 50..500,000, so losing a whole
+    # indicator, ~5,000 rows out of ~31,000, passes that check comfortably).
+    if len(indicator_records) == 0:
+        raise RuntimeError(
+            f"No usable records returned for {short_code} (API {api_code}). Every WGI "
+            f"indicator must yield data for {start_year}-{end_year}; refusing to write "
+            f"a partial snapshot."
+        )
+    per_indicator_counts[short_code] = len(indicator_records)
     all_records.extend(indicator_records)
     print(f"    -> {len(indicator_records)} records")
     # Brief pause between indicators to be a good API citizen
     time.sleep(0.5)
 
 print(f"\n  Total records fetched: {len(all_records):,}")
+print(f"  Per-indicator: {per_indicator_counts}")
 
 # METADATA ********************
 
@@ -269,6 +431,23 @@ if len(all_records) == 0:
     raise RuntimeError(
         "No WGI records fetched from API. Check network connectivity, "
         "API availability, and date range parameters."
+    )
+
+# Last gate before an OVERWRITE (task-066). The write below replaces bronze_wgi
+# wholesale, so anything short of a complete snapshot must stop here — a partial
+# overwrite is worse than no run at all: it destroys the good data, reports success,
+# and silently degrades the governance half of gold_supply_risk. That degradation
+# would be indistinguishable from the project's one LEGITIMATE governance gap
+# (Taiwan, which has no WGI data by permanent design), which is precisely why this
+# must fail loudly rather than shrink quietly.
+fetched_indicators = {r["indicator_code"] for r in all_records}
+expected_indicators = {short for short, _ in WGI_INDICATORS.values()}
+missing_indicators = expected_indicators - fetched_indicators
+if missing_indicators:
+    raise RuntimeError(
+        f"Refusing to overwrite bronze_wgi with a partial snapshot: "
+        f"{len(missing_indicators)} of {len(expected_indicators)} indicators missing "
+        f"({sorted(missing_indicators)}). Fetched: {sorted(fetched_indicators)}."
     )
 
 # Define schema matching downstream expectations

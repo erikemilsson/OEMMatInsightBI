@@ -376,6 +376,66 @@ else:
     print("2024 data not yet available")
 ```
 
+### Failure Handling in `bronze_ingest_wgi` (task-066, 2026-08-13)
+
+**Measured failure rate.** Across the 9 scheduled runs from 2026-08-05 to 2026-08-13,
+`bronze_wgi` failed the pipeline run on **2 of 9** — runs `a80a0c3c` (2026-08-07) and
+`7e3f55df` (2026-08-09). Each burned all three notebook attempts (1 original + the
+activity's 2 pipeline retries) on `502 Server Error: Bad Gateway` from
+`api.worldbank.org`. The four most recent scheduled runs (08-10 → 08-13) were all green.
+
+**The 502 is upstream, not Fabric and not a bad request.** `bronze_wgi` is a *Notebook*
+activity issuing a direct `requests.get` from the Spark driver — there is no Fabric HTTP
+connector in the path, so the 502 is the status line the World Bank's gateway returned.
+Replaying the exact failing URL on 2026-08-13 gave HTTP 200 in 3.2 s, and a 40-request
+burst across all 6 indicators returned 40× 200. The failing indicator/page also *differs
+per attempt* (PV p3, CC p3, PV p3 on 08-09; GE p1, RQ p5, GE p1 on 08-07), which a
+malformed request would not do.
+
+**Why a retry is the right fix for this particular 5xx.** The World Bank API reports bad
+input **in-band** — HTTP 200 with a one-element body
+`[{"message":[{"id":"120","key":"Invalid value",...}]}]` — not as 4xx. The requests carry
+no credential (World Bank Open Data is unauthenticated), so an auth expiry cannot present
+here either. A 5xx from this host is therefore necessarily gateway/infrastructure level.
+
+**Retry policy** (failure path only — a clean run is unaffected):
+
+| Condition | Treatment |
+|---|---|
+| HTTP 5xx | Transient → retry, capped exponential backoff + jitter |
+| HTTP 429 | Transient → retry, but **`Retry-After` wins** over the exponential schedule |
+| Timeout / connection reset / truncated body | Transient → retry |
+| Any other 4xx | **Permanent → raise immediately**, no retry, distinct message |
+| HTTP 200 with the in-band error body | **Permanent → raise**, names the upstream message |
+
+Budget: 8 attempts, backoff 5→10→20→40→80→120→120 s (cap 120 s) ≈ 6.6 min per request.
+Widened from the previous 5 attempts / 75 s because on 08-07 attempt 2 ran **41 minutes**
+and reached the 5th of 6 indicators — most requests were succeeding throughout the
+degraded window, and isolated 502s were each killing the whole run inside 75 s.
+
+**No silent partial load.** The write is `mode("overwrite")`, so a partial fetch would
+destroy a good snapshot, report success, and quietly degrade the governance half of
+`gold_supply_risk` — indistinguishable from the project's one *legitimate* governance gap
+(Taiwan, which has no WGI data by permanent design). Four guards now make an incomplete
+fetch fail loudly instead:
+
+1. **In-band 200 error body** → raise (previously a `break` that silently returned
+   whatever had accumulated). This is the path a future WGI re-code will take — the World
+   Bank already re-coded these series once, in 2026-07.
+2. **Null record set** → raise (previously a `break`).
+3. **Pagination completeness** → the API declares `total` per indicator; if the walked
+   entry count differs, raise.
+4. **All-indicators check before the write** → every one of the 6 canonical codes must be
+   present, or refuse to overwrite.
+
+Guard 4 matters because the bronze DQ row-count band for `bronze_wgi` is 50–500,000:
+losing a whole indicator (~5,000 of ~31,000 rows) passes that check comfortably, so the
+DQ layer would *not* have caught it.
+
+Regression tests: `tests/test_wgi_retry.py` (29 assertions), which extract the notebook's
+own `is_transient_request_error` / `retry_delay` / `fetch_indicator` via `ast` under the
+reference-implementation contract, so editing the retry policy fails CI by design.
+
 ---
 
 ## 3. Implementation Roadmap
@@ -629,6 +689,10 @@ https://www.worldbank.org/en/publication/worldwide-governance-indicators
   - Parameterized by date range (`p_start_year`/`p_end_year`, default: 1996-2023)
   - Pagination support for large result sets
   - Retry logic with exponential backoff
+  - **task-066 (2026-08-13):** transient/permanent classification before any retry (5xx and
+    429 retried, `Retry-After` honoured, other 4xx raised immediately), budget widened to
+    8 attempts / 120 s cap, and four completeness guards so an incomplete fetch can no
+    longer silently overwrite `bronze_wgi`. See § *Failure Handling in `bronze_ingest_wgi`*.
   - Writes to `bronze_wgi` Delta table with columns matching downstream expectations
   - Enriches data with `Indicator Code`, `Year`, and `Value` columns beyond original schema
 ✅ **Documentation Updated** - This document updated with implementation details

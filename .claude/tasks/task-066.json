@@ -2,9 +2,9 @@
   "spec_version": "spec_v1",
   "spec_fingerprint": "sha256:eb7d4ec42ceefa9a3e709d879fd269fd0f6c07b4f432dc5a6a68a3f7cc1e6845",
   "created_date": "2026-08-11",
-  "updated_date": "2026-08-12",
-  "completion_date": null,
-  "verification_attempts": 0,
+  "updated_date": "2026-08-13",
+  "completion_date": "2026-08-13",
+  "verification_attempts": 1,
   "absorbed_into": null,
   "subtasks": [],
   "decision_dependencies": [],
@@ -12,7 +12,7 @@
   "source": "session finding (2026-08-11) from pipeline run-history review; promoted to a task by Erik via /work 2026-08-11",
   "id": "task-066",
   "title": "bronze_wgi fails intermittently with HTTP 502 on scheduled runs",
-  "status": "Pending",
+  "status": "Finished",
   "priority": "medium",
   "difficulty": 5,
   "owner": "both",
@@ -23,7 +23,11 @@
   "dependencies": [],
   "files_affected": [
     "fabric/bronze_ingest_wgi.Notebook/notebook-content.py",
-    "docs/epi_wgi_ingestion.md"
+    "docs/epi_wgi_ingestion.md",
+    "tests/test_wgi_retry.py",
+    "pyproject.toml",
+    "uv.lock",
+    ".claude/support/decisions/decision-017-bronze-wgi-upstream-502-policy.md"
   ],
   "description": "The bronze_wgi ingestion was reported failing with HTTP 502 on 2 of the last 5 scheduled runs (observed 2026-08-11). TREAT THAT COUNT AS UNVERIFIED — it was recorded in a dashboard note and has no durable measurement behind it in the repo. Re-measure the real failure rate from the pipeline run history before diagnosing anything.\n\nMeasurement contract (from project memory, the queryactivityruns API): there is no item id in the path, and the date window is MANDATORY — omit it and you get 200 with an empty body for every run, which reads exactly like 'no failures' and is the trap here. A negative finding about failure frequency needs a positive control: the same query must be shown returning a known-present run.\n\nThis is an intermittent upstream failure, so the discipline in .claude/rules/agents.md § 'Root Cause Over Symptom' applies with force. Establish WHERE the 502 originates before adding any retry: the World Bank API itself, the Fabric HTTP path, or the notebook's own request handling. A retry with backoff is a legitimate fix for a genuinely transient upstream 502 — it is NOT a legitimate fix for a malformed request, an auth expiry, or a rate limit, all of which can also surface as a 5xx and would be papered over by retrying.\n\nWhatever the fix, a PERMANENT failure must still fail loudly. Do not let a bounded retry turn a real outage into a silent partial load — bronze_wgi feeding nothing means the governance half of gold_supply_risk degrades quietly, and the project already has one permanent governance gap (Taiwan) that must not be confused with an ingestion failure.\n\nDo not commit or push. The deploy and the observation window over subsequent scheduled runs are Erik's half.",
   "acceptanceCriteria": [
@@ -34,5 +38,96 @@
     "Any behaviour change is reflected in docs/epi_wgi_ingestion.md.",
     "Erik's half: deploy, then confirm over subsequent scheduled runs that the failure no longer recurs (or that it now surfaces correctly if the cause was not transient)."
   ],
-  "notes": "Approved by Erik 2026-08-11 (out-of-spec gate) as one of three confirmed defects that had no task behind them.\n\nThe reported '2 of the last 5 scheduled runs' is the weakest evidence of the three defects — it is a session observation with no artifact in the repo backing it, which is why AC1 makes re-measurement the first deliverable rather than an assumption. If re-measurement shows the failure is gone or was misattributed, an honest null result closes this task; do not manufacture a fix for a problem that is not there.\n\nRelevant hazard from project memory: bronze writes of source CSVs crash at saveAsTable on column names containing spaces (DELTA_INVALID_CHARACTERS_IN_COLUMN_NAMES), and local Spark never invokes a Delta writer, so that class of failure is invisible locally. A 502 is not that failure mode, but if the run history shows a DIFFERENT error alongside the 502s, check for it."
+  "notes": "Approved by Erik 2026-08-11 (out-of-spec gate) as one of three confirmed defects that had no task behind them.\n\nThe reported '2 of the last 5 scheduled runs' is the weakest evidence of the three defects — it is a session observation with no artifact in the repo backing it, which is why AC1 makes re-measurement the first deliverable rather than an assumption. If re-measurement shows the failure is gone or was misattributed, an honest null result closes this task; do not manufacture a fix for a problem that is not there.\n\nRelevant hazard from project memory: bronze writes of source CSVs crash at saveAsTable on column names containing spaces (DELTA_INVALID_CHARACTERS_IN_COLUMN_NAMES), and local Spark never invokes a Delta writer, so that class of failure is invisible locally. A 502 is not that failure mode, but if the run history shows a DIFFERENT error alongside the 502s, check for it.\n\n---\n\n[IMPLEMENTATION 2026-08-13] [Multi-file: 5 files modified] NOT a null result — the defect is real, and the reported count was accurate. AC1 (re-measurement, with positive control): queried all 70 pipeline run instances via POST /v1/workspaces/{ws}/datapipelines/pipelineruns/{runId}/queryactivityruns with the mandatory wide date window. Of the 9 SCHEDULED runs since the 06:00 schedule went live (2026-08-05 20:20 test firing → 2026-08-13), bronze_wgi failed the run on 2: a80a0c3c (2026-08-07) and 7e3f55df (2026-08-09) = 2/9. The dashboard's '2 of the last 5' was CORRECT as recorded on 2026-08-11 — the last 5 scheduled runs at that moment were 08-07..08-11, containing exactly those 2 failures. As of implementation the 4 most recent scheduled runs (08-10..08-13) are all green, so the rate is episodic, not steady. POSITIVE CONTROL (explicitly observed, both directions): the same call WITH the window returns 10 activity rows for green run 498f7b5e and 9 for failed run 7e3f55df; WITHOUT the window it returns HTTP 200 + 0 rows for BOTH — the documented empty-200 trap reproduced, so the 'no failures' reading is provably distinguishable from a broken probe.\n\nAC2 (origin, by evidence not inference): UPSTREAM — api.worldbank.org's gateway. Three independent lines. (1) bronze_wgi is a Notebook activity issuing a direct requests.get from the Spark driver; there is no Fabric HTTP connector/Copy activity anywhere in the path, so the 502 is the status line the upstream returned to raise_for_status(). The captured error string names the upstream URL verbatim: 'World Bank API call failed for GOV_WGI_PV.EST (page 3) after 5 attempts: 502 Server Error: Bad Gateway for url: https://api.worldbank.org/v2/...'. (2) The failing request is well-formed — replayed the exact failing URL (PV.EST page 3) live: HTTP 200 in 3.2s, pages=6, total=5400; a 40-request burst across all 6 indicators returned 40x 200, none slower than 10s. (3) The failing indicator/page DIFFERS per attempt (PV p3, CC p3, PV p3 on 08-09; GE p1, RQ p5, GE p1 on 08-07) — a malformed request would fail deterministically on the same page. Ruled out the three impostor causes the task warned about: auth expiry is impossible (World Bank Open Data is unauthenticated); malformed request cannot present as 5xx because this API reports bad input IN-BAND as HTTP 200 with a one-element error body (probed live with a bogus indicator code); rate limiting would be 429 and none was ever observed. So a 5xx from this host is necessarily gateway/infrastructure level = genuinely transient, which is what makes a retry the correct fix here rather than a paper-over.\n\nAC3 (fix matches diagnosis): the notebook ALREADY had bounded retry+backoff from task-050 — the real defects were that it retried indiscriminately and its budget was too small. Added is_transient_request_error() classifying BEFORE any retry: 5xx and 429 transient, timeout/connection-reset/truncated-body transient, every other 4xx PERMANENT and raised immediately with a distinct message (previously a 404 would burn the full backoff budget and then be reported as an exhausted-retry outage — exactly the misdiagnosis the task warned against). Added retry_delay() honouring Retry-After. Widened the budget 5→8 attempts and cap 60→120s (5+10+20+40+80+120+120 = 395s ≈ 6.6 min per request, hard-bounded) — justified by measurement: on 08-07 attempt 2 ran 41 MINUTES and reached the 5th of 6 indicators, so most requests were succeeding throughout the degraded window and isolated 502s were each killing the whole run inside 75s.\n\nAC4 (permanent failure still fails loudly, no silent partial load): verified the existing loud path live — on failed run 7e3f55df the activity list contains only 7 activities and bronze_to_silver_cleaning / silver_to_gold / data_quality_checks are ABSENT, i.e. the RuntimeError failed the activity and halted the pipeline. But demonstrating this uncovered a genuine silent-partial-load hole: fetch_indicator had two break-on-anomaly paths (unexpected body shape, null record set) that exited pagination, returned whatever had accumulated, and let the run go GREEN over a mode('overwrite') write that destroys the good snapshot. That path is REACHABLE (the in-band 200 error body is exactly what an invalid indicator code returns, and the World Bank already re-coded WGI once, 2026-07-26, classic CC.EST → GOV_WGI_CC.EST). Closed with four guards — in-band 200 error raises, null record set raises, pagination completeness checked against the API's own declared total per indicator, and an all-6-indicators check immediately before the overwrite. Guard 4 is load-bearing because bronze_wgi's DQ row-count band is 50..500,000, so losing a whole indicator (~5,000 of ~31,000 rows) sails through the DQ layer undetected — spun off as task-073.\n\nAC5: docs/epi_wgi_ingestion.md gains a 'Failure Handling in bronze_ingest_wgi' section (measured rate, origin evidence, retry-policy table, the four guards, why the DQ band would not have caught it).\n\nSELF-REVIEW: notebook AST-parses clean; 6 CELL / 7 METADATA markers intact and 0 PARAMETERS CELL markers (correct — the pipeline passes NO parameters to bronze_wgi, unlike bronze_epi — the misleading comment implying otherwise spun off as task-072). Ran the EDITED notebook's own fetch_indicator against the live API: PV.EST returned 5214 records across all 6 pages in 50.7s with the completeness check passing — happy path unregressed — and the bogus-indicator call raised as required. New tests/test_wgi_retry.py adds 29 assertions extracting the notebook's own functions via ast under the existing reference-implementation contract; both key tests genuinely fail against the old code. Full suite 329 passed (was 300). Nothing committed or pushed — HEAD is still 49e7c28 and all changes are working-tree only.\n\nDECISION RECORDED: DEC-017 documents the choice of classified-retry-plus-guards over a 'keep-last-good-snapshot' alternative (which would trade away the loud-failure requirement this task explicitly demands) — see decision-017-bronze-wgi-upstream-502-policy.md.\n\nFOLLOW-UP TASKS SPUN OFF (both pending Erik's out-of-spec approval): task-072 (misleading parameters-cell comment) and task-073 (DQ row-count band too wide to catch a lost indicator, defense-in-depth on top of this task's ingest-side guard).\n\nISSUE FLAGGED FOR HUMAN (not actioned): WGI is annual data but re-fetched and overwritten daily, so a transient upstream outage fails a pipeline that had no new data to collect — a 'keep last good snapshot' policy would make this non-fatal but trades away the loud-failure requirement AC4 demands; recorded as DEC-017's declined Option B, Erik's call to revisit if nuisance failures become a real problem.\n\nAZ CLI RECIPE (for any future Fabric/Azure REST work on this machine — homebrew's az is broken, was NOT touched): PYTHONPATH=/opt/homebrew/Cellar/azure-cli/2.72.0/libexec/lib/python3.12/site-packages uv run --no-project --python 3.12 python -c \"from azure.cli.core import get_default_cli; get_default_cli().invoke(['account','show','--output','json'])\" — the uv-managed CPython 3.12.13 is ABI-compatible with the Cellar's cpython-312-darwin .so files. GOTCHA: az writes to the real stdout fd, so contextlib.redirect_stdout does NOT capture it and will leak the bearer token into a transcript — capture with cli.invoke([...], out_file=io.StringIO()) instead. Third independent rediscovery of this workaround across task-065's implementer, task-065's verifier, and this task's implementer — worth promoting into root ./CLAUDE.md's Gotchas section.\n\n---\n\n[VERIFICATION PASS #1 2026-08-13] Independently re-derived every load-bearing claim rather than trusting the implementer's notes — own Fabric token, own queryactivityruns calls, own live probes against the World Bank API, and negative controls run against the PRE-change (HEAD) notebook to prove the new tests aren't tautological. All 5 in-scope acceptance criteria PASS (AC6 is Erik's half). Re-measurement reproduced the 2-of-9 figure exactly, including both run ids, plus the both-directions positive control on the empty-200 trap. Origin diagnosis confirmed independently: 0 'worldbank' references anywhere in the pipeline definition (positive-controlled), the captured error string matches the pre-change code's exact format string, and a live re-probe of the exact failing URL + a bogus-indicator probe both reproduced the premises the retry policy rests on. Traced (not just read) the classifier logic and confirmed it fails closed on unknown conditions. Ran a negative control against HEAD proving the second defect (silent partial load via early pagination exit) is real, not manufactured — old code silently returned 0 or partial records in three separate scenarios where the new code raises. Verified guard 4 (all-6-indicators check) sits before the mode('overwrite') write both by reading the file AND by executing the guard logic in isolation. Ran the edited notebook's own fetch_indicator against the live API for all 6 indicators: 31,122 records, zero false-positive guard trips, matching the project's documented full-load baseline exactly. Ran the new tests (29/29) and full suite (329/329) directly. Confirmed HEAD unchanged, nothing committed or pushed. 4 minor issues noted (files_affected undercount for the decision record; a DEC-017 project/template namespace collision — pre-existing, newly aggravated; guard 4 is untestable by the ast harness since it's module-level, not a function; task-065's unrelated files also show as modified in git status, attributed correctly to that task) — none blocking. Full verifier evidence trail in task_verification.notes.",
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-08-13T08:34:12Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "partial",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "minor",
+          "description": "files_affected declares 5 files but the task also created .claude/support/decisions/decision-017-bronze-wgi-upstream-502-policy.md (6 actual); decision-*.md is not in the T2b infrastructure-write filter, so an implementation-time decision record always registers as an undeclared file."
+        },
+        {
+          "severity": "minor",
+          "description": "The new record takes id DEC-017, which collides with the template's own 'DEC-017' reference in .claude/CLAUDE.md and .claude/rules/agents.md (there it means claude-code-authoring.md). Pre-existing (DEC-016 already means two things) but newly aggravated — a future reader following 'see DEC-017' may land on the wrong document."
+        },
+        {
+          "severity": "minor",
+          "description": "Guard 4 (the all-6-indicators check before the overwrite) is module-level notebook code, not a function, so the ast-based test harness cannot reach it; covered only by structural review plus out-of-band execution of its logic. If ever refactored, no test will notice."
+        },
+        {
+          "severity": "minor",
+          "description": "Four other files are modified in the working tree (gold_quality_history.tmdl, dax_measure_library.md, semantic_model.md, PORTFOLIO_ASSETS_README.md) but they are exactly task-065's declared files_affected and task-065 is Finished — attributed to that task, not scope creep here."
+        }
+      ],
+      "notes": "Ad-hoc / out_of_spec task — verified against the task JSON's own acceptanceCriteria, not a spec section. Every load-bearing claim in the implementer's notes was independently re-derived rather than accepted; all reproduced, several to the exact figure.\n\nAC1 RE-MEASUREMENT (independently re-run, not taken on trust). Acquired own Fabric token via the az/uv workaround, resolved the DataPipeline item id (d44ac501-95f9-4d7a-b50e-3d02c55dee23), enumerated all job instances: 70 total (9 Scheduled, 61 Manual), then POSTed queryactivityruns per run. bronze_wgi failed the run on exactly 2 of the 9 scheduled runs — a80a0c3c (2026-08-07T04:00) and 7e3f55df (2026-08-09T04:00) — matching the implementer's claim including both run ids. The other 7 scheduled runs are all Completed with bronze_wgi Succeeded (now 4 consecutive green: 08-10..08-13). POSITIVE CONTROL, both directions, on both a green and a failed run: WITH the mandatory date window the call returns 10 rows and 9 rows respectively; WITHOUT the window it returns HTTP 200 with 0 rows for BOTH — the documented empty-200 trap reproduced.\n\nAC2 ORIGIN (checked, not inferred). No Fabric HTTP connector in the WGI path: bronze_wgi is type TridentNotebook (retry=2, timeout 12h); the string 'worldbank' appears 0 times in the entire pipeline definition (positive control: same probe found 2 HttpServer and 4 Copy occurrences elsewhere, so the probe works). Error string matches the code exactly: pulled the full activity error message and extracted the verbatim pre-change format string. Per-attempt failing-page sequence confirmed directly from the API. The 41-minute claim measured: 40.7 min. Re-probed the live upstream: the exact failing URL now returns HTTP 200 in 0.18s; the bogus-indicator probe returns HTTP 200 with the in-band error body — confirming first-hand the premise the retry policy rests on.\n\nAC3 CLASSIFIER (traced, not read). is_transient_request_error: 429 or 500<=s<=599 -> True; all other statuses -> False; no response -> True only for Timeout/ConnectionError/ChunkedEncodingError, else False (fails closed). Negative control against HEAD: old code made 5 calls and slept [5,10,20,40] on a permanent 404, reporting it as exhausted-retry; new code makes 1 call, raises immediately with a distinct PERMANENT message.\n\nAC4 GUARDS (all four present, structurally sound, absence in old code demonstrated). Negative control against HEAD: in-band 200 error, null record set, and short pagination all SILENTLY returned partial/empty data in the old code; all three now raise. Guard 4 sits before the mode('overwrite') write, confirmed by reading AND by executing the guard logic in isolation (5-of-6 blocks, 6-of-6 proceeds). Loud-failure path confirmed live: both failed runs show only 7 distinct activities with bronze_to_silver_cleaning/silver_to_gold/data_quality_checks absent.\n\nHIGHEST-RISK REGRESSION CHECK (own addition): ran the edited notebook's own fetch_indicator against the live API for all 6 indicators — 31,122 records in 18.1s, zero guards fired, matching the project's documented full-load baseline exactly.\n\nAC5 DOCS: every factual claim in the new 'Failure Handling' section matches the code and independent measurements.\n\nTESTS: tests/test_wgi_retry.py 29/29, full suite 329/329. Notebook structure unchanged (6 CELL/7 METADATA markers, 0 PARAMETERS CELL markers — positive-controlled against bronze_epi which has 1).\n\nGIT: HEAD unchanged at 49e7c28, nothing staged, nothing committed, nothing pushed.\n\nAC6 is Erik's half; test_protocol supplied."
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-08-13T08:34:12Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "partial",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "See verification_history[0] for the full evidence trail. Summary: all 5 in-scope acceptance criteria PASS on independently re-derived evidence (own API calls, own live upstream probes, negative controls against the pre-change notebook); AC6 (Erik's deploy + observation window) is out of verification scope by design.",
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "files_affected declared 5 files but the task touched 6 (the decision record); orchestrator updated files_affected to the 6-file union."
+      },
+      {
+        "severity": "minor",
+        "description": "DEC-017 collides with the template's own DEC-017/DEC-016 namespace; pre-existing pattern, newly aggravated, tracked as FR-094."
+      }
+    ]
+  },
+  "user_review_pending": true,
+  "test_protocol": {
+    "summary": "Erik's half (AC6): deploy the edited bronze_ingest_wgi notebook and confirm over subsequent scheduled runs that the 502 no longer fails the run — or, if the cause was ever non-transient, that it now surfaces with the distinct PERMANENT message instead of an exhausted-retry one.",
+    "steps": [
+      {
+        "instruction": "Deploy the notebook via fabric-cicd (git integration is disconnected; fabric-cicd is the sole publish path). Confirm the deploy targets bronze_ingest_wgi and does not disturb the parameter-cell-bearing notebooks.",
+        "expected": "Deploy succeeds; bronze_ingest_wgi in the workspace shows is_transient_request_error / retry_delay and API_MAX_RETRIES = 8.",
+        "type": "command",
+        "command": "python .github/scripts/deploy-fabric.py  # or the project's usual fabric-cicd entry point"
+      },
+      {
+        "instruction": "Trigger one manual pipeline run to confirm the happy path is unregressed before relying on the schedule.",
+        "expected": "bronze_wgi Succeeded; notebook output prints 'Total records fetched: 31,122' and a per-indicator dict with all 6 codes; bronze_wgi row count ~31,122.",
+        "type": "command",
+        "command": "/run-full-pipeline"
+      },
+      {
+        "instruction": "Let at least 7 scheduled 04:00 runs elapse, then re-run the failure-rate measurement the same way this verification did (queryactivityruns WITH the mandatory date window, checking bronze_wgi's status per Scheduled run).",
+        "expected": "0 bronze_wgi failures across the new scheduled runs. If one still fails, read the error message: 'after 8 attempts: 502' means a genuine multi-hour upstream outage (expected, by design); 'PERMANENT error ... HTTP 4xx' or any of the four guard messages means a different, non-transient cause that needs a new task.",
+        "type": "command",
+        "command": "# POST /v1/workspaces/99e4cc6d-6ec3-49a7-aed9-b69b04a97aa9/datapipelines/pipelineruns/{runId}/queryactivityruns with lastUpdatedAfter/Before"
+      },
+      {
+        "instruction": "Decide DEC-017's open question: WGI is annual data re-fetched daily, so a multi-day upstream outage will now fail the pipeline every morning. Option B ('keep last good snapshot') was deliberately declined because it contradicts AC4. Confirm you want to keep failing loudly, or reopen the decision.",
+        "expected": "An explicit call recorded in decision-017's 'Your Notes & Constraints' section.",
+        "type": "interactive"
+      }
+    ],
+    "automated_results": "Automated locally: 29/29 new unit tests, 329/329 full suite, live 6-indicator fetch through the new guards (31,122 records, no false positives), live re-measurement of the 2-of-9 failure rate with a both-directions positive control, negative control proving the tests fail against the pre-change notebook, and structural confirmation that guard 4 precedes the mode('overwrite') write. Not automatable here: the Delta write itself, the deploy, and the forward-looking scheduled-run observation.",
+    "estimated_time": "10 minutes to deploy + trigger; then passive observation over ~1 week"
+  },
+  "interaction_hint": "cli_direct"
 }

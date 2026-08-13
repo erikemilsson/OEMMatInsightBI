@@ -36,6 +36,14 @@ dev = [
     "pyspark==4.0.1",
     "pytest>=8.0.0",
     "pytest-html>=4.1.0",
+    # tests/test_wgi_retry.py pins bronze_ingest_wgi's retry classifier against the
+    # REAL requests exception hierarchy (task-066). Substituting a hand-rolled fake
+    # hierarchy would defeat the point: the bug class these tests guard is exactly a
+    # pattern list written from imagination that never met live output
+    # (test_error_categorization.py's docstring records the last time that happened).
+    # Ranged, not pinned: unlike pyspark, no transformation semantics depend on the
+    # version — only the exception class names, stable since requests 2.x.
+    "requests>=2.31",
 ]
 
 # Separate group, NOT installed by default — `uv run --group lint black src/ tests/`.
