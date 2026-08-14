@@ -1,0 +1,111 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.11.0/schema.json",
+  "name": "e38c4fa6d9b2571aa4c3",
+  "position": {
+    "x": 644,
+    "y": 96,
+    "z": 2,
+    "height": 616,
+    "width": 636,
+    "tabOrder": 2
+  },
+  "visual": {
+    "visualType": "clusteredBarChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "gold_dim_material"
+                    }
+                  },
+                  "Property": "material_name_std"
+                }
+              },
+              "queryRef": "gold_dim_material.material_name_std",
+              "nativeQueryRef": "material_name_std",
+              "active": true
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "gold_supply_risk"
+                    }
+                  },
+                  "Property": "Supply Risk (Global)"
+                }
+              },
+              "queryRef": "gold_supply_risk.Supply Risk (Global)",
+              "nativeQueryRef": "Supply Risk (Global)"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "gold_supply_risk"
+                    }
+                  },
+                  "Property": "Supply Risk (EU Sourcing)"
+                }
+              },
+              "queryRef": "gold_supply_risk.Supply Risk (EU Sourcing)",
+              "nativeQueryRef": "Supply Risk (EU Sourcing)"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Measure": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "gold_supply_risk"
+                  }
+                },
+                "Property": "Supply Risk (Global)"
+              }
+            },
+            "direction": "Descending"
+          }
+        ],
+        "isDefaultSort": true
+      }
+    },
+    "objects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Governance- and trade-weighted HHI — global vs EU sourcing'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

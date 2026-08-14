@@ -1,0 +1,49 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.11.0/schema.json",
+  "name": "c14f8a20b6d3475ee281",
+  "position": {
+    "x": 0,
+    "y": 8,
+    "z": 0,
+    "height": 74,
+    "width": 1280,
+    "tabOrder": 0
+  },
+  "visual": {
+    "visualType": "textbox",
+    "objects": {
+      "general": [
+        {
+          "properties": {
+            "paragraphs": [
+              {
+                "textRuns": [
+                  {
+                    "value": "⚠ GROSS supply-risk figures (per DEC-001). Not official EU CRM Supply Risk values — recycling (EoL_RIR) and substitution (SI_SR) risk-reducing filters are out of scope. Governance + trade weighting reorders material risk vs plain concentration; it compresses (does not inflate) the absolute HHI.",
+                    "textStyle": {
+                      "fontWeight": "bold",
+                      "fontSize": "11pt",
+                      "color": "#8A6A00"
+                    }
+                  }
+                ]
+              },
+              {
+                "textRuns": [
+                  {
+                    "value": "Contrast = EU-sourcing HHI ÷ global HHI. Above 1.0 means Europe sources this material more narrowly than the world produces it. Materials with global supply but no EU sourcing rows are BLANK, never 0 — 0 would read as \"perfectly diffuse supply\", the safest possible value, for the case where coverage is missing.",
+                    "textStyle": {
+                      "fontSize": "10pt",
+                      "color": "#444444"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  }
+}
