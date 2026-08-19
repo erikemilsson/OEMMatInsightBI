@@ -1,0 +1,39 @@
+{
+  "spec_version": "spec_v1",
+  "spec_fingerprint": "sha256:eb7d4ec42ceefa9a3e709d879fd269fd0f6c07b4f432dc5a6a68a3f7cc1e6845",
+  "created_date": "2026-08-19",
+  "updated_date": "2026-08-19",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "absorbed_into": null,
+  "subtasks": [],
+  "decision_dependencies": [
+    "DEC-017"
+  ],
+  "user_feedback": null,
+  "source": "Measured during task-066's AC6 close-out, 2026-08-19 (orchestrator, live queryactivityruns)",
+  "id": "task-075",
+  "title": "bronze_wgi's PERMANENT-error classification is both wrong for HTTP 400 and inert against the pipeline's own retry=2",
+  "status": "Pending",
+  "priority": "high",
+  "difficulty": 4,
+  "owner": "both",
+  "phase": 5,
+  "spec_section": "Orchestration",
+  "out_of_spec": true,
+  "out_of_spec_approved": false,
+  "dependencies": [],
+  "files_affected": [
+    "fabric/bronze_ingest_wgi.Notebook/notebook-content.py",
+    "fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/pipeline-content.json"
+  ],
+  "description": "MEASURED, NOT HYPOTHESISED. Found while closing task-066's AC6 by enumerating every orchestrator run since 2026-08-13 via queryactivityruns.\n\nWHAT HAPPENED on the 2026-08-17 04:00 scheduled run. bronze_wgi failed at 04:00:03 after 167s with task-066's own permanent-error path:\n  'World Bank API returned a PERMANENT error for GOV_WGI_CC.EST (page 1) - HTTP 400; not retried, this needs a human: 400 Client Error: Bad Request for url: https://api.worldbank.org/v2/country/all/indicator/GOV_WGI_CC.EST?source=3&format=json&date=1996%3A2023&per_page=1000&page=1'\nThe pipeline then retried the activity and it SUCCEEDED at 04:03:22 (967s). The run finished Completed. Nobody was paged, and no human was needed.\n\nTWO DEFECTS, both confirmed against live state:\n\n(1) HTTP 400 IS NOT RELIABLY PERMANENT FROM THIS API. task-066 classified 'any 4xx other than 429' as permanent on the reasoning that the World Bank reports bad input in-band as HTTP 200 and so a 4xx must mean a genuinely malformed request. That reasoning was sound and is now falsified by observation: the exact same URL succeeded three minutes later, unchanged. A 400 that succeeds on retry is by definition transient. The message 'this needs a human' was wrong in the one case it has ever fired.\n\n(2) THE CLASSIFICATION IS INERT ON THE PIPELINE PATH. The bronze_wgi activity carries policy.retry=2, retryIntervalInSeconds=30 (verified in pipeline-content.json; the observed 04:00:03 -> 04:03:22 gap matches it). So the notebook's deliberate 'do NOT retry this' decision is silently overridden by the orchestrator one layer up. The consequence cuts both ways: a spurious 400 is masked (good this time, but it hid a real API defect for two days), and a GENUINELY permanent error — a retired indicator code, the exact scenario task-066 built this path for — would still be retried twice, burning ~16 minutes per attempt, before the run went red. Either way the in-notebook classification is not doing the job it was written to do.\n\nThis is NOT a regression in task-066: its 502 handling worked. Across the seven scheduled runs 2026-08-13..2026-08-19 there were ZERO exhausted-retry 502 failures, which is what task-066 was built to fix. This is an adjacent defect its own instrumentation exposed.\n\nTies to DEC-017's open question (WGI is annual data re-fetched daily; a multi-day upstream outage fails the pipeline every morning). A spurious-400 class of failure strengthens the case for the declined Option B ('keep last good snapshot'), so decide DEC-017 before or alongside this.\n\nDo not commit or push without confirming with Erik first.",
+  "acceptanceCriteria": [
+    "The 2026-08-17 event is re-read from queryactivityruns and the two-attempt shape confirmed (one Failed carrying the PERMANENT message, one Succeeded ~3 min later on the same URL) before any code changes.",
+    "The 4xx classification is corrected so that a status the API can return spuriously is retried rather than declared permanent. Decide explicitly which 4xx codes stay permanent and record the reasoning; do NOT simply retry all 4xx, which would restore the unbounded-retry behaviour task-066 removed.",
+    "The interaction between the notebook's own retry budget and the activity's policy.retry=2 is made coherent and documented in one place, so a reader can tell how many total attempts a bronze_wgi failure actually gets. Either the notebook owns retries and the activity retry drops to 0, or the activity owns them and the notebook stops claiming 'not retried' — not both as today.",
+    "A genuinely permanent failure (e.g. a retired indicator code) is shown to surface as a red run without being retried into a 30+ minute delay — demonstrated by injecting a bogus indicator code, as task-066 did.",
+    "Erik's half: deploy and observe at least one scheduled run; and record the DEC-017 decision, since the snapshot question is the same failure surface."
+  ],
+  "notes": "Filed 2026-08-19 from live measurement while closing task-066's AC6. The measurement that produced it: 9 orchestrator runs since 2026-08-13 (7 scheduled + 2 manual), bronze_wgi 9 Succeeded / 1 Failed, the single failure being the 08-17 spurious 400 described above. Positive control on the probe: the same queryactivityruns call returned complete activity sets for all 9 runs, and the date window was supplied (omitting it returns HTTP 200 with an empty value array for every run).\n\nWorth preserving: this defect was invisible from gold_quality_history and from the pipeline's own Completed status. It was only visible by enumerating per-activity run history — the same class of blind spot task-059 recorded, where the diagnosis is computed and then discarded at the persistence boundary."
+}
