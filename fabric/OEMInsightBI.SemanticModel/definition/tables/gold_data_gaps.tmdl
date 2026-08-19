@@ -180,12 +180,26 @@ table gold_data_gaps
 
 		annotation SummarizationSetBy = Automatic
 
-	column country_role
-		dataType: string
-		lineageTag: d1a2b3c4-0001-0001-0001-000000000005
-		sourceLineageTag: country_role
+	/// TRUE when this country is the HQ of at least one supplier in fact_procurement.
+	/// task-074 replaced the role-grained country_role column with these two attribute
+	/// flags: gold_data_gaps is one row per country, so a dual-role country sets both.
+	column is_supplier_hq
+		dataType: boolean
+		lineageTag: d1a2b3c4-0001-0001-0001-000000000020
+		sourceLineageTag: is_supplier_hq
 		summarizeBy: none
-		sourceColumn: country_role
+		sourceColumn: is_supplier_hq
+
+		annotation SummarizationSetBy = Automatic
+
+	/// TRUE when this country is the production location of at least one line in
+	/// fact_procurement. Independent of is_supplier_hq — both, either, or (never) neither.
+	column is_production
+		dataType: boolean
+		lineageTag: d1a2b3c4-0001-0001-0001-000000000021
+		sourceLineageTag: is_production
+		summarizeBy: none
+		sourceColumn: is_production
 
 		annotation SummarizationSetBy = Automatic
 
@@ -198,6 +212,9 @@ table gold_data_gaps
 
 		annotation SummarizationSetBy = Automatic
 
+	/// Supplier-HQ procurement spend for this country, in EUR. gold_data_gaps is one row
+	/// per country (task-074), so SUM over this column counts each country once and
+	/// reconciles to fact_procurement's total spend.
 	column spend_eur
 		dataType: double
 		lineageTag: d1a2b3c4-0001-0001-0001-000000000007

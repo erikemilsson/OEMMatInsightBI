@@ -3353,16 +3353,45 @@ def create_data_gaps_table():
     - "€Z spend is with suppliers in countries without sustainability/governance data"
     """
 
-    # 1. Get distinct countries from procurement (both supplier HQ and production)
-    procurement_countries = spark.sql(f"""
-        SELECT DISTINCT supplier_hq_country_key as country_key, 'Supplier HQ' as country_role
+    # 1. Get distinct countries from procurement (both supplier HQ and production).
+    #
+    # task-074 — THIS TABLE IS ONE ROW PER COUNTRY. Role is carried as two boolean
+    # ATTRIBUTES (is_supplier_hq / is_production), never as part of the grain.
+    #
+    # It used to be deduplicated on (country_key, country_role), which fanned every
+    # dual-role country into two rows while every payload column — has_epi_score,
+    # has_wgi_score, spend_eur, transaction_count — stayed country-grained. Two defects
+    # followed from that one mistake:
+    #   1. Any SUM over the rows double-counted dual-role countries. Measured live
+    #      2026-08-19: EUR 4,051,020.35 summed over 19 rows vs EUR 3,273,776.03 over the
+    #      12 distinct countries — the latter equalling fact_procurement's total exactly
+    #      (+23.7% inflation). The same shape produced task-071's 158.33% coverage rate.
+    #   2. spend_eur is grouped on supplier_hq_country_key (step 5 below), so a row whose
+    #      country_role was 'Production' carried that country's SUPPLIER-HQ spend — a
+    #      wrong value per row, not merely a double count. Collapsing the grain is what
+    #      removes this one; patching the aggregates would not have.
+    #
+    # Erik approved the collapse 2026-08-19 after country_role was shown to have no
+    # analytical consumer (bare column in gold_data_gaps.tmdl with no measure over it;
+    # zero references from oem_report). Do not reintroduce a role-grained population here
+    # — see the grain guard in step 6.
+    supplier_hq_countries = spark.sql(f"""
+        SELECT DISTINCT supplier_hq_country_key as country_key
         FROM {DB}.fact_procurement
         WHERE supplier_hq_country_key IS NOT NULL
-        UNION
-        SELECT DISTINCT production_country_key as country_key, 'Production' as country_role
+    """)
+    production_countries = spark.sql(f"""
+        SELECT DISTINCT production_country_key as country_key
         FROM {DB}.fact_procurement
         WHERE production_country_key IS NOT NULL
     """)
+    procurement_countries = (
+        supplier_hq_countries.union(production_countries).distinct()
+        .join(supplier_hq_countries.withColumn("is_supplier_hq", F.lit(True)), "country_key", "left")
+        .join(production_countries.withColumn("is_production", F.lit(True)), "country_key", "left")
+        .withColumn("is_supplier_hq", F.coalesce(F.col("is_supplier_hq"), F.lit(False)))
+        .withColumn("is_production", F.coalesce(F.col("is_production"), F.lit(False)))
+    )
 
     # 2. Countries with an overall EPI composite score (abbrev='EPI'). Post-task-054
     #    the fact table carries 30+ sub-indicator rows per country, so filtering only
@@ -3459,7 +3488,14 @@ def create_data_gaps_table():
         .filter(~F.coalesce(F.col("is_placeholder"), F.lit(False)))  # Exclude placeholder countries
     )
 
-    # 5. Calculate spend impact for countries without indicator data
+    # 5. Calculate spend impact for countries without indicator data.
+    #    spend_eur is SUPPLIER-HQ spend: procurement booked against suppliers headquartered
+    #    in this country. Grouping on supplier_hq_country_key partitions fact_procurement
+    #    exactly once, so summing spend_eur across all rows of the (country-grained)
+    #    gold_data_gaps reconciles to fact_procurement's total spend by construction.
+    #    A production-only country therefore carries 0.0, which is correct under this
+    #    definition — it is not a supplier-HQ country. Do NOT add production spend into
+    #    the same column: that would double-count dual-role countries again.
     spend_by_country = spark.sql(f"""
         SELECT
             supplier_hq_country_key as country_key,
@@ -3478,7 +3514,8 @@ def create_data_gaps_table():
             "country_name_std",
             "iso3",
             "region",
-            "country_role",
+            "is_supplier_hq",
+            "is_production",
             "has_epi_score",
             "has_wgi_score",
             F.coalesce("total_spend_eur", F.lit(0.0)).alias("spend_eur"),
@@ -3489,13 +3526,28 @@ def create_data_gaps_table():
              .otherwise("No Coverage").alias("data_status"),
             F.current_timestamp().alias("calculated_at")
         )
-        .dropDuplicates(["country_key", "country_role"])
+        .dropDuplicates(["country_key"])
     )
+
+    # task-074 GRAIN GUARD: gold_data_gaps is one row per country BY CONTRACT. Everything
+    # downstream reads it that way — the four spend aggregates below, the 'Spend Impact'
+    # rows they feed, populate_quality_history's external_coverage_rate, and the
+    # SUM(gold_data_gaps[spend_eur]) measures in the semantic model. A regression to a
+    # fanned-out grain would silently re-inflate spend instead of failing, which is exactly
+    # how the +23.7% defect survived two tasks. Fail loudly here instead.
+    row_total = data_gaps.count()
+    country_total = data_gaps.select("country_key").distinct().count()
+    if row_total != country_total:
+        raise ValueError(
+            f"gold_data_gaps grain violation: {row_total} rows for {country_total} distinct "
+            "countries. This table must be one row per country (task-074); spend and coverage "
+            "aggregates over it are country-grained by contract."
+        )
 
     write_tbl(data_gaps, "gold_data_gaps")
 
     # 7. Create summary statistics table for KPI cards
-    total_countries = data_gaps.select("country_key").distinct().count()
+    total_countries = country_total
 
     # EPI coverage stats
     countries_with_epi_count = data_gaps.filter(F.col("has_epi_score")).select("country_key").distinct().count()
@@ -3513,7 +3565,9 @@ def create_data_gaps_table():
     ).select("country_key").distinct().count()
     no_coverage_count = data_gaps.filter(~F.col("has_epi_score") & ~F.col("has_wgi_score")).select("country_key").distinct().count()
 
-    # Spend calculations
+    # Spend calculations. Correct by grain (task-074): data_gaps is one row per country and
+    # the guard above enforces it, so a bare SUM counts each country's spend exactly once
+    # and total_spend reconciles to fact_procurement's total spend.
     spend_full_coverage = data_gaps.filter(F.col("has_epi_score") & F.col("has_wgi_score")).agg(F.sum("spend_eur")).first()[0] or 0
     spend_with_epi = data_gaps.filter(F.col("has_epi_score")).agg(F.sum("spend_eur")).first()[0] or 0
     spend_with_wgi = data_gaps.filter(F.col("has_wgi_score")).agg(F.sum("spend_eur")).first()[0] or 0
@@ -3802,19 +3856,25 @@ def populate_quality_history():
         metrics_to_insert.append(("Gold", "fact_supply_share", "unmapped_count", unmapped_count, 50.0, unmapped_count > 50.0))
 
     # --- Data Gaps Coverage ---
-    # task-071: numerator and denominator must count the SAME population. gold_data_gaps is
-    # deduplicated on (country_key, country_role), so a country appearing in two roles
-    # contributes two rows. The numerator used to be SUM(CASE ... THEN 1 ELSE 0 END), which
-    # counts ROWS, while the denominator counts DISTINCT countries — so external_coverage_rate
-    # reported 158.33% (19 rows / 12 distinct countries) on every run measured between
-    # 2026-08-13 and 2026-08-18. Counting distinct countries on both sides also matches
-    # create_data_gaps_table's own full_coverage_count, which is defined as
+    # task-071: numerator and denominator must count the SAME population. The numerator used
+    # to be SUM(CASE ... THEN 1 ELSE 0 END), which counts ROWS, while the denominator counts
+    # DISTINCT countries — and gold_data_gaps was then deduplicated on
+    # (country_key, country_role), so a country appearing in two roles contributed two rows.
+    # external_coverage_rate reported 158.33% (19 rows / 12 distinct countries) on every run
+    # measured between 2026-08-13 and 2026-08-18. Counting distinct countries on both sides
+    # also matches create_data_gaps_table's own full_coverage_count, which is defined as
     # .select("country_key").distinct().count() over the same predicate.
+    #
+    # task-074: gold_data_gaps is now one row per country (grain guard in
+    # create_data_gaps_table), so COUNT(DISTINCT ...) and a plain COUNT would agree here.
+    # The DISTINCT form stays — it states the intended population rather than relying on the
+    # producer's grain. A dead, row-grained `SUM(spend_eur) as total_spend` was removed from
+    # this SELECT: it was never read, and under the old grain it was the same double-counting
+    # defect sitting one line under a comment about counting the same population.
     gaps_stats = spark.sql(f"""
         SELECT
             COUNT(DISTINCT country_key) as total_countries,
-            COUNT(DISTINCT CASE WHEN has_epi_score AND has_wgi_score THEN country_key END) as full_coverage_count,
-            SUM(spend_eur) as total_spend
+            COUNT(DISTINCT CASE WHEN has_epi_score AND has_wgi_score THEN country_key END) as full_coverage_count
         FROM {DB}.gold_data_gaps
     """).first()
 

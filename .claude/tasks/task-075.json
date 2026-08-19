@@ -21,7 +21,7 @@
   "phase": 5,
   "spec_section": "Orchestration",
   "out_of_spec": true,
-  "out_of_spec_approved": false,
+  "out_of_spec_approved": true,
   "dependencies": [],
   "files_affected": [
     "fabric/bronze_ingest_wgi.Notebook/notebook-content.py",

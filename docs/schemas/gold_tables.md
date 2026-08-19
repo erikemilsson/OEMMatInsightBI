@@ -242,7 +242,7 @@ kg/g/mg/t.
 |---|---|
 | `gold_unmapped_procurement_audit` | One row per unmapped value occurrence (see `data_quality_architecture.md § [2]`) |
 | `gold_unmapped_supply_audit` | Same, for the supply-share fact |
-| `gold_data_gaps` | One row per country × country_role — EPI/WGI coverage flags |
+| `gold_data_gaps` | One row per country — EPI/WGI coverage flags, role carried as `is_supplier_hq` / `is_production` attributes (task-074) |
 | `gold_data_gaps_summary` | Coverage rollup for KPI cards |
 | `gold_country_coverage_matrix` | Country presence across all source datasets |
 | `gold_data_quality_metrics` / `gold_data_quality_dashboard` | Quality metric rollups |

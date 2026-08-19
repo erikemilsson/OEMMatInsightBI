@@ -276,7 +276,8 @@ gold_data_gaps
 ├── country_name_std     ✅
 ├── iso3
 ├── region
-├── country_role         ✅ (Supplier HQ / Production)
+├── is_supplier_hq       ✅ (task-074 — replaced the role-grained `country_role`)
+├── is_production        ✅ (both TRUE for a dual-role country; the table is one row per country)
 ├── has_epi_score        ✅
 ├── has_wgi_score        ✅ (requires all SIX indicators — task-031)
 ├── data_status          ✅ (Full Coverage/EPI Only/WGI Only/No Coverage)
