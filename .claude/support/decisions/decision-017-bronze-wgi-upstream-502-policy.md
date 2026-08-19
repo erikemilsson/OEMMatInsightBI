@@ -96,10 +96,12 @@ While instrumenting the loud-failure requirement (AC4), the investigation surfac
 *Add any constraints, preferences, or context that should inform this decision. This section is yours — Claude reads it but never overwrites it.*
 
 **Constraints:**
--
+- **Keep Option A as shipped — fail loudly.** Confirmed 2026-08-13 after reviewing the trade-off, and re-confirmed 2026-08-19 against new evidence. WGI is annual data re-fetched daily, so a multi-day upstream outage will fail the pipeline every morning; that noise is accepted deliberately. Option B (reuse the last good snapshot) stays declined because it converts a real upstream outage into a silent green run, which contradicts task-066 AC4 ("a permanent failure still fails the run loudly").
 
 **Questions:**
--
+- **Resolved — this is the open question task-066's test_protocol step 4 asked to close.** The 2026-08-17 spurious HTTP 400 does *not* reopen it. That failure was the 4xx *classification* being wrong (a transient 400 declared permanent, then silently overridden by the orchestrator's own `policy.retry=2`, which re-ran the identical URL successfully three minutes later) — orthogonal to the snapshot-vs-fail-loudly question, and in scope for task-075. Loud failure on a genuine outage remains the intended behaviour.
+
+*Recorded by Claude on 2026-08-20 at Erik's explicit instruction, from the call he made on 2026-08-13 (see task-066 notes, AC6 PARTIAL entry) and re-affirmed 2026-08-19. Editing this section is normally the user's alone.*
 
 ## Decision
 
