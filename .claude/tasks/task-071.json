@@ -2,9 +2,9 @@
   "spec_version": "spec_v1",
   "spec_fingerprint": "sha256:eb7d4ec42ceefa9a3e709d879fd269fd0f6c07b4f432dc5a6a68a3f7cc1e6845",
   "created_date": "2026-08-13",
-  "updated_date": "2026-08-13",
-  "completion_date": null,
-  "verification_attempts": 0,
+  "updated_date": "2026-08-19",
+  "completion_date": "2026-08-19",
+  "verification_attempts": 1,
   "absorbed_into": null,
   "subtasks": [],
   "decision_dependencies": [],
@@ -12,18 +12,17 @@
   "source": "issues_discovered (non_blocking, suggested_action: create new task) from task-065's implement-agent report, 2026-08-12 — found in passing while measuring gold_quality_history live for the Latest Match/Coverage Rate fix, not part of task-065's declared scope",
   "id": "task-071",
   "title": "gold_quality_history.external_coverage_rate reads 158.33% — implausible, likely denominator defect in producer",
-  "status": "Pending",
+  "status": "Finished",
   "priority": "low",
   "difficulty": 4,
   "owner": "both",
   "phase": "5",
   "spec_section": "Data Quality & Validation",
   "out_of_spec": true,
-  "out_of_spec_approved": false,
+  "out_of_spec_approved": true,
   "dependencies": [],
   "files_affected": [
-    "fabric/silver_to_gold.Notebook/notebook-content.py",
-    "fabric/data_quality_checks.Notebook/notebook-content.py"
+    "fabric/silver_to_gold.Notebook/notebook-content.py"
   ],
   "description": "UNVERIFIED, TREAT AS A LEAD NOT A CONFIRMED DEFECT. task-065's implement-agent measured gold_quality_history's external_coverage_rate metric at 158.33 (i.e. 158.33%) at every recent pipeline run while querying the live model for an unrelated fix. A coverage rate over 100% is not coherent — it implies a numerator exceeding its denominator, most likely because the producer notebook computes them from mismatched row populations (e.g. a filtered numerator over an unfiltered, or differently-scoped, denominator).\n\nThis was a side observation, not a targeted measurement — re-confirm the 158.33% figure independently before diagnosing anything further, and identify which of the two candidate producer notebooks (silver_to_gold or data_quality_checks — whichever actually writes metric_name='external_coverage_rate' rows) owns the computation. files_affected above lists both candidates; narrow to the actual one before editing.\n\nNo measure in gold_quality_history.tmdl currently surfaces external_coverage_rate directly (per task-065's measurement), so there is no known user-facing symptom yet — this is purely a data-quality-observability defect until proven otherwise.\n\nDo not commit or push without confirming with Erik first, consistent with the rest of Phase 5's out-of-spec defect tasks.",
   "acceptanceCriteria": [
@@ -33,5 +32,49 @@
     "If no defect is confirmed: docs/data_quality_framework.md or docs/data_quality_architecture.md records what the 158.33% actually means, so it isn't re-flagged as a mystery in a future session.",
     "Erik's half: deploy (if a fix was made) and confirm the corrected value on a subsequent scheduled or manual run."
   ],
-  "notes": "Created by the orchestrator from task-065's issues_discovered array (2026-08-13). This is a passive discovery, not yet reviewed by Erik under the out-of-spec gate — out_of_spec_approved is false. Needs [A]/[R]/[D] before it is dispatchable, per .claude/rules/spec-workflow.md's Propose-Approve-Apply discipline for out-of-spec work.\n\nRelated: task-065 and task-066 are the other two out-of-spec Phase 5 defect-queue tasks from the same 2026-08-11 approval batch; this one arrived a session later via a different route (implementation side-finding rather than a session-observation Erik promoted directly)."
+  "notes": "Created by the orchestrator from task-065's issues_discovered array (2026-08-13). This is a passive discovery, not yet reviewed by Erik under the out-of-spec gate — out_of_spec_approved is false. Needs [A]/[R]/[D] before it is dispatchable, per .claude/rules/spec-workflow.md's Propose-Approve-Apply discipline for out-of-spec work.\n\nRelated: task-065 and task-066 are the other two out-of-spec Phase 5 defect-queue tasks from the same 2026-08-11 approval batch; this one arrived a session later via a different route (implementation side-finding rather than a session-observation Erik promoted directly).\n\n---\n\n[IMPLEMENTATION 2026-08-18] DEFECT CONFIRMED — not a null result. Root cause found, fixed, and demonstrated.\n\nAC1 (re-measured independently): queried the live published model (dataset f57bdfa4-52c9-47a3-b853-dac1d1f76178) via Power BI executeQueries. external_coverage_rate = 158.33333333333331 on SIX consecutive runs (2026-08-13 14:10, 08-14, 08-15, 08-16, 08-17, 08-18 04:06), every one with producer=silver_to_gold, threshold=80.0, breach_flag=false, status='n/a'. Persistent pattern, not a one-off. task-065's side observation was accurate.\n\nAC2 (producer identified with evidence): fabric/silver_to_gold.Notebook/notebook-content.py, the '--- Data Gaps Coverage ---' block (was line ~3805). NOT data_quality_checks — files_affected narrowed from 2 candidates to 1. The populations ARE mismatched, and the arithmetic is exact: the SELECT paired COUNT(DISTINCT country_key) as denominator with SUM(CASE WHEN has_epi_score AND has_wgi_score THEN 1 ELSE 0 END) as numerator. The first counts distinct countries, the second counts ROWS. gold_data_gaps is deduplicated on (country_key, country_role) (.dropDuplicates([\"country_key\",\"country_role\"]) in create_data_gaps_table), so a country present in two roles contributes two rows. Measured live: rows_total=19, distinct_countries=12, distinct_roles=2, row-numerator=19, distinct-numerator=12. 19/12*100 = 158.333... — reproduces the reported figure to every printed digit.\n\nAC3 (fixed + demonstrated): numerator changed to COUNT(DISTINCT CASE WHEN has_epi_score AND has_wgi_score THEN country_key END), so both sides count the same population. This also makes the DQ metric agree with create_data_gaps_table's OWN full_coverage_count, which is already defined as .select(\"country_key\").distinct().count() over the same predicate — the DQ block was the outlier, not a second legitimate definition. Demonstrated on a local Spark session (local[1], spark.sql.ansi.enabled=false per project convention): fixture A reproduces the live shape (19 rows / 12 countries / 2 roles) and yields OLD=158.33% vs NEW=100.00%, with NEW asserted equal to the canonical count. Fixture B (13 rows / 10 countries, 6 fully covered, 3 of them dual-role) yields OLD=90.00% vs NEW=60.00% — an IMPORTANT extra finding: the defect is not only visible above 100%. Whenever fully-covered countries fan out across roles the old form silently INFLATED coverage into a plausible-looking range, so any historical external_coverage_rate reading in gold_quality_history is suspect, not just the >100% ones. Predicted post-deploy value on current data: 100.0% (12/12). breach_flag stays false either way (threshold 80), so no gate behaviour changes. Full 329-test suite passes.\n\nAC4 not applicable (defect confirmed, so the null-result documentation branch does not apply).\n\nAC5 is Erik's half: deploy and confirm external_coverage_rate reads 100.0 on the next run.\n\nNOT committed, NOT pushed — per the task's standing instruction, working-tree only.",
+  "user_review_pending": true,
+  "interaction_hint": "cli_direct",
+  "verification_history": [
+    {
+      "attempt": 1,
+      "timestamp": "2026-08-19T01:06:00Z",
+      "result": "pass",
+      "summary": "Root cause verified by execution (live DAX + 5 Spark fixtures). 1 major OUT-OF-SCOPE finding: the same defect survives in user-facing spend aggregates -> task-074."
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-08-19T01:06:00Z",
+    "verified_by": "verify-agent",
+    "attempt": 1,
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "partial",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "Independently re-derived; verifier ran its own DAX and its own Spark fixtures rather than the implementer's. AC1 STRONGER THAN CLAIMED: 158.33333333333331 on FIFTEEN consecutive runs (2026-08-06 -> 2026-08-18T04:06), not six; every row producer=silver_to_gold, breach_flag=false. AC2: producer is the ONLY site — literal 'external_coverage_rate' appears nowhere else under fabric/ (positive control: broader 'coverage_rate' matched 4 files). Mismatch proven from live data: rows_total=19, distinct_countries=12, distinct_roles=2, row-numerator=19, distinct-numerator=12, null country_keys=0 (so the COUNT(DISTINCT)-drops-NULL edge does not bite). Verifier's own DAX re-derivation of the OLD form returned 158.33333333333331 bit-for-bit and the NEW form 100.0. ROOT CAUSE NOT SYMPTOM: the fix aligns the numerator's population to the denominator's rather than clamping, rescaling or dividing out a fan-out factor; no suppression pattern in the diff. AC3: OLD vs NEW executed across 5 local Spark fixtures — (A) live shape 19/12 -> 158.33% vs 100.00%; (B) 13/10 -> 90.0% vs 60.0%; (C) single-role -> identical, no regression absent fan-out; (D) zero-coverage returns integer 0 not NULL, so float()/division stay safe; (E) NULL country_key divergence pre-existing on BOTH sides and absent from live data. In every fixture NEW == create_data_gaps_table's canonical full_coverage_count, verified by execution. The fix also aligns the DQ metric with the semantic model, whose 'Full Indicator Coverage'/'Full Coverage %' measures already use DISTINCTCOUNT. The implementer's below-100% inflation claim is TRUE and independently reproduced; mechanism is that the numerator sums role-multiplicities over covered countries, so OLD >= NEW always, equality only when no covered country is dual-role. 329/329 tests. NOT COMMITTED/PUSHED verified: HEAD ac3781f identical to origin/main, reflog shows no new commit, nothing staged.",
+    "issues": [
+      {
+        "severity": "major",
+        "description": "OUT OF task-071's SCOPE, does not gate it, spun off as task-074: the same row-vs-distinct defect survives in the SPEND aggregates over gold_data_gaps, where it IS user-facing. spend_eur is attached per country then summed over role-grained rows, double-counting the 7 dual-role countries. Measured live: SUM over rows = EUR 4,051,020.35 vs EUR 3,273,776.03 over distinct countries (+23.7%), the latter exactly equal to fact_procurement's total spend. Affects create_data_gaps_table's total_spend/spend_full_coverage/spend_with_epi/spend_with_wgi feeding gold_data_gaps_summary's 'Spend Impact' rows, and shipped TMDL measures 'Procurement Spend with EPI', 'Procurement Spend without EPI', 'EPI Spend Coverage %'. The implementation notes' claim that 'the DQ block was the outlier' holds for country COUNTS only, not for spend."
+      },
+      {
+        "severity": "minor",
+        "description": "The fixed SELECT still carries `SUM(spend_eur) as total_spend`, which is dead (never read) and still row-grained, now sitting directly beneath a comment asserting numerator and denominator count the same population. Rolled into task-074, which rewrites that block's spend handling."
+      },
+      {
+        "severity": "minor",
+        "description": "gold_quality_history is append-only; the >=15 historical rows at 158.33 are left uncorrected and unannotated, so the trend series will show an unexplained step to 100.0 at the deploy boundary. No AC requires a backfill, but nothing records the discontinuity."
+      },
+      {
+        "severity": "minor",
+        "description": "No regression test guards the fix. Positive-controlled probe confirms there is no src/transformations mirror of the data-gaps/quality-history logic, so the src/-vs-notebook parity contract is NOT violated — but the corrected expression is unguarded against a future revert."
+      }
+    ]
+  }
 }

@@ -86,17 +86,26 @@
   "fingerprint_acceptance": {
     "status": "stale_but_sound",
     "accepted_by": "Erik",
-    "accepted_at": "2026-08-10",
+    "accepted_at": "2026-08-19",
     "verified_against_fingerprint": "sha256:a475793a20943544717579fcc63affe2b17a0df274db98e90f10e24cbcf5c738",
     "cause": "task-062 (applied via /iterate 2026-08-10, two passes) edited § Next Steps & Priorities to stop restating verification state in spec prose, then § Data Quality & Validation and § Testing Strategy to date the remaining undisclaimed derived counts. A third /iterate pass (2026-08-10) then corrected the fabric/archive/ provenance claims in § Technical Architecture, § Dependencies & External Systems and § CI/CD Deployment (the archived report.Report and semantic_model_oeminsightbi.SemanticModel were deleted 2026-08-01 by workspace-sync commit d128664, leaving the directory empty), swept the two remaining loose \"DQ\" abbreviations in § Data Quality & Validation and § Testing Strategy, and added a \"DQ gate\" terminology carve-out bullet to § Naming Conventions. Verified table-intact by the scope_of_divergence command: no '| Phase' lines in the diff. The same pass also relabelled the two /azure/ setup scripts in § Data Architecture from \"schema/data\" to \"schema (DDL only)\", aligning them with the existing measured findings at § Expected Data Profiles and § Testing Strategy (CREATE TABLE only, zero INSERTs).",
     "why_not_re_verified": [
       "Edits since the verified state changed narrative and added as-of dates to counts; none altered a requirement of the build.",
       "The Phase Structure acceptance-criteria table is byte-unchanged, so none of the 13 criteria moved — a re-run would re-derive the same criteria against the same build.",
       "The § Next Steps edit REMOVED a self-reference to this file rather than altering any requirement.",
-      "Re-running would be one more turn of the invalidation loop task-062 exists to break: record result -> spec changes -> fingerprint moves -> result invalidated -> re-verify -> record result."
+      "Re-running would be one more turn of the invalidation loop task-062 exists to break: record result -> spec changes -> fingerprint moves -> result invalidated -> re-verify -> record result.",
+      "EXTENSION 2026-08-19 (Erik-approved). Re-ran the acceptance record's OWN stated check across the six spec commits since the last blessed state (b12cfbb..49e7c28, 48+/38- lines on spec_v1.md): `git diff b12cfbb..HEAD -- .claude/spec_v1.md | grep -E '^[+-]\\| Phase'` returns EMPTY. The Phase acceptance-criteria table the 13 criteria derive from is byte-unchanged, so re_verification_warranted_when has still not fired and the acceptance is extended through the current fingerprint eb7d4ec4."
     ],
     "re_verification_warranted_when": "The spec's acceptance criteria or build requirements change — not merely when the fingerprint moves. Check whether the Phase Structure acceptance-criteria table or any phase's requirements differ from those this result was derived against.",
     "routing_note": "/work Step 3 item 7 will still flag this as a spec_fingerprint mismatch and route to phase-level re-verification. That routing is mechanical and correct as written; this block is the deliberate, user-approved answer to it. Do not silently re-run — surface this acceptance instead.",
-    "scope_of_divergence": "The spec has moved past the verified fingerprint by edits confined to narrative and measurement-dating. The Phase Structure acceptance-criteria table — the source of the 13 criteria — is byte-unchanged across every one of those edits. Verify that claim with: git diff <commit-of-verified-state> -- .claude/spec_v1.md | grep -E '^[+-]\\| Phase'  (empty output = table intact)."
+    "scope_of_divergence": "The spec has moved past the verified fingerprint by edits confined to narrative and measurement-dating. The Phase Structure acceptance-criteria table — the source of the 13 criteria — is byte-unchanged across every one of those edits. Verify that claim with: git diff <commit-of-verified-state> -- .claude/spec_v1.md | grep -E '^[+-]\\| Phase'  (empty output = table intact).",
+    "extended_through_fingerprint": "sha256:eb7d4ec42ceefa9a3e709d879fd269fd0f6c07b4f432dc5a6a68a3f7cc1e6845",
+    "extended_through_commit": "49e7c28",
+    "re_verification_scheduled": {
+      "trigger": "after task-074 is implemented, deployed and confirmed on a live run",
+      "reason": "The criteria have NOT moved, but they were last MEASURED against a 2026-08-07 build and 13 tasks have closed since (061-073), including a real schema change (task-069's decimal(18,2) cast at the silver boundary), a DAX measure fix (065), the WGI retry/completeness overhaul (066) and today's 071/072/073. Extending the fingerprint answers 'did the criteria move?'; it does not answer 'do they still hold?'. This session supplied the reason to care: task-074's spend defect sat wrong through 15 consecutive pipeline runs and multiple passing per-task verifications, because per-task scope is bounded by files_affected and a cross-run aggregate defect has no per-task owner. That is precisely the gap phase-level verification exists to close.",
+      "why_not_now": "A pass run today would measure an undeployed working tree — 071/072/073 are committed nowhere and task-074 is not yet implemented — so a share of its findings would be artefacts of the deploy gap rather than real divergence.",
+      "recorded": "2026-08-19"
+    }
   }
 }

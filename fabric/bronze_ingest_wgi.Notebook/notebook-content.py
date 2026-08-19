@@ -40,7 +40,28 @@
 
 # CELL ********************
 
-# Pipeline parameters — overridden by Fabric pipeline at runtime
+# Ingestion window — HARDCODED. These are NOT pipeline parameters and nothing overrides
+# them at runtime; changing the window means editing this file.
+#
+# task-072 (verified 2026-08-18, two independent checks):
+#   1. This notebook has no Fabric parameters cell. A parameter cell serializes as a cell
+#      delimiter of the form "# PARAMETERS CELL" + asterisks, at column 0, in place of the
+#      usual "# CELL" delimiter. Probe with the ANCHORED pattern '^# PARAMETERS CELL' --
+#      it returns 0 here and 1 in bronze_ingest_epi.Notebook/notebook-content.py (its
+#      positive control). Do NOT probe unanchored: this comment mentions the marker by
+#      name, so a loose match now hits this very block and inverts the answer.
+#   2. The orchestrator pipeline passes this notebook nothing. In
+#      orchestrator_pipeline_bronze_to_gold.DataPipeline/pipeline-content.json the
+#      `bronze_wgi` activity carries no `parameters` block at all. Positive control: the
+#      sibling `bronze_epi` activity does pass `p_epi_year`.
+#
+# So bronze_epi IS parameterized and bronze_wgi is not. The previous comment here claimed
+# these were "overridden by Fabric pipeline at runtime", which would have led a maintainer
+# to change a pipeline parameter and see no effect on the WGI window.
+#
+# Consequence worth knowing: because p_end_year is pinned to 2023, a newly published WGI
+# vintage does NOT flow in on its own — someone has to edit this line. bronze_wgi's
+# row-count DQ band (see data_quality_checks) is derived on that assumption.
 p_start_year = "1996"
 p_end_year = "2023"
 
@@ -392,8 +413,11 @@ for api_code, (short_code, series_name) in WGI_INDICATORS.items():
     # An indicator that yields zero usable records is a failure, not an empty result:
     # every WGI series has data for this window. Catching it here names the culprit,
     # instead of letting a 1-of-6 shortfall vanish into a still-plausible total
-    # (task-066 — the bronze_wgi DQ row-count band is 50..500,000, so losing a whole
-    # indicator, ~5,000 rows out of ~31,000, passes that check comfortably).
+    # (task-066 — when this guard was written the bronze_wgi DQ row-count band was
+    # 50..500,000, so losing a whole indicator, ~5,000 rows out of ~31,000, sailed through
+    # it. task-073 has since tightened that band to 28,000..45,000, which does catch the
+    # same loss, so this guard is now the source-side half of a two-layer defence rather
+    # than the only thing between a partial fetch and a silent overwrite).
     if len(indicator_records) == 0:
         raise RuntimeError(
             f"No usable records returned for {short_code} (API {api_code}). Every WGI "

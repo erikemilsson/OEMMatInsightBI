@@ -1,0 +1,41 @@
+{
+  "spec_version": "spec_v1",
+  "spec_fingerprint": "sha256:eb7d4ec42ceefa9a3e709d879fd269fd0f6c07b4f432dc5a6a68a3f7cc1e6845",
+  "created_date": "2026-08-19",
+  "updated_date": "2026-08-19",
+  "completion_date": null,
+  "verification_attempts": 0,
+  "absorbed_into": null,
+  "subtasks": [],
+  "decision_dependencies": [],
+  "user_feedback": null,
+  "source": "verify-agent side-finding during task-071 verification (2026-08-19)",
+  "id": "task-074",
+  "title": "gold_data_gaps spend aggregates double-count dual-role countries — EUR 4.05M reported vs EUR 3.27M actual (+23.7%)",
+  "status": "Pending",
+  "priority": "high",
+  "difficulty": 4,
+  "owner": "both",
+  "phase": 5,
+  "spec_section": "Data Quality & Validation",
+  "out_of_spec": true,
+  "out_of_spec_approved": true,
+  "dependencies": [
+    "task-071"
+  ],
+  "files_affected": [
+    "fabric/silver_to_gold.Notebook/notebook-content.py",
+    "fabric/OEMInsightBI.SemanticModel/definition/tables/gold_data_gaps.tmdl"
+  ],
+  "description": "CONFIRMED BY LIVE MEASUREMENT (twice, independently) — this is not a lead.\n\ntask-071 fixed the row-vs-distinct population mismatch in gold_data_gaps' COUNTRY COUNT. The identical defect survives in the SPEND aggregates over the same table, and task-071's implementation note that 'the DQ block was the outlier' holds for counts only, NOT for spend.\n\nMECHANISM: gold_data_gaps is deduplicated on (country_key, country_role), so a country appearing in two roles contributes two rows. spend_eur is joined on per COUNTRY (grouped on supplier_hq_country_key in create_data_gaps_table's spend_by_country CTE) and then summed over the ROLE-grained rows, so every dual-role country's spend is counted once per role.\n\nMEASURED LIVE 2026-08-19 (verify-agent, then re-confirmed independently by the orchestrator with its own DAX):\n  SUM over rows              = EUR 4,051,020.35\n  SUM over distinct country  = EUR 3,273,776.03\n  fact_procurement total     = EUR 3,273,776.03  <- exact match, so the distinct form is provably correct\n  19 rows / 12 distinct countries / 2 roles\nInflation is +23.7%.\n\nAFFECTED PRODUCERS (silver_to_gold, create_data_gaps_table): total_spend, spend_full_coverage, spend_with_epi, spend_with_wgi — all four feed gold_data_gaps_summary's 'Spend Impact' category rows.\nAFFECTED SHIPPED MEASURES (gold_data_gaps.tmdl): 'Procurement Spend with EPI', 'Procurement Spend without EPI', 'EPI Spend Coverage %' — all three are SUM(gold_data_gaps[spend_eur]).\n\nSCOPE CORRECTION vs the originating finding: verify-agent called these 'user-facing'. That overstates it. A reference extraction over fabric/oem_report.Report/definition/**/*.json (8 entities found, 14 fact_procurement refs, as a working positive control) shows gold_data_gaps is referenced ZERO times by the report — no current visual renders these measures. They ARE wrong in the PUBLISHED semantic model and so are reachable by anyone querying it (Analyze in Excel, a new page, an ad-hoc DAX query), and the gold_data_gaps_summary 'Spend Impact' rows are wrong in the lakehouse regardless. So: a real data defect with no current report surface, not a visibly broken dashboard.\n\nALSO IN SCOPE (task-071 verify issue #2): the Data Gaps Coverage block in populate_quality_history still carries a dead, row-grained `SUM(spend_eur) as total_spend` that is never read, now sitting directly beneath task-071's comment asserting numerator and denominator count the same population. Either remove it or make it distinct-grained — leaving it is a trap for the next metric built on that block.\n\nDo not commit or push without confirming with Erik first, consistent with the rest of Phase 5.",
+  "acceptanceCriteria": [
+    "The EUR 4,051,020.35 vs EUR 3,273,776.03 split is re-measured independently before any edit, and the distinct-country form is re-confirmed to equal fact_procurement's total spend exactly.",
+    "create_data_gaps_table's four spend aggregates (total_spend, spend_full_coverage, spend_with_epi, spend_with_wgi) are computed over a country-grained population rather than the role-grained rows, and the fix is demonstrated by execution (local Spark fixture reproducing the 19-row/12-country/2-role shape), not by reasoning.",
+    "A decision is made and recorded about whether gold_data_gaps itself should stay role-grained at all: if no consumer needs country_role, collapsing the table to one row per country fixes this defect at the source and prevents the next instance. If a consumer does need it, that consumer is named.",
+    "The three gold_data_gaps.tmdl measures are checked against the chosen fix — if the table stays role-grained they must not use a bare SUM(gold_data_gaps[spend_eur]).",
+    "The dead row-grained `SUM(spend_eur) as total_spend` in populate_quality_history is removed or corrected.",
+    "gold_data_gaps_summary's 'Spend Impact' rows are confirmed correct after the fix.",
+    "Erik's half: deploy and confirm the corrected spend totals reconcile to fact_procurement's EUR 3,273,776.03."
+  ],
+  "notes": "Spun off 2026-08-19 from task-071's verification (issues[0], severity major). Filed rather than folded into task-071 because it is a distinct defect in a different set of columns with its own deploy risk, and because task-071 had already passed verification on its own acceptance criteria.\n\nAC3 is the important one. Fixing the four aggregates treats the symptom set; the root question is whether the (country_key, country_role) grain is load-bearing. task-071 and this task are both instances of the same underlying hazard — a role-grained table that everything downstream treats as country-grained. If the grain is not needed, collapsing it is the actual root-cause fix and retires the whole class.\n\n---\n\n[SCOPE DECIDED BY ERIK 2026-08-19] Approved with the ROOT-CAUSE option: collapse gold_data_gaps to one row per country and carry role as attributes (is_supplier_hq / is_production) rather than as half the dedup key. AC3 is therefore answered in advance — the (country_key, country_role) grain is NOT to be preserved.\n\nEvidence that made the grain safe to drop (gathered before the decision):\n  - country_role has no analytical consumer. It is produced in silver_to_gold (lines 3358/3362 as 'Supplier HQ'/'Production'), exists as a bare column in gold_data_gaps.tmdl with NO measure over it, and oem_report references gold_data_gaps zero times (positive-controlled extraction over the report definition: 8 entities, 14 fact_procurement refs).\n  - Every payload column is already country-grained: has_epi_score, has_wgi_score and spend_eur are all country attributes. Only the role label is role-grained.\n  - SECOND DEFECT this exposes, now in scope: spend_eur is joined from spend_by_country grouped on supplier_hq_country_key, so a row whose country_role is 'Production' carries that country's SUPPLIER-HQ spend. Collapsing the grain removes the wrong-value-per-role problem entirely; patching the aggregates would not have.\n\nDeploy risk to plan for: this changes the gold_data_gaps column set, so the semantic model needs a refresh and the three TMDL measures must be re-checked against the new shape."
+}

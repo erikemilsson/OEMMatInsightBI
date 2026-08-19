@@ -178,6 +178,73 @@ validate_row_count("oem_lh.bronze_epi2024results", min_count=180, max_count=200,
 - Expected: Warning logged, pipeline continues
 - Actual: `⚠️  WARNING: bronze_procurement_transactional: 500 rows (expected 1000-100000)`
 
+#### Choosing a band: `bronze_wgi` (worked example, 2026-08-18)
+
+A row-count band is only worth having if the failure it is meant to catch actually falls
+outside it. `bronze_wgi` originally used `(50, 500_000)`. That placeholder entered at commit
+`f419815` (tasks 022–026, the 2026-07-13 pipeline audit) when the table was still **wide** —
+one row per country — and it was never re-derived afterwards: `c752953` (task-035) converted
+the table to long format, multiplying the row count roughly 150×, and `05266b7` renamed
+`bronze_WGI` → `bronze_wgi`, but the band travelled through both unchanged. A range chosen
+for a few hundred wide rows cannot police thirty-one thousand long ones, and it could not
+catch the failure mode the check exists for.
+
+A normal `bronze_wgi` load is **31,122 rows across 6 governance indicators**. Measured
+per-indicator, from the World Bank API using the same non-null / 1996–2023 filter the
+producer applies:
+
+| Indicator | Rows | | Indicator | Rows |
+|---|---:|---|---|---:|
+| `CC.EST` | 5,158 | | `RL.EST` | 5,261 |
+| `GE.EST` | 5,127 | | `RQ.EST` | 5,128 |
+| `PV.EST` | 5,214 | | `VA.EST` | 5,234 |
+| | | | **Total** | **31,122** |
+
+Losing one entire indicator therefore lands between **25,861** rows (losing the largest,
+`RL.EST`) and **25,995** (losing the smallest, `GE.EST`) — every one of the six **inside**
+`(50, 500_000)`, so the check would have passed while a sixth of the governance data was
+missing.
+
+The band is now **`(28_000, 45_000)`**:
+
+- **Floor 28,000.** The worst case whole-indicator loss is `31,122 − 5,127 = 25,995` (using
+  the smallest indicator), so any floor above 25,995 catches every single-indicator loss.
+  28,000 clears it by ~2,000 rows — enough that a substantially *partial* loss also trips —
+  while still tolerating ~10% downward movement from 31,122 for upstream revisions.
+- **Ceiling 45,000.** WGI is annual, and `p_start_year`/`p_end_year` are **hardcoded** in
+  `bronze_ingest_wgi` (see task-072), so the count does not drift on its own. Widening that
+  window by one vintage is worth ~1,250 rows (~208 countries × 6 indicators), so 45,000 is
+  roughly a decade of headroom while still failing a duplicate or fan-out write (2× = 62,244;
+  even 1.5× = 46,683 trips it).
+
+**Stability is measured, not assumed.** Four independent measurements spanning sixteen days
+all return **31,122**:
+
+| Date | Source |
+|---|---|
+| 2026-08-03 | task-052 page-size experiment — `31,122` records, and `docs/performance_optimized.md` records the per-indicator split (`CC.EST` 5158 / `GE.EST` 5127 / `PV.EST` 5214) matching today's exactly |
+| 2026-08-13 | task-066, via the project's own `fetch_indicator` during a pipeline run |
+| 2026-08-18 | task-073 implementation, direct World Bank API walk |
+| 2026-08-19 | task-073 verification, independent re-walk (complete pagination confirmed on all six: `entries_seen == declared_total == 5,400`) |
+
+The structural reason for the invariance is the pinned window described under *Ceiling*
+above: WGI is an annual vintage, and the ingestion bounds cannot widen without a code edit.
+
+**A caveat on where history lives.** `gold_quality_history` persists only each check's
+**score**, not `total_rows` — the history writer projects `QUALITY_HISTORY_COLUMNS`, which
+drops it — and `validate_row_count` saturates the score at exactly `100.0` anywhere inside the
+band, so a passing run's persisted score carries no count information at all. The row count is
+therefore visible only in the notebooks' printed output (`Total records fetched` /
+`Written to bronze_wgi: N rows`, and `validate_row_count`'s `details` string), which survives
+in Fabric's retained run snapshots rather than in the warehouse. If a longer row-count series
+is ever wanted for trend analysis, persisting `total_rows` alongside the score is the change
+to make.
+
+**This is defense-in-depth, not the only guard.** `bronze_ingest_wgi` already refuses to
+overwrite the table unless all 6 indicators returned data (task-066). The band is the DQ-layer
+backstop for the same failure mode; an explicit distinct-indicator-count check at the DQ layer
+would be stronger still and remains available if this band ever proves insufficient.
+
 ---
 
 #### Check 2: Schema Validation
@@ -1098,7 +1165,7 @@ WHERE  entity = 'gate'
 
 ## 7. Persistent Advisory Failures (Measured and Accepted)
 
-Three checks record a non-`pass` row on **every** pipeline run. None is a broken gate, and none is a defect the pipeline should repair silently — but until 2026-08-06 none was documented either, so a reader meeting `dq_data_type_consistency = 75.0` in `gold_quality_history` had nowhere to look. This section is that place.
+**Two** checks record a non-`pass` row on **every** pipeline run — `date_range_validation` and `business_rule_validation`. A third, `data_type_consistency`, did so until 2026-08-12 and is kept here because its record explains a value readers still meet in the history table. None is a broken gate, and none is a defect the pipeline should repair silently — but until 2026-08-06 none was documented either, so a reader meeting `dq_data_type_consistency = 75.0` in `gold_quality_history` had nowhere to look. This section is that place.
 
 > **Update 2026-08-12 (task-069 / DEC-016) — CONFIRMED LIVE.** One of the three — `data_type_consistency` — no longer fails. `bronze_to_silver` now casts `quantity` / `unitpriceeur` to `decimal(18,2)` at the silver boundary, so the intent the check asserts is implemented rather than merely declared. **Measured, not predicted:** `100.00 / pass` on the `p_full_load = true` run (15:28:48Z) *and again* on the normal incremental run after the repo DDL + seed rebuild (16:06:16Z). The second reading is the load-bearing one — it proves the append path, not just the schema rewrite, produces conforming types. The other two remain accepted as written.
 

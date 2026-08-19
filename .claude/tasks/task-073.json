@@ -2,9 +2,9 @@
   "spec_version": "spec_v1",
   "spec_fingerprint": "sha256:eb7d4ec42ceefa9a3e709d879fd269fd0f6c07b4f432dc5a6a68a3f7cc1e6845",
   "created_date": "2026-08-13",
-  "updated_date": "2026-08-13",
-  "completion_date": null,
-  "verification_attempts": 0,
+  "updated_date": "2026-08-19",
+  "completion_date": "2026-08-19",
+  "verification_attempts": 2,
   "absorbed_into": null,
   "subtasks": [],
   "decision_dependencies": [],
@@ -12,18 +12,20 @@
   "source": "issues_discovered (non_blocking, suggested_action: create new task) from task-066's implement-agent report, 2026-08-13",
   "id": "task-073",
   "title": "bronze_wgi's DQ row-count band (50-500,000) is too wide to catch a lost indicator",
-  "status": "Pending",
+  "status": "Finished",
   "priority": "low",
   "difficulty": 3,
   "owner": "both",
   "phase": "5",
   "spec_section": "Data Quality & Validation",
   "out_of_spec": true,
-  "out_of_spec_approved": false,
+  "out_of_spec_approved": true,
   "dependencies": [],
   "files_affected": [
     "fabric/data_quality_checks.Notebook/notebook-content.py",
-    "docs/data_quality_framework.md"
+    "docs/data_quality_framework.md",
+    "fabric/bronze_ingest_wgi.Notebook/notebook-content.py",
+    "docs/epi_wgi_ingestion.md"
   ],
   "description": "bronze_wgi's row-count DQ check uses a (50, 500000) band against a normal load of ~31,000 rows across 6 governance indicators (~5,000 rows each). That band is wide enough that losing an entire indicator's worth of rows — the exact failure mode task-066 found and closed with an ingest-side completeness guard (all-6-indicators check before the overwrite) — would sail through this check undetected, dropping to ~26,000 rows and still landing well inside 50-500,000.\n\ntask-066's fix already prevents the silent write at the source (the notebook now raises before overwriting bronze_wgi if any indicator is missing), so this is defense-in-depth rather than closing an active hole. But the DQ check's stated purpose is to catch exactly this class of defect, and right now it structurally cannot for this table.\n\nRe-derive an appropriate band from the real per-indicator row counts (measure live, don't guess) rather than picking a round number.",
   "acceptanceCriteria": [
@@ -33,5 +35,59 @@
     "docs/data_quality_framework.md is updated to reflect the new band/check and why the old one was insufficient.",
     "Erik's half: deploy and confirm the tightened check still passes on a normal run."
   ],
-  "notes": "Created by the orchestrator from task-066's issues_discovered array (2026-08-13). Not yet reviewed by Erik under the out-of-spec gate — out_of_spec_approved is false. Defense-in-depth follow-up to task-066, which already closed the actual silent-write risk at the ingestion source; this task is about making the DQ layer independently capable of catching the same class of defect, not about an active production risk."
+  "notes": "Created by the orchestrator from task-066's issues_discovered array (2026-08-13). Not yet reviewed by Erik under the out-of-spec gate — out_of_spec_approved is false. Defense-in-depth follow-up to task-066, which already closed the actual silent-write risk at the ingestion source; this task is about making the DQ layer independently capable of catching the same class of defect, not about an active production risk.\n\n---\n\n[IMPLEMENTATION 2026-08-18] Band tightened from (50, 500000) to (28000, 45000), derived from live measurement.\n\nAC1 (measured, not assumed): fetched all 6 WGI indicators from the World Bank API for 1996-2023 applying the SAME non-null filter the producer applies (fetch_indicator skips entries whose value is None). Per-indicator: CC.EST 5,158 | GE.EST 5,127 | PV.EST 5,214 | RL.EST 5,261 | RQ.EST 5,128 | VA.EST 5,234. Total 31,122. The API declared 5,400 entries per indicator and all 6 walked completely (entries_seen == declared on every one), so the non-null counts are exact, not truncated reads.\n\nAC2 (losing an indicator now fails): worst case whole-indicator loss is 31,122 - 5,127 (smallest indicator) = 25,995 rows, which is below the new 28,000 floor and therefore FAILS. Under the old (50, 500000) it passed. The floor clears the worst case by ~2,000 rows so a substantially partial loss also trips. Ceiling 45,000 replaces the meaningless 500,000: it still fails a duplicate/fan-out write (2x = 62,244; 1.5x = 46,683) while leaving ~a decade of headroom at ~1,250 rows per added vintage (~208 countries x 6 indicators).\n\nAC3 (no false positive, verified against real history rather than asserted): total was 31,122 on 2026-08-13 (task-066, measured through this project's own fetch_indicator during its pipeline run) and 31,122 again on 2026-08-18, with VA.EST at 5,234 in both — two independent measurements five days apart, identical. Structural reason for the invariance: WGI is an annual vintage AND p_start_year/p_end_year are hardcoded in bronze_ingest_wgi (task-072), so the window cannot widen without a code edit. HONEST LIMITATION, recorded rather than papered over: gold_quality_history persists only each check's SCORE, not total_rows (log_check_result accepts total_rows but the history writer projects only score/threshold/breach_flag/status), so a longer row-count history is NOT recoverable from the warehouse. The two measurements are the whole evidence base; I did not claim more.\n\nAC4 (doc updated): docs/data_quality_framework.md § 2.1 gains a \"Choosing a band: bronze_wgi (worked example)\" subsection with the per-indicator table, both bound derivations, why (50, 500000) was insufficient, and the persistence limitation above.\n\nAC5 is Erik's half: deploy and confirm the tightened check still passes on a normal run (expected 31,122, comfortably inside 28,000-45,000).\n\nSCOPE NOTE: AC2 allows a band, an indicator-count check, or both. I implemented the band only. An explicit distinct-indicator-count check at the DQ layer would be strictly stronger, but it would mean touching the check registry and potentially BLOCKING_CHECKS — i.e. changing pipeline gate behaviour, which is a decision for Erik rather than an implicit scope expansion. Flagged as available in both the notebook comment and the doc.\n\nNOT committed, NOT pushed — working-tree only.",
+  "verification_history": [
+    {
+      "attempt": 1,
+      "timestamp": "2026-08-19T01:04:21Z",
+      "result": "fail",
+      "summary": "Substantive work correct and independently re-measured, but two other repo sites still assert the OLD band in the present tense (consistency_check fail), plus two doc accuracy defects."
+    },
+    {
+      "attempt": 2,
+      "timestamp": "2026-08-19T01:19:30Z",
+      "result": "pass",
+      "summary": "All 4 remediations verified; band work re-measured from scratch (own World Bank walk, 31,122, complete pagination on all six). 5 minor issues, 3 informational."
+    }
+  ],
+  "user_review_pending": true,
+  "interaction_hint": "dashboard",
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-08-19T01:19:30Z",
+    "verified_by": "verify-agent",
+    "attempt": 2,
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "partial",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "Attempt 2 PASS. All four remediations verified and the original band work re-measured from scratch rather than carried over from attempt 1. SWEEP (negative finding, positive-controlled from the same command): two probes over the whole tree excluding .venv/, fabric/archive/, .claude/tasks/ — the literal band pattern and alternate phrasings ('row-count band', 'band is/of', 'generous range'). Control probe for the NEW band returned 12 live hits, proving the probes were not silently empty. Every durable engineering surface is now past-tense. Two present-tense sites remain, both deliberately out of bounds: decision-017 (dated immutable record, edits structurally gated by DEC-016, and its line 134 is the very entry that spawned task-073) and .claude/support/workspace/RUNBOOK-task-035.md (scratch space for a finished task). PROVENANCE re-derived by the verifier: `git log -S` on the wide-era literal returns f419815 + 05266b7; on the snake_case literal only 05266b7. So f419815 (2026-07-20, tasks 022-026) introduced it and 05266b7 (2026-08-05) only re-cased it. c752953 (task-035, 2026-07-26) is the long-format conversion and the band is 6 days OLDER; reading c752953's own diff confirms it rewrote the comment above the band and the schema contracts but left the tuple untouched. The 'still wide' framing holds: at f419815 the DQ schema contract was {Country Name, Country Code, Series Name, Percentile Rank 2023} with no Year/Indicator Code. CORE MEASUREMENT — the verifier's own fresh World Bank walk, not the implementer's: CC 5,158 | GE 5,127 | PV 5,214 | RL 5,261 | RQ 5,128 | VA 5,234 -> 31,122, with entries_seen == declared_total == 5,400 on all six (complete reads). Exact reproduction including the smallest indicator the floor hangs on. Band arithmetic re-derived independently; the doc's '~1,250 rows per vintage' was decomposed and confirmed (216 economies x 25 WGI year-points, 96.05% non-null rate -> ~1,245). FOUR MEASUREMENT DATES each traced to source: the 2026-08-03 point is real at docs/performance_optimized.md:191 with its per-indicator split (CC 5158 / GE 5127 / PV 5214) matching the verifier's live walk exactly; a FIFTH corroborating 31,122 exists at .claude/support/workspace/phase5-batch-b-plan.md, unclaimed by the doc. COMMENT-ONLY confirmed structurally: bronze_ingest_wgi is AST-identical to HEAD, so task-072's reword and task-073's guard reword are together comment-only. Positive control in the same probe: data_quality_checks returns False (its band tuple genuinely changed), proving the comparison detects code changes. DOC CAVEAT verified against source: log_check_result accepts total_rows and validate_row_count passes it, but QUALITY_HISTORY_COLUMNS is 9 columns without it and the writer projects exactly that list; validate_row_count also flattens score to 100.0 anywhere in band. Both cited printed strings exist. 329/329 pytest, all 8 notebooks parse, HEAD still ac3781f with 0/0 against origin/main.",
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "Informational, out of bounds: decision-017 lines 38/134 still state the band in the present tense. Immutable dated record; DEC-016 gates edits; line 134 is task-073's own provenance."
+      },
+      {
+        "severity": "minor",
+        "description": "Informational: .claude/support/workspace/RUNBOOK-task-035.md:63 still present-tense. Scratch runbook for a completed task, not a live reference surface."
+      },
+      {
+        "severity": "minor",
+        "description": "docs/data_quality_framework.md attributes the long-format conversion to c752953 (task-035) — accurate about the TABLE's contents, slightly loose about the notebook, whose code already had a long-shaped write at c4d425b; c752953 changed the archived->live GOV_WGI_* codes, which is when long data first landed. Left as written."
+      },
+      {
+        "severity": "minor",
+        "description": "RESOLVED post-pass: the hardcoded-window rationale was stated twice in near-identical wording. The second instance now refers back to the first instead of restating it. Editorial only; touches no derivation."
+      },
+      {
+        "severity": "minor",
+        "description": "RESOLVED post-pass: the doc said a single-indicator loss 'lands at ~25,900-26,000'; the true span is 25,861 (losing RL.EST) to 25,995 (losing GE.EST). Corrected to the exact range and re-checked across all six (25,861/25,888/25,908/25,964/25,994/25,995 — all below the 28,000 floor). The floor derivation always used the correct 25,995 worst case and is unchanged."
+      }
+    ]
+  }
 }

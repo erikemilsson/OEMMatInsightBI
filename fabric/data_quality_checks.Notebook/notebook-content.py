@@ -271,8 +271,38 @@ row_count_checks = [
     (f"oem_lh.bronze_epi{EPI_YEAR}results", 150, 250),
     ("oem_lh.bronze_global_supply_shares", 100, 100000),
     # task-035 (FR-025): bronze_wgi — WB API long format, one row per country x indicator
-    # x year (was: wide, one row per country). Advisory row-count guard, generous range.
-    ("oem_lh.bronze_wgi", 50, 500000),
+    # x year (was: wide, one row per country).
+    #
+    # task-073: band tightened from the original (50, 500_000). That range could not do the
+    # job the check exists for: a normal load is ~31,100 rows across 6 indicators, so losing
+    # an entire indicator (~5,100 rows) lands near 26,000 — comfortably inside 50-500,000 and
+    # therefore invisible. Re-derived 2026-08-18 from live per-indicator counts measured
+    # against the World Bank API (non-null values, 1996-2023, the same filter this notebook's
+    # producer applies):
+    #     CC.EST 5,158 | GE.EST 5,127 | PV.EST 5,214
+    #     RL.EST 5,261 | RQ.EST 5,128 | VA.EST 5,234   -> total 31,122
+    #
+    # FLOOR 28,000: the worst case single-indicator loss is 31,122 - 5,127 (the smallest
+    # indicator) = 25,995, so any floor above that catches every whole-indicator loss. 28,000
+    # sits ~2,000 above it (so a substantially partial loss also trips) while still leaving
+    # ~10% of downward slack from today's 31,122 for upstream revisions.
+    #
+    # CEILING 45,000: WGI is annual, and p_end_year is hardcoded to 2023 in
+    # bronze_ingest_wgi (see task-072), so the count does not drift on its own. Each future
+    # vintage added by widening that window is worth ~1,250 rows (~208 countries x 6
+    # indicators), so 45,000 leaves roughly a decade of headroom while still failing a
+    # duplicate/fan-out write (2x = 62,244; even 1.5x = 46,683 trips it).
+    #
+    # Run-to-run stability is measured, not assumed: 31,122 total on 2026-08-13 (task-066,
+    # via this project's own fetch_indicator) and 31,122 again on 2026-08-18, with VA.EST at
+    # 5,234 in both. Note gold_quality_history persists only the check SCORE, not total_rows,
+    # so a longer row-count history is not recoverable from the warehouse — these two
+    # independent measurements five days apart are the evidence base.
+    #
+    # Defense-in-depth, not the only guard: bronze_ingest_wgi already refuses to overwrite
+    # bronze_wgi unless all 6 indicators returned data (task-066). This band is the DQ-layer
+    # backstop for that same failure mode.
+    ("oem_lh.bronze_wgi", 28000, 45000),
 ]
 
 row_count_results = []

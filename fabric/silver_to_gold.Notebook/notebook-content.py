@@ -3802,10 +3802,18 @@ def populate_quality_history():
         metrics_to_insert.append(("Gold", "fact_supply_share", "unmapped_count", unmapped_count, 50.0, unmapped_count > 50.0))
 
     # --- Data Gaps Coverage ---
+    # task-071: numerator and denominator must count the SAME population. gold_data_gaps is
+    # deduplicated on (country_key, country_role), so a country appearing in two roles
+    # contributes two rows. The numerator used to be SUM(CASE ... THEN 1 ELSE 0 END), which
+    # counts ROWS, while the denominator counts DISTINCT countries — so external_coverage_rate
+    # reported 158.33% (19 rows / 12 distinct countries) on every run measured between
+    # 2026-08-13 and 2026-08-18. Counting distinct countries on both sides also matches
+    # create_data_gaps_table's own full_coverage_count, which is defined as
+    # .select("country_key").distinct().count() over the same predicate.
     gaps_stats = spark.sql(f"""
         SELECT
             COUNT(DISTINCT country_key) as total_countries,
-            SUM(CASE WHEN has_epi_score AND has_wgi_score THEN 1 ELSE 0 END) as full_coverage_count,
+            COUNT(DISTINCT CASE WHEN has_epi_score AND has_wgi_score THEN country_key END) as full_coverage_count,
             SUM(spend_eur) as total_spend
         FROM {DB}.gold_data_gaps
     """).first()

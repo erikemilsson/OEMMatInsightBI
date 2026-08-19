@@ -428,9 +428,13 @@ fetch fail loudly instead:
 4. **All-indicators check before the write** → every one of the 6 canonical codes must be
    present, or refuse to overwrite.
 
-Guard 4 matters because the bronze DQ row-count band for `bronze_wgi` is 50–500,000:
-losing a whole indicator (~5,000 of ~31,000 rows) passes that check comfortably, so the
-DQ layer would *not* have caught it.
+Guard 4 mattered because, at the time it was written, the bronze DQ row-count band for
+`bronze_wgi` was 50–500,000: losing a whole indicator (~5,000 of ~31,000 rows) passed that
+check comfortably, so the DQ layer would *not* have caught it. task-073 has since tightened
+that band to **28,000–45,000** (derivation in `docs/data_quality_framework.md` § 2.1), which
+does catch the same loss. Guard 4 is therefore now the source-side half of a two-layer
+defence — it names the culprit indicator at fetch time and refuses the overwrite, while the
+DQ band is the backstop if a shortfall ever reaches the table by another route.
 
 Regression tests: `tests/test_wgi_retry.py` (29 assertions), which extract the notebook's
 own `is_transient_request_error` / `retry_delay` / `fetch_indicator` via `ast` under the
@@ -686,7 +690,9 @@ https://www.worldbank.org/en/publication/worldwide-governance-indicators
     a 0-100 value instead of BLANK.
 ✅ **WGI Notebook Created** - `fabric/bronze_ingest_wgi.Notebook/`
   - Calls World Bank API v2 (JSON format) for all 6 WGI indicators
-  - Parameterized by date range (`p_start_year`/`p_end_year`, default: 1996-2023)
+  - Fixed ingestion window 1996-2023 — `p_start_year`/`p_end_year` are **hardcoded**, not
+    pipeline parameters. The notebook has no Fabric parameters cell and the orchestrator
+    passes it none (task-072); widening the window requires editing the notebook.
   - Pagination support for large result sets
   - Retry logic with exponential backoff
   - **task-066 (2026-08-13):** transient/permanent classification before any retry (5xx and

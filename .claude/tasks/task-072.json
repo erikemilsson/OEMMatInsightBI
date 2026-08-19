@@ -2,9 +2,9 @@
   "spec_version": "spec_v1",
   "spec_fingerprint": "sha256:eb7d4ec42ceefa9a3e709d879fd269fd0f6c07b4f432dc5a6a68a3f7cc1e6845",
   "created_date": "2026-08-13",
-  "updated_date": "2026-08-13",
-  "completion_date": null,
-  "verification_attempts": 0,
+  "updated_date": "2026-08-19",
+  "completion_date": "2026-08-19",
+  "verification_attempts": 1,
   "absorbed_into": null,
   "subtasks": [],
   "decision_dependencies": [],
@@ -12,14 +12,14 @@
   "source": "issues_discovered (non_blocking, suggested_action: create new task) from task-066's implement-agent report, 2026-08-13",
   "id": "task-072",
   "title": "bronze_ingest_wgi's parameters-cell comment is misleading — no Fabric parameter actually overrides p_start_year/p_end_year",
-  "status": "Pending",
+  "status": "Finished",
   "priority": "low",
   "difficulty": 2,
   "owner": "both",
   "phase": "5",
   "spec_section": "Orchestration",
   "out_of_spec": true,
-  "out_of_spec_approved": false,
+  "out_of_spec_approved": true,
   "dependencies": [],
   "files_affected": [
     "fabric/bronze_ingest_wgi.Notebook/notebook-content.py"
@@ -29,5 +29,45 @@
     "The misleading comment is corrected to state plainly that p_start_year/p_end_year are hardcoded and not overridden by any pipeline parameter, contrasting with bronze_epi's actual parameterization if that helps a future reader.",
     "No behavior change — this is a documentation/comment fix only, unless Erik indicates during review that the window should actually become parameterized (in which case that's a scope decision, not an assumption)."
   ],
-  "notes": "Created by the orchestrator from task-066's issues_discovered array (2026-08-13). Not yet reviewed by Erik under the out-of-spec gate — out_of_spec_approved is false."
+  "notes": "Created by the orchestrator from task-066's issues_discovered array (2026-08-13). Not yet reviewed by Erik under the out-of-spec gate — out_of_spec_approved is false.\n\n---\n\n[IMPLEMENTATION 2026-08-18] Comment corrected. No behaviour change, as AC2 requires.\n\nThe misleading claim was verified false two independent ways, each with a positive control (per the project's negative-findings rule):\n  1. No Fabric parameters cell. A parameter cell serializes as the delimiter '# PARAMETERS CELL ********************' in place of '# CELL ***...'. That marker appears ZERO times in bronze_ingest_wgi. Positive control: it appears once (line 37) in bronze_ingest_epi.\n  2. The pipeline passes nothing. Parsed orchestrator_pipeline_bronze_to_gold.DataPipeline/pipeline-content.json: the bronze_wgi activity's typeProperties has parameters=None. Positive control: the sibling bronze_epi activity passes p_epi_year, and bronze_to_silver_cleaning/silver_to_gold/data_quality_checks each pass 1-4 parameters.\n\nSo the contrast with bronze_epi that AC1 invites is real and is now stated in the comment, along with both verification methods so a future reader can re-run them.\n\nDid NOT parameterize the window — AC2 explicitly reserves that as Erik's scope decision, not an implementation assumption. Also recorded the practical consequence a maintainer needs: because p_end_year is pinned to 2023, a newly published WGI vintage does not flow in by itself. That fact is load-bearing for task-073's row-count band, and the two comments now cross-reference.\n\nNOT committed, NOT pushed — working-tree only.",
+  "user_review_pending": true,
+  "interaction_hint": "dashboard",
+  "verification_history": [
+    {
+      "attempt": 1,
+      "timestamp": "2026-08-19T01:02:31Z",
+      "result": "pass",
+      "summary": "Comment-only proven at AST + tokenize level; both claims re-derived with positive controls; 3 minor issues, none blocking."
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-08-19T01:02:31Z",
+    "verified_by": "verify-agent",
+    "attempt": 1,
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "not_applicable",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "Both AC met, every load-bearing claim re-derived independently. CLAIM 1 (no parameters cell in wgi, present in epi): anchored probe '^# PARAMETERS CELL' = 0 for wgi, 1 for epi (line 37); swept all 8 notebooks (5 carry exactly 1; wgi, data_quality_analysis, sample_quality_data carry 0). Fabric delimiter sequence and all # META lines byte-identical HEAD vs working tree, so cell structure unperturbed. CLAIM 2 (pipeline passes wgi nothing): verified by json.load of pipeline-content.json, not grep — bronze_wgi has NO parameters key; positive controls in the same parse: bronze_epi 1, bronze_to_silver_cleaning 4, silver_to_gold 4, data_quality_checks 1, pipeline_error_handler 1. Corroborated from spec_v1 § Orchestration's live-verified 5-parameter list, which excludes p_start_year/p_end_year. AC2 NO BEHAVIOUR CHANGE proven mechanically: ast.dump identical both sides (sha 39ea07a6d9c6fbe3), tokenize stream with COMMENT/NL stripped identical (1579 tokens each). Comment's own factual claims each checked, including that the pinned p_end_year is a hard World Bank request bound (feeds date=f'{start}:{end}' at line 301), not a filter with a fallback. Notably the old 'overridden by Fabric pipeline at runtime' wording correctly REMAINS in bronze_ingest_epi and bronze_to_silver, which are genuinely parameterized — the fix targeted only the notebook where it was false. NOT COMMITTED/PUSHED confirmed: HEAD ac3781f unchanged, 0 commits ahead of origin/main, nothing staged. Scope clean: the other 6 modified files attribute to task-071/073 and orchestrator infrastructure.",
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "The new comment quotes the literal delimiter string, so a naive unanchored `grep -c 'PARAMETERS CELL'` on this file now returns 1 (was 0); the correct anchored '^# PARAMETERS CELL' still returns 0. Suggest rewording to name the anchored form so a maintainer re-running the comment's own recipe loosely cannot reach the opposite conclusion."
+      },
+      {
+        "severity": "minor",
+        "description": "docs/epi_wgi_ingestion.md:689 still describes the WGI notebook as 'Parameterized by date range (p_start_year/p_end_year, default: 1996-2023)' — the same misleading framing this task exists to kill. Pre-existing, outside declared files_affected (correctly not expanded into), but now directly contradicts the corrected notebook comment. Registered as FR-095."
+      },
+      {
+        "severity": "minor",
+        "description": "The embedded literal delimiter inside the comment is indented, so it cannot match a line-anchored delimiter parse — but Fabric's round-trip parser cannot be exercised offline, leaving a small unverified residual."
+      }
+    ]
+  }
 }
