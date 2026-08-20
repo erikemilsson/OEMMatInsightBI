@@ -203,7 +203,10 @@ HTTP_TRANSIENT_STATUSES = {400, 408, 429}
 # window — isolated requests 502'd, and each one burned the whole 75s budget and then
 # killed the entire run. 8 attempts with a 120s cap spends 5+10+20+40+80+120+120 = 395s
 # (~6.6 min) per request before declaring defeat, which covers an isolated gateway
-# wobble while staying hard-bounded. Worst case per run is bounded by the activity's
+# wobble while staying hard-bounded. That 395s is the NOMINAL sum, not a ceiling —
+# API_BACKOFF_JITTER widens each wait by +/-25%, and a Retry-After at the cap widens it
+# further; the exact band lives in docs/epi_wgi_ingestion.md § "Retry ownership and the
+# total attempt budget" and is deliberately not restated here. Worst case per run is bounded by the activity's
 # 12-hour timeout; a healthy run is unaffected because this is the FAILURE PATH ONLY.
 #
 # NOT A CURE-ALL. A multi-hour upstream outage will still fail this run, loudly and by

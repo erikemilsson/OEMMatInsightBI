@@ -5,6 +5,7 @@ Tests functions that validate data quality during transformations,
 including unmapped value detection and quality categorization.
 """
 
+import ast
 from datetime import date
 
 import pytest
@@ -650,3 +651,318 @@ class TestNotebookParity:
             assert categorize_quality(row["data_quality_score"]) == row["quality_category"], (
                 f"threshold drift at score {row['data_quality_score']}"
             )
+
+
+# ---------------------------------------------------------------------------
+# gold_data_gaps — create_data_gaps_table() coverage (task-078)
+# ---------------------------------------------------------------------------
+#
+# WHY THIS EXISTS. create_data_gaps_table shipped two consecutive GRAIN defects with
+# zero test coverage: task-071's 158.33% coverage rate and task-074's +23.7% spend
+# inflation, both caused by a (country_key, country_role)-grained population under
+# country-grained payload columns. task-074's fix added a grain guard that could never
+# fire — it counted the frame AFTER dropDuplicates(["country_key"]), where rows and
+# distinct countries are equal by construction for every possible input. These tests
+# close that gap: they pin the function's core invariants and, critically, prove the
+# repaired guard RAISES on an upstream fan-out.
+#
+# HARNESS. The function takes no arguments — it reads the notebook globals `spark`,
+# `DB`, `write_tbl` and `WGI_REQUIRED_INDICATORS` and addresses its inputs as
+# `{DB}.<table>`. So each input is registered as a GLOBAL temp view and DB is injected
+# as "global_temp": no metastore database, no on-disk warehouse, and no Delta writer
+# (write_tbl is stubbed to capture the frame it is handed, which also lets a test prove
+# nothing was written when the guard fires).
+
+_GAPS_DB = "global_temp"  # global temp views are addressable as global_temp.<name>
+
+_DIM_COUNTRY_DDL = (
+    "country_key INT, country_name_std STRING, iso3 STRING, region STRING, "
+    "is_placeholder BOOLEAN"
+)
+_FACT_PROCUREMENT_DDL = (
+    "supplier_hq_country_key INT, production_country_key INT, spend_eur DOUBLE"
+)
+_FACT_EPI_DDL = "country_key INT, indicator_key INT, score DOUBLE"
+_DIM_INDICATOR_DDL = "indicator_key INT, abbrev STRING"
+_SILVER_WGI_DDL = "country_iso3 STRING, indicator_name STRING, value DOUBLE"
+
+_WGI_SIX = [
+    "Control of Corruption",
+    "Government Effectiveness",
+    "Political Stability and Absence of Violence/Terrorism",
+    "Regulatory Quality",
+    "Rule of Law",
+    "Voice and Accountability",
+]
+
+# Country fixture: key -> (name, iso3, region, is_placeholder)
+_DEU, _CHN, _TWN, _BRA, _UNK = 1, 2, 3, 4, 9
+
+_DIM_COUNTRY_ROWS = [
+    (_DEU, "Germany", "DEU", "Europe", False),
+    (_CHN, "China", "CHN", "Asia", False),
+    (_TWN, "Taiwan", "TWN", "Asia", False),
+    (_BRA, "Brazil", "BRA", "Americas", False),
+    (_UNK, "Unknown - Global", "UNK_GLOBAL", "Unknown", True),
+]
+
+# Every fact row is booked against a NON-placeholder supplier HQ, so total spend over
+# gold_data_gaps must reconcile to fact_procurement exactly (see the reconciliation test
+# for the boundary condition that qualifies this contract).
+_FACT_PROCUREMENT_ROWS = [
+    (_DEU, _DEU, 100.0),   # Germany is both supplier HQ and production country
+    (_DEU, _TWN, 50.0),    # Taiwan appears ONLY as a production country -> 0.0 spend
+    (_CHN, _UNK, 40.0),    # placeholder appears only as a production country
+    (_BRA, None, 10.0),
+]
+_FACT_TOTAL_SPEND = 200.0
+
+# indicator_key 1 = the EPI composite; 2 = a sub-indicator that must NOT count as EPI
+# coverage (task-054: the fact carries 30+ sub-indicator rows per country).
+_DIM_INDICATOR_ROWS = [(1, "EPI"), (2, "AIR")]
+_FACT_EPI_ROWS = [
+    (_DEU, 1, 55.0),
+    (_CHN, 1, 42.0),
+    (_TWN, 1, None),   # null composite score -> not covered
+    (_BRA, 2, 61.0),   # sub-indicator only -> not covered
+]
+
+# Germany + Brazil hold all six governance dimensions; China holds five real ones plus a
+# null-valued sixth, which the `value IS NOT NULL` filter must drop; Taiwan holds none
+# (the real, permanent TWN governance gap).
+_SILVER_WGI_ROWS = (
+    [("DEU", ind, 0.5) for ind in _WGI_SIX]
+    + [("BRA", ind, -0.1) for ind in _WGI_SIX]
+    + [("CHN", ind, -0.3) for ind in _WGI_SIX[:5]]
+    + [("CHN", _WGI_SIX[5], None)]
+)
+
+
+def _notebook_int_constant(name):
+    """Read a module-level int constant from the gold notebook's own source.
+
+    The loader compiles only FunctionDefs, so notebook globals must be injected. Reading
+    the value from the notebook text (rather than restating it here) keeps the injected
+    value bound to the notebook — a threshold change there cannot silently pass under an
+    old value pinned in the test.
+    """
+    tree = ast.parse(GOLD_NOTEBOOK.read_text(encoding="utf-8"), filename=str(GOLD_NOTEBOOK))
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(t, ast.Name) and t.id == name for t in node.targets
+        ):
+            return ast.literal_eval(node.value)
+    raise AssertionError(
+        f"{name} is no longer a module-level constant in {GOLD_NOTEBOOK.name}"
+    )
+
+
+def _run_create_data_gaps(spark, dim_country_rows=None, written=None):
+    """Run the notebook's own create_data_gaps_table over in-memory fixtures.
+
+    Returns (written, data_gaps_df, summary_df) where `written` maps table name ->
+    DataFrame handed to write_tbl. Callers that outlive the view registrations must
+    materialize before the next call replaces the views.
+
+    `written` may be supplied by the caller so it stays inspectable when the function
+    raises — a dict created inside this helper would be unreachable after an exception,
+    which would make a "nothing was written" assertion vacuously true.
+    """
+    views = {
+        "gold_dim_country": (dim_country_rows or _DIM_COUNTRY_ROWS, _DIM_COUNTRY_DDL),
+        "fact_procurement": (_FACT_PROCUREMENT_ROWS, _FACT_PROCUREMENT_DDL),
+        "fact_epi_score": (_FACT_EPI_ROWS, _FACT_EPI_DDL),
+        "gold_dim_indicator": (_DIM_INDICATOR_ROWS, _DIM_INDICATOR_DDL),
+        "silver_wgi": (_SILVER_WGI_ROWS, _SILVER_WGI_DDL),
+    }
+    for name, (rows, ddl) in views.items():
+        spark.createDataFrame(rows, ddl).createOrReplaceGlobalTempView(name)
+
+    written = {} if written is None else written
+
+    def _write_tbl(df, tbl_name):
+        written[tbl_name] = df
+
+    nb = load_notebook_functions(
+        GOLD_NOTEBOOK,
+        ["create_data_gaps_table"],
+        extra_globals={
+            "spark": spark,
+            "DB": _GAPS_DB,
+            "write_tbl": _write_tbl,
+            "WGI_REQUIRED_INDICATORS": _notebook_int_constant("WGI_REQUIRED_INDICATORS"),
+        },
+    )
+    data_gaps, summary = nb["create_data_gaps_table"]()
+    return written, data_gaps, summary
+
+
+@pytest.fixture(scope="module")
+def data_gaps_result(spark):
+    """One run of create_data_gaps_table over the default fixture, fully materialized.
+
+    Materialized to plain dicts on purpose: the input tables are global temp views, and a
+    later test replaces them, so a lazily-held DataFrame would silently re-evaluate
+    against another test's inputs. Dicts also sidestep the Row/tuple hazard — pyspark Row
+    subclasses tuple, so `row.count` on a column named `count` returns a bound method.
+    """
+    written, data_gaps, summary = _run_create_data_gaps(spark)
+    return {
+        "rows": [r.asDict() for r in data_gaps.collect()],
+        "summary": {r["metric_name"]: r["metric_value"] for r in summary.collect()},
+        "written": sorted(written),
+        "written_rows": {
+            name: [r.asDict() for r in df.collect()] for name, df in written.items()
+        },
+    }
+
+
+class TestDataGapsTable:
+    """Core invariants of create_data_gaps_table — the coverage two grain defects shipped
+    through (task-078 acceptance criterion 4)."""
+
+    @pytest.mark.unit
+    def test_one_row_per_country(self, data_gaps_result):
+        """THE grain contract: one row per country, role carried as attributes."""
+        rows = data_gaps_result["rows"]
+        keys = [r["country_key"] for r in rows]
+
+        assert len(keys) == len(set(keys)), f"gold_data_gaps fanned out: {sorted(keys)}"
+        assert set(keys) == {_DEU, _CHN, _TWN, _BRA}
+
+        germany = next(r for r in rows if r["country_key"] == _DEU)
+        assert germany["is_supplier_hq"] is True
+        assert germany["is_production"] is True, (
+            "a dual-role country must be ONE row carrying both role flags, never two rows"
+        )
+
+    @pytest.mark.unit
+    def test_written_table_has_the_same_grain(self, data_gaps_result):
+        """The guard protects the WRITE, not just the returned frame."""
+        assert data_gaps_result["written"] == ["gold_data_gaps", "gold_data_gaps_summary"]
+        written_keys = [
+            r["country_key"] for r in data_gaps_result["written_rows"]["gold_data_gaps"]
+        ]
+        assert len(written_keys) == len(set(written_keys)) == 4
+
+    @pytest.mark.unit
+    def test_spend_reconciles_to_fact_procurement_total(self, data_gaps_result):
+        """SUM(spend_eur) over the country-grained table == fact_procurement's total.
+
+        This is the +23.7% inflation regression (task-074): with a role-grained
+        population, dual-role countries were counted twice and this equality broke.
+
+        Boundary of the contract: it holds because spend is grouped on
+        supplier_hq_country_key (partitioning the fact exactly once) and no placeholder
+        country is a supplier HQ here — placeholders are filtered out of the table, so
+        spend booked against one would sit outside it.
+        """
+        total = sum(r["spend_eur"] for r in data_gaps_result["rows"])
+        assert total == pytest.approx(_FACT_TOTAL_SPEND)
+        assert data_gaps_result["summary"]["Total Procurement Spend (EUR)"] == pytest.approx(
+            _FACT_TOTAL_SPEND
+        )
+
+    @pytest.mark.unit
+    def test_spend_is_supplier_hq_spend_only(self, data_gaps_result):
+        """spend_eur is supplier-HQ spend by definition; a production-only country is 0.0.
+
+        task-074 defect #2: under the role grain, a row whose role was 'Production'
+        carried that country's supplier-HQ spend — a wrong value per row, not just a
+        double count.
+        """
+        by_key = {r["country_key"]: r for r in data_gaps_result["rows"]}
+
+        assert by_key[_DEU]["spend_eur"] == pytest.approx(150.0)
+        assert by_key[_DEU]["transaction_count"] == 2
+        assert by_key[_TWN]["spend_eur"] == pytest.approx(0.0)
+        assert by_key[_TWN]["transaction_count"] == 0
+        assert by_key[_TWN]["is_production"] is True
+        assert by_key[_TWN]["is_supplier_hq"] is False
+
+    @pytest.mark.unit
+    def test_placeholder_countries_are_excluded(self, data_gaps_result):
+        """Unknown - Global reaches procurement_countries but must not reach the table."""
+        assert _UNK not in {r["country_key"] for r in data_gaps_result["rows"]}
+
+    @pytest.mark.unit
+    def test_coverage_flags_and_data_status(self, data_gaps_result):
+        """EPI needs the abbrev='EPI' composite with a non-null score; WGI needs all six
+        dimensions with non-null values."""
+        by_key = {r["country_key"]: r for r in data_gaps_result["rows"]}
+
+        assert by_key[_DEU]["data_status"] == "Full Coverage"
+        assert by_key[_CHN]["data_status"] == "EPI Only"    # 5 of 6 WGI (6th is null)
+        assert by_key[_BRA]["data_status"] == "WGI Only"    # sub-indicator is not EPI
+        assert by_key[_TWN]["data_status"] == "No Coverage"  # null EPI score, no WGI
+
+        assert by_key[_BRA]["has_epi_score"] is False
+        assert by_key[_TWN]["has_epi_score"] is False
+        assert by_key[_CHN]["has_wgi_score"] is False
+
+    @pytest.mark.unit
+    def test_summary_counts_and_percentages_are_country_grained(self, data_gaps_result):
+        """task-071 regression: coverage rates over a fanned-out grain exceeded 100%."""
+        summary = data_gaps_result["summary"]
+
+        assert summary["Total Procurement Countries"] == 4.0
+        assert summary["Countries with EPI Data"] == 2.0
+        assert summary["Countries without EPI Data"] == 2.0
+        assert summary["EPI Country Coverage %"] == pytest.approx(50.0)
+        assert summary["Full Coverage (EPI + WGI)"] == 1.0
+        assert summary["Full Coverage %"] == pytest.approx(25.0)
+
+        over_100 = {
+            name: value
+            for name, value in summary.items()
+            if name.endswith("%") and value > 100.0
+        }
+        assert not over_100, f"coverage rate above 100% implies a fanned-out grain: {over_100}"
+
+
+class TestDataGapsGrainGuard:
+    """task-078 — the guard must be able to FAIL.
+
+    Referenced by name from the notebook's guard comment. Before task-078 the guard sat
+    below `.dropDuplicates(["country_key"])` and compared two counts that are equal by
+    construction, so this test failed: the duplicate was silently collapsed to one
+    ARBITRARY surviving row and no ValueError was raised.
+    """
+
+    @staticmethod
+    def _dim_country_with_duplicate_key():
+        # A second row for country_key 1 — what a regression in gold_dim_country's
+        # country_key uniqueness (task-025's row_number dedup) would look like here.
+        return _DIM_COUNTRY_ROWS + [(_DEU, "Deutschland", "DEU", "Europe", False)]
+
+    @pytest.mark.unit
+    def test_duplicate_dim_country_row_raises_grain_violation(self, spark):
+        with pytest.raises(ValueError, match=r"grain violation") as excinfo:
+            _run_create_data_gaps(
+                spark, dim_country_rows=self._dim_country_with_duplicate_key()
+            )
+
+        message = str(excinfo.value)
+        assert "5 rows for 4 distinct countries" in message, message
+        assert str(_DEU) in message, (
+            f"the guard must name the duplicated country_key: {message}"
+        )
+
+    @pytest.mark.unit
+    def test_fan_out_is_caught_before_the_table_is_written(self, spark):
+        """The guard runs upstream of write_tbl, so an inflated table never lands."""
+        written = {}
+        try:
+            _run_create_data_gaps(
+                spark,
+                dim_country_rows=self._dim_country_with_duplicate_key(),
+                written=written,
+            )
+        except ValueError:
+            pass
+        else:  # pragma: no cover - the guard is expected to raise
+            pytest.fail("create_data_gaps_table did not raise on a fanned-out grain")
+
+        assert written == {}, (
+            "gold_data_gaps must not be written when the grain guard fires"
+        )

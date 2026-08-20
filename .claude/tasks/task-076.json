@@ -1,0 +1,30 @@
+{
+  "source": "verify-agent",
+  "status": "Pending",
+  "phase": "5",
+  "spec_version": "spec_v1",
+  "spec_fingerprint": "sha256:eb7d4ec42ceefa9a3e709d879fd269fd0f6c07b4f432dc5a6a68a3f7cc1e6845",
+  "created_date": "2026-08-20",
+  "updated_date": "2026-08-20",
+  "out_of_spec": true,
+  "out_of_spec_approved": true,
+  "dependencies": [],
+  "decision_dependencies": [],
+  "verification_attempts": 0,
+  "notes": "",
+  "id": "task-076",
+  "difficulty": 3,
+  "owner": "both",
+  "spec_section": "Orchestration",
+  "files_affected": [
+    ".claude/spec_v1.md"
+  ],
+  "title": "Spec drift sweep: bronze_wgi retry (FR-096), the 'Three checks' contradiction, and the stale unit-test headline",
+  "description": "Three false or stale assertions in spec_v1.md, all found by phase-level verification 2026-08-20. MUST route through /iterate per DEC-016 — do NOT edit spec_v1.md directly.\n\n(1) FR-096 (already open in friction.jsonl). Three locations still describe bronze_wgi as retrying at the activity level, which task-075/DEC-018 ended:\n  - L642, Stage 1 activity table, Retry column reads `2`. Deployed value is 0 (full live map: Copy 3/300s, bronze_epi 2/30s, bronze_wgi 0/30s, bronze_to_silver_cleaning 2/120s, silver_to_gold 2/120s, data_quality_checks 1/120s, pipeline_error_handler 0/30s).\n  - L716, 'Activity-level retry (1-3 retries depending on activity)' — the true range is now 0-3.\n  - L1574, Technical Decisions #5, '1-3 retries, i.e. 2-4 total attempts ... 30s for bronze_wgi/bronze_epi'. bronze_wgi keeps the 30s interval but no retries; its budget lives in the notebook (8 bounded attempts).\nEvery doc under docs/ was correctly swept by task-075 — spec_v1.md is the only stale surface.\n\n(2) NEW, unregistered before this run. L1122 asserts 'Three checks record a non-`pass` row on every run by design — measured, explained and accepted in `docs/data_quality_framework.md § 7`'. That doc's § 7 has opened with 'Two checks record a non-pass row on every pipeline run' since task-069/DEC-016 fixed data_type_consistency on 2026-08-12 (confirmed live on two runs). The spec contradicts the document it cites as its own evidence — a reader hits it the moment they follow the pointer.\n\n(3) L1319 § Testing Strategy reads '**300 tests** ... (measured 2026-08-12)'. Measured 2026-08-20: 340 passed. The as-of date makes this honest rather than false, so re-date rather than treat as a defect. Per-file figures in the same section (data_quality 45, material_mapping 7, country_mapping 18) were re-measured and all hold.",
+  "acceptanceCriteria": [
+    "All three FR-096 locations (L642, L716, L1574) are corrected via /iterate to reflect the deployed retry map, including bronze_wgi at 0 and the true 0-3 range.",
+    "L1122's 'Three checks' claim is reconciled with docs/data_quality_framework.md § 7's 'Two checks' — decide which is right by re-reading the live DQ output, and correct whichever is stale rather than assuming the doc.",
+    "L1319's test count is re-dated with a freshly measured number, and the dating convention is kept so the next staleness is self-evident.",
+    "FR-096 is marked resolved in .claude/support/friction.jsonl once the spec lands."
+  ]
+}

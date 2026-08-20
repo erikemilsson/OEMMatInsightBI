@@ -285,14 +285,30 @@ gold_data_gaps
 ├── transaction_count    ✅
 └── calculated_at        ✅
 
-gold_data_gaps_summary
-├── coverage_status
-├── country_count
-├── spend_sum
-└── spend_pct
+gold_data_gaps_summary   (long-form / EAV — one ROW per metric, not one column per metric)
+├── category             ✅ (EPI Coverage / WGI Coverage / Combined Coverage / Spend Impact / Summary)
+├── metric_name          ✅ (e.g. "Full Coverage (EPI + WGI)", "Full Coverage Spend %")
+├── metric_value         ✅ (double — counts, EUR amounts and percentages all share this column)
+├── description          ✅ (human-readable gloss, e.g. "12 of 12 supplier countries")
+└── calculated_at        ✅
 ```
 
-**Current Results:** 12/12 countries (100%) have Full Coverage.
+**Shape:** `gold_data_gaps_summary` is a **long/EAV table**, not a wide one. Every metric is a
+labelled row (`category`, `metric_name`, `metric_value`) rather than its own column, so adding a
+metric adds a row and never changes the schema. `create_data_gaps_table()` in
+`silver_to_gold.Notebook` emits exactly **16 rows** per run — 3 EPI Coverage + 3 WGI Coverage +
+4 Combined Coverage + 4 Spend Impact + 2 Summary — and `write_tbl` overwrites the table each run
+(`mode("overwrite")` with `overwriteSchema`), so it is a point-in-time snapshot, not a history.
+Because counts, EUR amounts and percentages all land in the same `metric_value` column, the unit
+is carried by `metric_name`: any visual over this table must filter to a specific
+`category` / `metric_name` pair rather than aggregating `metric_value` across rows.
+
+**Current Results:** 12/12 countries (100%) have Full Coverage — **as of 2026-08-19**, the last
+live reading (task-074 step 8: `gold_quality_history.external_coverage_rate` = 100.0 against
+`Total Procurement Countries` = 12; that metric is `full_coverage_count / total_countries` over
+`gold_data_gaps`). Not independently re-measured on 2026-08-20 (task-077 had no Fabric access).
+The live equivalent to re-check is the `Combined Coverage` / `Full Coverage %` row of
+`gold_data_gaps_summary`.
 
 ---
 

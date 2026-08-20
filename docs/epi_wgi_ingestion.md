@@ -486,12 +486,30 @@ in the identical time):
 
 | Failure class | Notebook attempts | Activity attempts | **Total** | Wall clock to red |
 |---|---|---|---|---|
-| Transient (5xx / 429 / 400 / 408 / transport) | up to 8 per request | 1 (no retry) | **8** | ≤ ~6.6 min of backoff per request (5→10→20→40→80→120→120 s, cap 120 s), bounded above by the activity's 12 h timeout |
-| Permanent (401 / 403 / 404 / unclassified / in-band 200) | **1** — raises on the first response | 1 (no retry) | **1** | **~3 min** (essentially Spark session start), then the run goes red |
+| Transient (5xx / 429 / 400 / 408 / transport) | up to 8 per request | 1 (no retry) | **8** | **~4.9–8.2 min** of backoff per request — see the note below; bounded above by the activity's 12 h timeout |
+| Permanent (401 / 403 / 404 / unclassified / in-band 200) | **1** — raises on the first response | 1 (no retry) | **1** | **~3 min** if the failing indicator is the *first* fetched (essentially Spark session start); ~16 min if it is the *last*, since the earlier indicators must be fetched to reach it |
 
-Before task-075 the permanent row read *3 total attempts and ~35 min to red* — the exact
-scenario task-066 built the permanent path for (a retired indicator code) was still being
-retried twice at ~16 min each before anyone was told.
+**Backoff arithmetic, stated exactly** (the figure here was previously given as
+"≤ ~6.6 min", which was wrong in both directions and is corrected as of 2026-08-21):
+
+- The **nominal** schedule between 8 attempts is 7 sleeps — 5→10→20→40→80→120→120 s
+  (`API_BACKOFF_BASE` 5, doubling, `API_BACKOFF_CAP` 120) = **395 s ≈ 6.6 min**. That is a
+  *midpoint*, not a ceiling.
+- `API_BACKOFF_JITTER` is `0.25`, applied multiplicatively per sleep
+  (`delay += uniform(-0.25, +0.25) * delay`), so each wait lands in `[0.75d, 1.25d]` and the
+  total lands in **296–494 s ≈ 4.9–8.2 min**. An instrumented exhaustion run measured
+  441.7 s (7.4 min) — inside that band, and *above* the old "≤ 6.6 min" claim.
+- **Absolute ceiling: ~14 min.** `Retry-After` wins over the exponential schedule (see the
+  classification table) and is clamped to the same 120 s cap, so a server sending it at or
+  above the cap on all 7 retries yields 7 × 120 s = 840 s. Rare, but it is the real bound.
+
+Before task-075 the permanent row read *3 total attempts and ~35 min to red*. Comparing that
+to the ~3 min above would be **best case against worst case** — the honest pairing is
+**~3 → ~10 min** for a first-indicator failure, or **~16 → ~50 min** for a last-indicator one,
+because the activity re-ran the whole notebook each time. The unambiguous figure is the
+attempt count: **3 → 1** on the permanent path, and **24 → 8** requests on the transient one.
+The exact scenario task-066 built the permanent path for — a retired indicator code — was
+still being retried twice before anyone was told.
 
 Regression tests: `tests/test_wgi_retry.py` pins both halves — the classification table
 above against the notebook's own extracted functions, **and** `policy.retry == 0` read out

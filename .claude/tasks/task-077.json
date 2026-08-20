@@ -1,0 +1,82 @@
+{
+  "source": "verify-agent",
+  "status": "Finished",
+  "phase": "5",
+  "spec_version": "spec_v1",
+  "spec_fingerprint": "sha256:eb7d4ec42ceefa9a3e709d879fd269fd0f6c07b4f432dc5a6a68a3f7cc1e6845",
+  "created_date": "2026-08-20",
+  "updated_date": "2026-08-20",
+  "out_of_spec": true,
+  "out_of_spec_approved": true,
+  "dependencies": [],
+  "decision_dependencies": [],
+  "verification_attempts": 1,
+  "notes": "[IMPLEMENTED 2026-08-20 — working tree only, not committed] Corrected the gold_data_gaps_summary column block in docs/data_quality_architecture.md (21 insertions / 6 deletions, single file).\n\nGROUND TRUTH VERIFIED ON BOTH SIDES BEFORE EDITING rather than taken from the brief. Producer: silver_to_gold L3607-3610 builds data_gaps_summary via createDataFrame(summary_rows, ['category','metric_name','metric_value','description']).withColumn('calculated_at', current_timestamp()). Semantic model: gold_data_gaps_summary.tmdl declares exactly those five, same order, metric_value as double. Producer and TMDL agree; the doc's coverage_status/country_count/spend_sum/spend_pct existed nowhere else in the repo.\n\nROW COUNT RE-DERIVED FROM THE PRODUCER, not accepted from the brief: counted the literals in summary_rows (L3583-3606) by category — 3 EPI Coverage + 3 WGI Coverage + 4 Combined Coverage + 4 Spend Impact + 2 Summary = 16 rows / 5 categories. Confirms the brief exactly.\n\nAC1: four invented names replaced with the five real ones, ordered to match both sources, annotated in the block's existing style so it reads consistently with the sibling gold_data_gaps block task-074 updated.\nAC2: added a '**Shape:**' paragraph stating the table is long/EAV — one labelled ROW per metric, not one column per metric — with the 16-row breakdown as the concrete consequence, plus the operational corollary that counts, EUR and percentages share one metric_value column, so the unit lives in metric_name and a visual must filter to a category/metric_name pair rather than aggregate metric_value. Also noted write_tbl's mode('overwrite')+overwriteSchema makes it a point-in-time snapshot. Terminology deliberately bridges existing vocabulary: architecture/semantic_model.md:104 and star-schema-erd.md:166 already say 'long-form metric rollup' and already list the correct five columns, so 'long-form / EAV' was reused rather than inventing a competing term.\nAC3: NO Fabric credentials, no re-measurement, and the doc now SAYS so rather than silently endorsing the figure. The 12/12 line is CONFIRMED, not corrected, against the strongest available evidence: task-074's step-8 live reading (2026-08-19) recorded external_coverage_rate = 100.0 with Total Procurement Countries = 12, and the metric's producer (populate_quality_history L3874-3883) is literally COUNT(DISTINCT CASE WHEN has_epi_score AND has_wgi_score THEN country_key END) / COUNT(DISTINCT country_key) * 100 over gold_data_gaps — so 100.0 at 12 countries IS 12/12. Falsification cross-check: Taiwan has a permanent WGI gap, so a TWN row among the 12 would force the rate to 91.67 — TWN is provably not in this population. The line now carries an explicit 'as of 2026-08-19' stamp, cites both the reading and the metric definition, states it was not re-measured 2026-08-20 for lack of access, and names the live row to re-check.\n\nSELF-REVIEW: re-read the edited block rendered — code fence balanced, tree glyphs correct with the last entry on the elbow, column order identical to both sources. Negative finding positive-controlled in ONE command: /usr/bin/grep -rn for coverage_status|country_count|spend_sum|spend_pct|gold_data_gaps_summary returned gold_data_gaps_summary in 12 files plus unrelated country_count hits (probe demonstrably working) while the four invented names appeared ONLY at the four doc lines now replaced. (--include globs had to be quoted; the first attempt died on zsh glob expansion, exactly as project memory warns.)\n\nCONSTRAINTS HONORED: no commit, no push, no git add/stash; the parallel agent's notebook and test file were read but not modified.",
+  "id": "task-077",
+  "difficulty": 2,
+  "owner": "claude",
+  "spec_section": "Data Quality & Validation",
+  "files_affected": [
+    "docs/data_quality_architecture.md"
+  ],
+  "title": "gold_data_gaps_summary's column list in docs/data_quality_architecture.md does not match the table that ships",
+  "description": "docs/data_quality_architecture.md (§ gold_data_gaps, the ASCII column block around L290) documents gold_data_gaps_summary as carrying coverage_status / country_count / spend_sum / spend_pct.\n\nThe table that actually ships has none of those columns. silver_to_gold.Notebook builds data_gaps_summary from ['category','metric_name','metric_value','description'] plus calculated_at, and gold_data_gaps_summary.tmdl declares exactly those five — so the producer and the semantic model agree with each other and disagree with the doc.\n\nThis sits directly beneath the gold_data_gaps block that task-074 DID correctly update, so the sibling block was missed rather than deliberately left.\n\nFix: replace the four invented column names with the five real ones, and note that the summary is a long/EAV shape (category, metric_name, metric_value) rather than one column per metric — that shape is why the notebook emits 16 labelled rows across EPI Coverage / WGI Coverage / Combined Coverage / Spend Impact / Summary.\n\nWhile in the file, confirm the adjacent 'Current Results: 12/12 countries (100%) have Full Coverage' line is still right — it matched task-074's live reading on 2026-08-19; leave it alone unless it has moved.",
+  "acceptanceCriteria": [
+    "The four invented column names are replaced with the five that actually ship, verified against BOTH silver_to_gold.Notebook's producer and gold_data_gaps_summary.tmdl.",
+    "The long/EAV shape is stated explicitly, so a reader understands why there are 16 rows rather than one column per metric.",
+    "The adjacent 'Current Results' line is re-checked and either confirmed or corrected with a stated as-of date."
+  ],
+  "completion_date": "2026-08-20",
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-08-20T20:19:23Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "minor",
+          "description": "The implementer's notes state '21 insertions / 6 deletions' but git diff --numstat returns 22/6 — self-reported metadata inaccuracy only; the deliverable is correct and complete."
+        },
+        {
+          "severity": "minor",
+          "description": "The Current Results line describes external_coverage_rate as 'full_coverage_count / total_countries', omitting the * 100 in the producer, so the bare ratio form would be 1.0 rather than 100.0. The adjacent '12/12 countries (100%)' makes misreading unlikely — a precision nit, not an error."
+        }
+      ],
+      "notes": "All three acceptanceCriteria verified independently against source, not against the implementer's notes.\n\nAC1 — COLUMNS RE-DERIVED FROM BOTH SIDES. Producer (silver_to_gold L3655-3658) builds data_gaps_summary via createDataFrame(summary_rows, ['category','metric_name','metric_value','description']).withColumn('calculated_at', current_timestamp()). TMDL declares category(string), metric_name(string), metric_value(double), description(string), calculated_at(dateTime) in that order. The doc lists exactly those five in exactly that order and types metric_value as double — matches both sources on membership, order and type. metric_value is float()-cast in the producer (Spark double), so all three agree.\n\nAC2 — ROW COUNT RE-COUNTED, NOT ACCEPTED. Machine-counted the summary_rows literals: 16 rows across 5 categories — EPI Coverage 3 / WGI Coverage 3 / Combined Coverage 4 / Spend Impact 4 / Summary 2. Identical to the doc. The two metric_name examples and the named re-check row are all real literals. write_tbl is mode('overwrite') + overwriteSchema, so the point-in-time-snapshot claim is accurate. The EAV/aggregation warning is load-bearing, not decorative: the TMDL sets summarizeBy: sum on metric_value, so a naive drag-to-visual WOULD sum counts, EUR and percentages together.\n\nAC3 — 12/12 INFERENCE CHECKED AND SOUND; NO UNMEASURED LIVE CLAIM. Verified the metric definition independently in populate_quality_history (L3921-3931): external_coverage = COUNT(DISTINCT CASE WHEN has_epi_score AND has_wgi_score THEN country_key END) / COUNT(DISTINCT country_key) * 100 over gold_data_gaps. The summary's 'Total Procurement Countries' is the distinct count over the same frame written to gold_data_gaps — numerator population, denominator population and the '12' all come from one identical population in one run, so 100.0 at denominator 12 does entail 12/12. The Taiwan falsification is arithmetically right: one TWN row gives 11/12 = 91.67, not 100.0, so TWN is provably outside this population. Cited evidence is real and accurately quoted (task-074 step 8 records Total Procurement Countries = 12 and external_coverage_rate 100.0 on both runs; completion_date 2026-08-19 matches the as-of stamp). No live claim made that was not measured. Correctly PASSED rather than failed for being un-re-measured.\n\nCORROBORATION WORTH KEEPING: the implementer's cited line numbers are each exactly 48 lines below current positions, and the parallel task-078 notebook edit is +60/-12 = +48 net above those points. The citations were accurate at read time and shifted afterwards — independent evidence the producer really was read rather than paraphrased from the brief.\n\nRENDER: whole-file fence count 24 (balanced); four tree branches with calculated_at on the elbow. No placeholders. Terminology bridges rather than competes (semantic_model.md:104 and star-schema-erd.md:166 already say 'long-form metric rollup').\n\nNEGATIVE FINDINGS, POSITIVE-CONTROLLED IN THE SAME COMMANDS: coverage_status / spend_sum / spend_pct each return 3 hits, all three being the records that DESCRIBE the defect (task-077.json, FR-099, the marker logs) — zero hits in any doc, notebook, TMDL, test or src. Same command's positive control gold_data_gaps_summary returned 26 hits across 12+ files, so the probe was demonstrably working. country_count survives only as unrelated substrings. No consumer of the doc exists in tests/ or src/ (positive control: data_quality matched two test files in the same command).\n\nSCOPE: only docs/data_quality_architecture.md changed by this task. The dirty notebook is the parallel task-078 grain-guard rewrite, correctly excluded rather than counted as creep.\n\nNo test suite run: the deliverable is prose with no coverage, and the parallel agent's mid-edit notebook would make loader-based results attributable to task-078."
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-08-20T20:19:23Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "not_applicable",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "All three acceptanceCriteria verified independently against source, not against the implementer's notes.\n\nAC1 — COLUMNS RE-DERIVED FROM BOTH SIDES. Producer (silver_to_gold L3655-3658) builds data_gaps_summary via createDataFrame(summary_rows, ['category','metric_name','metric_value','description']).withColumn('calculated_at', current_timestamp()). TMDL declares category(string), metric_name(string), metric_value(double), description(string), calculated_at(dateTime) in that order. The doc lists exactly those five in exactly that order and types metric_value as double — matches both sources on membership, order and type. metric_value is float()-cast in the producer (Spark double), so all three agree.\n\nAC2 — ROW COUNT RE-COUNTED, NOT ACCEPTED. Machine-counted the summary_rows literals: 16 rows across 5 categories — EPI Coverage 3 / WGI Coverage 3 / Combined Coverage 4 / Spend Impact 4 / Summary 2. Identical to the doc. The two metric_name examples and the named re-check row are all real literals. write_tbl is mode('overwrite') + overwriteSchema, so the point-in-time-snapshot claim is accurate. The EAV/aggregation warning is load-bearing, not decorative: the TMDL sets summarizeBy: sum on metric_value, so a naive drag-to-visual WOULD sum counts, EUR and percentages together.\n\nAC3 — 12/12 INFERENCE CHECKED AND SOUND; NO UNMEASURED LIVE CLAIM. Verified the metric definition independently in populate_quality_history (L3921-3931): external_coverage = COUNT(DISTINCT CASE WHEN has_epi_score AND has_wgi_score THEN country_key END) / COUNT(DISTINCT country_key) * 100 over gold_data_gaps. The summary's 'Total Procurement Countries' is the distinct count over the same frame written to gold_data_gaps — numerator population, denominator population and the '12' all come from one identical population in one run, so 100.0 at denominator 12 does entail 12/12. The Taiwan falsification is arithmetically right: one TWN row gives 11/12 = 91.67, not 100.0, so TWN is provably outside this population. Cited evidence is real and accurately quoted (task-074 step 8 records Total Procurement Countries = 12 and external_coverage_rate 100.0 on both runs; completion_date 2026-08-19 matches the as-of stamp). No live claim made that was not measured. Correctly PASSED rather than failed for being un-re-measured.\n\nCORROBORATION WORTH KEEPING: the implementer's cited line numbers are each exactly 48 lines below current positions, and the parallel task-078 notebook edit is +60/-12 = +48 net above those points. The citations were accurate at read time and shifted afterwards — independent evidence the producer really was read rather than paraphrased from the brief.\n\nRENDER: whole-file fence count 24 (balanced); four tree branches with calculated_at on the elbow. No placeholders. Terminology bridges rather than competes (semantic_model.md:104 and star-schema-erd.md:166 already say 'long-form metric rollup').\n\nNEGATIVE FINDINGS, POSITIVE-CONTROLLED IN THE SAME COMMANDS: coverage_status / spend_sum / spend_pct each return 3 hits, all three being the records that DESCRIBE the defect (task-077.json, FR-099, the marker logs) — zero hits in any doc, notebook, TMDL, test or src. Same command's positive control gold_data_gaps_summary returned 26 hits across 12+ files, so the probe was demonstrably working. country_count survives only as unrelated substrings. No consumer of the doc exists in tests/ or src/ (positive control: data_quality matched two test files in the same command).\n\nSCOPE: only docs/data_quality_architecture.md changed by this task. The dirty notebook is the parallel task-078 grain-guard rewrite, correctly excluded rather than counted as creep.\n\nNo test suite run: the deliverable is prose with no coverage, and the parallel agent's mid-edit notebook would make loader-based results attributable to task-078.",
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "The implementer's notes state '21 insertions / 6 deletions' but git diff --numstat returns 22/6 — self-reported metadata inaccuracy only; the deliverable is correct and complete."
+      },
+      {
+        "severity": "minor",
+        "description": "The Current Results line describes external_coverage_rate as 'full_coverage_count / total_countries', omitting the * 100 in the producer, so the bare ratio form would be 1.0 rather than 100.0. The adjacent '12/12 countries (100%)' makes misreading unlikely — a precision nit, not an error."
+      }
+    ]
+  },
+  "user_review_pending": false
+}

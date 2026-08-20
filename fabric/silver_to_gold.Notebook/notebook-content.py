@@ -3505,8 +3505,10 @@ def create_data_gaps_table():
         GROUP BY supplier_hq_country_key
     """)
 
-    # 6. Create the final data gaps table
-    data_gaps = (
+    # 6. Create the final data gaps table.
+    #    Held as an explicit PRE-DEDUP frame so the grain guard below has a population it
+    #    can actually fail on — see that guard's comment for why this matters.
+    data_gaps_prededup = (
         gaps_detail
         .join(spend_by_country, "country_key", "left")
         .select(
@@ -3526,22 +3528,68 @@ def create_data_gaps_table():
              .otherwise("No Coverage").alias("data_status"),
             F.current_timestamp().alias("calculated_at")
         )
-        .dropDuplicates(["country_key"])
     )
 
-    # task-074 GRAIN GUARD: gold_data_gaps is one row per country BY CONTRACT. Everything
-    # downstream reads it that way — the four spend aggregates below, the 'Spend Impact'
-    # rows they feed, populate_quality_history's external_coverage_rate, and the
-    # SUM(gold_data_gaps[spend_eur]) measures in the semantic model. A regression to a
-    # fanned-out grain would silently re-inflate spend instead of failing, which is exactly
-    # how the +23.7% defect survived two tasks. Fail loudly here instead.
+    # task-074 GRAIN GUARD (A): UPSTREAM FAN-OUT. gold_data_gaps is one row per country BY
+    # CONTRACT. Everything downstream reads it that way — the four spend aggregates below,
+    # the 'Spend Impact' rows they feed, populate_quality_history's external_coverage_rate,
+    # and the SUM(gold_data_gaps[spend_eur]) measures in the semantic model. A regression to
+    # a fanned-out grain would silently re-inflate spend instead of failing, which is exactly
+    # how the +23.7% defect survived two tasks.
+    #
+    # task-078 — WHY THIS RUNS BEFORE THE DEDUP. This guard used to sit BELOW
+    # `.dropDuplicates(["country_key"])` and count the DEDUPLICATED frame, where
+    # rows == distinct countries holds by construction for every possible input: it was a
+    # tautology and could not raise. A probe (this function run against a gold_dim_country
+    # fixture carrying two rows for one country_key) confirmed it stayed silent while the
+    # duplicate was collapsed to one ARBITRARY surviving row — the same nondeterminism
+    # task-025 removed from gold_dim_country itself. Counting the PRE-dedup frame is what
+    # makes an upstream fan-out fail loudly. The only fan-out vector in steps 1-5 is
+    # gold_dim_country losing its country_key uniqueness (step 4's join): every other input
+    # is a DISTINCT or a GROUP BY on country_key. Covered by
+    # tests/test_data_quality.py::TestDataGapsGrainGuard.
+    prededup_rows = data_gaps_prededup.count()
+    prededup_countries = data_gaps_prededup.select("country_key").distinct().count()
+    if prededup_rows != prededup_countries:
+        # Alias `n`, never `count`: pyspark Row subclasses tuple, so row.count would
+        # return the bound tuple method (root CLAUDE.md gotcha).
+        _dup_gap_keys = [
+            r["country_key"] for r in (
+                data_gaps_prededup.groupBy("country_key")
+                .agg(F.count(F.lit(1)).alias("n"))
+                .filter(F.col("n") > 1)
+                .limit(10)
+                .collect()
+            )
+        ]
+        raise ValueError(
+            f"gold_data_gaps grain violation upstream of the dedup: {prededup_rows} rows for "
+            f"{prededup_countries} distinct countries. Duplicated country_key(s): "
+            f"{_dup_gap_keys}. This table must be one row per country (task-074); spend and "
+            "coverage aggregates over it are country-grained by contract. FIX UPSTREAM — "
+            "check gold_dim_country for duplicate country_key rows (it is deduped by "
+            "row_number() over country_key at build time); do NOT paper over it here, the "
+            "dedup below would keep an arbitrary row per key."
+        )
+
+    # Belt and braces: the dedup stays, so a fan-out that somehow slips past guard (A)
+    # still cannot reach the write with an inflated grain.
+    data_gaps = data_gaps_prededup.dropDuplicates(["country_key"])
+
+    # GRAIN GUARD (B): DEDUP-KEY REGRESSION. Unlike guard (A) this one is unreachable from
+    # any input — that is deliberate and is its whole point. It fails only if someone edits
+    # the dedup key above back to a role-grained key such as (country_key, country_role),
+    # which is the specific edit that produced task-071's 158.33% coverage rate and
+    # task-074's +23.7% spend inflation. It does NOT catch an upstream fan-out; guard (A)
+    # does. Do not "simplify" the two into one — they defend different failure modes.
     row_total = data_gaps.count()
     country_total = data_gaps.select("country_key").distinct().count()
     if row_total != country_total:
         raise ValueError(
-            f"gold_data_gaps grain violation: {row_total} rows for {country_total} distinct "
-            "countries. This table must be one row per country (task-074); spend and coverage "
-            "aggregates over it are country-grained by contract."
+            f"gold_data_gaps grain violation after dedup: {row_total} rows for "
+            f"{country_total} distinct countries. The dedup key must stay ['country_key'] "
+            "(task-074) — role is carried as the is_supplier_hq / is_production attributes, "
+            "never as part of the grain."
         )
 
     write_tbl(data_gaps, "gold_data_gaps")
