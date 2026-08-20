@@ -24,9 +24,31 @@ Two properties are pinned here, and they pull in opposite directions on purpose:
      2026-08-13 — so the 200 path is where the permanent failures actually arrive.
      That branch used to `break` out of pagination and let the run go GREEN with an
      indicator silently missing, over a mode("overwrite") write.
+
+SECOND ANCHOR CASE (task-075). On the 2026-08-17 04:00 scheduled run
+(cb9be8a4-4067-4045-a9cd-35d391e2ed55) bronze_wgi attempt 1 Failed at 04:00:03 raising
+task-066's own permanent path on an HTTP 400 for GOV_WGI_CC.EST page 1 — and attempt 2
+Succeeded at 04:03:22 on the byte-identical URL. Two defects at once:
+
+  3. A 400 that succeeds on retry is transient by definition. Because this API reports
+     bad input in-band as HTTP 200 (property 2), a 400 here cannot mean "malformed
+     request" — task-066's premise was sound and is falsified by the replay. 400 and 408
+     therefore join 5xx/429/transport; 401/403/404 stay permanent; everything else fails
+     closed as permanent, because retrying ALL 4xx would restore the unbounded retry
+     task-066 removed.
+
+  4. The classification was INERT. The bronze_wgi activity carried policy.retry=2, so the
+     notebook's "not retried, this needs a human" was overridden one layer up (the ~31s
+     inter-attempt gap matches retryIntervalInSeconds=30 exactly). Retry ownership now
+     sits with the notebook and the activity's retry is 0 — pinned below by reading
+     pipeline-content.json, because the notebook's failure message asserts it in prose.
+
+Canonical budget documentation: docs/epi_wgi_ingestion.md § "Retry ownership and the
+total attempt budget".
 """
 
 import ast
+import json
 from pathlib import Path
 
 import pytest
@@ -86,14 +108,24 @@ class NoSleep:
 
 
 def notebook_constants():
-    """Read the notebook's module-level tuning constants without executing cells."""
+    """Read the notebook's module-level tuning constants without executing cells.
+
+    `literal_eval` rather than `.value` so the policy SET (HTTP_TRANSIENT_STATUSES,
+    task-075) is readable here too, not just the scalar API_* knobs — that set is the
+    classification decision, so the tests must be pinned to the notebook's own copy of
+    it rather than to a duplicate maintained in this file.
+    """
     tree = ast.parse(WGI_NOTEBOOK.read_text(encoding="utf-8"), filename=str(WGI_NOTEBOOK))
     out = {}
     for node in tree.body:
-        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant):
-            for target in node.targets:
-                if isinstance(target, ast.Name) and target.id.startswith("API_"):
-                    out[target.id] = node.value.value
+        if not isinstance(node, ast.Assign):
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name) and target.id.startswith(("API_", "HTTP_")):
+                try:
+                    out[target.id] = ast.literal_eval(node.value)
+                except ValueError:
+                    pass  # not a literal (e.g. a computed expression) — not a knob
     return out
 
 
@@ -110,6 +142,7 @@ def load(requests_shim=None, time_shim=None, **overrides):
         "API_BACKOFF_BASE": consts["API_BACKOFF_BASE"],
         "API_BACKOFF_CAP": consts["API_BACKOFF_CAP"],
         "API_BACKOFF_JITTER": consts["API_BACKOFF_JITTER"],
+        "HTTP_TRANSIENT_STATUSES": consts["HTTP_TRANSIENT_STATUSES"],
     }
     globs.update(overrides)
     return load_notebook_functions(WGI_NOTEBOOK, FUNCS, extra_globals=globs)
@@ -154,11 +187,41 @@ def test_429_is_transient():
     assert load()["is_transient_request_error"](_http_error(429)) is True
 
 
-@pytest.mark.parametrize("status", [400, 401, 403, 404, 409, 422])
-def test_4xx_is_permanent(status):
-    """A malformed request or an auth failure must fail NOW, not after the backoff
-    budget, and must not be reported as an exhausted-retry outage."""
+@pytest.mark.parametrize("status", [401, 403, 404])
+def test_auth_and_not_found_stay_permanent(status):
+    """The deliberately-kept permanent set (task-075). 401/403 need a human; 404 is a
+    retired or renamed indicator path, and no amount of waiting resurrects a removed
+    route. These must fail NOW, not after the backoff budget, and must not be reported
+    as an exhausted-retry outage."""
     assert load()["is_transient_request_error"](_http_error(status)) is False
+
+
+@pytest.mark.parametrize("status", [409, 418, 422, 451])
+def test_unclassified_status_fails_closed_as_permanent(status):
+    """task-075 widened the transient set to 400/408 — it did NOT open all 4xx. Any
+    status we have not explicitly reasoned about stays permanent, which is what keeps
+    the unbounded-retry behaviour task-066 removed from creeping back."""
+    assert load()["is_transient_request_error"](_http_error(status)) is False
+
+
+def test_400_is_transient():
+    """THE task-075 anchor: on 2026-08-17 GOV_WGI_CC.EST page 1 returned 400 at 04:00
+    and HTTP 200 on the byte-identical URL at 04:03. Since this API reports bad input
+    in-band as HTTP 200 (see test_in_band_200_error_body_... below), a 400 from this
+    host is gateway noise, not a malformed request."""
+    assert load()["is_transient_request_error"](_http_error(400)) is True
+
+
+def test_408_is_transient():
+    """A request timeout is a timeout that happens to carry a status line — same class
+    as the transport-level Timeout, which was already transient."""
+    assert load()["is_transient_request_error"](_http_error(408)) is True
+
+
+def test_transient_status_set_is_exactly_the_decided_policy():
+    """Pin the DECISION itself, not just its consequences (task-075, Erik 2026-08-20).
+    Widening this set is a policy change and must be a deliberate edit here too."""
+    assert notebook_constants()["HTTP_TRANSIENT_STATUSES"] == {400, 408, 429}
 
 
 @pytest.mark.parametrize("exc", [
@@ -315,3 +378,102 @@ def test_canonical_short_code_is_stored_not_the_api_code():
     fetch = load(shim, NoSleep())["fetch_indicator"]
     records = fetch("GOV_WGI_CC.EST", "CC.EST", "Control of Corruption", "1996", "2023")
     assert records[0]["indicator_code"] == "CC.EST"
+
+
+# --------------------------------------------------------------------------
+# 5. Retry OWNERSHIP across the two layers (task-075)
+#
+# The notebook owns the budget; the pipeline activity retries zero times. These tests
+# are the local stand-in for the Fabric-side demonstration: the pipeline cannot be run
+# from here, so the notebook's own classification and the activity's declared policy are
+# each exercised directly, and the arithmetic that joins them is asserted rather than
+# observed. The live confirmation is Erik's half of task-075's AC5.
+# --------------------------------------------------------------------------
+
+BOGUS_INDICATOR_BODY = [{"message": [
+    {"id": "120", "key": "Invalid value",
+     "value": "The provided parameter value is not valid"}]}]
+
+PIPELINE_JSON = (REPO_ROOT / "fabric"
+                 / "orchestrator_pipeline_bronze_to_gold.DataPipeline"
+                 / "pipeline-content.json")
+
+
+def bronze_wgi_activity():
+    activities = json.loads(PIPELINE_JSON.read_text(encoding="utf-8"))["properties"]["activities"]
+    matches = [a for a in activities if a["name"] == "bronze_wgi"]
+    assert len(matches) == 1, f"expected exactly one bronze_wgi activity, got {len(matches)}"
+    return matches[0]
+
+
+def test_pipeline_activity_adds_no_attempts_of_its_own():
+    """AC3. The activity carried policy.retry=2 until task-075, which silently overrode
+    the notebook's classification: on 2026-08-17 the notebook raised "not retried" and
+    the activity retried 31s later anyway (matching retryIntervalInSeconds=30) and
+    succeeded. Retry ownership now sits with the notebook alone."""
+    assert bronze_wgi_activity()["policy"]["retry"] == 0, (
+        "bronze_wgi's activity retry is back above 0 — the notebook's permanent-error "
+        "message claims 'not retried by the pipeline activity (policy.retry=0)', which "
+        "would now be false, and the in-notebook classification would be inert again. "
+        "See docs/epi_wgi_ingestion.md § 'Retry ownership and the total attempt budget'."
+    )
+
+
+def test_notebook_failure_message_matches_the_deployed_activity_policy():
+    """The notebook asserts the activity's retry count in PROSE, inside the error a
+    human will read at 04:00. Prose drifts silently; pin it to the JSON."""
+    retry = bronze_wgi_activity()["policy"]["retry"]
+    notebook_text = WGI_NOTEBOOK.read_text(encoding="utf-8")
+    assert f"policy.retry={retry}" in notebook_text, (
+        f"the notebook's failure message does not name the deployed retry count "
+        f"({retry})"
+    )
+
+
+@pytest.mark.parametrize("scripted,match,label", [
+    ([_http_error(404)], "PERMANENT", "retired indicator path -> 404"),
+    ([_http_error(401)], "PERMANENT", "access rule -> 401"),
+    ([FakeResponse(200, BOGUS_INDICATOR_BODY)], "in-band error",
+     "bogus indicator code -> in-band HTTP 200"),
+])
+def test_permanent_failure_goes_red_on_the_first_attempt(scripted, match, label):
+    """AC4, demonstrated locally (the Fabric pipeline cannot be driven from here).
+
+    A genuinely permanent failure — the retired/bogus indicator code task-066 built this
+    path for — must surface as a red run on attempt 1, not after a 30+ minute retry
+    parade. Zero HTTP retries and zero backoff sleeps inside the notebook; zero further
+    attempts outside it, pinned by test_pipeline_activity_adds_no_attempts_of_its_own.
+
+    The bogus-code case is the one that matters most in practice: this API reports an
+    unknown indicator IN-BAND as HTTP 200, so that is the route a future WGI re-code
+    actually takes."""
+    shim = RequestsShim(scripted)
+    sleeper = NoSleep()
+    fetch = load(shim, sleeper)["fetch_indicator"]
+    with pytest.raises(RuntimeError, match=match):
+        fetch("GOV_WGI_NOPE.EST", "NOPE.EST", "Bogus", "1996", "2023")
+    assert len(shim.calls) == 1, f"{label}: must not be retried"
+    assert sleeper.slept == [], f"{label}: must not spend any backoff"
+
+
+def test_transient_400_replays_the_2026_08_17_shape_in_one_activity_attempt():
+    """The 08-17 event, now handled entirely inside the notebook: the 400 is retried
+    here instead of by the activity, so the run stays green without the pipeline having
+    to paper over a classification the notebook got wrong."""
+    shim = RequestsShim([_http_error(400), page([entry()], 1, 1, 1)])
+    sleeper = NoSleep()
+    fetch = load(shim, sleeper)["fetch_indicator"]
+    records = fetch("GOV_WGI_CC.EST", "CC.EST", "Control of Corruption", "1996", "2023")
+    assert len(records) == 1
+    assert len(shim.calls) == 2, "the spurious 400 should have been retried exactly once"
+    assert sleeper.slept, "a retry must back off"
+
+
+def test_total_attempt_budget_is_the_documented_one():
+    """AC3's readability requirement, as an assertion: total attempts = notebook budget
+    x activity attempts. Permanent failures get exactly 1. Both numbers are stated in
+    docs/epi_wgi_ingestion.md § 'Retry ownership and the total attempt budget'."""
+    notebook_attempts = notebook_constants()["API_MAX_RETRIES"]
+    activity_attempts = bronze_wgi_activity()["policy"]["retry"] + 1
+    assert activity_attempts == 1
+    assert notebook_attempts * activity_attempts == notebook_attempts == 8

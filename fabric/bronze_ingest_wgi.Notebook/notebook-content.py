@@ -150,6 +150,22 @@ API_BACKOFF_BASE = 5     # seconds; doubles per attempt -> 5, 10, 20, 40, 80, 12
 API_BACKOFF_CAP = 120    # seconds; ceiling on any single wait (was 60, task-066)
 API_BACKOFF_JITTER = 0.25  # +/- fraction added to each wait, to de-synchronise retries
 
+# HTTP statuses this host can return spuriously, i.e. retry them (task-075). Anything
+# NOT listed here and not 5xx is permanent — see is_transient_request_error for why
+# 401/403/404 stay permanent and why this is deliberately not "all 4xx".
+HTTP_TRANSIENT_STATUSES = {400, 408, 429}
+
+# --- RETRY OWNERSHIP: this notebook owns the budget (task-075, decided 2026-08-20) ----
+# The bronze_wgi ACTIVITY carries policy.retry=0 in pipeline-content.json. It used to
+# carry retry=2, which silently overrode this notebook's classification one layer up:
+# on the 2026-08-17 04:00 scheduled run the notebook raised its own "PERMANENT ... not
+# retried, this needs a human" for a 400, and the activity retried it anyway 31s later
+# and succeeded. Only this notebook can tell a gateway wobble from a retired indicator
+# code, so the budget belongs where the semantic knowledge is. Accepted trade-off: a
+# notebook-INFRASTRUCTURE failure (session start, driver OOM) now gets no retry either.
+# HOW MANY TOTAL ATTEMPTS A FAILURE GETS is documented in ONE place — do not restate it
+# here: docs/epi_wgi_ingestion.md § "Retry ownership and the total attempt budget".
+
 # --- HTTP 502 from the World Bank API (task-066, measured 2026-08-13) ----------------
 # MEASUREMENT. Over the 9 scheduled runs since the 06:00 schedule went live (2026-08-05
 # 20:20 test firing through 2026-08-13), bronze_wgi failed the run on 2 of them:
@@ -215,7 +231,7 @@ for api_code, (short_code, name) in WGI_INDICATORS.items():
 # CELL ********************
 
 def is_transient_request_error(exc):
-    """Is this requests exception worth retrying? (task-066)
+    """Is this requests exception worth retrying? (task-066; 4xx revised task-075)
 
     Retrying a permanent error is not resilience — it delays a loud failure by the
     whole backoff budget and then reports it as an exhausted-retry message, which
@@ -229,19 +245,33 @@ def is_transient_request_error(exc):
       * HTTP 429 — rate limiting. Retryable, but only while honouring Retry-After
         (see retry_delay); hammering a 429 on a blind exponential schedule is exactly
         the papering-over this classification exists to prevent.
+      * HTTP 400 — MEASURED SPURIOUS (task-075). task-066 classified this permanent on
+        the reasoning that, because this API reports bad input in-band as HTTP 200, a
+        400 must mean a genuinely malformed request. Sound premise, falsified by
+        observation: on the 2026-08-17 04:00 run GOV_WGI_CC.EST page 1 returned 400,
+        and the byte-identical URL returned 200 three minutes later. A 400 from this
+        host is gateway noise, not a broken request — that is exactly what the in-band
+        200 convention implies once you follow it through.
+      * HTTP 408 — request timeout is a timeout with a status line; same class as the
+        transport-level Timeout below.
       * Transport-level failures with no HTTP response at all: read/connect timeout,
         connection reset, truncated body.
 
-    PERMANENT (raise immediately):
-      * Any other 4xx. Nothing this notebook can wait out — the request itself, the
-        URL, or an access rule is wrong, and it needs a human.
+    PERMANENT (raise immediately, no retry at any layer):
+      * HTTP 401 / 403 — an access rule is wrong. Unauthenticated today, so this
+        should be unreachable; if it ever fires it genuinely needs a human, and
+        waiting cannot fix it.
+      * HTTP 404 — a retired or renamed indicator path. The World Bank re-coded WGI
+        once already (2026-07-26); a retry cannot resurrect a removed route.
+      * Any OTHER status we have not classified: fail closed as permanent. Retrying
+        all 4xx would restore the unbounded-retry behaviour task-066 removed.
     """
     response = getattr(exc, "response", None)
     if response is not None:
         status = response.status_code
-        if status == 429 or 500 <= status <= 599:
+        if status in HTTP_TRANSIENT_STATUSES or 500 <= status <= 599:
             return True
-        return False  # 4xx and anything else with a real status line: permanent
+        return False  # 401/403/404 and any unclassified status: permanent
     return isinstance(
         exc,
         (
@@ -315,14 +345,25 @@ def fetch_indicator(api_code, short_code, series_name, start_year, end_year,
                 # and say so, not 6 minutes later disguised as an exhausted retry.
                 if not is_transient_request_error(e):
                     status = getattr(getattr(e, "response", None), "status_code", None)
+                    # "not retried" is a claim about BOTH layers, and it is only true
+                    # because the bronze_wgi activity carries policy.retry=0 (task-075).
+                    # If that ever goes back above 0, this sentence becomes a lie again —
+                    # tests/test_wgi_retry.py pins it.
                     raise RuntimeError(
                         f"World Bank API returned a PERMANENT error for {api_code} "
-                        f"(page {page}) — HTTP {status}; not retried, this needs a human: {e}"
+                        f"(page {page}) — HTTP {status}; not retried by this notebook "
+                        f"and not retried by the pipeline activity (policy.retry=0), "
+                        f"so this run is red now and it needs a human. See "
+                        f"docs/epi_wgi_ingestion.md § 'Retry ownership and the total "
+                        f"attempt budget'. Underlying error: {e}"
                     ) from e
                 if attempt == max_retries:
+                    # These are ALL the attempts there are — the activity adds none
+                    # (policy.retry=0, task-075), so the run goes red here.
                     raise RuntimeError(
                         f"World Bank API call failed for {api_code} "
-                        f"(page {page}) after {max_retries} attempts: {e}"
+                        f"(page {page}) after {max_retries} attempts "
+                        f"(the pipeline activity adds no further attempts): {e}"
                     ) from e
                 delay = retry_delay(attempt, getattr(e, "response", None))
                 print(

@@ -73,7 +73,7 @@ task-011; runtimes are measured from run `b56a43b9` (2026-07-31).
 | 2 | `bronze_copy_global_supply_shares` | Copy | HTTP (GitHub CSV) → `bronze_global_supply_shares` | 3 / 300s | 25s |
 | 3 | `bronze_copy_procurement_transactional` | Copy | Azure SQL `dbo.procurement_transactional` → `bronze_procurement_transactional` | 3 / 300s | 27s |
 | 4 | `bronze_copy_supplier_ref` | Copy | Azure SQL `dbo.supplier_ref` → `bronze_supplier_ref` | 3 / 300s | 25s |
-| 5 | `bronze_wgi` | Notebook | World Bank API → `bronze_wgi` | 2 / 30s | 119s |
+| 5 | `bronze_wgi` | Notebook | World Bank API → `bronze_wgi` | **0** (notebook owns the budget — task-075) | 119s |
 | 6 | `bronze_EPI` | Notebook | Yale EPI CSV → `bronze_epi2024results` + related | 2 / 30s | 104s |
 
 **Stage 1 Total:** ~2 minutes (parallel; bounded by `bronze_wgi`)
@@ -207,8 +207,11 @@ to retry 0.**
 ## Error Handling
 
 **Current Strategy:** Retry-then-fail, with policies set per activity by task-011.
-Copy activities retry 3× at 300s; bronze notebooks 2× at 30s; silver/gold 2× at
+Copy activities retry 3× at 300s; `bronze_EPI` 2× at 30s; silver/gold 2× at
 120s; `data_quality_checks` 1× at 120s; `pipeline_error_handler` 0×.
+**`bronze_wgi` is 0×** — task-075 moved its retry budget into the notebook, which is the
+only layer that can tell a gateway wobble from a retired indicator code; total attempts
+in `docs/epi_wgi_ingestion.md` § "Retry ownership and the total attempt budget".
 
 The 300s Copy interval is sized for the Azure SQL serverless resume window (see
 Stage 1 notes) — it is not arbitrary.

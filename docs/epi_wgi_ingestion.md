@@ -398,20 +398,16 @@ input **in-band** — HTTP 200 with a one-element body
 no credential (World Bank Open Data is unauthenticated), so an auth expiry cannot present
 here either. A 5xx from this host is therefore necessarily gateway/infrastructure level.
 
-**Retry policy** (failure path only — a clean run is unaffected):
+> **Partly superseded (task-075, 2026-08-20).** The paragraph above is unchanged and still
+> correct about 5xx. What it *also* implied — that a 4xx must therefore be a genuinely
+> malformed request, and so permanent — was falsified by measurement on 2026-08-17. The
+> live classification table and the total attempt budget now live in **§ Retry ownership
+> and the total attempt budget**, immediately below; read that, not this section, for
+> current policy.
 
-| Condition | Treatment |
-|---|---|
-| HTTP 5xx | Transient → retry, capped exponential backoff + jitter |
-| HTTP 429 | Transient → retry, but **`Retry-After` wins** over the exponential schedule |
-| Timeout / connection reset / truncated body | Transient → retry |
-| Any other 4xx | **Permanent → raise immediately**, no retry, distinct message |
-| HTTP 200 with the in-band error body | **Permanent → raise**, names the upstream message |
-
-Budget: 8 attempts, backoff 5→10→20→40→80→120→120 s (cap 120 s) ≈ 6.6 min per request.
-Widened from the previous 5 attempts / 75 s because on 08-07 attempt 2 ran **41 minutes**
-and reached the 5th of 6 indicators — most requests were succeeding throughout the
-degraded window, and isolated 502s were each killing the whole run inside 75 s.
+The widened per-request budget dates from here: on 08-07 attempt 2 ran **41 minutes** and
+reached the 5th of 6 indicators, so most requests were succeeding throughout the degraded
+window and isolated 502s were each killing the whole run inside the old 75 s budget.
 
 **No silent partial load.** The write is `mode("overwrite")`, so a partial fetch would
 destroy a good snapshot, report success, and quietly degrade the governance half of
@@ -436,9 +432,71 @@ does catch the same loss. Guard 4 is therefore now the source-side half of a two
 defence — it names the culprit indicator at fetch time and refuses the overwrite, while the
 DQ band is the backstop if a shortfall ever reaches the table by another route.
 
-Regression tests: `tests/test_wgi_retry.py` (29 assertions), which extract the notebook's
-own `is_transient_request_error` / `retry_delay` / `fetch_indicator` via `ast` under the
+Regression tests: `tests/test_wgi_retry.py`, which extracts the notebook's own
+`is_transient_request_error` / `retry_delay` / `fetch_indicator` via `ast` under the
 reference-implementation contract, so editing the retry policy fails CI by design.
+
+### Retry ownership and the total attempt budget (task-075, 2026-08-20)
+
+**This subsection is the single canonical answer to "how many attempts does a failing
+`bronze_wgi` actually get?"** The notebook and the pipeline JSON both point here; neither
+restates the arithmetic. If you change either layer, change this table in the same commit.
+
+**What forced this.** On the 2026-08-17 04:00 scheduled run (`cb9be8a4-4067-4045-a9cd-35d391e2ed55`,
+re-read from `queryactivityruns` 2026-08-20; the run itself finished **Completed**, so
+nothing surfaced anywhere else):
+
+| Attempt | Outcome | Start | Duration | Detail |
+|---|---|---|---|---|
+| 1 | **Failed** (errorCode 2451, UserError) | 04:00:03 | 168 s | task-066's own path: `World Bank API returned a PERMANENT error for GOV_WGI_CC.EST (page 1) — HTTP 400; not retried, this needs a human` |
+| 2 | **Succeeded** | 04:03:22 | 968 s | **byte-identical URL**, unchanged |
+
+The ~31 s gap between attempt 1 ending and attempt 2 starting matches the activity's
+`retryIntervalInSeconds: 30` exactly, which pins the second attempt on the **activity
+policy**, not on anything inside the notebook. (`retryAttempt` is `null` on both rows —
+that is the documented `queryactivityruns` contract, not a missing retry.) So two things
+were wrong at once: a 400 was declared permanent when it demonstrably was not, and the
+notebook's deliberate "do not retry this" was being overridden one layer up anyway.
+
+**Ownership decision: the notebook owns the retry budget; the activity retries zero times.**
+`policy.retry` on the `bronze_wgi` activity went **2 → 0** (`retryIntervalInSeconds: 30`
+left in place but now inert). Only the notebook can tell a gateway wobble from a retired
+indicator code, so the budget belongs where the semantic knowledge is; a blind activity
+retry is precisely what made the in-notebook classification inert. **Accepted trade-off:**
+a notebook-*infrastructure* failure (Spark session start, driver OOM) now gets no retry
+either, where previously it got two. That is a deliberate exchange of infrastructure
+resilience for correct, fast failure on real API errors — not an oversight.
+
+**Classification** (failure path only — a clean run issues the identical request sequence
+in the identical time):
+
+| Condition | Treatment | Why |
+|---|---|---|
+| HTTP 5xx | **Transient** → retry, capped exponential backoff + jitter | Gateway/infrastructure only; this host never reports bad input as 5xx |
+| HTTP 429 | **Transient** → retry, but **`Retry-After` wins** over the exponential schedule | Hammering a rate limit is the papering-over the classifier exists to prevent |
+| HTTP 400 | **Transient** → retry | Measured spurious 2026-08-17: identical URL succeeded 3 min later. Because this API reports bad input in-band as HTTP 200, a 400 here cannot mean "malformed request" — it is gateway noise |
+| HTTP 408 | **Transient** → retry | A timeout that happens to carry a status line |
+| Timeout / connection reset / truncated body | **Transient** → retry | No HTTP response at all — task-050's original case |
+| HTTP 401 / 403 | **Permanent** → raise immediately | Auth genuinely needs a human, and waiting cannot fix it. Unreachable today (the API is unauthenticated) |
+| HTTP 404 | **Permanent** → raise immediately | A retired or renamed indicator path. WGI was re-coded once already (2026-07-26); a retry cannot resurrect a removed route |
+| Any other status | **Permanent** → raise immediately | Fail closed. Retrying *all* 4xx would restore the unbounded-retry behaviour task-066 removed |
+| HTTP 200 with the in-band error body | **Permanent** → raise, naming the upstream message | This is how the World Bank actually reports a bad indicator code |
+
+**Total attempts, both layers:**
+
+| Failure class | Notebook attempts | Activity attempts | **Total** | Wall clock to red |
+|---|---|---|---|---|
+| Transient (5xx / 429 / 400 / 408 / transport) | up to 8 per request | 1 (no retry) | **8** | ≤ ~6.6 min of backoff per request (5→10→20→40→80→120→120 s, cap 120 s), bounded above by the activity's 12 h timeout |
+| Permanent (401 / 403 / 404 / unclassified / in-band 200) | **1** — raises on the first response | 1 (no retry) | **1** | **~3 min** (essentially Spark session start), then the run goes red |
+
+Before task-075 the permanent row read *3 total attempts and ~35 min to red* — the exact
+scenario task-066 built the permanent path for (a retired indicator code) was still being
+retried twice at ~16 min each before anyone was told.
+
+Regression tests: `tests/test_wgi_retry.py` pins both halves — the classification table
+above against the notebook's own extracted functions, **and** `policy.retry == 0` read out
+of `pipeline-content.json`, because the notebook's "not retried" failure message is only
+truthful while that stays 0.
 
 ---
 
@@ -699,6 +757,11 @@ https://www.worldbank.org/en/publication/worldwide-governance-indicators
     429 retried, `Retry-After` honoured, other 4xx raised immediately), budget widened to
     8 attempts / 120 s cap, and four completeness guards so an incomplete fetch can no
     longer silently overwrite `bronze_wgi`. See § *Failure Handling in `bronze_ingest_wgi`*.
+  - **task-075 (2026-08-20):** the 4xx half of that classification corrected against a
+    measured counter-example — 400 and 408 are transient, only 401/403/404 stay permanent —
+    and retry ownership settled: the `bronze_wgi` activity's `policy.retry` went 2 → 0, so
+    the notebook's budget is the only budget. See § *Retry ownership and the total attempt
+    budget*, which is the canonical answer to how many attempts a failure gets.
   - Writes to `bronze_wgi` Delta table with columns matching downstream expectations
   - Enriches data with `Indicator Code`, `Year`, and `Value` columns beyond original schema
 ✅ **Documentation Updated** - This document updated with implementation details

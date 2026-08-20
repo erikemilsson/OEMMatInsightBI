@@ -19,13 +19,13 @@ All 10 pipeline activities, as configured in `pipeline-content.json` (`policy.re
 | bronze_copy_eu_supply_shares | 3 | 5 min | 15 min |
 | bronze_copy_global_supply_shares | 3 | 5 min | 15 min |
 | bronze_EPI | 2 | 30 s | 1 min |
-| bronze_wgi | 2 | 30 s | 1 min |
+| bronze_wgi | **0** | — (30 s, inert) | none — the notebook owns the budget (task-075) |
 | bronze_to_silver_cleaning | 2 | 2 min | 4 min |
 | silver_to_gold | 2 | 2 min | 4 min |
 | data_quality_checks | 1 | 2 min | 2 min |
 | pipeline_error_handler | 0 | — | none (runs on every outcome, never retried) |
 
-**Rationale:** Bronze ingestion activities (procurement, EU and global supply) have the highest retry counts because they depend on external sources prone to transient outages. EPI/WGI notebooks retry quickly (30 s) — the source APIs either respond fast or fail fast. Transformation notebooks get fewer retries since Spark failures are typically not resolved by retrying alone. `pipeline_error_handler` is the terminal observer — it runs on every pipeline outcome (success or failure) to record the run and must not itself retry, or duplicate run-records would be written. `data_quality_checks` retries once: a second transient failure usually means a real data problem, not a flake.
+**Rationale:** Bronze ingestion activities (procurement, EU and global supply) have the highest retry counts because they depend on external sources prone to transient outages. `bronze_EPI` retries quickly (30 s) — that source either responds fast or fails fast. **`bronze_wgi` is the one *ingestion* activity with `retry: 0`, and deliberately so** (task-075, 2026-08-20): its notebook classifies transient vs permanent API errors itself and carries its own 8-attempt bounded budget, and the activity's blind retry was overriding that classification — on 2026-08-17 it retried a failure the notebook had explicitly declared permanent, and it would equally have retried a genuinely permanent one twice at ~16 min each. Total attempts and the trade-off accepted (a notebook-*infrastructure* failure now gets no retry) are documented in one place: `docs/epi_wgi_ingestion.md` § "Retry ownership and the total attempt budget". Transformation notebooks get fewer retries since Spark failures are typically not resolved by retrying alone. `pipeline_error_handler` is the terminal observer — it runs on every pipeline outcome (success or failure) to record the run and must not itself retry, or duplicate run-records would be written. `data_quality_checks` retries once: a second transient failure usually means a real data problem, not a flake.
 
 ---
 
