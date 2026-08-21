@@ -1,104 +1,112 @@
 {
   "result": "pass",
-  "timestamp": "2026-08-20T11:37:34Z",
+  "timestamp": "2026-08-21T14:21:14Z",
   "spec_version": "spec_v1",
-  "spec_fingerprint": "sha256:eb7d4ec42ceefa9a3e709d879fd269fd0f6c07b4f432dc5a6a68a3f7cc1e6845",
-  "summary": "Full re-derivation against fingerprint eb7d4ec4. The 2026-08-07 13/13 result was treated as prior claims to re-test, not a baseline: every criterion was re-derived and two moved. 13/13 PASS. Strongest new evidence: HEAD's Fabric artifacts have themselves been exercised live — the last two commits touch only .claude/tasks/task-075.json, so the artifact set at HEAD is byte-identical to what scheduled run c5ad962d ran 2026-08-20 04:00:01->04:20:49Z (Completed, 10/10); corroborated independently by recomputing sha256 of bronze_ingest_wgi's notebook against the deployed getDefinition hash. task-074's fix was re-derived LOCALLY rather than accepted on its record: a local[1] SparkSession (ansi.enabled=false) executing the notebook's own create_data_gaps_table over a dual-role fixture returned 11/11 green — one row per country, SUM(spend_eur) == fact total to 1e-9, dual-role country present once with both flags — with a positive control proving the same fixture would have exposed the old defect (+100% inflation under a role-grained sum). Suite 340 passed. THE BUILD IS SOUND; THE RECORD IS AGAIN WHAT NEEDS WORK. One NEW drift the register had not held: spec L1122 says 'Three checks record a non-pass row on every run' and cites docs/data_quality_framework.md § 7, which has said TWO since task-069/DEC-016 fixed data_type_consistency on 2026-08-12 — the spec contradicts its own cited source. One genuine implementation finding, demonstrated not asserted: task-074's grain guard is UNREACHABLE — it sits below dropDuplicates(['country_key']), making row_total==country_total a tautology; probed with a duplicated gold_dim_country row, the guard did not fire and the duplicate was silently collapsed. SCOPE LIMIT STATED PLAINLY: verify-agent holds no Fabric credentials, so criteria 1, 2, 4, 5, 8 rest on live evidence recorded by others in the task JSONs, not on its own measurements.",
+  "spec_fingerprint": "sha256:0662c9e198c2f7b5cb4fa50d1b1f0bf9e2cce901454ffbf9c046285a645fc18a",
+  "verified_against_commit": "2873cc1",
+  "summary": "Full re-derivation against fingerprint 0662c9e1. The prior 13/13 was treated as prior claims to re-test, and its retracted 'the BUILD did not change' annotation was inherited in NEITHER direction. 13/13 PASS.\n\nTHE DEPLOY-FIDELITY GAP IS CLOSED, ON FIRST-HAND EVIDENCE RATHER THAN A TASK RECORD: GitHub Actions run 32427236326 for ba0cd91 ran in real PUBLISH mode ('Event=push dry_run=false', 'MODE: PUBLISH') and logged 'Published Notebook silver_to_gold' 23:06:56Z and 'Published Notebook bronze_ingest_wgi' 23:06:57Z, concluding success — so both artifacts ba0cd91 changed ARE live. At verification time HEAD (2873cc1) was 1 commit ahead of origin/main and unpushed, but touches ZERO fabric/ files (probed with two positive controls), so repo fabric/ at HEAD was identical to what was published.\n\nThe prior run's major finding — task-074's grain guard unreachable — is FIXED and re-derived locally, not accepted: ba0cd91 restructures it into guard (A) counting the PRE-dedup frame plus guard (B) on the dedup key, and tests/test_data_quality.py::TestDataGapsGrainGuard drives the NOTEBOOK'S OWN create_data_gaps_table via load_notebook_functions over a fixture with a duplicated country_key, asserting the ValueError fires with '5 rows for 4 distinct countries' AND that nothing was written. Suite: 349 passed / 0 failed / 0 skipped in 60.08s (conftest sets spark.sql.ansi.enabled=false, matching Fabric).\n\nEvery one of task-076's spec corrections was re-measured against reality, not accepted: bronze_wgi retry is 0 and pipeline_error_handler is 0 in pipeline-content.json (range 0-3 confirmed across all 10 activities); test_data_quality.py collects exactly 54; the suite is exactly 349; docs/data_quality_framework.md § 7 now reads 'Two', agreeing with spec L1122 and data_quality_architecture.md — the prior run's self-contradiction is resolved.\n\nNEW FINDING THE RECORD DID NOT HOLD: the live workspace contains two items absent from source control — Notebook/Notebook_1 and DataPipeline/tmp_task064_seed — enumerated by the same deploy run at 23:07:16Z (12 repo items vs 15 deployed; the third, SQLEndpoint/oem_lh, is Fabric-generated and benign). docs/architecture/fabric-artifacts-inventory.md L51 asserts Notebook_1 was 'Removed 2026-08-10', which the 2026-08-20 enumeration falsifies; tmp_task064_seed appears nowhere in that inventory, and task-069's own record says it held rollback DDL that 'would have silently undone the fix while reporting success'. *** THAT PREMISE WAS FALSIFIED BY THE ORCHESTRATOR AFTER THIS RUN: the LIVE pipeline definition was fetched 2026-08-21 and its CREATE TABLE reads DECIMAL(18,2) on both columns, matching azure/procurement.sql. SMALLINT/FLOAT survive only in a stale comment header. The pipeline is still destructive (DROP + reseed) and still undocumented, but it does NOT revert the schema fix. See task-079, whose description carries the measured correction. *** So 'repo equals live workspace' holds in the repo-to-workspace direction and is freshly proven, but NOT in the workspace-to-repo direction. Raised as task-079.\n\nSCOPE LIMIT, STATED PLAINLY: verify-agent holds no Fabric credentials. It could not query the lakehouse, the semantic model, or the pipeline run history. Criteria 1, 2, 4, 8 rest on live evidence recorded by others in task JSONs plus repo-internal corroboration — and critically, NO scheduled or manual pipeline run against the post-ba0cd91 silver_to_gold has been observed. The deploy is proven; the subsequent execution of the new code is not.",
   "criteria_passed": 13,
   "criteria_failed": 0,
   "criteria": [
     {
       "name": "Phase 1 — Gold tables populated",
       "status": "pass",
-      "notes": "Not re-measurable without Fabric creds; rests on task-074's recorded post-deploy run 32f23f12 (2026-08-19, 10/10 Succeeded, fact_procurement EUR 3,273,776.03, gold_data_gaps 12 rows/12 countries) and scheduled run c5ad962d on 2026-08-20 against HEAD's artifacts."
+      "notes": "Not measurable without Fabric creds; rests on task-074's recorded run 32f23f12 (fact_procurement EUR 3,273,776.03, gold_data_gaps 12 rows/12 countries) plus my own local execution of the notebook's create_data_gaps_table over fixtures — but no live run of the post-ba0cd91 code is confirmed."
     },
     {
       "name": "Phase 1 — Semantic model connected",
       "status": "pass",
-      "notes": "Repo TMDL holds 14 tables and 45 measures; task-074 step 5 records a DirectLake refresh Completed 2026-08-19T21:09:12Z with is_supplier_hq/is_production resolving in DAX and country_role gone."
+      "notes": "Repo TMDL measured this session: exactly 14 tables and 45 measures, DirectLake mode present; the live DirectLake refresh remains task-074's recorded 2026-08-19T21:09:12Z evidence, not my measurement."
     },
     {
       "name": "Phase 1 — Power BI report built",
       "status": "pass",
-      "notes": "fabric/oem_report.Report now holds 5 pages and 17 visual.json files (up from 4/14 at the prior run — a Supply Risk page plus its drillthrough target landed at 3b6ee20/b751d20/ac3781f), with activePageName on Executive Dashboard."
+      "notes": "5 pages / 17 visual.json measured; activePageName resolves to Executive Dashboard. Minor: the 'Supply Risk Verify' drillthrough target (pageBinding.type=Drillthrough) ships with no visibility flag, so it renders as a normal tab under scratch naming."
     },
     {
       "name": "Phase 2 — Incremental load works for fact_procurement",
       "status": "pass",
-      "notes": "p_full_load and p_from_date are live in the 5-parameter set and tests/test_watermark.py's 27 tests are green; the end-to-end lossless-then-incremental run remains task-006_3's recorded live evidence since Delta MERGE is not locally reproducible."
+      "notes": "p_full_load (false) and p_from_date (1900-01-01) confirmed in the live 5-parameter set; tests/test_watermark.py collects exactly 27, all green. End-to-end MERGE remains task-006_3's recorded live evidence — Delta MERGE is not locally reproducible (delta-spark not installed)."
     },
     {
       "name": "Phase 2 — Data quality checks run in pipeline",
       "status": "pass",
-      "notes": "data_quality_checks is still the terminal activity feeding pipeline_error_handler; 14 checks counted three ways and 13 BLOCKING_CHECKS entries, with task-073's tightened bronze_wgi band (28000, 45000) confirmed deployed by getDefinition before run 0f779394."
+      "notes": "14 distinct check names via log_check_result and exactly 13 BLOCKING_CHECKS tuples, counted programmatically; data_quality_checks is terminal and pipeline_error_handler depends on it via ['Succeeded','Failed','Skipped']."
     },
     {
       "name": "Phase 2 — External data ingestion scripted",
       "status": "pass",
-      "notes": "bronze_epi and bronze_wgi remain TridentNotebook activities in the live definition; bronze_wgi's retry budget moved into the notebook (HTTP_TRANSIENT_STATUSES {400,408,429} plus 5xx, 401/403/404 permanent) per DEC-018/DEC-019, with tests/test_wgi_retry.py at 40 tests green."
+      "notes": "bronze_epi and bronze_wgi are TridentNotebook activities in pipeline-content.json; HTTP_TRANSIENT_STATUSES={400,408,429} plus 5xx with API_MAX_RETRIES=8 in-notebook per DEC-018/019; tests/test_wgi_retry.py collects exactly 40, green. ba0cd91's wgi delta read in full: comment-only, confirmed."
     },
     {
       "name": "Phase 3 — Error handling with Try-Catch in pipeline",
       "status": "pass",
-      "notes": "pipeline_error_handler still depends on data_quality_checks via ['Succeeded','Failed','Skipped'] at retry 0 with final-attempt re-raise; the retry topology moved (bronze_wgi 2 -> 0) and the spec's three retry descriptions did not — FR-096, reported not fixed."
+      "notes": "FR-096 is now FIXED, and I re-measured rather than accepted it: all 10 activities enumerated — retries 3,3,2,2,1,0,2,0,3,3 — so spec's corrected '0-3' range and its bronze_wgi=0 row both hold. Minor residue: Technical Decisions #5's interval map enumerates 9 of 10 activities, omitting pipeline_error_handler (retry 0, interval 30s) — task-081."
     },
     {
       "name": "Phase 3 — Pipeline scheduling configured",
       "status": "pass",
-      "notes": "Schedule id is not readable by verify-agent, but the firing is freshly observed rather than inherited: run c5ad962d started 2026-08-20T04:00:01Z (06:00 Europe/Stockholm) and Completed 10/10 in ~20 min, superseding the prior run's 2026-08-06 citation."
+      "notes": "Schedule id is not readable without creds and I did NOT re-observe a firing this session; rests on the spec's recorded 2026-08-06 run df0cc54f and the prior result's 2026-08-20 run c5ad962d. A 2026-08-21 04:00Z firing would be the first to exercise ba0cd91's code, and is unconfirmed."
     },
     {
       "name": "Phase 3 — Basic performance review done",
       "status": "pass",
-      "notes": "docs/performance_baseline.md and docs/performance_optimized.md both still carry Status: FINAL over 6 measured runs, and § Performance Optimization reads 'Benchmarked' with the honest null-result headline intact."
+      "notes": "docs/performance_baseline.md and docs/performance_optimized.md both read 'Status: FINAL', the latter dated to task-012_5's 2026-08-03 retest; honest null result intact."
     },
     {
       "name": "Phase 4 — GitHub Actions deploys via fabric-cicd",
       "status": "pass",
-      "notes": "deploy-fabric.yml pins fabric-cicd==1.2.0 with real publish on push to main and folder_exclude_regex '^/archive$'; the last 8 push-to-main deploys are green, the newest being HEAD 853cf0a at 2026-08-20T11:23:01Z."
+      "notes": "deploy-fabric.yml pins fabric-cicd==1.2.0 with EFFECTIVE_DRY_RUN=false on push to main and folder_exclude_regex '^/archive$'; the 6 most recent push-to-main deploys are all success, newest ba0cd91 at 2026-08-20T23:06:34Z, verified via gh run list."
     },
     {
       "name": "Cross-cutting — Deploy fidelity: repo equals live workspace",
       "status": "pass",
-      "notes": "Working tree clean and main == origin/main; sha256 of the repo bronze_ingest_wgi notebook (af58abbb3f158279...) matches the recorded live getDefinition hash, and the only commits after the last artifact-touching commit changed .claude/tasks/task-075.json alone, so HEAD is what the 2026-08-20 scheduled run executed."
+      "notes": "Re-derived first-hand, NOT inherited: ba0cd91's deploy log proves real PUBLISH of both changed notebooks, and HEAD adds no fabric/ delta (two positive controls). Qualification recorded: the workspace holds 2 non-generated items the repo lacks (Notebook_1, tmp_task064_seed) — task-079, where the orchestrator's live re-enumeration on 2026-08-21 confirmed both are still present and corrected the record's claim about what tmp_task064_seed contains — so equality holds repo-to-workspace only. NOTE: at verification time HEAD was 1 commit unpushed; the orchestrator pushed it at close (see push_status below)."
     },
     {
       "name": "Cross-cutting — Test suite green",
       "status": "pass",
-      "notes": "340 passed / 0 failed / 0 skipped in 57.82s via uv run pytest, with the spec's per-file claims (data_quality 45, material_mapping 7, country_mapping 18) all holding; only the section's dated headline count (300 @ 2026-08-12) is stale."
+      "notes": "349 passed / 0 failed / 0 skipped in 60.08s via uv run pytest — exactly matching the spec's corrected L1319 count, and test_data_quality.py collects exactly the corrected 54. Both of task-076's numeric corrections verified by measurement."
     },
     {
       "name": "Cross-cutting — Task ledger integrity",
       "status": "pass",
-      "notes": "96 task files across .claude/tasks/ and archive/: 93 Finished each carrying task_verification.result == 'pass', 3 Absorbed, and zero Pending/Blocked/On Hold — the single Pending the prior run recorded is now closed, so verification debt is nil."
+      "notes": "99 task files parsed (24 active + 75 archived): 96 Finished each carrying task_verification.result == 'pass', 3 Absorbed, and zero Pending/In Progress/Awaiting Verification/Blocked/On Hold. Verification debt is nil."
     }
   ],
   "issues": {
     "critical": 0,
-    "major": 2,
-    "minor": 4
+    "major": 1,
+    "minor": 3
   },
   "tasks_created": [
-    "task-076",
-    "task-077",
-    "task-078"
+    "task-079",
+    "task-080",
+    "task-081"
   ],
   "supersedes": {
-    "timestamp": "2026-08-07T01:53:20Z",
-    "spec_fingerprint": "sha256:a475793a20943544717579fcc63affe2b17a0df274db98e90f10e24cbcf5c738",
-    "note": "Prior 13/13 was against a spec fingerprint 15 closed tasks ago; re-derived, not inherited."
-  },
-  "spec_fingerprint_note": {
-    "verified_against": "sha256:eb7d4ec42ceefa9a3e709d879fd269fd0f6c07b4f432dc5a6a68a3f7cc1e6845",
+    "timestamp": "2026-08-20T11:37:34Z",
+    "spec_fingerprint": "sha256:eb7d4ec42ceefa9a3e709d879fd269fd0f6c07b4f432dc5a6a68a3f7cc1e6845",
     "verified_against_commit": "853cf0a",
-    "spec_moved_to": "sha256:0662c9e198c2f7b5cb4fa50d1b1f0bf9e2cce901454ffbf9c046285a645fc18a",
-    "spec_moved_to_correction": "An earlier version of this note recorded sha256:260b34b5ec8f04d38c512fa43c75c0dad3c4b039c374cd64cfab254c19ad789b here. That hash was an INTERMEDIATE mid-task state of spec_v1.md (after task-076's /iterate apply, before its AC3 correction of the test_data_quality.py count 45 -> 54) and matches no committed or current state. The value above is the live worktree fingerprint, measured 2026-08-21 with fingerprint.py --spec. HEAD (ba0cd91) still carries sha256:eb7d4ec42ceefa9a3e709d879fd269fd0f6c07b4f432dc5a6a68a3f7cc1e6845 — the spec edits are uncommitted.",
-    "moved_on": "2026-08-21",
-    "CORRECTION": "An earlier version of this note claimed 'The BUILD did not change' and that the pass was 'stale on fingerprint only'. THAT WAS FALSE and is retracted. Caught by verify-agent on task-076, attempt 1.",
-    "what_actually_changed": "Commit ba0cd91 (2026-08-20T23:06:30Z = 2026-08-21T01:06:30+02:00) landed AFTER this phase pass (2026-08-20T11:37:34Z) and modified fabric/silver_to_gold.Notebook (+60/-12, the task-078 grain-guard restructure) and fabric/bronze_ingest_wgi.Notebook (+4/-1, comment only). Commit ba0cd91 also predates the spec edits. So both the spec AND the build have moved since this result was recorded.",
-    "what_actually_changed_correction": "Two transcription slips in the field above were caught by verify-agent on task-076 attempt 2 and corrected 2026-08-21: silver_to_gold.Notebook read '+72/-12' (72 is the --stat total-lines-touched figure; git numstat gives +60/-12), and ba0cd91 was stamped '2026-08-20T23:06:30+02:00', which pairs the UTC wall-clock with a +02:00 offset. Neither slip touched the substantive claim — the build did change after the 2026-08-20T11:37:34Z phase pass, and the ordering holds under either reading.",
-    "why_it_matters": "This result's own summary rested on the claim that 'the artifact set at HEAD is byte-identical to what scheduled run c5ad962d ran 2026-08-20 04:00'. That is no longer true. A reader must not decline phase re-verification on the retracted premise.",
-    "standing_evidence_that_narrows_the_gap": "task-078's per-task verification independently established that create_data_gaps_table's output is UNCHANGED on a valid population (identical rows, payload and summary metrics vs HEAD-before), and the bronze_ingest_wgi delta is a comment. That is task-level evidence, not a phase-level re-derivation of the 13 criteria.",
-    "recommendation": "Treat this result as SUPERSEDED for the deploy-fidelity criterion specifically, and re-verify at phase level when convenient. Do not treat the mismatch as merely cosmetic."
-  }
+    "note": "The 2026-08-20 13/13 was re-derived, not inherited. Two things had moved since it was stamped: the spec (task-076's corrections, now committed as 2873cc1) and the BUILD (commit ba0cd91 modified silver_to_gold and bronze_ingest_wgi AFTER that pass). That prior record carried an annotation claiming 'The BUILD did not change'; the claim was false, was caught by task-076's verification, and was retracted in place before this run.",
+    "how_the_retracted_gap_actually_resolved": "The retraction was correct — the 'build did not change' claim WAS false — but the gap it opened read wider than it was. This run established from the GitHub Actions log that ba0cd91 deployed in real PUBLISH mode about 23 minutes after it was committed, so both changed notebooks were already live in the workspace BEFORE the supersession note was written. Deploy fidelity was never actually broken; what was broken was the record's basis for asserting it. Logged as a false_positive friction marker so the supersession-annotation habit is calibrated, not abandoned."
+  },
+  "scope_limits": {
+    "fabric_credentials": "none in the verifying session — lakehouse, semantic model and pipeline run history were not queried",
+    "criteria_resting_on_recorded_evidence": [
+      1,
+      2,
+      4,
+      8
+    ],
+    "open_loop": "No pipeline run against the post-ba0cd91 silver_to_gold has been observed. The DEPLOY is proven from the Actions log; the subsequent EXECUTION of the new code is not."
+  },
+  "post_run_corrections": [
+    {
+      "date": "2026-08-21",
+      "by": "orchestrator",
+      "what": "The NEW FINDING in this run's summary inherited task-069's characterisation of DataPipeline/tmp_task064_seed as holding SMALLINT/FLOAT rollback DDL. A live getDefinition fetch showed the script's CREATE TABLE is DECIMAL(18,2) on both columns — matching the repo contract — with SMALLINT/FLOAT appearing only in a stale comment header. The finding that the item is live and undocumented STANDS; the characterisation of its danger does not.",
+      "also_confirmed": "Both orphans (Notebook_1, tmp_task064_seed) verified still present in the live workspace on 2026-08-21 via the Fabric items API — upgrading this from a deploy-log inference to a first-hand measurement. Of the inventory doc's eight 'removed 2026-08-10' rows, Notebook_1 is the only one falsified."
+    }
+  ]
 }

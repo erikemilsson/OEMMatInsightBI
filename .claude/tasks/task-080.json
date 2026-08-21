@@ -1,0 +1,28 @@
+{
+  "source": "verify-agent",
+  "status": "Pending",
+  "phase": "5",
+  "spec_version": "spec_v1",
+  "spec_fingerprint": "sha256:0662c9e198c2f7b5cb4fa50d1b1f0bf9e2cce901454ffbf9c046285a645fc18a",
+  "created_date": "2026-08-21",
+  "updated_date": "2026-08-21",
+  "out_of_spec": true,
+  "dependencies": [],
+  "decision_dependencies": [],
+  "verification_attempts": 0,
+  "notes": "Created by phase-level verification 2026-08-21 (13/13 PASS against fingerprint 0662c9e1). Follow-up, not a phase blocker.",
+  "id": "task-080",
+  "difficulty": 2,
+  "owner": "both",
+  "spec_section": "Semantic Model & Reporting",
+  "files_affected": [
+    "fabric/oem_report.Report/definition/pages/50de95325943590837ab/page.json"
+  ],
+  "title": "Hide and rename the 'Supply Risk Verify' drillthrough target page",
+  "description": "fabric/oem_report.Report/definition/pages/50de95325943590837ab/page.json is a genuine drillthrough target — pageBinding.type == 'Drillthrough', bound to gold_supply_risk[is_bottleneck] with howCreated 'Drillthrough'. It carries no visibility property, so unlike a conventional drillthrough target it renders as an ordinary tab in the page strip. A reader who clicks it directly lands on a page pre-filtered to is_bottleneck = true with no drillthrough context to explain the filter.\n\nThe display name 'Supply Risk Verify' is also developer-scratch naming on a user-facing tab.\n\nDO: set the page's visibility to HiddenInViewMode so it is reachable only via drillthrough, and rename it to something a reader would understand as a detail view (e.g. 'Bottleneck Detail'). Confirm the drillthrough from the Supply Risk page still lands correctly after the change — hiding a page must not break its pageBinding.",
+  "acceptanceCriteria": [
+    "The page is set to HiddenInViewMode and no longer appears in the page strip in view mode.",
+    "The page is renamed from the scratch name 'Supply Risk Verify' to a reader-facing detail-view name.",
+    "The drillthrough from the Supply Risk page still lands on the target correctly after the change."
+  ]
+}

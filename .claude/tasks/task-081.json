@@ -1,0 +1,27 @@
+{
+  "source": "verify-agent",
+  "status": "Pending",
+  "phase": "5",
+  "spec_version": "spec_v1",
+  "spec_fingerprint": "sha256:0662c9e198c2f7b5cb4fa50d1b1f0bf9e2cce901454ffbf9c046285a645fc18a",
+  "created_date": "2026-08-21",
+  "updated_date": "2026-08-21",
+  "out_of_spec": false,
+  "dependencies": [],
+  "decision_dependencies": [],
+  "verification_attempts": 0,
+  "notes": "Created by phase-level verification 2026-08-21 (13/13 PASS against fingerprint 0662c9e1). Follow-up, not a phase blocker.",
+  "id": "task-081",
+  "difficulty": 1,
+  "owner": "claude",
+  "spec_section": "Orchestration",
+  "files_affected": [
+    ".claude/spec_v1.md"
+  ],
+  "title": "Complete the per-activity retry-interval map in Technical Decisions #5",
+  "description": "spec_v1.md § Open Questions & Decisions Needed → Technical Decisions #5 gives the retry interval map as: 'bronze_wgi is 0 retries — its 30s interval is retained but inert; 30s for bronze_epi, 120s for bronze_to_silver_cleaning/silver_to_gold/data_quality_checks, 300s for the four Copy activities.' That enumerates 9 of the pipeline's 10 activities. The omitted one is pipeline_error_handler (retry 0, retryIntervalInSeconds 30), measured 2026-08-21 from fabric/orchestrator_pipeline_bronze_to_gold.DataPipeline/pipeline-content.json.\n\nThe corrected '0-3 retries' range is already right, and docs/error_handling_strategy.md already names both zero-retry activities ('bronze_wgi and pipeline_error_handler are 0'). Only the spec's own interval map is incomplete, so the spec is currently less complete than the doc it fronts.\n\nDO: add pipeline_error_handler (0 retries, 30s interval) to the map. Per DEC-016 this is a substantive spec text edit and MUST route through /iterate — do not edit spec_v1.md directly. NOTE: /iterate carries disable-model-invocation, so Erik must type it.",
+  "acceptanceCriteria": [
+    "Technical Decisions #5's interval map enumerates all 10 pipeline activities, including pipeline_error_handler (0 retries, 30s).",
+    "The edit lands via /iterate, not by direct edit of spec_v1.md."
+  ]
+}
