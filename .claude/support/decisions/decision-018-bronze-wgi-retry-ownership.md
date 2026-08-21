@@ -17,7 +17,8 @@ implementation_anchors:
   - file: "docs/epi_wgi_ingestion.md"
     description: "§ 'Retry ownership and the total attempt budget' — the single canonical home for the attempt arithmetic (AC3's 'one place' requirement)"
 inflection_point: false
-spec_revised: false
+spec_revised: true
+spec_revised_date: 2026-08-21
 blocks: []
 ---
 

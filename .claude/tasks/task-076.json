@@ -1,23 +1,30 @@
 {
   "source": "verify-agent",
-  "status": "Pending",
+  "status": "Finished",
   "phase": "5",
   "spec_version": "spec_v1",
   "spec_fingerprint": "sha256:eb7d4ec42ceefa9a3e709d879fd269fd0f6c07b4f432dc5a6a68a3f7cc1e6845",
   "created_date": "2026-08-20",
-  "updated_date": "2026-08-20",
+  "updated_date": "2026-08-21",
   "out_of_spec": true,
   "out_of_spec_approved": true,
   "dependencies": [],
   "decision_dependencies": [],
-  "verification_attempts": 0,
-  "notes": "",
+  "verification_attempts": 2,
+  "notes": "[VERIFIED PASS #2 — 2026-08-21T14:08:57Z] 4/4 acceptance criteria hold under independent re-derivation. 4 minors, none blocking: 2 were slips inside the retraction text itself (silver_to_gold '+72/-12' -> +60/-12; a UTC wall-clock paired with a +02:00 offset) and BOTH were fixed by the orchestrator at close; 1 is pre-existing out-of-scope doc drift now registered as FR-100 (docs/portfolio/CASE_STUDY.md:121 still says 300 tests, undated); 1 is the carried-forward uncitable-live-DQ-reading gap, logged as a verification_gap marker. user_review_pending: the live gold_quality_history reading is the only claim no agent could measure — test_protocol carries the 2-step check.\n\n[VERIFICATION FAIL #1] AC3 failed: re-dating the Testing Strategy anchor to 2026-08-21 re-certified 'test_data_quality.py collects 45 tests' as current, but it collects 54 (+9 from task-078 in HEAD ba0cd91). Second major: the verification-result.json annotation claims 'The BUILD did not change', but ba0cd91 modified silver_to_gold and bronze_ingest_wgi AFTER the 2026-08-20 phase pass. Both are orchestrator errors, both confirmed independently before acceptance. Routing back to fix.\n\n[APPLIED 2026-08-21 via /iterate — Erik approved the change declaration with [Y]]\n\nAll five corrections landed in spec_v1.md; every location was re-read and verified before editing rather than taken from this task's description.\n\nAC1 — FR-096's three locations:\n  L642 Stage 1 table: bronze_wgi Retry 2 -> \"**0** — the notebook owns its own retry budget (DEC-018); see Technical Decisions #5\".\n  L716 Error Handling: \"1-3 retries depending on activity\" -> \"0-3 retries depending on activity — bronze_wgi is 0 because its budget moved into the notebook per DEC-018\".\n  L1574 Technical Decisions #5: \"(1-3 retries, i.e. 2-4 total attempts)\" -> \"(0-3 retries, i.e. 1-4 total attempts)\", and \"30s for bronze_wgi/bronze_epi\" -> bronze_wgi called out as 0 retries with its 30s interval retained but INERT, plus the reason (only the notebook can tell a gateway wobble from a retired indicator code).\n  A \"why\" clause was added at each site deliberately rather than only flipping the number: a bare 0 invites someone to \"fix\" it back.\n\nAC2 — DECIDED BY LIVE MEASUREMENT, NOT BY ASSUMING THE DOC. The criterion explicitly said to re-read the live DQ output and correct whichever side was stale. Queried gold_quality_history through the semantic model: on the 2026-08-20 run dq_data_type_consistency reads pass / 100.0, and the only checks carrying a real non-pass STATUS are dq_business_rule_validation (fail, 81.82) and dq_date_range_validation (warning, 0.0). So the DOC was right and the SPEC was stale. L1122 now reads \"Two checks\", names both, and records that data_type_consistency was the third until task-069/DEC-016 fixed the silver-boundary cast on 2026-08-12.\n  METHOD CORRECTION WORTH RECORDING: the first query used SUMMARIZECOLUMNS with MAX(metric_value), which returns the maximum across ALL history rather than the value at the latest run — it made external_coverage_rate appear to read 158.33 (task-071's defect) on 2026-08-20. A point-in-time re-query showed 100.0 on both 2026-08-20 runs; task-071's fix is holding and there was no regression. The alarm was an artifact of the query shape, caught before it was reported as a finding.\n\nAC3 — L1319 re-dated: 300 tests (2026-08-12) -> 349 tests (2026-08-21), with task-075's retry-classification tests and task-078's grain coverage added to the provenance list. Framed as maintenance rather than a defect: the section's own dating convention (\"counts in this section are measured against the suite at the date given on the Unit Tests line above\") already existed and worked as designed — only the measurement was stale.\n\nAC4 — FR-096 marked resolved in friction.jsonl with the three corrected locations named. Register now 20 open of 98.\n\nALSO DONE (infrastructure, autonomous under DEC-016): spec frontmatter updated: 2026-08-12 -> 2026-08-21 BEFORE regenerating the index (regenerating first then editing frontmatter leaves the index stale again); spec index regenerated and confirmed fresh (fingerprint matches live, 18 sections); DEC-018 and DEC-019 frontmatter set spec_revised: true + spec_revised_date: 2026-08-21.\n\nFINGERPRINT CONSEQUENCE, SURFACED NOT HIDDEN: the spec fingerprint moved eb7d4ec4 -> 260b34b5, so .claude/verification-result.json's recorded fingerprint no longer matches and /work will offer phase-level re-verification. An annotation was added to that file stating what moved and why — the BUILD did not change; these were corrective edits making the spec more accurate about the same artifacts the 13 criteria were re-derived against on 2026-08-20. The annotation deliberately does NOT claim the new fingerprint was verified.\n\nPost-apply sweep, positive-controlled: no stale \"1-3 retries\", \"2-4 total attempts\", \"30s for bronze_wgi/bronze_epi\", \"Three checks record\", or \"**300 tests**\" text remains anywhere in the spec (control: bronze_wgi still matches 5 times, so the probe was working).",
   "id": "task-076",
   "difficulty": 3,
   "owner": "both",
   "spec_section": "Orchestration",
   "files_affected": [
-    ".claude/spec_v1.md"
+    ".claude/spec_v1.md",
+    ".claude/spec_v1.index.json",
+    ".claude/support/friction.jsonl",
+    ".claude/support/decisions/decision-018-bronze-wgi-retry-ownership.md",
+    ".claude/support/decisions/decision-019-worldbank-4xx-retry-classification.md",
+    ".claude/verification-result.json",
+    "docs/data_quality_architecture.md",
+    "docs/error_handling_strategy.md"
   ],
   "title": "Spec drift sweep: bronze_wgi retry (FR-096), the 'Three checks' contradiction, and the stale unit-test headline",
   "description": "Three false or stale assertions in spec_v1.md, all found by phase-level verification 2026-08-20. MUST route through /iterate per DEC-016 — do NOT edit spec_v1.md directly.\n\n(1) FR-096 (already open in friction.jsonl). Three locations still describe bronze_wgi as retrying at the activity level, which task-075/DEC-018 ended:\n  - L642, Stage 1 activity table, Retry column reads `2`. Deployed value is 0 (full live map: Copy 3/300s, bronze_epi 2/30s, bronze_wgi 0/30s, bronze_to_silver_cleaning 2/120s, silver_to_gold 2/120s, data_quality_checks 1/120s, pipeline_error_handler 0/30s).\n  - L716, 'Activity-level retry (1-3 retries depending on activity)' — the true range is now 0-3.\n  - L1574, Technical Decisions #5, '1-3 retries, i.e. 2-4 total attempts ... 30s for bronze_wgi/bronze_epi'. bronze_wgi keeps the 30s interval but no retries; its budget lives in the notebook (8 bounded attempts).\nEvery doc under docs/ was correctly swept by task-075 — spec_v1.md is the only stale surface.\n\n(2) NEW, unregistered before this run. L1122 asserts 'Three checks record a non-`pass` row on every run by design — measured, explained and accepted in `docs/data_quality_framework.md § 7`'. That doc's § 7 has opened with 'Two checks record a non-pass row on every pipeline run' since task-069/DEC-016 fixed data_type_consistency on 2026-08-12 (confirmed live on two runs). The spec contradicts the document it cites as its own evidence — a reader hits it the moment they follow the pointer.\n\n(3) L1319 § Testing Strategy reads '**300 tests** ... (measured 2026-08-12)'. Measured 2026-08-20: 340 passed. The as-of date makes this honest rather than false, so re-date rather than treat as a defect. Per-file figures in the same section (data_quality 45, material_mapping 7, country_mapping 18) were re-measured and all hold.",
@@ -26,5 +33,133 @@
     "L1122's 'Three checks' claim is reconciled with docs/data_quality_framework.md § 7's 'Two checks' — decide which is right by re-reading the live DQ output, and correct whichever is stale rather than assuming the doc.",
     "L1319's test count is re-dated with a freshly measured number, and the dating convention is kept so the next staleness is self-evident.",
     "FR-096 is marked resolved in .claude/support/friction.jsonl once the spec lands."
-  ]
+  ],
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "fail",
+      "timestamp": "2026-08-20T23:23:09Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "fail",
+        "spec_alignment": "fail",
+        "output_quality": "pass",
+        "runtime_validation": "partial",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "major",
+          "description": "spec_v1.md § Testing Strategy still reads 'tests/test_data_quality.py collects **45 tests**' while the file collects 54 — and re-dating the section anchor to 2026-08-21 makes that a false as-of claim where it was previously correct. Fix via /iterate (45 -> 54, the +9 landing in HEAD ba0cd91)."
+        },
+        {
+          "severity": "major",
+          "description": ".claude/verification-result.json's spec_fingerprint_note claims 'The BUILD did not change' and that the 13/13 pass is 'stale on fingerprint only', but HEAD ba0cd91 (2026-08-21T01:06) modified fabric/silver_to_gold.Notebook and fabric/bronze_ingest_wgi.Notebook after that 2026-08-20 pass — the fingerprint disclaimer is honest, the build claim is not."
+        },
+        {
+          "severity": "minor",
+          "description": "docs/data_quality_architecture.md:423 still asserts 'Three checks record a non-pass row on every single run' citing dq_data_type_consistency = 75.0 — the exact contradiction just removed from spec L1122, in a file edited in the same HEAD commit."
+        },
+        {
+          "severity": "minor",
+          "description": "docs/error_handling_strategy.md:11 still reads 'Activity-specific retry configuration (1-3 retries...)', contradicting the corrected 0-3 range and that same doc's line 233 table which already shows bronze_wgi retry=0."
+        },
+        {
+          "severity": "minor",
+          "description": "The spec's new '(re-confirmed live 2026-08-20)' DQ reading leaves no evidence artifact in the repo; the newest recorded readings are task-059's four scheduled runs 2026-08-16..19 — uncontradicted but uncitable, unlike the dated evidence surrounding spec prose normally carries."
+        },
+        {
+          "severity": "minor",
+          "description": "files_affected declared only .claude/spec_v1.md, but decision-018 and decision-019 were also modified (frontmatter-only, sanctioned infrastructure) — declared scope stale, not violated."
+        }
+      ],
+      "notes": "AC1, AC2 and AC4 hold under independent re-derivation; AC3 does not, and the re-date introduced a NEW false claim in the same section.\n\n(1) RETRY MAP re-derived by parsing all 10 activities from pipeline-content.json: Copy x4 = 3/300s, bronze_to_silver_cleaning 2/120s, silver_to_gold 2/120s, data_quality_checks 1/120s, bronze_wgi 0/30s, bronze_epi 2/30s, pipeline_error_handler 0/30s. The three corrected sites match exactly. The correction is strictly better than a number swap: the old '1-3' was ALSO wrong for pipeline_error_handler (0), and '0-3' now covers it. Full spec sweep for retry language (10 hits) found no residue.\n\n(2) AC2 — no Fabric credentials, no live claim made. Structural checks all agree with 'two, not three': bronze_to_silver casts quantity and unitpriceeur to decimal(18,2) at the silver boundary (L530-531) and data_quality_checks' type_consistency_checks still expects 'decimal', so the check is met rather than relabelled; BLOCKING_CHECKS enumerated in full (13 entries, matching spec L1130) contains none of the three; the new text is consistent with the framework doc's opener and disposition table. Independent repo corroboration: task-059 records data_type_consistency = 100.0/pass across FOUR consecutive scheduled runs (2026-08-16/17/18/19). The spec does not over-claim — it names the third check, dates the fix, points at the DEC.\n\n(3) AC3 FAILS. 'uv run pytest tests/' returns 349, so the headline is right. BUT the same section carries 'tests/test_data_quality.py collects **45 tests**', and that file now collects **54**. The section's own convention says counts are measured against the date on the Unit Tests line — so moving that date to 2026-08-21 RE-CERTIFIED 45 as current. It was correct under the 2026-08-12 stamp and became wrong at HEAD ba0cd91 (+9 tests). The 340->349 delta the pass measured IS that same +9, so the correct figure was observable at measurement time. The edit turned an honestly-dated number into a falsely-dated one inside the very section it was refreshing — the failure mode this task exists to eliminate, one line below the line it fixed.\n\n(4) AC4 — FR-096 resolved with the three locations named; register 20 open of 98.\n\n(5) INDEX FRESHNESS verified by regeneration, not inspection: fingerprint.py --index to a temp file is BYTE-IDENTICAL to the committed index, and its spec_fingerprint equals the live --spec hash.\n\n(6) DEC-018 and DEC-019 both carry spec_revised: true + spec_revised_date: 2026-08-21.\n\n(7) VERIFICATION-RESULT ANNOTATION overreaches. 'verified_against' correctly names the OLD fingerprint and the text disclaims asserting the new one — the specific thing it was told not to do, it does not do. But 'The BUILD did not change' and 'stale on fingerprint only' were written AFTER HEAD ba0cd91 modified fabric/silver_to_gold.Notebook (+72 lines) and fabric/bronze_ingest_wgi.Notebook — i.e. after the 2026-08-20 phase pass, whose own summary rested on 'the artifact set at HEAD is byte-identical to what scheduled run c5ad962d ran'. A reader could decline re-verification on a premise that is no longer true.\n\nTwo doc surfaces outside declared scope still contradict the corrected spec (issues 3 and 4); both need a normal doc edit, not /iterate. All negative findings produced with /usr/bin/grep plus a positive control in the SAME command."
+    },
+    {
+      "attempt": 2,
+      "result": "pass",
+      "timestamp": "2026-08-21T14:08:57Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "partial",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "minor",
+          "description": ".claude/verification-result.json's what_actually_changed states fabric/silver_to_gold.Notebook changed '+72/-12'; git numstat gives +60/-12 (72 is the --stat total-lines-touched figure, misread as the insertion count). The substantive claim — the build changed after the phase pass — is confirmed and unaffected. FIXED by the orchestrator at close."
+        },
+        {
+          "severity": "minor",
+          "description": ".claude/verification-result.json's what_actually_changed timestamps ba0cd91 as '2026-08-20T23:06:30+02:00', pairing the UTC wall-clock with a +02:00 offset; the commit instant is 2026-08-20T23:06:30Z = 2026-08-21T01:06:30+02:00. The ordering conclusion holds either way. FIXED by the orchestrator at close."
+        },
+        {
+          "severity": "minor",
+          "description": "docs/portfolio/CASE_STUDY.md:121 asserts '**300 tests** currently run against this arrangement' — undated present tense, now false at 349. Pre-existing (commit 7caed3a), outside this task's blast radius; NOT charged to task-076. Registered as FR-100."
+        },
+        {
+          "severity": "minor",
+          "description": "Carried forward unresolved from attempt 1: the spec's '(re-confirmed live 2026-08-20)' DQ reading still leaves no citable evidence artifact in the repo. Judged non-blocking — corroborated by task-059's four dated runs (2026-08-16..19) and by structural evidence. Logged as a verification_gap friction marker."
+        }
+      ],
+      "notes": "All 4 acceptance criteria re-derived from scratch (attempt-1 passes NOT inherited); both attempt-1 majors and 3 of 4 minors genuinely fixed. AC1 re-derived by parsing all 10 activities from pipeline-content.json (min 0, max 3 — '0-3' exact, and it also fixes pipeline_error_handler, which the old '1-3' got wrong); residue sweep run against BOTH hyphen and en-dash forms, since the spec uses en-dashes and a hyphen-only probe would have silently missed everything. AC2 PASS on repo-internal grounds only — no Fabric credentials in the verifying session, so the live half is explicitly NOT re-measured and no independent live claim is made; spec L1122, data_quality_architecture.md:423 and data_quality_framework.md:1168 now agree on the same two checks. (framework.md:1315's 'these three checks' checked and found NOT stale — § 7 deliberately documents two live + one historical.) AC3 measured with the project interpreter: 349 total, test_data_quality.py 54 (the 45 that failed attempt 1), material_mapping 7, country_mapping 18 — all four figures the refreshed date re-certifies. AC4 FR-096 status 'resolved' with the three locations named; positive control FR-095 returned by the same probe. Correction #6 (spec_moved_to) verified by RECONSTRUCTION, not inspection: rebuilding the claimed intermediate state (worktree with the single 54->45 substitution) hashes byte-for-byte to 260b34b5, confirming the account exactly; HEAD and 853cf0a both = eb7d4ec4, worktree = 0662c9e1, and the spec index was confirmed regenerated AFTER the AC3 fix rather than left at the intermediate. Every negative finding produced with /usr/bin/grep plus a positive control in the same command."
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-08-21T14:08:57Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "partial",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "All 4 acceptance criteria re-derived from scratch (attempt-1 passes NOT inherited); both attempt-1 majors and 3 of 4 minors genuinely fixed. AC1 re-derived by parsing all 10 activities from pipeline-content.json (min 0, max 3 — '0-3' exact, and it also fixes pipeline_error_handler, which the old '1-3' got wrong); residue sweep run against BOTH hyphen and en-dash forms, since the spec uses en-dashes and a hyphen-only probe would have silently missed everything. AC2 PASS on repo-internal grounds only — no Fabric credentials in the verifying session, so the live half is explicitly NOT re-measured and no independent live claim is made; spec L1122, data_quality_architecture.md:423 and data_quality_framework.md:1168 now agree on the same two checks. (framework.md:1315's 'these three checks' checked and found NOT stale — § 7 deliberately documents two live + one historical.) AC3 measured with the project interpreter: 349 total, test_data_quality.py 54 (the 45 that failed attempt 1), material_mapping 7, country_mapping 18 — all four figures the refreshed date re-certifies. AC4 FR-096 status 'resolved' with the three locations named; positive control FR-095 returned by the same probe. Correction #6 (spec_moved_to) verified by RECONSTRUCTION, not inspection: rebuilding the claimed intermediate state (worktree with the single 54->45 substitution) hashes byte-for-byte to 260b34b5, confirming the account exactly; HEAD and 853cf0a both = eb7d4ec4, worktree = 0662c9e1, and the spec index was confirmed regenerated AFTER the AC3 fix rather than left at the intermediate. Every negative finding produced with /usr/bin/grep plus a positive control in the same command.",
+    "issues": [
+      {
+        "severity": "minor",
+        "description": ".claude/verification-result.json's what_actually_changed states fabric/silver_to_gold.Notebook changed '+72/-12'; git numstat gives +60/-12 (72 is the --stat total-lines-touched figure, misread as the insertion count). The substantive claim — the build changed after the phase pass — is confirmed and unaffected. FIXED by the orchestrator at close."
+      },
+      {
+        "severity": "minor",
+        "description": ".claude/verification-result.json's what_actually_changed timestamps ba0cd91 as '2026-08-20T23:06:30+02:00', pairing the UTC wall-clock with a +02:00 offset; the commit instant is 2026-08-20T23:06:30Z = 2026-08-21T01:06:30+02:00. The ordering conclusion holds either way. FIXED by the orchestrator at close."
+      },
+      {
+        "severity": "minor",
+        "description": "docs/portfolio/CASE_STUDY.md:121 asserts '**300 tests** currently run against this arrangement' — undated present tense, now false at 349. Pre-existing (commit 7caed3a), outside this task's blast radius; NOT charged to task-076. Registered as FR-100."
+      },
+      {
+        "severity": "minor",
+        "description": "Carried forward unresolved from attempt 1: the spec's '(re-confirmed live 2026-08-20)' DQ reading still leaves no citable evidence artifact in the repo. Judged non-blocking — corroborated by task-059's four dated runs (2026-08-16..19) and by structural evidence. Logged as a verification_gap friction marker."
+      }
+    ]
+  },
+  "completion_date": "2026-08-21",
+  "user_review_pending": true,
+  "interaction_hint": "dashboard",
+  "test_protocol": {
+    "summary": "Confirm the one claim this session could not measure: the live DQ reading behind spec L1122's '(re-confirmed live 2026-08-20)'.",
+    "steps": [
+      {
+        "instruction": "In Fabric, query gold_quality_history point-in-time for the most recent run and read status/metric_value for dq_data_type_consistency. Use a point-in-time filter, NOT MAX(metric_value) across all history — that query shape produced a false external_coverage_rate=158.33 alarm during implementation.",
+        "expected": "dq_data_type_consistency reads pass / 100.0, and the only non-pass rows are dq_business_rule_validation (fail, 81.82) and dq_date_range_validation (warning, 0.0).",
+        "type": "interactive"
+      },
+      {
+        "instruction": "Decide whether to persist that reading as a citable artifact (e.g. into the task record) so the spec's live-DQ parenthetical stops being uncitable.",
+        "expected": "Either a recorded reading, or an explicit decision that spec prose need not carry persisted live evidence.",
+        "type": "interactive"
+      }
+    ],
+    "automated_results": "349 / 54 / 7 / 18 test counts measured with uv; full 10-activity deployed retry map parsed from pipeline-content.json and matched against all three corrected spec sites; intermediate spec fingerprint 260b34b5 reproduced exactly by reconstruction; FR-096 confirmed resolved. Only the live lakehouse DQ reading is unmeasurable without Fabric credentials.",
+    "estimated_time": "5 minutes"
+  }
 }

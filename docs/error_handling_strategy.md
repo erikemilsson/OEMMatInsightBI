@@ -8,7 +8,7 @@
 This document defines the error handling and retry strategy for the OEMMatInsightBI data pipeline: intelligent retry logic, error categorization, comprehensive logging, and notification workflows to improve pipeline reliability and operational visibility. The strategy is implemented — the live per-activity retry configuration lives in `error_recovery_playbook.md` and `pipeline-content.json`.
 
 **Key Decisions:**
-- ✅ **Retry Logic:** Activity-specific retry configuration (1-3 retries based on failure patterns)
+- ✅ **Retry Logic:** Activity-specific retry configuration (0-3 retries based on failure patterns — `bronze_wgi` and `pipeline_error_handler` are 0; see the per-activity map below and DEC-018)
 - ✅ **Error Categorization:** Automated classification (Transient vs Permanent vs Unknown)
 - ✅ **Logging:** Centralized execution log table with error details
 - ✅ **Notifications:** Email alerts on final failure, no alerts on transient retries

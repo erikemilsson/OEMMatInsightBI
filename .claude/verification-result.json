@@ -87,5 +87,18 @@
     "timestamp": "2026-08-07T01:53:20Z",
     "spec_fingerprint": "sha256:a475793a20943544717579fcc63affe2b17a0df274db98e90f10e24cbcf5c738",
     "note": "Prior 13/13 was against a spec fingerprint 15 closed tasks ago; re-derived, not inherited."
+  },
+  "spec_fingerprint_note": {
+    "verified_against": "sha256:eb7d4ec42ceefa9a3e709d879fd269fd0f6c07b4f432dc5a6a68a3f7cc1e6845",
+    "verified_against_commit": "853cf0a",
+    "spec_moved_to": "sha256:0662c9e198c2f7b5cb4fa50d1b1f0bf9e2cce901454ffbf9c046285a645fc18a",
+    "spec_moved_to_correction": "An earlier version of this note recorded sha256:260b34b5ec8f04d38c512fa43c75c0dad3c4b039c374cd64cfab254c19ad789b here. That hash was an INTERMEDIATE mid-task state of spec_v1.md (after task-076's /iterate apply, before its AC3 correction of the test_data_quality.py count 45 -> 54) and matches no committed or current state. The value above is the live worktree fingerprint, measured 2026-08-21 with fingerprint.py --spec. HEAD (ba0cd91) still carries sha256:eb7d4ec42ceefa9a3e709d879fd269fd0f6c07b4f432dc5a6a68a3f7cc1e6845 — the spec edits are uncommitted.",
+    "moved_on": "2026-08-21",
+    "CORRECTION": "An earlier version of this note claimed 'The BUILD did not change' and that the pass was 'stale on fingerprint only'. THAT WAS FALSE and is retracted. Caught by verify-agent on task-076, attempt 1.",
+    "what_actually_changed": "Commit ba0cd91 (2026-08-20T23:06:30Z = 2026-08-21T01:06:30+02:00) landed AFTER this phase pass (2026-08-20T11:37:34Z) and modified fabric/silver_to_gold.Notebook (+60/-12, the task-078 grain-guard restructure) and fabric/bronze_ingest_wgi.Notebook (+4/-1, comment only). Commit ba0cd91 also predates the spec edits. So both the spec AND the build have moved since this result was recorded.",
+    "what_actually_changed_correction": "Two transcription slips in the field above were caught by verify-agent on task-076 attempt 2 and corrected 2026-08-21: silver_to_gold.Notebook read '+72/-12' (72 is the --stat total-lines-touched figure; git numstat gives +60/-12), and ba0cd91 was stamped '2026-08-20T23:06:30+02:00', which pairs the UTC wall-clock with a +02:00 offset. Neither slip touched the substantive claim — the build did change after the 2026-08-20T11:37:34Z phase pass, and the ordering holds under either reading.",
+    "why_it_matters": "This result's own summary rested on the claim that 'the artifact set at HEAD is byte-identical to what scheduled run c5ad962d ran 2026-08-20 04:00'. That is no longer true. A reader must not decline phase re-verification on the retracted premise.",
+    "standing_evidence_that_narrows_the_gap": "task-078's per-task verification independently established that create_data_gaps_table's output is UNCHANGED on a valid population (identical rows, payload and summary metrics vs HEAD-before), and the bronze_ingest_wgi delta is a comment. That is task-level evidence, not a phase-level re-derivation of the 13 criteria.",
+    "recommendation": "Treat this result as SUPERSEDED for the deploy-fidelity criterion specifically, and re-verify at phase level when convenient. Do not treat the mismatch as merely cosmetic."
   }
 }

@@ -15,7 +15,8 @@ implementation_anchors:
   - file: "tests/test_wgi_retry.py"
     description: "Per-status coverage: 404/401/403 raise with exactly 1 HTTP call and zero backoff sleeps; 400/408 retry within budget; exhausted-budget path still raises"
 inflection_point: false
-spec_revised: false
+spec_revised: true
+spec_revised_date: 2026-08-21
 blocks: []
 ---
 
