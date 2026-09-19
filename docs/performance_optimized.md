@@ -427,22 +427,27 @@ page render in the service are **not** comparable to each other.
 - **Page identification:** resolved 2026-08-03 from the report definition in git
   (`fabric/report2.Report/definition/pages/`), not from recollection. `pageOrder` is
   `Executive Dashboard` → `Risk & Sustainability` → `Data Quality Monitoring` →
-  `Supply Risk Verify`, and the visual counts (6 / 4 / 1 / 3) corroborate the query counts
+  `Bottleneck Detail`, and the visual counts (6 / 4 / 1 / 3) corroborate the query counts
   measured. **Pages 2 and 4 were renamed on 2026-08-03, after these measurements were taken**
-  (`Riks & Sustainability` → `Risk & Sustainability`, `SR verify` → `Supply Risk Verify`).
-  Names below are the current ones; nothing about the timings changed.
+  (`Riks & Sustainability` → `Risk & Sustainability`, `SR verify` → `Supply Risk Verify`),
+  **and page 4 again on 2026-09-19** (`Supply Risk Verify` → `Bottleneck Detail`, task-080),
+  when it was also set to `HiddenInViewMode` and its drillthrough field was rebound from
+  `gold_supply_risk[is_bottleneck]` to `gold_dim_material[material_name_std]` (`is_bottleneck = true`
+  kept as an ordinary page filter). To re-measure it comparably, open it from edit mode with no
+  drill context. A render reached by drilling through is a single-material query, so it is not
+  comparable to the 171 ms below. Names below are the current ones; nothing about the timings changed.
 
 | Report page | Queries | Timings | Verdict |
 |-------------|---------|---------|---------|
 | **Executive Dashboard** (page 1) | 6 | 150 / 132 / 130 / 116 / 116 / 106 ms | healthy — includes session cold-start |
 | Data Quality Monitoring | 1 | **116 ms** | healthy |
-| **Supply Risk Verify** | 1 | **171 ms** | healthy |
+| **Bottleneck Detail** | 1 | **171 ms** | healthy |
 | **Risk & Sustainability** (cold) | 4 | **84 s · 84 s · 6.58 s · 3.98 s** | first touch after model refresh |
 | **Risk & Sustainability** (warm) | 4 | **109 / 105 / 95 / 85 ms** | same 4 queries, re-run immediately |
 
 **Two notes on the table above:**
 
-- **`Supply Risk Verify` holds 3 visuals but only 1 query was captured.** Not a discrepancy in the
+- **`Bottleneck Detail` holds 3 visuals but only 1 query was captured.** Not a discrepancy in the
   measurement — visuals that resolve from already-cached columns, or that carry no DAX
   (text, image, shape), issue no `query` XHR. The other three pages match their visual counts
   exactly, which is what makes the `Executive Dashboard` identification unambiguous.
@@ -451,7 +456,9 @@ page render in the service are **not** comparable to each other.
   definition rather than in the Fabric UI — push-to-main auto-publishes repo → workspace, so
   the repo is authoritative and a UI-only edit would be overwritten on the next push. Page IDs
   were untouched, so `pageOrder`, the drillthrough binding on page 4 and every visual
-  reference are unaffected.
+  reference are unaffected. The 2026-09-19 rename to `Bottleneck Detail` (task-080) was made
+  the same way and likewise left the page ID untouched. Unlike the 2026-08-03 renames, it also
+  changed the drillthrough binding (see above).
 
 ### Finding — Direct Lake cold-start transcoding on `gold_supply_risk`, ~800× cold/warm
 

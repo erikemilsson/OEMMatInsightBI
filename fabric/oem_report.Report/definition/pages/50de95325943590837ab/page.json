@@ -1,7 +1,7 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/page/2.1.0/schema.json",
   "name": "50de95325943590837ab",
-  "displayName": "Supply Risk Verify",
+  "displayName": "Bottleneck Detail",
   "displayOption": "FitToPage",
   "height": 720,
   "width": 1280,
@@ -59,6 +59,21 @@
             }
           ]
         },
+        "howCreated": "User"
+      },
+      {
+        "name": "5ec57ed274b151b58162",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "gold_dim_material"
+              }
+            },
+            "Property": "material_name_std"
+          }
+        },
+        "type": "Categorical",
         "howCreated": "Drillthrough"
       }
     ]
@@ -69,17 +84,17 @@
     "parameters": [
       {
         "name": "f9ff07b4aa80203337e7",
-        "boundFilter": "4e6c039db757b46ad379",
+        "boundFilter": "5ec57ed274b151b58162",
         "asAggregation": false,
         "qnaSingleSelectRequired": false,
         "fieldExpr": {
           "Column": {
             "Expression": {
               "SourceRef": {
-                "Entity": "gold_supply_risk"
+                "Entity": "gold_dim_material"
               }
             },
-            "Property": "is_bottleneck"
+            "Property": "material_name_std"
           }
         }
       }
@@ -99,5 +114,6 @@
         }
       }
     ]
-  }
+  },
+  "visibility": "HiddenInViewMode"
 }

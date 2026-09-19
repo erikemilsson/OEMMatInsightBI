@@ -1,22 +1,24 @@
 {
   "source": "verify-agent",
-  "status": "Pending",
+  "status": "Finished",
   "phase": "5",
   "spec_version": "spec_v1",
   "spec_fingerprint": "sha256:0662c9e198c2f7b5cb4fa50d1b1f0bf9e2cce901454ffbf9c046285a645fc18a",
   "created_date": "2026-08-21",
-  "updated_date": "2026-08-21",
+  "updated_date": "2026-09-19",
   "out_of_spec": true,
   "dependencies": [],
   "decision_dependencies": [],
-  "verification_attempts": 0,
-  "notes": "Created by phase-level verification 2026-08-21 (13/13 PASS against fingerprint 0662c9e1). Follow-up, not a phase blocker.",
+  "verification_attempts": 1,
+  "notes": "[VERIFIED PASS #1 — 2026-09-19T18:40:14Z] Repo-provable half passes (drillthrough field re-derived, 7-change structural diff, schema 0 errors + 8/8 negative controls, 349 tests). AC1/AC3 are live-only -> user_review_pending + test_protocol (needs Erik's OK to push/deploy first). 5 minors: pre-existing is_bottleneck leak into the Top Supplier Share column CONFIRMED from model semantics (not introduced here); Executive Dashboard spend chart is a second drill source (inherent to A); no discovery cue on Supply Risk; draft-protocol E4 corrected; value-less drillthrough filter has no repo precedent. FR-103 registered (spec Relationships section omits gold_supply_risk's two relationships).\n\n[IMPLEMENTED 2026-09-19 — option A, implement-agent `completed`; awaiting independent verification]\npage.json (on top of the earlier rename + hide): NEW drillthrough filter 5ec57ed274b151b58162 on gold_dim_material.material_name_std (Categorical, howCreated Drillthrough, no filter body -> well starts at (All)); EXISTING is_bottleneck filter 4e6c039db757b46ad379 keeps its In [true] condition, howCreated Drillthrough -> User (ordinary page filter); pageBinding keeps name/type/parameter id, boundFilter + fieldExpr now point at the new filter / material_name_std. Back button, name, folder, pages.json, activePageName unchanged. Field is byte-identical to the Category projection of both Supply Risk bar charts (d27b3e95c8a1460ff3b2, e38c4fa6d9b2571aa4c3). Model: relationship cec812b3 gold_supply_risk.material_key -> gold_dim_material.material_key, default OneDirection, active -> a filter on gold_dim_material narrows gold_supply_risk. Textbox holds only the DEC-001 GROSS disclaimer — no wording change. docs/performance_optimized.md records the rebind and that a drillthrough render is a single-material query (not comparable to the 171 ms timing).\nValidation: jsonschema PASS against page/2.1.0 with remote $refs (filterConfiguration 1.3.0, semanticQuery 1.4.0); 8 negative controls rejected as expected; consistency check (boundFilter resolves, fieldExpr == bound filter field, exactly one Drillthrough-marked filter, 13 unique filter names report-wide). uv run pytest tests/: 349 passed.\nSCHEMA DOES NOT PROVE (live-only): that fabric-cicd publish + the service keep the hand-authored binding on round trip; that Drill through -> Bottleneck Detail is offered and lands correctly; that an empty drillthrough filter with no 'filter' body serializes as Desktop would (repo precedent only for empty visual filters).\nISSUES (non-blocking): (1) PRE-EXISTING leak predicted from model semantics: the is_bottleneck page filter sits on gold_supply_risk and single-direction relationships stop it reaching fact_supply_share, so the tableEx 'Top Supplier Share (Plain, global)' column is not bottleneck-filtered — non-bottleneck stage rows may appear with blank Supply Risk columns. Minimal fix would be a visual-level 'Supply Risk (Global) is not blank' filter (out of scope). (2) Inherent side effect of A: Executive Dashboard clusteredColumnChart 18c9cfb2b21cce6ba01c (Total Spend by material_name_std) also becomes a drill source. (3) No discovery cue on the Supply Risk page that bars drill through.\nIMPLEMENTER'S DRAFT TEST PROTOCOL (after Erik OKs the push + deploy succeeds): R1 reading-view page strip lacks the page, report opens on Executive Dashboard. R2/R5 right-click a bar in EACH Supply Risk chart -> Drill through -> 'Bottleneck Detail' offered. R3 lands filtered to that material + is_bottleneck True; falsifiable check: the bottleneck row's 'Supply Risk (Global)' equals that material's Global bar on the Supply Risk right chart (MAX(hhi_global) over stages). A second row with only Top Supplier Share filled = the pre-existing leak, not a drill failure. R4 Back returns to Supply Risk. R6 a material with no bottleneck stage (SQL endpoint: SELECT material_key, [year] FROM gold_supply_risk GROUP BY material_key, [year] HAVING SUM(CASE WHEN is_bottleneck = 1 THEN 1 ELSE 0 END) = 0) shows no error, blank risk columns. R7 Executive Dashboard spend chart also offers the drill (expected). Edit mode: E1 page has the hidden icon; E2 drillthrough well holds material_name_std (All), Keep all filters On, NOT is_bottleneck; E3 page filter is_bottleneck is True; E4 opened directly shows all materials bottleneck-filtered (~85 rows earlier). FALSIFIER: drill not offered on the Supply Risk bars, or E2 shows is_bottleneck / empty well -> the service rewrote the binding; screenshot E2+E3, do NOT hand-fix in Fabric UI (repo is authoritative).\n\n[DECISION 2026-09-19 — Erik chose option A: real drillthrough] Keep HiddenInViewMode + 'Bottleneck Detail'; rebind the drillthrough field from gold_supply_risk[is_bottleneck] to gold_dim_material[material_name_std] (the Supply Risk bar charts' category) and move is_bottleneck = true to an ordinary page filter. Resolved inline (task-scoped design choice, no decision record). AC3 is satisfiable under A and stays as worded. Status Blocked -> In Progress.\n\n[BLOCKED 2026-09-19 — AC3 unmeetable as the report is defined; needs Erik's choice A/B/C]\n\nOut-of-spec approval given by Erik 2026-09-19 ([A] Accept). implement-agent returned `blocked`; the orchestrator independently re-confirmed the blocker (case-insensitive probe over the whole report definition: the ONLY drillthrough/navigation references are this page's own page.json and its auto-added Back button 0d98e17394babc10c046; gold_supply_risk[is_bottleneck] appears in no visual on any page — only in this page's filter well).\n\nWHY: drillthrough is only offered from a visual that carries the drillthrough field. No visual projects is_bottleneck, and the report has no drillthrough button and no bookmarks. So the Supply Risk page has no path to this page today, and with HiddenInViewMode it becomes unreachable in view mode. Premise correction: this was never a designed drillthrough target — task-038_6 meant is_bottleneck = TRUE as a PAGE filter ('DEC-001 bottleneck-stage view'), but it was serialized into the drillthrough well (howCreated 'Drillthrough'), which is why Power BI added a Back button.\n\nOPTIONS (Erik's call):\n  (A) Keep hide + make it a real drillthrough: rebind the drillthrough field to gold_dim_material[material_name_std] (the Supply Risk bar charts' category) and move is_bottleneck = true to a page filter. Model supports it: relationship gold_supply_risk.material_key -> gold_dim_material.material_key.\n  (B) Keep hide + reword AC3: accept an edit-mode-only page (readers lose the stage-level bottleneck table).\n  (C) Drop hide: move is_bottleneck from the drillthrough well to page filters, remove the Back button, keep 'Bottleneck Detail' as a visible tab (restores task-038_6's original intent).\n\nWORKING TREE (uncommitted, NOT pushed — a push deploys via fabric-cicd): page.json displayName 'Supply Risk Verify' -> 'Bottleneck Detail' + top-level \"visibility\": \"HiddenInViewMode\" (name/folder/pageBinding/filterConfig/pages.json unchanged); docs/performance_optimized.md and fabric/sql/warehouse_indexes.sql:80 name references updated. These serve A and B; for C, delete the one visibility line. Schema-validated (page/2.1.0: visibility anyOf AlwaysVisible|HiddenInViewMode; negative controls fail as expected). uv run pytest tests/: 349 passed.\n\nDRAFT TEST PROTOCOL (live-only, AC1/AC3): Step 0 falsifier on the CURRENT live report before any push — reading view, Supply Risk page, right-click a bar in each bar chart, hover Drill through: expected 'Supply Risk Verify' NOT offered (if it is, the analysis is wrong and AC3 becomes a normal live check). After deploy: (1) reading view page strip lacks the page, report opens on Executive Dashboard; (2) edit mode shows 'Bottleneck Detail' with the hidden-page icon; (3) its drillthrough/page filter still holds is_bottleneck = true, table ~85 rows; (4) AC3 per the chosen option.\n\nCreated by phase-level verification 2026-08-21 (13/13 PASS against fingerprint 0662c9e1). Follow-up, not a phase blocker.",
   "id": "task-080",
   "difficulty": 2,
   "owner": "both",
   "spec_section": "Semantic Model & Reporting",
   "files_affected": [
-    "fabric/oem_report.Report/definition/pages/50de95325943590837ab/page.json"
+    "fabric/oem_report.Report/definition/pages/50de95325943590837ab/page.json",
+    "docs/performance_optimized.md",
+    "fabric/sql/warehouse_indexes.sql"
   ],
   "title": "Hide and rename the 'Supply Risk Verify' drillthrough target page",
   "description": "fabric/oem_report.Report/definition/pages/50de95325943590837ab/page.json is a genuine drillthrough target — pageBinding.type == 'Drillthrough', bound to gold_supply_risk[is_bottleneck] with howCreated 'Drillthrough'. It carries no visibility property, so unlike a conventional drillthrough target it renders as an ordinary tab in the page strip. A reader who clicks it directly lands on a page pre-filtered to is_bottleneck = true with no drillthrough context to explain the filter.\n\nThe display name 'Supply Risk Verify' is also developer-scratch naming on a user-facing tab.\n\nDO: set the page's visibility to HiddenInViewMode so it is reachable only via drillthrough, and rename it to something a reader would understand as a detail view (e.g. 'Bottleneck Detail'). Confirm the drillthrough from the Supply Risk page still lands correctly after the change — hiding a page must not break its pageBinding.",
@@ -24,5 +26,148 @@
     "The page is set to HiddenInViewMode and no longer appears in the page strip in view mode.",
     "The page is renamed from the scratch name 'Supply Risk Verify' to a reader-facing detail-view name.",
     "The drillthrough from the Supply Risk page still lands on the target correctly after the change."
-  ]
+  ],
+  "out_of_spec_approved": true,
+  "completion_date": "2026-09-19",
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-09-19T18:40:14Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "partial",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "minor",
+          "description": "PRE-EXISTING, confirmed from model semantics (not measured in the rendered table): on Bottleneck Detail the page filter gold_supply_risk[is_bottleneck]=true does not reach the 'Top Supplier Share (Plain, global)' column. (a) relationships are single-direction dim->fact, so a gold_supply_risk filter never reaches gold_dim_material/gold_dim_stage and hence never fact_supply_share; (b) the measure Supply Concentration Index = CALCULATE(MAX(fact_supply_share[share_pct]), fact_supply_share[supply_mix]=\"global\") references no gold_supply_risk column; (c) all 6 visual-level filters on tableEx 47d13637dd6cc7a41b48 are empty; (d) gold_supply_risk keeps and flags the non-bottleneck stage. So (material, non-bottleneck stage) rows can appear with blank Supply Risk columns and only Top Supplier Share filled. HEAD had the same In[true] filter, so this predates task-080. The '85 rows' in task-038_6 was a T-SQL count, not a rendered table — the leak has never been measured. Suggested follow-up: visual-level filter 'Supply Risk (Global) is not blank' on 47d13637."
+        },
+        {
+          "severity": "minor",
+          "description": "Inherent to option A: Executive Dashboard clusteredColumnChart 18c9cfb2b21cce6ba01c projects gold_dim_material.material_name_std as Category, so it also offers Drill through -> Bottleneck Detail. Confirmed the only drill source outside the Supply Risk page; Executive Dashboard has no page filters, slicers or report-level filters to carry extra context."
+        },
+        {
+          "severity": "minor",
+          "description": "No cue on the Supply Risk page that the bars drill through to a hidden page. Microsoft's drillthrough guidance recommends a visual-header tooltip or text-box cue. UX only, outside the ACs."
+        },
+        {
+          "severity": "minor",
+          "description": "Correction to the implementer's draft protocol step E4: '~85 rows earlier' is task-038_6's T-SQL count, not an observed render; with the pre-existing leak the table can show more than 85 rows. Corrected protocol checks that rows with non-blank Supply Risk (Global) match the SQL count of is_bottleneck rows."
+        },
+        {
+          "severity": "minor",
+          "description": "Residual live-only risk: the new Drillthrough filter 5ec57ed274b151b58162 has no 'filter' body — schema-valid, no repo precedent; round-trip through fabric-cicd and the service is only observable after deploy (test_protocol E2)."
+        }
+      ],
+      "notes": "Out-of-spec task (user-approved), verified against its own requirements and Erik's option-A decision, not spec acceptance criteria. Everything the repo can prove passes; AC1 and AC3 are observable only on the deployed report and are handed to Erik via test_protocol. Nothing is deployed yet (uncommitted, unpushed; a push to main publishes through fabric-cicd).\n\nDRILLTHROUGH FIELD (re-derived by script over the PBIR JSON): exactly one filter report-wide is Drillthrough-marked (5ec57ed274b151b58162); pageBinding.parameters[0].boundFilter resolves to it and its fieldExpr canonically equals the filter field; that field is identical to the Category projection of both Supply Risk bar charts (d27b3e95c8a1460ff3b2, e38c4fa6d9b2571aa4c3) = gold_dim_material.material_name_std, key-sorted and raw order. Negative control: HEAD's gold_supply_risk.is_bottleneck does NOT match the bar category. Exactly three visuals report-wide can act as drill sources: the two Supply Risk bars and Executive Dashboard 18c9cfb2b21cce6ba01c. No report-level filters, no bookmarks, no valued page filters on either source page. acceptsFilterContext absent in HEAD and working tree -> schema default, Keep all filters on.\n\nNOTHING ELSE CHANGED: under fabric/oem_report.Report git diff lists only this page.json, no untracked files. Structural HEAD->WT diff = exactly 7 changes (displayName; filters[0].howCreated Drillthrough->User; filters[1] added; boundFilter; fieldExpr Entity; fieldExpr Property; visibility added). is_bottleneck filter byte-identical to HEAD apart from howCreated. pages.json, activePageName, Back button 0d98e17394babc10c046, textbox and table untouched. 13 filter names report-wide, all unique.\n\nSCHEMA: jsonschema Draft7 + referencing, remote $refs page/2.1.0, filterConfiguration/1.3.0/schema-embedded, semanticQuery/1.4.0 resolved. WT page.json 0 errors; HEAD 0 errors. 8/8 negative controls rejected. visibility enum = AlwaysVisible | HiddenInViewMode.\n\nMODEL: relationships.tmdl has cec812b3 (gold_supply_risk.material_key -> gold_dim_material.material_key). /usr/bin/grep for crossFilteringBehavior|isActive|bothDirections|cardinality returned nothing with a same-command positive control -> every relationship is the TMDL default (many-to-one, single direction, active). material_name_std (string) and is_bottleneck (boolean) exist.\n\nTESTS: uv run pytest tests/ 349 passed in 33s.\n\nOLD NAME: remaining 'Supply Risk Verify'/'SR verify' strings are historical rename records only.\n\nLIVE-ONLY: service offers the drill and lands correctly; fabric-cicd + service keep the hand-authored binding on round trip; the value-less drillthrough filter (no 'filter' body) serializes as Desktop would — no repo precedent (this is the only Drillthrough marker under fabric/), schema permits it, Microsoft guidance says to publish with drillthrough values cleared.\n\nIS_BOTTLENECK LEAK CLAIM: CONFIRMED from model + visual definitions; pre-existing; breaks no AC."
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-09-19T18:40:14Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "partial",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "Out-of-spec task (user-approved), verified against its own requirements and Erik's option-A decision, not spec acceptance criteria. Everything the repo can prove passes; AC1 and AC3 are observable only on the deployed report and are handed to Erik via test_protocol. Nothing is deployed yet (uncommitted, unpushed; a push to main publishes through fabric-cicd).\n\nDRILLTHROUGH FIELD (re-derived by script over the PBIR JSON): exactly one filter report-wide is Drillthrough-marked (5ec57ed274b151b58162); pageBinding.parameters[0].boundFilter resolves to it and its fieldExpr canonically equals the filter field; that field is identical to the Category projection of both Supply Risk bar charts (d27b3e95c8a1460ff3b2, e38c4fa6d9b2571aa4c3) = gold_dim_material.material_name_std, key-sorted and raw order. Negative control: HEAD's gold_supply_risk.is_bottleneck does NOT match the bar category. Exactly three visuals report-wide can act as drill sources: the two Supply Risk bars and Executive Dashboard 18c9cfb2b21cce6ba01c. No report-level filters, no bookmarks, no valued page filters on either source page. acceptsFilterContext absent in HEAD and working tree -> schema default, Keep all filters on.\n\nNOTHING ELSE CHANGED: under fabric/oem_report.Report git diff lists only this page.json, no untracked files. Structural HEAD->WT diff = exactly 7 changes (displayName; filters[0].howCreated Drillthrough->User; filters[1] added; boundFilter; fieldExpr Entity; fieldExpr Property; visibility added). is_bottleneck filter byte-identical to HEAD apart from howCreated. pages.json, activePageName, Back button 0d98e17394babc10c046, textbox and table untouched. 13 filter names report-wide, all unique.\n\nSCHEMA: jsonschema Draft7 + referencing, remote $refs page/2.1.0, filterConfiguration/1.3.0/schema-embedded, semanticQuery/1.4.0 resolved. WT page.json 0 errors; HEAD 0 errors. 8/8 negative controls rejected. visibility enum = AlwaysVisible | HiddenInViewMode.\n\nMODEL: relationships.tmdl has cec812b3 (gold_supply_risk.material_key -> gold_dim_material.material_key). /usr/bin/grep for crossFilteringBehavior|isActive|bothDirections|cardinality returned nothing with a same-command positive control -> every relationship is the TMDL default (many-to-one, single direction, active). material_name_std (string) and is_bottleneck (boolean) exist.\n\nTESTS: uv run pytest tests/ 349 passed in 33s.\n\nOLD NAME: remaining 'Supply Risk Verify'/'SR verify' strings are historical rename records only.\n\nLIVE-ONLY: service offers the drill and lands correctly; fabric-cicd + service keep the hand-authored binding on round trip; the value-less drillthrough filter (no 'filter' body) serializes as Desktop would — no repo precedent (this is the only Drillthrough marker under fabric/), schema permits it, Microsoft guidance says to publish with drillthrough values cleared.\n\nIS_BOTTLENECK LEAK CLAIM: CONFIRMED from model + visual definitions; pre-existing; breaks no AC.",
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "PRE-EXISTING, confirmed from model semantics (not measured in the rendered table): on Bottleneck Detail the page filter gold_supply_risk[is_bottleneck]=true does not reach the 'Top Supplier Share (Plain, global)' column. (a) relationships are single-direction dim->fact, so a gold_supply_risk filter never reaches gold_dim_material/gold_dim_stage and hence never fact_supply_share; (b) the measure Supply Concentration Index = CALCULATE(MAX(fact_supply_share[share_pct]), fact_supply_share[supply_mix]=\"global\") references no gold_supply_risk column; (c) all 6 visual-level filters on tableEx 47d13637dd6cc7a41b48 are empty; (d) gold_supply_risk keeps and flags the non-bottleneck stage. So (material, non-bottleneck stage) rows can appear with blank Supply Risk columns and only Top Supplier Share filled. HEAD had the same In[true] filter, so this predates task-080. The '85 rows' in task-038_6 was a T-SQL count, not a rendered table — the leak has never been measured. Suggested follow-up: visual-level filter 'Supply Risk (Global) is not blank' on 47d13637."
+      },
+      {
+        "severity": "minor",
+        "description": "Inherent to option A: Executive Dashboard clusteredColumnChart 18c9cfb2b21cce6ba01c projects gold_dim_material.material_name_std as Category, so it also offers Drill through -> Bottleneck Detail. Confirmed the only drill source outside the Supply Risk page; Executive Dashboard has no page filters, slicers or report-level filters to carry extra context."
+      },
+      {
+        "severity": "minor",
+        "description": "No cue on the Supply Risk page that the bars drill through to a hidden page. Microsoft's drillthrough guidance recommends a visual-header tooltip or text-box cue. UX only, outside the ACs."
+      },
+      {
+        "severity": "minor",
+        "description": "Correction to the implementer's draft protocol step E4: '~85 rows earlier' is task-038_6's T-SQL count, not an observed render; with the pre-existing leak the table can show more than 85 rows. Corrected protocol checks that rows with non-blank Supply Risk (Global) match the SQL count of is_bottleneck rows."
+      },
+      {
+        "severity": "minor",
+        "description": "Residual live-only risk: the new Drillthrough filter 5ec57ed274b151b58162 has no 'filter' body — schema-valid, no repo precedent; round-trip through fabric-cicd and the service is only observable after deploy (test_protocol E2)."
+      }
+    ]
+  },
+  "user_review_pending": true,
+  "test_protocol": {
+    "summary": "After Erik approves the push to main and the fabric-cicd deploy succeeds, confirm the page is hidden in view mode and a real drillthrough from the Supply Risk bars reaches Bottleneck Detail (AC1, AC3); measure the pre-existing is_bottleneck leak along the way.",
+    "steps": [
+      {
+        "instruction": "Pre-condition: commit and push to main, then confirm the deploy-fabric workflow run succeeded (pushing to main publishes the report).",
+        "expected": "Deploy run green. Do not continue if it failed.",
+        "type": "interactive"
+      },
+      {
+        "instruction": "R1 (AC1): open the report in reading view and look at the page strip.",
+        "expected": "Four tabs: Executive Dashboard, Risk & Sustainability, Supply Risk, Data Quality Monitoring. No 'Bottleneck Detail' and no 'Supply Risk Verify'. Report opens on Executive Dashboard.",
+        "type": "visual"
+      },
+      {
+        "instruction": "R2 (AC3): Supply Risk page — right-click any bar in the LEFT chart ('EU sourcing vs world production — concentration contrast'), hover 'Drill through'. Repeat on any bar in the RIGHT chart ('Governance- and trade-weighted HHI — global vs EU sourcing').",
+        "expected": "Both charts offer 'Bottleneck Detail' under Drill through.",
+        "type": "interactive"
+      },
+      {
+        "instruction": "R3 (AC3): in the RIGHT chart note the Global bar value for a material X, then drill through on that bar.",
+        "expected": "Lands on Bottleneck Detail; filter pane shows material_name_std = X; exactly one row for X has non-blank Supply Risk (Global) and it equals X's Global bar. Compare the Global bar only, NOT the EU bar (EU is the max over all stages). A second X row with blank Supply Risk columns and only Top Supplier Share filled is the pre-existing leak, not a drill failure — note whether it appears.",
+        "type": "interactive"
+      },
+      {
+        "instruction": "R4: click the Back button (top-left of Bottleneck Detail).",
+        "expected": "Returns to the Supply Risk page.",
+        "type": "interactive"
+      },
+      {
+        "instruction": "R5 (edge case): on the SQL analytics endpoint run the query; if it returns a material that also has a bar on the Supply Risk page, drill through on it.",
+        "expected": "No error; Supply Risk columns blank for that material; at most leak rows with Top Supplier Share. Empty query result is fine — skip the drill.",
+        "type": "command",
+        "command": "SELECT m.material_name_std FROM gold_supply_risk r JOIN gold_dim_material m ON r.material_key = m.material_key GROUP BY m.material_name_std HAVING SUM(CASE WHEN r.is_bottleneck = 1 THEN 1 ELSE 0 END) = 0"
+      },
+      {
+        "instruction": "R6: Executive Dashboard — right-click a bar in the Total Spend by material column chart, hover 'Drill through'.",
+        "expected": "'Bottleneck Detail' is offered (expected side effect of option A).",
+        "type": "interactive"
+      },
+      {
+        "instruction": "E1: switch to edit mode and look at the page tabs.",
+        "expected": "'Bottleneck Detail' appears with the hidden-page icon.",
+        "type": "visual"
+      },
+      {
+        "instruction": "E2 (falsifier): on Bottleneck Detail open Visualizations pane -> Drillthrough.",
+        "expected": "Well holds material_name_std (All); Keep all filters On; Cross-report Off; is_bottleneck NOT in the well. If is_bottleneck is there or the well is empty, the service rewrote the binding — screenshot E2 and E3 and do NOT hand-fix in the Fabric UI (repo is authoritative).",
+        "type": "visual"
+      },
+      {
+        "instruction": "E3: Filters pane -> 'Filters on this page'.",
+        "expected": "Page filter is_bottleneck is True.",
+        "type": "visual"
+      },
+      {
+        "instruction": "E4 (measures the leak): open Bottleneck Detail directly in edit mode (no drill context); count (a) rows with non-blank Supply Risk (Global) and (b) total table rows; compare with the SQL count.",
+        "expected": "(a) equals the SQL count (85 on 2026-08-01). If (b) > (a), the extra rows are the pre-existing leak — report both numbers.",
+        "type": "command",
+        "command": "SELECT COUNT(*) FROM gold_supply_risk WHERE is_bottleneck = 1"
+      }
+    ],
+    "automated_results": "page.json valid against page/2.1.0 with remote $refs resolved (0 errors); 8/8 negative controls rejected. Binding internally consistent (boundFilter resolves; fieldExpr == filter field). Drillthrough field identical to the Category projection of both Supply Risk bar charts; negative control (old is_bottleneck field) does not match. Structural diff = exactly the 7 intended changes; no other report file changed. Model relationship cec812b3 carries the material filter to gold_supply_risk. pytest 349 passed. Live-only: view-mode hiding (AC1); drill offered, lands correctly, binding survives round trip (AC3).",
+    "estimated_time": "10 minutes"
+  },
+  "interaction_hint": "dashboard"
 }

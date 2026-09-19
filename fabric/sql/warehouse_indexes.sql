@@ -77,7 +77,7 @@
 --    OPTIMIZE back-fill and a semantic-model refresh):
 --      Executive Dashboard        106–150 ms
 --      Data Quality Monitoring     116 ms
---      Supply Risk Verify          171 ms
+--      Bottleneck Detail           171 ms
 --      Risk & Sustainability (warm) 85–109 ms
 --    No warm query is slow.
 --
