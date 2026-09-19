@@ -2,7 +2,7 @@
 version: 1
 status: active
 created: 2025-11-14
-updated: 2026-08-21
+updated: 2026-09-19
 ---
 
 # OEMMatInsightBI - Project Definition for Claude Code
@@ -780,26 +780,28 @@ All relationships are **many-to-one** with **single direction** filtering (dimen
     -   `gold_dim_country[country_key]` (one) → `fact_supply_share[country_key]` (many)
     -   Cardinality: 1:\* for all
     -   Filter direction: Single (country filters all facts)
-    -   Note: fact_procurement has TWO country relationships (HQ and production)
+    -   Note: fact_procurement carries two country keys, but only `production_country_key` has a relationship; `supplier_hq_country_key` is an attribute column counted by `Supplier Countries Count`, not a relationship path (see `docs/architecture/star-schema-erd.md`)
 3.  **Material Relationships:**
     -   `gold_dim_material[material_key]` (one) → `fact_procurement[material_key]` (many)
     -   `gold_dim_material[material_key]` (one) → `fact_supply_share[material_key]` (many)
+    -   `gold_dim_material[material_key]` (one) → `gold_supply_risk[material_key]` (many) — carries the Bottleneck Detail drillthrough filter (task-080)
     -   Cardinality: 1:\*
     -   Filter direction: Single (material filters facts)
 4.  **Indicator Relationship:**
     -   `gold_dim_indicator[indicator_key]` (one) → `fact_epi_score[indicator_key]` (many)
     -   Cardinality: 1:\*
     -   Filter direction: Single (indicator filters scores)
-5.  **Stage Relationship:**
+5.  **Stage Relationships:**
     -   `gold_dim_stage[stage_key]` (one) → `fact_supply_share[stage_key]` (many)
+    -   `gold_dim_stage[stage_key]` (one) → `gold_supply_risk[stage_key]` (many)
     -   Cardinality: 1:\*
-    -   Filter direction: Single (stage filters supply shares)
+    -   Filter direction: Single (stage filters supply shares and supply risk)
 
 **Active Relationships:** All relationships are active (no inactive relationships defined)
 
 **Role-Playing Dimensions:**
 
--   gold_dim_country plays two roles in fact_procurement (supplier HQ and production country)
+-   None in the model. `gold_dim_country` relates to `fact_procurement` only via `production_country_key` (see the Country Relationships note above).
 
 **Key Measures/Calculations:**
 
@@ -903,7 +905,7 @@ The report was redesigned and rebuilt from scratch after the semantic model was 
 
 -   [x] DirectLake mode configured
 
--   [x] 8 relationships configured (all active, single-direction)
+-   [x] 10 relationships configured (all active, single-direction) — includes `gold_supply_risk`'s material and stage relationships (added 2026-08-01, task-038_4/038_5)
 
 -   [x] Connection to Fabric lakehouse (`oem_lh`) established
 
@@ -1450,7 +1452,7 @@ See `docs/dax_measure_library.md` for the full measure library. **45 measures li
 
 -   Total Spend EUR = SUM(fact_procurement\[spend_eur\])
 
--   Total Spend by Country = spend rolled to supplier HQ country
+-   Total Spend by Country = SUM(fact_procurement\[spend_eur\]) — split by production country, via the only `fact_procurement` → `gold_dim_country` relationship (`production_country_key`); not supplier HQ
 
 -   Supplier Countries Count = DISTINCTCOUNT(fact_procurement\[supplier_hq_country_key\])
 
@@ -1571,7 +1573,7 @@ See `docs/dax_measure_library.md` for the full measure library. **45 measures li
     -   **DECISION:** Not applicable — portfolio project with no retention policy needed. All layers kept indefinitely.
 5.  **Error Handling:**
     -   **DECISION (DEC-004, 2026-07-23, amended 2026-07-27):** Activity-level retry plus a single pipeline-level error-handler activity on the terminal node, logging every activity's outcome to `gold_pipeline_execution_log`.
-    -   **Pattern:** Each activity keeps its retry count (0–3 retries, i.e. 1–4 total attempts) and interval (30–300s: `bronze_wgi` is **0 retries** — its 30s interval is retained but inert, because DEC-018 moved the budget into the notebook, which alone can tell a gateway wobble from a retired indicator code; 30s for `bronze_epi`, 120s for bronze_to_silver_cleaning/silver_to_gold/data_quality_checks, 300s for the four Copy activities). One handler activity (`pipeline_error_handler`) depends on the terminal activity `data_quality_checks` via `['Succeeded','Failed','Skipped']` — so it runs on every outcome — and reads per-activity results via POST `queryactivityruns` (not `@activity('X').Error`, which has no `error` field on Skipped activities). It writes one log row **per attempt** (Succeeded rows included), then collapses those per-attempt rows to one final terminal outcome per activity (ranking `activityRunStart`, since `queryactivityruns` always returns `retryAttempt` as null) and **re-raises `RuntimeError` only when an activity's final attempt FAILED** — so an activity retried into success is reported as recovered (logged, not a run failure) while a genuinely failed activity keeps the run red. Non-notebook activities (Copy) are covered because the handler reads the run's activity-run records directly, not via in-notebook `try/except`.
+    -   **Pattern:** Each activity keeps its retry count (0–3 retries, i.e. 1–4 total attempts) and interval (30–300s: `bronze_wgi` is **0 retries** — its 30s interval is retained but inert, because DEC-018 moved the budget into the notebook, which alone can tell a gateway wobble from a retired indicator code; `pipeline_error_handler` is also **0 retries** with an inert 30s interval — it is the terminal handler, whose re-raise on a failed run is deliberate (see **Why** below), not a transient fault; 30s for `bronze_epi`, 120s for bronze_to_silver_cleaning/silver_to_gold/data_quality_checks, 300s for the four Copy activities — all 10 activities, measured from `pipeline-content.json` 2026-09-19). One handler activity (`pipeline_error_handler`) depends on the terminal activity `data_quality_checks` via `['Succeeded','Failed','Skipped']` — so it runs on every outcome — and reads per-activity results via POST `queryactivityruns` (not `@activity('X').Error`, which has no `error` field on Skipped activities). It writes one log row **per attempt** (Succeeded rows included), then collapses those per-attempt rows to one final terminal outcome per activity (ranking `activityRunStart`, since `queryactivityruns` always returns `retryAttempt` as null) and **re-raises `RuntimeError` only when an activity's final attempt FAILED** — so an activity retried into success is reported as recovered (logged, not a run failure) while a genuinely failed activity keeps the run red. Non-notebook activities (Copy) are covered because the handler reads the run's activity-run records directly, not via in-notebook `try/except`.
     -   **Why:** Fabric has no pipeline-level retry — only activity-level. A handler on `['Failed','Skipped']` only (the original 2-activity shape) never fires on a clean run and so cannot log successes; running on every outcome and re-raising when an activity's final attempt fails (a retried-into-success activity is recovered, not a run failure) gives both coverage and the red-on-failure guard in one activity. The re-raise is the Try-Catch-trap defence: a bare on-failure branch that succeeds makes the whole run report Success and would silently undo the DQ gate.
     -   **Notification (criterion 5 — resolved 2026-08-05 as DESCOPED, superseding the 2026-07-27 deferral):** email push is not configured and will not be. The Schedule pane's native Failure-notifications field refuses addresses outside the organization, and the tenant's only principal is a `.onmicrosoft.com` account without an Exchange mailbox, so a configured alert would fire into a void — false confidence, worse than none. The pipeline's failure signal remains `gold_pipeline_execution_log` plus the run reporting Failed via the handler's re-raise. *Correcting the prior text: the pipeline carries **no** `notifyOption` key at all (verified 2026-08-05 — zero occurrences across all 10 activities: 6 TridentNotebook + 4 Copy). The earlier "`MailOnFailure` would cover only 1/8 activities" was wrong on both the mechanism and the count.*
 

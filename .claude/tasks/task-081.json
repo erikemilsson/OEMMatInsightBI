@@ -1,16 +1,16 @@
 {
   "source": "verify-agent",
-  "status": "Pending",
+  "status": "Finished",
   "phase": "5",
   "spec_version": "spec_v1",
   "spec_fingerprint": "sha256:0662c9e198c2f7b5cb4fa50d1b1f0bf9e2cce901454ffbf9c046285a645fc18a",
   "created_date": "2026-08-21",
-  "updated_date": "2026-08-21",
+  "updated_date": "2026-09-19",
   "out_of_spec": false,
   "dependencies": [],
   "decision_dependencies": [],
-  "verification_attempts": 0,
-  "notes": "Created by phase-level verification 2026-08-21 (13/13 PASS against fingerprint 0662c9e1). Follow-up, not a phase blocker.",
+  "verification_attempts": 1,
+  "notes": "[FOLLOW-UP APPLIED 2026-09-19 via the same /iterate — Erik approved [Y]] FR-104 fixed: spec L1455 'Total Spend by Country' now rolls to production country (was: supplier HQ). FR-104 resolved.\n\n[VERIFIED PASS #1 — 2026-09-19T19:32:50Z] AC1 + AC2 pass; FR-103 relationship edits re-derived as accurate. Residual miss from the same /iterate pass: spec_v1.md:1455 still says Total Spend by Country rolls to supplier HQ country (it rolls to production country) — registered as FR-104; needs its own /iterate fix.\n\n[APPLIED 2026-09-19 via /iterate — Erik approved the change declaration with [Y]]\n\nAC1: § Open Questions & Decisions Needed -> Technical Decisions #5 -> Pattern now adds, inside the interval parenthetical: \"`pipeline_error_handler` is also **0 retries** with an inert 30s interval — it is the terminal handler, whose re-raise on a failed run is deliberate (see **Why** below), not a transient fault\", and closes the map with \"— all 10 activities, measured from `pipeline-content.json` 2026-09-19\". Re-measured before editing (not taken from this task's description): 4 Copy 3/300s, bronze_to_silver_cleaning 2/120s, silver_to_gold 2/120s, data_quality_checks 1/120s, bronze_wgi 0/30s, bronze_epi 2/30s, pipeline_error_handler 0/30s — 10 activities.\nAC2: landed through /iterate (Erik typed it); direct edit only after the declaration was approved.\n\nSAME /iterate PASS, outside this task (FR-103 cluster, approved as N3): § Relationships gained gold_supply_risk's material + stage relationships; the 'TWO country relationships' note and the Role-Playing Dimensions line were corrected (supplier_hq_country_key is an attribute column, not a relationship); § Current State Assessment '8 relationships' -> 10. FR-103 marked resolved.\n\nINFRASTRUCTURE: frontmatter updated 2026-08-21 -> 2026-09-19 BEFORE regenerating the index; index regenerated and confirmed fresh (sha256:e70c3792... matches live). Residue sweep with same-command positive controls: 0 hits for '8 relationships', 'TWO country relationships', 'plays two roles'. FINGERPRINT CONSEQUENCE: spec moved 0662c9e1 -> e70c3792, so verification-result.json's recorded fingerprint no longer matches; /work will offer phase-level re-verification when the phase closes.\n\nCreated by phase-level verification 2026-08-21 (13/13 PASS against fingerprint 0662c9e1). Follow-up, not a phase blocker.",
   "id": "task-081",
   "difficulty": 1,
   "owner": "claude",
@@ -23,5 +23,73 @@
   "acceptanceCriteria": [
     "Technical Decisions #5's interval map enumerates all 10 pipeline activities, including pipeline_error_handler (0 retries, 30s).",
     "The edit lands via /iterate, not by direct edit of spec_v1.md."
-  ]
+  ],
+  "completion_date": "2026-09-19",
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-09-19T19:32:50Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "not_applicable",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "minor",
+          "description": "Residual FR-103-cluster error that the sweep missed: spec_v1.md:1455 (§ Business Logic & Calculations → DAX Measures) says 'Total Spend by Country = spend rolled to supplier HQ country'. The measure is SUM(fact_procurement[spend_eur]) (fact_procurement.tmdl:30), and gold_dim_country relates only through production_country_key, so it rolls to PRODUCTION country; dax_measure_library.md:80 agrees. Now contradicts the corrected Country Relationships note. Predates this task (2eece5b, 2026-08-06); needs an /iterate fix."
+        },
+        {
+          "severity": "minor",
+          "description": "Ambiguous wording, not a contradiction: § Orchestration's 'Retry: 2 attempts' (lines 662, 673) and 'Retry: 1 attempt' (686) are correct read as retries (JSON 2/2/1), but TD#5 defines 'N retries, i.e. N+1 total attempts'. Predates this task."
+        },
+        {
+          "severity": "minor",
+          "description": "Docs drift outside this task: docs/error_recovery_playbook.md:26 gives pipeline_error_handler's interval as '—' (JSON: 30); line 22 spells the activity 'bronze_EPI' (actual: bronze_epi)."
+        },
+        {
+          "severity": "minor",
+          "description": "For information: the spec diff also carries the FR-103 relationship edits (lines 783, 787, 794–797, 804, 908) — outside task-081's criteria, same approved /iterate pass, all re-derived as accurate."
+        }
+      ],
+      "notes": "AC1 PASS: map re-derived from pipeline-content.json (10 activities: 4 Copy 3/300s; bronze_to_silver_cleaning, silver_to_gold 2/120s; data_quality_checks 1/120s; bronze_wgi 0/30s; bronze_epi 2/30s; pipeline_error_handler 0/30s). TD#5 Pattern names all 10 with matching values; 0–3 and 30–300s ranges hold; no contradicting location (hyphen and en-dash forms searched in one command). AC2 PASS as a process claim: task notes record the /iterate apply with Erik's [Y]; diff confined to approved text + frontmatter date; permissions.ask gates spec writes. No proposal artifact is persisted, so T5b is attested, not observed. Index fresh: regenerated copy byte-identical, sha256:e70c3792…5126. FR-103 edits all accurate against relationships.tmdl (10 relationships: date 1, country 3, material 3, indicator 1, stage 2; no isActive/crossFilteringBehavior/cardinality overrides, control fromColumn=10); supplier_hq_country_key used only by Supplier Countries Count; '(added 2026-08-01, task-038_4/038_5)' matches 941e3b4. One residual error the sweep missed: issue 1."
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-09-19T19:32:50Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "not_applicable",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "AC1 PASS: map re-derived from pipeline-content.json (10 activities: 4 Copy 3/300s; bronze_to_silver_cleaning, silver_to_gold 2/120s; data_quality_checks 1/120s; bronze_wgi 0/30s; bronze_epi 2/30s; pipeline_error_handler 0/30s). TD#5 Pattern names all 10 with matching values; 0–3 and 30–300s ranges hold; no contradicting location (hyphen and en-dash forms searched in one command). AC2 PASS as a process claim: task notes record the /iterate apply with Erik's [Y]; diff confined to approved text + frontmatter date; permissions.ask gates spec writes. No proposal artifact is persisted, so T5b is attested, not observed. Index fresh: regenerated copy byte-identical, sha256:e70c3792…5126. FR-103 edits all accurate against relationships.tmdl (10 relationships: date 1, country 3, material 3, indicator 1, stage 2; no isActive/crossFilteringBehavior/cardinality overrides, control fromColumn=10); supplier_hq_country_key used only by Supplier Countries Count; '(added 2026-08-01, task-038_4/038_5)' matches 941e3b4. One residual error the sweep missed: issue 1.",
+    "issues": [
+      {
+        "severity": "minor",
+        "description": "Residual FR-103-cluster error that the sweep missed: spec_v1.md:1455 (§ Business Logic & Calculations → DAX Measures) says 'Total Spend by Country = spend rolled to supplier HQ country'. The measure is SUM(fact_procurement[spend_eur]) (fact_procurement.tmdl:30), and gold_dim_country relates only through production_country_key, so it rolls to PRODUCTION country; dax_measure_library.md:80 agrees. Now contradicts the corrected Country Relationships note. Predates this task (2eece5b, 2026-08-06); needs an /iterate fix."
+      },
+      {
+        "severity": "minor",
+        "description": "Ambiguous wording, not a contradiction: § Orchestration's 'Retry: 2 attempts' (lines 662, 673) and 'Retry: 1 attempt' (686) are correct read as retries (JSON 2/2/1), but TD#5 defines 'N retries, i.e. N+1 total attempts'. Predates this task."
+      },
+      {
+        "severity": "minor",
+        "description": "Docs drift outside this task: docs/error_recovery_playbook.md:26 gives pipeline_error_handler's interval as '—' (JSON: 30); line 22 spells the activity 'bronze_EPI' (actual: bronze_epi)."
+      },
+      {
+        "severity": "minor",
+        "description": "For information: the spec diff also carries the FR-103 relationship edits (lines 783, 787, 794–797, 804, 908) — outside task-081's criteria, same approved /iterate pass, all re-derived as accurate."
+      }
+    ]
+  }
 }
