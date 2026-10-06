@@ -102,7 +102,7 @@ Capture should complete within 30s. If any input source is missing or fails to p
 
 ### Phase 2 — Lenses (7 parallel sub-agents)
 
-Spawn N sub-agents in a **single Task tool message** so they run concurrently. Each:
+Spawn N sub-agents in a **single Agent tool message** so they run concurrently. Each:
 - Runs as `general-purpose` agent (per `.claude/rules/agents.md` § "Dispatch Convention" — persona-via-prompt-content)
 - Receives the audit dir path + ONLY its single lens prompt
 - Never sees other lenses' output
@@ -319,7 +319,7 @@ Cluster aggressively: if 12 entries are decayed, that's ONE finding with a list 
 ```
 You are auditing a project for the RETIRED-FEATURES lens only.
 
-Read {AUDIT_DIR}/inputs/retired-manifests.json (parsed contents of .claude/support/retired/*/manifest.json) and {AUDIT_DIR}/inputs/spec-sections.json.
+Read {AUDIT_DIR}/inputs/retired-manifests.json (parsed contents of .claude/support/retired/*/manifest.json) and {AUDIT_DIR}/inputs/spec-sections.json. Also read each manifest's spec excerpt directly, `.claude/support/retired/{feature_slug}/{spec_excerpt_path}`, when `spec_excerpt_path` is not `null`: the inputs hold the manifests, not the excerpts.
 
 What counts:
 1. A retired-feature manifest exists in `.claude/support/retired/{slug}/manifest.json`, but the spec doesn't mention the feature with a "Retired" / "Superseded" marker in the section that originally defined it.
@@ -327,8 +327,8 @@ What counts:
 3. The spec mentions a feature that has been retired (per manifest) but uses present tense or active framing.
 
 Your method:
-1. For each manifest, extract `slug`, `retirement_date`, `retirement_reason`, `replaced_by` (if any).
-2. Search the spec for the feature name (slug → human-readable name) or for distinctive phrases from the manifest's description.
+1. For each manifest, extract `feature_slug`, `feature_title`, `retirement_date`, `rationale`, `successor_feature` (if any), and `spec_excerpt_path`.
+2. Search the spec for the feature name (`feature_title`, or `feature_slug` as words) or for distinctive phrases from its spec excerpt (`.claude/support/retired/{feature_slug}/{spec_excerpt_path}`, when `spec_excerpt_path` is not `null`).
 3. If found, check whether the surrounding text includes a retirement marker (look for "Retired", "Superseded", "[Retired YYYY-MM-DD]", a strikethrough, or a clear forward-reference to the replacement).
 4. If no marker, flag as a finding.
 
@@ -336,6 +336,7 @@ What does NOT count:
 - Manifests for features retired >12 months ago (history; spec readers don't need ongoing reminders).
 - Spec sections that have already been removed (no current spec mention of the retired feature) — that's correct cleanup, not a finding.
 - Spec sections that mention the feature ONLY in a clearly historical context (e.g., "originally we had X, but..." in a phase-history sub-section).
+- A missing marker when `spec_excerpt_path` is `null`: no spec section ever described the feature, so there is no section to mark. Flag such a feature only when the spec now presents it as active (criteria 2–3).
 
 For each finding, set:
 - **Source anchor:** the spec section needing a retirement marker

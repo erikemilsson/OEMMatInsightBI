@@ -1,3 +1,7 @@
+---
+paths:
+  - ".claude/support/retired/**"
+---
 # Feature Retirement Workflow
 
 How to retire a feature in a **frozen, restorable** state — the snapshot lives at the retirement commit, the spec keeps a "Retired (YYYY-MM-DD)" marker, and the directory convention makes restoration mechanical.
@@ -41,7 +45,7 @@ Copy the feature's source-of-truth files into the retirement archive. The snapsh
 - **Routes / pages / handlers** — server-side route handlers, page components, layouts, and any framework-specific entry points uniquely owned by the surface.
 - **UI components** — components used only by the retired surface. Shared components stay where they are (see *shared helper* edge case below).
 - **Slash commands** — `.claude/commands/<name>.md` if the retired feature is a Claude Code surface.
-- **Spec excerpt** — copy the spec section(s) describing the feature, captured at the retirement SHA. Save as `<feature-slug>/spec-excerpt.md` (referenced by `manifest.json::spec_excerpt_path`). This insulates the snapshot against later spec rewrites.
+- **Spec excerpt** — when the spec described the feature, copy the section(s) describing it, as they read at `commit_sha`. Save as `<feature-slug>/spec-excerpt.md` (`manifest.json::spec_excerpt_path`, which is `null` when no spec section described the feature). This insulates the snapshot against later spec rewrites.
 - **Dependent helpers / lib code** — anything exclusively owned by the feature.
 - **Tests (recommended, optional)** — co-located unit / behavior tests so a buildable-state restoration can verify itself. If tests are excluded for size or staleness reasons, note this in `restore_notes`.
 
@@ -51,19 +55,17 @@ Copy the feature's source-of-truth files into the retirement archive. The snapsh
 - User data the feature read or wrote (it's user data, not code; see *application state* edge case below).
 - Tests for helpers the retired feature doesn't uniquely own.
 
-**Mirror the original repo paths.** If the feature lives at `src/app/checkout/page.tsx`, the snapshot path is `<feature-slug>/src/app/checkout/page.tsx`. The mirror convention makes restoration via `cp -r` or cherry-pick mechanical.
+**Mirror the original repo paths.** If the feature lives at `src/app/checkout/page.tsx`, the snapshot path is `<feature-slug>/src/app/checkout/page.tsx`, so a deleted file can be copied straight back when git history is unavailable.
 
 ### Step 2 — Commit Pin
 
-Record the commit SHA at the moment of retirement. The SHA refers to the commit **immediately before retirement** — i.e., the **last commit where the feature was live** in the main branch. This directional convention matters: cherry-picking that SHA restores the feature to its last-shipping state.
+Record the **last commit where the feature was live** as `commit_sha`, before the retirement commit lands:
 
 ```
-manifest.commit_sha = git rev-parse HEAD   # AT THE LAST COMMIT WHERE THE FEATURE WAS LIVE
+manifest.commit_sha = git rev-parse HEAD   # while the feature is still in the tree
 ```
 
-Run this command **before** the retirement commit lands (i.e., capture the SHA from `HEAD` while the feature is still in tree). The retirement commit itself removes the feature; you don't want the manifest pointing at the removal commit.
-
-If you forget and capture the SHA after the retirement commit, recover it: `git log --oneline <removal-commit>~1 -1` gives the immediately-prior commit, which is the correct pin.
+Retire in **one commit** that removes the feature and adds its manifest and snapshot, one feature per commit where practical, with nothing unrelated in it. That *retirement commit* is what a restore undoes. After committing, check the pin: `git rev-parse HEAD^` must equal `commit_sha`; if it doesn't, correct `commit_sha` in a follow-up commit.
 
 ### Step 3 — Archive Directory Placement
 
@@ -72,7 +74,7 @@ The snapshot lives at:
 ```
 .claude/support/retired/<feature-slug>/
 ├── manifest.json                    # required — see schema in .claude/support/retired/README.md
-├── spec-excerpt.md                  # spec section(s) describing the feature, captured at SHA
+├── spec-excerpt.md                  # when the spec described the feature (Step 1)
 ├── <mirrored-original-paths>/       # the snapshot files, mirroring repo structure
 │   ├── src/...
 │   ├── .claude/commands/...
@@ -89,7 +91,7 @@ The slug must match the manifest's `feature_slug` field and the directory name e
 
 ### Step 4 — Spec Annotation (do NOT excise)
 
-At the spec section originally describing the retired feature, **add a marker line** at the top of the section. Do **not** delete the section content.
+At the spec section originally describing the retired feature, **add a marker line** at the top of the section, through `/iterate` like any spec edit (DEC-016). Do **not** delete the section content.
 
 **Pattern:**
 
@@ -103,7 +105,7 @@ At the spec section originally describing the retired feature, **add a marker li
 
 **Why keep the original content:**
 
-Drift detection (per `.claude/support/reference/drift-reconciliation.md`) hashes spec sections. Excising a section would register as a substantial change and trigger a version bump or reconciliation prompt for adjacent unchanged sections — noisy and incorrect. Keeping the content with a marker preserves section fingerprints; the marker itself is the signal that the section is now informational/historical rather than a build target.
+Drift detection (per `.claude/support/reference/drift-reconciliation.md`) hashes each spec section. Excising the section reads as a substantial change: a deleted section suggests a version bump, and its tasks drop into the missing-section prompt. The marker is an annotation-only edit. It does change the section's hash, so `/work`'s drift check flags the section's tasks; keep them with `[K]` Keep, since the marker doesn't change what was built. The marker itself signals that the section is now informational/historical rather than a build target.
 
 It also preserves the **historical scope** of the feature for anyone reading the spec retrospectively — they can see what was built without traversing git history.
 
@@ -115,60 +117,55 @@ If the spec section content is later deemed *misleading* (e.g., describes a beha
 
 Retired features must surface in organizational memory so future-you can find them.
 
-**Pattern: a dedicated "Retired Features" sub-section in the dashboard's Notes section.** Render it like:
+**Pattern: a "Retired Features" list in the dashboard's Notes card.** The card renders the sidecar's `user_notes` (`.claude/dashboard-state.json`), so the list is text in that field:
 
 ```markdown
-### Retired Features
-
+**Retired Features:**
 - **2026-04-29** — `<feature-title>` (`<feature-slug>`) — driving rationale. See `.claude/support/retired/<feature-slug>/manifest.json`.
 ```
 
-**Why dashboard's Notes over inline phase notes:** scannability. A dedicated section gives a one-look list of every retirement; inline phase notes scatter retirements across the dashboard and the reader has to know which section to look in.
+**Why the Notes card:** scannability. One list shows every retirement at a glance instead of scattering them across the dashboard.
 
-This rule **documents the pattern** — the actual sub-section is added by the orchestrator during dashboard regeneration when the first retirement lands. Retiring agents do not modify the dashboard structurally themselves; they note the new manifest in their return report and the orchestrator surfaces it at the next regen.
+This rule **documents the pattern** — the orchestrator adds the entry to `user_notes` when a retirement lands (starting the list with the first one), then regenerates the dashboard. Retiring agents don't write the sidecar; they note the new manifest in their return report.
 
-Decision records that drive a retirement link to the retirement entry via the manifest's optional `dashboard_decision_ref` field. The dashboard's `📋 Decisions` section continues to surface the decision in its own row; the "Retired Features" section is a parallel organizational-memory surface, not a duplicate of the decision log.
+Decision records that drive a retirement link to the retirement entry via the manifest's optional `dashboard_decision_ref` field. The dashboard's `📋 Decisions` section continues to surface the decision in its own row; the Retired Features list is a parallel organizational-memory surface, not a duplicate of the decision log.
 
 ## Restore Path
 
-Two routes. The manual cherry-pick is always available; a `/restore` command is a possible project-side capability.
-
-### Manual cherry-pick (always available)
-
-For a one-commit restore from the pinned SHA:
-
-```bash
-SHA=$(jq -r '.commit_sha' .claude/support/retired/<feature-slug>/manifest.json)
-git checkout -b restore/<feature-slug>
-git cherry-pick "$SHA"
-# Resolve conflicts as the surrounding code has evolved.
-# Run tests / build to verify a buildable state.
-```
-
-For a multi-file or selectively-restored case, copy snapshot files back into place:
+A restore undoes the **retirement commit**: the commit that added the feature's manifest. Don't cherry-pick `commit_sha`: `git cherry-pick "$SHA"` replays that commit's own diff (whatever the last pre-retirement commit changed), not the feature.
 
 ```bash
 SLUG=<feature-slug>
-SNAPSHOT=.claude/support/retired/$SLUG
-cp -r $SNAPSHOT/src/. src/
-cp -r $SNAPSHOT/.claude/commands/. .claude/commands/   # if applicable
-# Adjust any helpers per manifest.restore_notes.
-# Revert the spec annotation marker (Step 4 of the retirement procedure).
-# Rebuild + test.
+RETIRE=$(git log --diff-filter=A --format=%H -1 -- .claude/support/retired/$SLUG/manifest.json)
+git diff --name-status "$RETIRE^" "$RETIRE" -- <affected_paths>  # the removals (deleted files as D)
+git rev-parse "$RETIRE^"                                        # pin check: should equal commit_sha
 ```
 
-**Common restore gotchas — always check before declaring restore complete:**
+- **Removal check.** If the diff shows none of the feature's removals, the manifest landed apart from the removal: set `RETIRE` to the commit that deleted the files (`git log --diff-filter=D --format=%H -1 -- <a deleted path>`, in the repository that held them). An empty `affected_paths` is a spec-only retirement: restoring it means removing the marker and the snapshot.
+- **Pin check.** When `$RETIRE^` differs from `commit_sha`, trust `$RETIRE^` as the last-live state and say so.
+- **Route.** `git show --stat "$RETIRE"` shows which manifests the commit added and what else it holds.
 
-- **Dependent helpers may have moved or refactored** since retirement. The mirror-path copy lays files in their original locations; if `src/lib/` has reorganized, the restored feature may import from paths that no longer exist. The manifest's `restore_notes` should call this out per-feature.
+1. **Revert** (default) — `$RETIRE` retired only this feature: `git checkout -b restore/$SLUG && git revert --no-commit "$RETIRE"`. This undoes what the retirement changed: deleted files, fragments cut from shared files, dependency lines and the snapshot. Before committing, put back anything that isn't the feature (spec files, decision records, task files, the friction register, unrelated work) with `git checkout HEAD -- <path>`.
+2. **Scoped inverse diff** — `$RETIRE` retired several features (or is mostly other work): on a `restore/$SLUG` branch, with `<paths>` = this feature's `affected_paths`, run `git diff --binary --no-ext-diff --no-color --src-prefix=a/ --dst-prefix=b/ "$RETIRE" "$RETIRE^" -- <paths> | git apply --3way`, then remove this feature's snapshot directory by hand. Keep the flags: without them a binary file, `diff.noprefix`, `diff.external` or `color.ui=always` makes `git apply` reject the whole patch. A shared file the other features were also cut from gets their fragments back too; delete those by hand.
+3. **Files only, or no git history** — for each `affected_paths` entry absent from the tree, `git checkout "$RETIRE^" -- <path>` (no history: copy the snapshot file back). A path that still exists was partly retired: never copy over it; re-apply the removed fragment by hand from `git diff "$RETIRE^" "$RETIRE" -- <path>` (or the snapshot copy).
+
+Every route ends the same way:
+- The snapshot directory is gone: `git rm -rq .claude/support/retired/$SLUG` if it is still there (this also settles a revert conflict on a manifest edited after the retirement).
+- Git has changed no spec file or decision record (both DEC-016-gated): if the revert or apply touched one, put it back with `git checkout HEAD -- <path>`: `.claude/spec_v*.md`, an archived copy under `.claude/support/previous_specifications/`, or `.claude/support/decisions/decision-*.md`. The marker comes out through `/iterate` (gotchas below); a decision change goes through `/research`.
+
+Then check the gotchas and run the tests and build.
+
+**Restore gotchas — check each before declaring the restore complete:**
+
+- **Dependent helpers may have moved or refactored** since retirement. Restored files land at their original paths; if `src/lib/` has reorganized, the feature may import from paths that no longer exist. The manifest's `restore_notes` should call this out per-feature.
 - **Tests may need updating** — test helpers, mock shapes, and snapshot fixtures rot independently of feature code. Plan to fix tests after the buildable-state landing.
-- **Spec annotation needs reverting** — the "Retired (YYYY-MM-DD)" marker added in Step 4 should be removed when the feature returns. (Don't forget; otherwise the spec describes a live feature as retired, which confuses both drift detection and future readers.)
+- **Spec marker** — the "Retired (YYYY-MM-DD)" marker from Step 4 must leave the current spec, or the spec describes a live feature as retired (confusing drift detection and readers). Remove it through `/iterate` (`.claude/rules/spec-workflow.md § "Direct edits to spec, decision, and vision files"`), never by reverting: a revert edits the spec outside `/iterate`, and after a spec version change it edits the archived copy and leaves the current spec's marker in place.
+- **Retired Features note** — remove the feature's entry from `user_notes` in `.claude/dashboard-state.json`, if there is one, and regenerate the dashboard.
 - **Application state paths** — if the feature read or wrote project-level state files (foundation data, configs, datastore schemas), verify those paths still exist and the schema hasn't drifted. The manifest's `restore_notes` lists the paths the feature touched.
-- **Dependencies removed at retirement** — if retirement removed `package.json` deps, `npm install` after the cherry-pick will not restore them automatically; review the pinned-SHA `package.json` and re-add deliberately.
-- **The retirement commit itself** — the cherry-pick lands the feature, but the *retirement* commit that removed it is still in history. Anything that ran between retirement and restore (other commits) may need reconciliation in the restore branch. This is normal git, not a workflow gap.
+- **Dependencies removed at retirement** — a restored `package.json` line still needs `npm install`. If `package.json` isn't in `affected_paths`, routes 2 and 3 leave the line out: compare with `git show "$RETIRE^":package.json` and re-add it deliberately.
+- **Later commits** — work since the retirement may have changed the same files; the revert and the `--3way` apply report that as conflicts. Resolve them against today's code rather than taking the old version wholesale.
 
-### `/restore <slug>` command (project-side capability)
-
-A project may choose to implement a higher-level wrapper that reads `manifest.json`, fetches the snapshot, opens a restore branch, and runs the cherry-pick + spec-annotation revert in one step. This is **not template-shipped** — projects that retire features regularly and want an ergonomic restore path can add it to their own `.claude/commands/`. If `/restore` exists in the project's `.claude/commands/`, prefer it over manual cherry-pick — it codifies the gotchas above so the restorer doesn't have to remember them.
+A project that restores often may wrap these steps in its own `/restore <slug>` command (not template-shipped); prefer it when one exists in `.claude/commands/`.
 
 ## Out of Scope
 
@@ -191,7 +188,7 @@ Mirror **all** original paths in the snapshot. List **every** original path in `
 
 ### 3. The spec section has been merged with adjacent sections since the feature was authored
 
-The spec excerpt captured at the retirement SHA (`<feature-slug>/spec-excerpt.md`) is the **historical truth**. The in-spec annotation marker (Step 4) handles forward references — it lives at whatever section the feature's content is currently in, and the marker says "see manifest" which points at the historical excerpt.
+The spec excerpt captured at `commit_sha` (`<feature-slug>/spec-excerpt.md`) is the **historical truth**. The in-spec annotation marker (Step 4) handles forward references — it lives at whatever section the feature's content is currently in, and the marker says "see manifest" which points at the historical excerpt.
 
 If the merge happened **after** retirement and the marker now lives in a section whose content has evolved, add a brief clarifying note alongside the marker so a reader doesn't conflate the current section content with the retired feature's behavior.
 
@@ -207,10 +204,10 @@ If a helper IS exclusive to the retired feature and the retirement removes it fr
 
 That is a different operation. Just `git rm` the files, optionally remove the spec section, commit. This workflow is for "park and possibly revisit"; permanent deletion does not need a manifest, a snapshot, or a discoverability surface. Use plain git.
 
-If a previously-retired feature is later **graduated to permanent deletion**, the snapshot can be removed (`git rm -r .claude/support/retired/<feature-slug>/`) and the dashboard's "Retired Features" entry deleted. The spec annotation marker can also be removed at that point. Document the graduation reason in the commit message.
+If a previously-retired feature is later **graduated to permanent deletion**, the snapshot can be removed (`git rm -r .claude/support/retired/<feature-slug>/`) and its Retired Features entry deleted from `user_notes`. The spec annotation marker can also be removed at that point, through `/iterate`. Document the graduation reason in the commit message.
 
 ## See Also
 
 - **`.claude/support/retired/README.md`** — directory convention + manifest.json schema (sibling document to this rule; the schema lives there).
-- **`.claude/support/reference/drift-reconciliation.md`** — explains why spec sections must not be excised at retirement (section_fingerprint hashes drive drift detection).
+- **`.claude/support/reference/drift-reconciliation.md`** — how section fingerprints drive drift detection, and `[K]` Keep for annotation-only edits such as a retirement marker (why sections are marked, not excised: Step 4).
 - **`.claude/commands/audit-coherence.md`** — the `retired-features` lens scans `.claude/support/retired/*/manifest.json` and flags retired features whose spec sections lack a retirement marker.

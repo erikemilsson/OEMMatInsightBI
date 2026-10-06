@@ -59,6 +59,13 @@ for path in glob.glob(os.path.join(tasks_dir, "task-*.json")):
 if not tasks:
     sys.exit(0)
 
+def notes_head(t, limit=600):
+    """First `limit` characters of a task's notes (newest entries first), plus an ellipsis when cut."""
+    notes = t.get("notes") or ""
+    if not isinstance(notes, str):
+        notes = str(notes)
+    return notes if len(notes) <= limit else notes[:limit] + "\u2026"
+
 # Identify in-flight work
 active_work = []
 for t in tasks:
@@ -70,7 +77,7 @@ for t in tasks:
             "agent": "implement",
             "agent_step": "Unknown (captured from disk state)",
             "partial": True,
-            "partial_notes": t.get("notes", ""),
+            "partial_notes": notes_head(t),
             "files_modified_this_session": [],
             "ready_for_verify": False
         })
@@ -207,10 +214,11 @@ if markers:
         if t.get("status") == "Finished" and t.get("completion_date", "") == today
     ])
 
-    # Verification pass rate
-    verified = [t for t in tasks if t.get("task_verification", {}).get("result")]
+    # Verification pass rate: null when no task has a verification result
+    # (0.0 would read as "every verification failed")
+    verified = [t for t in tasks if (t.get("task_verification") or {}).get("result")]
     passed = [t for t in verified if t["task_verification"]["result"] == "pass"]
-    pass_rate = len(passed) / len(verified) if verified else 0.0
+    pass_rate = len(passed) / len(verified) if verified else None
 
     export_data = {
         "export_version": 1,
@@ -220,7 +228,7 @@ if markers:
         "automated_markers": markers,
         "session_metrics": {
             "tasks_completed": completed_today,
-            "verification_pass_rate": round(pass_rate, 2),
+            "verification_pass_rate": round(pass_rate, 2) if verified else None,
             "recovery_events": 0
         },
         "claude_assessment": None,

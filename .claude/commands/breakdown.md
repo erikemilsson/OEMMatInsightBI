@@ -45,9 +45,10 @@ Split a complex task into smaller subtasks.
    {
      "status": "Broken Down",
      "subtasks": ["1_1", "1_2", "1_3"],
-     "notes": "Broken down into 3 subtasks"
+     "notes": "Broken down into 3 subtasks. {existing notes}"
    }
    ```
+   Prepend `Broken down into N subtasks.` to the parent's `notes` (just that text when they're empty); never replace them.
 4. **Regenerate dashboard** - Follow `.claude/support/reference/dashboard-regeneration.md`
    - This ensures metadata block, footer, user section backup, and section toggles are handled consistently
 

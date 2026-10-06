@@ -44,11 +44,21 @@ def decision_md(num, title, status, selected=None):
 
 class TestTaskHash(unittest.TestCase):
     def test_canonical_convention(self):
-        tasks = [task(2, "Pending"), task(1, "Finished")]
-        rows = sorted(f"{t['id']}:{t['status']}:{t['difficulty']}:{t['owner']}" for t in tasks)
+        # rows are {id}:{status}:{difficulty}:{owner}:{review}, review 1/0 (FB-118)
+        tasks = [task(2, "Pending"), task(1, "Finished", owner="both", user_review_pending=True)]
+        rows = sorted(["2:Pending:3:claude:0", "1:Finished:3:both:1"])
         import hashlib
         expected = "sha256:" + hashlib.sha256(("\n".join(rows) + "\n").encode()).hexdigest()
         self.assertEqual(dr.canonical_task_hash(tasks), expected)
+
+    def test_review_flag_changes_hash(self):
+        # FB-118: setting or clearing user_review_pending must read as stale
+        base = [task(1, "Finished", owner="both")]
+        flagged = [task(1, "Finished", owner="both", user_review_pending=True)]
+        cleared = [task(1, "Finished", owner="both", user_review_pending=False)]
+        self.assertNotEqual(dr.canonical_task_hash(base), dr.canonical_task_hash(flagged))
+        self.assertNotEqual(dr.canonical_task_hash(flagged), dr.canonical_task_hash(cleared))
+        self.assertEqual(dr.canonical_task_hash(base), dr.canonical_task_hash(cleared))  # absent == false
 
     def test_excludes_archive(self):
         with tempfile.TemporaryDirectory() as d:

@@ -108,12 +108,12 @@
 | parent_task | String | Parent task ID if this is a subtask |
 | files_affected | Array | File paths this task will modify |
 | external_dependency | Object | External blocker - see External Dependencies below |
-| notes | String | Context, warnings, or completion notes - see Completion Notes Contract below |
+| notes | String | Context, warnings, or completion notes, newest first: every write prepends and never replaces - see Completion Notes Contract below |
 | user_feedback | String | Feedback provided by the user via dashboard inline areas or during /work complete |
-| spec_fingerprint | String | SHA-256 hash of spec at task decomposition (drift detection) |
+| spec_fingerprint | String | SHA-256 hash of the full spec at task decomposition, refreshed by drift reconciliation. The drift check doesn't use it (it compares `section_fingerprint`) |
 | spec_version | String | Spec filename when task was created (e.g., "spec_v1") |
 | spec_section | String | Originating section heading from spec |
-| section_fingerprint | String | SHA-256 hash of the specific section content at decomposition |
+| section_fingerprint | String | SHA-256 hash of the specific section content at decomposition, refreshed by drift reconciliation. The drift check compares it with the current section hash |
 | section_snapshot_ref | String | Reference to snapshot file for generating diffs (e.g., "spec_v1_decomposed.md") |
 | spec_subsection | String (optional) | `### ` subsection heading a task maps to, when its work is scoped to one subsection of a large `spec_section`. Enables subsection-level drift narrowing (DEC-021). Absent → drift uses `## `-level only (default). |
 | subsection_fingerprint | String (optional) | SHA-256 of the `### ` subsection (from `fingerprint.py --sections --depth 3`) at decomposition. Paired with `spec_subsection`. |
@@ -128,12 +128,14 @@
 | cross_phase | Boolean | When true, task is exempt from the phase gate — eligible when its `dependencies`/`decision_dependencies` are met, regardless of prior phase completion. Phase membership is unchanged (task still belongs to its declared phase for verification and dashboard rendering). Use for long-lead work (procurement, recruitment, approvals) that must start before prior phase is fully done. Default: false. |
 | conflict_note | String | **Transient.** Set during parallel dispatch when a task is held back due to file conflicts (e.g., `"Held: file conflict with Task 3 on src/models.py"`). Cleared when the task is dispatched or during post-parallel cleanup. Surfaced in the dashboard Status column. |
 | recovery_state | String | **Transient.** Set by `/work` Step 0 when auto-recovering a stuck task. Values: `"verification_retry"` (respawning verify-agent), `"agent_retry"` (user chose to retry after timeout). Cleared after recovery completes. Prevents double-recovery if `/work` runs again before recovery finishes. |
-| user_review_pending | Boolean | Set to `true` by verify-agent when a `both`-owned task passes verification, OR when any task has a `test_protocol` (runtime validation was partial, human testing needed). Keeps the task visible for user action until the user runs `/work complete {id}` or completes guided testing. Cleared by `/work complete`. |
-| verification_attempts | Number | Count of per-task verification attempts (incremented by verify-agent on each run). Escalates to human review at >= 3 (initial + 2 retries). Default: 0 (omit until first verification). |
+| user_review_pending | Boolean | Set to `true` by `/work` (from verify-agent's report) when a `both`-owned task passes verification, OR when any task has a `test_protocol` (runtime validation was partial, human testing needed). Keeps the task visible for user action until the user runs `/work complete {id}` or completes guided testing. Cleared by `/work complete`. |
+| verification_attempts | Number | Count of per-task verification attempts (incremented by the `/work` orchestrator when verify-agent returns, per DEC-004). Escalates to human review at >= 3 (initial + 2 retries). Default: 0 (omit until first verification). Drift reconciliation's `[A]` and `[V]` reset it to 0 on the Finished tasks they send back to rebuild or re-verification; `verification_history` keeps the earlier record. |
+| drift_reverify | Object (optional) | `{"section": "<heading>", "date": "YYYY-MM-DD"}`. Set by drift reconciliation's `[V]` on each Finished task it sends to Awaiting Verification. While present, every per-task verify dispatch for the task adds the line `Re-verification after a spec edit: the implementation is unchanged; check it against the current section text.` Removed when a per-task verification result is written for the task, pass or fail, or when the task goes back to Pending or In Progress for rework (the implementation then changes). A timeout keeps it for the retry. See `drift-reconciliation.md § "Granular Reconciliation UI"`. |
 | verification_history | Array | Append-only log of all verification attempts (pass and fail). Each entry records attempt number, result, checks, issues, and notes. Coexists with `task_verification` (which stays as the latest result for quick checks). See Verification History section below. |
-| task_verification | Object | Per-task verification result recorded by verify-agent |
-| test_protocol | Object | Structured testing steps for human-guided verification. Written by verify-agent when runtime validation is `"partial"` or task needs human testing. See Test Protocol section below. |
+| task_verification | Object | Per-task verification result (verify-agent's report, recorded by `/work`) |
+| test_protocol | Object | Structured testing steps for human-guided verification. Produced by verify-agent (written to the task by `/work`) when runtime validation is `"partial"` or task needs human testing. See Test Protocol section below. |
 | interaction_hint | String | `"cli_direct"` or `"dashboard"`. Determines how `/work` presents the task to the user. CLI-direct tasks are presented immediately in the conversation; dashboard tasks appear in "Your Tasks". Default when absent: `"dashboard"`. |
+| resolves_friction | Array | `FR-NNN` ids of the friction-register entries this task was created to fix. When the task is Finished with no user review pending, `/work` closes the listed entries that are still open. See Resolves Friction Field below |
 
 ## Owner Values
 
@@ -179,15 +181,23 @@ Only critical and high show emoji prefixes in the dashboard to reduce visual noi
 
 These fields track spec-to-task alignment. All are set during decomposition (see `decomposition.md`) and used by `/work` for drift detection (see `drift-reconciliation.md`).
 
-The fields `spec_fingerprint`, `spec_version`, `spec_section`, `section_fingerprint`, and `section_snapshot_ref` are defined in the Field Definitions table above. Together they enable granular per-section drift detection: when `/work` runs, it compares current section hashes against task fingerprints and only flags tasks from changed sections.
+The fields `spec_fingerprint`, `spec_version`, `spec_section`, `section_fingerprint`, and `section_snapshot_ref` are defined in the Field Definitions table above. Together they enable granular per-section drift detection. On every run, `/work` Step 1b runs `fingerprint.py --drift .claude`, which compares each task's `section_fingerprint` with the current hash of the section its `spec_section` names, and flags only tasks whose section changed. How the check uses each field:
 
-The optional `spec_subsection` + `subsection_fingerprint` add a finer tier (DEC-021): when a large `## ` section changes, drift detection drills into `### ` subsections (`fingerprint.py --sections --depth 3`) and a task carrying these fields is narrowed out if its own subsection is unchanged — sparing tasks in unchanged subsections of a changed mega-section. Tasks without them fall back to `## `-level flagging (no regression). See `drift-reconciliation.md § "Subsection-level drift narrowing"`.
+- **`spec_section`** is matched against the current `## ` headings, ignoring surrounding whitespace and a missing `## ` prefix. A value starting with `### ` (subsection-level provenance) matches only a `### ` heading that occurs exactly once in the spec, and is compared with that subsection's hash. If nothing matches, an unfinished task is reported as `missing` (usually a renamed or deleted section) and goes through the `[D]` Delete / `[O]` Keep as out-of-spec / `[R]` Reassign prompt. A Finished task only adds to an `unmatched` count, because its work shipped and its provenance is historical or free-form.
+- **No provenance:** a task without `spec_section` or `section_fingerprint` is counted (`no_provenance`) and never flagged, so no edit to its section can be detected. Tasks created outside decomposition often lack these fields; FB-135 tracks that coverage gap.
+- **`spec_version`** naming an older spec makes a Finished task historical: it was verified against that version, Task Migration leaves its provenance unchanged by design, and the check skips it. A task in any other status on an older version is reported as `unmigrated` and goes through Task Migration. A missing `spec_version` counts as current, and so do the bare number and `v{N}` forms (`3` or `v3` for `spec_v3`).
+- **`spec_fingerprint`** (whole spec) plays no part in the check. Reconciliation refreshes it along with the section fingerprints.
+- **`section_snapshot_ref`** only feeds the diff shown at reconciliation. A missing snapshot doesn't affect detection; the prompt shows the current section text instead.
+
+Absorbed, Broken Down and out-of-spec (`out_of_spec: true`) tasks are skipped and counted nowhere: a Broken Down task's subtasks carry the provenance (`/breakdown` copies it), and an out-of-spec task has no spec section to drift from. Marking a task out-of-spec (`[O]` at reconciliation) only sets that flag; its provenance fields stay. Full rules and output: `drift-reconciliation.md`.
+
+The optional `spec_subsection` + `subsection_fingerprint` add a finer tier (DEC-021). When a task's `## ` section changed but the current hash of its own `### ` subsection (looked up within that `## ` section only) still equals its `subsection_fingerprint`, the drift check marks it `subsection_unchanged: true`. It is then shown as "likely unaffected (subsection unchanged)", never dropped, which spares tasks in untouched subsections of a large section. Tasks without both fields are flagged at `## ` level (no regression). See `drift-reconciliation.md § "Subsection-level drift narrowing"`.
 
 The `out_of_spec` and `out_of_spec_rejected` fields mark tasks outside the spec scope. See `workflow.md` § "Out-of-Spec Task Handling" for behavior rules.
 
 ## Task Verification Field
 
-Per-task verification result recorded by verify-agent when a task is in "Awaiting Verification" status. Upon passing, the task status transitions to "Finished". This enables Tier 1 (per-task) verification in the two-tier verification system.
+Per-task verification result: verify-agent's report, recorded by `/work` when a task is in "Awaiting Verification" status. Upon passing, the task status transitions to "Finished". This enables Tier 1 (per-task) verification in the two-tier verification system.
 
 ```json
 {
@@ -257,7 +267,7 @@ A task "needs per-task verification" when:
 ### Failure Handling
 
 When per-task verification fails:
-- `verification_attempts` is incremented (verify-agent increments this before writing the result)
+- `verification_attempts` is incremented (the orchestrator increments this before writing verify-agent's result)
 - The attempt is appended to `verification_history` (structured record of all attempts, including passes — see Verification History section)
 - Task status is set back to "In Progress"
 - Verification failure notes are prepended with `[VERIFICATION FAIL #{N}]` in the task `notes` field (where N = current attempt count)
@@ -265,6 +275,14 @@ When per-task verification fails:
 - `updated_date` is updated
 - Dashboard is regenerated
 - **Escalation rule:** When `verification_attempts >= 3` (initial attempt + 2 re-attempts), set status to "Blocked" with note `[VERIFICATION ESCALATED] 3 attempts exhausted — requires human review` instead of retrying
+
+### Drift Reconciliation Notes
+
+When the user reconciles a changed spec section (`drift-reconciliation.md § "Granular Reconciliation UI"`), these options prepend a dated note to `notes`:
+
+- `[DRIFT RE-VERIFY {YYYY-MM-DD}] {section} changed; re-verifying against the current text` (`[V]` Re-verify), on the section's Finished tasks. A Finished task not owned by `human` goes back to Awaiting Verification with `task_verification` cleared and `verification_attempts` reset to 0 (`verification_history` keeps the earlier attempts), and is re-verified without a rebuild. `[V]` also sets `drift_reverify` on it, which tells verify-agent the implementation is unchanged and is removed once the re-verification result is written. A Finished `owner: human` task stays Finished with `user_review_pending: true`.
+- `[DRIFT UPDATED {YYYY-MM-DD}] {section} changed; {what changed in the task, or "no task change needed"}` (`[A]` Apply and `[V]` Re-verify), on the section's open tasks. Claude updates the task's description or acceptance criteria where the new section text changes them; status doesn't change.
+- `[DRIFT KEPT {YYYY-MM-DD}] {section} changed; user kept verification: {one-line reason}` (`[K]` Keep), on every task in the section. Status and `task_verification` don't change. For a Finished task, this note is the record that its verification predates the current section text.
 
 ### Verification History
 
@@ -303,7 +321,8 @@ Append-only log of every verification attempt (pass and fail). Provides a full r
         "scope_validation": "pass"
       },
       "issues": [],
-      "notes": "All 4 tables implemented correctly"
+      "notes": "All 4 tables implemented correctly",
+      "cost": {"total_tokens": 48210, "tool_uses": 17, "duration_ms": 94000}
     }
   ]
 }
@@ -319,6 +338,7 @@ Append-only log of every verification attempt (pass and fail). Provides a full r
 | `checks` | Object | Per-check pass/fail (same keys as `task_verification.checks`) |
 | `issues` | Array | Issues found during this attempt |
 | `notes` | String | Brief summary of this attempt's findings |
+| `cost` | Object | Optional. The verify-agent dispatch's usage as reported by the harness: `total_tokens` (reported as `subagent_tokens` or `total_tokens`), `tool_uses`, `duration_ms`. Omitted when the harness doesn't report it (and on entries written before v5.5.2). Measures what per-task verification costs, by difficulty |
 
 #### Behavior Rules
 
@@ -333,7 +353,7 @@ Tasks that bypass verification create "verification debt" — Finished tasks wit
 
 ## Test Protocol Field
 
-Written by verify-agent when runtime validation is `"partial"` or the task needs human-guided testing. Provides structured steps for the user to walk through, typically presented via the guided testing flow in `/work` when `interaction_hint` is `"cli_direct"`.
+Produced by verify-agent (written to the task by `/work`) when runtime validation is `"partial"` or the task needs human-guided testing. Provides structured steps for the user to walk through, typically presented via the guided testing flow in `/work` when `interaction_hint` is `"cli_direct"`.
 
 ```json
 {
@@ -402,11 +422,25 @@ Determines how `/work` presents human-involved tasks. Set by verify-agent during
 
 **Overridable:** Users can always use `/work complete {id}` from the dashboard flow regardless of the hint.
 
+## Resolves Friction Field
+
+Optional `resolves_friction`: the entries in the friction register (`.claude/support/friction.jsonl`, `FR-NNN` ids) this task was created to fix.
+
+```json
+{ "resolves_friction": ["FR-012", "FR-013"] }
+```
+
+**Set by** whoever creates the task, when creating it or at the latest before it is verified: e.g. a task filed from an audit finding, a review, or a user request that cites FR ids. List only entries the task fixes; citing an entry in `notes`, or having raised it, closes nothing.
+
+**Effect:** when the task is Finished with no user review pending (a per-task verify pass without `user_review_pending`; `/work complete`, which also completes a pending review; or parent auto-completion once no subtask has a review pending), `/work` closes each listed entry that is `open`: `status: "resolved"`, `resolved_by: {"kind": "task", "ref": "<task id>", "at": "<ISO timestamp>"}`, per `friction-register.md § "Status update protocol"`. Ids not in the register, and entries already `resolved` or `dismissed`, are skipped. A `both`-owned task whose guided test is still pending closes nothing until `/work complete`.
+
 ## Completion Notes Contract
 
 The `notes` field serves as structured completion notes for context transfer between implement-agent and verify-agent.
 
 **Purpose:** When implement-agent completes a task, it writes completion notes that verify-agent reads to understand what was done — without carrying the full implementation conversation.
+
+**Newest first; each write prepends.** Every `notes` write (implement-agent's report, inline work, `/work complete`, `/breakdown`, verification and drift notes) is prepended to the existing `notes` and never replaces them (`work-procedures.md § "State Persistence Protocol"`), so a re-implementation keeps the `[VERIFICATION FAIL #N]` trail the verifier reads.
 
 **Expected format:**
 ```json
@@ -564,7 +598,7 @@ For large projects (100+ tasks), finished tasks are automatically archived.
 ### Auto-Archive Behavior
 
 When active task count exceeds 100, `/work` automatically:
-1. Identifies finished tasks older than 7 days
+1. Identifies finished tasks older than 7 days, excluding any with `user_review_pending: true` (an open review stays on the card)
 2. Moves them to `.claude/tasks/archive/`
 3. Updates archive-index.json
 

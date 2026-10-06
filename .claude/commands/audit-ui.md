@@ -202,7 +202,7 @@ When done:
 
 ### Phase 2 — Lenses (N parallel sub-agents)
 
-Spawn N sub-agents in a **single Task tool message** so they run concurrently. Each:
+Spawn N sub-agents in a **single Agent tool message** so they run concurrently. Each:
 - Runs as `general-purpose` agent (per `.claude/rules/agents.md` § "Dispatch Convention")
 - Receives the artifact dir path + ONLY its single lens prompt
 - Never sees other lenses' output

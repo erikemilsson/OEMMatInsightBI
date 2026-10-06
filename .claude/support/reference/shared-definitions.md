@@ -15,7 +15,7 @@ Canonical terminology used across the system.
 
 ## Difficulty Scale (1-10)
 
-> **Calibrated for the current Claude Opus tier** (the floating `opus[1m]` alias per `.claude/CLAUDE.md § Model Requirement`; calibration originally validated on Opus 4.7). These difficulty ratings and breakdown thresholds assume Opus-tier reasoning — including adaptive thinking, interleaved reasoning between tool calls, and sustained agentic execution. Tasks rated 5-6 ("Substantial") are at the upper limit of what should be attempted without breakdown — the Opus tier can handle the design decisions and multi-step reasoning involved. Tasks at 7+ **must** be broken down regardless of model confidence.
+> **Calibrated for the current Claude Opus tier** (the floating `opus[1m]` alias per `.claude/CLAUDE.md § Model Requirement`; calibration originally validated on Opus 4.7; downstream verification data through 2026-09 still shows difficulty separating tasks where verification rarely finds defects (1–2) from those where it finds them more often (3–6)). These difficulty ratings and breakdown thresholds assume Opus-tier reasoning — including adaptive thinking, interleaved reasoning between tool calls, and sustained agentic execution. Tasks rated 5-6 ("Substantial") are at the upper limit of what should be attempted without breakdown — the Opus tier can handle the design decisions and multi-step reasoning involved. Tasks at 7+ **must** be broken down regardless of model confidence.
 
 | Level | Category | Action | Examples |
 |-------|----------|--------|----------|
@@ -131,10 +131,10 @@ Canonical definitions for terms used across the environment. Terms already defin
 
 | Term | Definition |
 |------|------------|
-| **Spec Drift** | When spec changes after tasks were decomposed from it. Detected by comparing current spec hash against task fingerprints. |
-| **Drift Deferral** | When user selects "Skip section" during reconciliation. Recorded in `.claude/drift-deferrals.json` with timestamp. |
+| **Spec Drift** | When spec changes after tasks were decomposed from it. Detected on every `/work` by comparing each task's `section_fingerprint` with the current hash of its section (`fingerprint.py --drift`). |
+| **Drift Deferral** | When the user picks `[S]` Skip during reconciliation. Recorded in `.claude/drift-deferrals.json` with timestamp. |
 | **Drift Budget** | Limit on unreconciled drift. Configured via `drift_policy` in spec frontmatter: `max_deferred_sections` (default: 3), `max_deferral_age_days` (default: 14). Enforced by `/work`. |
-| **Reconciliation** | Updating tasks to match a changed spec. Options per section: apply suggestions, review individually, skip (creates deferral), mark out-of-spec. |
+| **Reconciliation** | Updating tasks to match a changed spec. Options per section: apply (reset Finished tasks to Pending), re-verify (check shipped work against the new text, no rebuild), keep (refresh fingerprints, keep verification), review individually, skip (creates deferral); per task, also edit or mark out-of-spec. Apply and re-verify also update open tasks to the new text. |
 
 ### Verification
 
@@ -159,7 +159,7 @@ Canonical definitions for terms used across the environment. Terms already defin
 
 | Term | Definition |
 |------|------------|
-| **Implement-Agent** | Builder agent. Executes tasks, produces deliverables, self-reviews, returns a structured implementation report. The `/work` orchestrator writes task state from the report (including transition to "Awaiting Verification"). See DEC-004. Defined in `.claude/agents/implement-agent.md`. |
+| **Implement-Agent** | Builder agent. Executes tasks, produces deliverables, runs existing checks, returns a structured implementation report. The `/work` orchestrator writes task state from the report (including transition to "Awaiting Verification"). See DEC-004. Defined in `.claude/agents/implement-agent.md`. |
 | **Verify-Agent** | Validator agent. Tests against spec, finds issues, returns a structured verification report. The `/work` orchestrator writes `task_verification` and state transitions from the report. Handles both Tier 1 (per-task) and Tier 2 (phase-level) verification. Defined in `.claude/agents/verify-agent.md`. |
 | **Dashboard** | Project dashboard at `.claude/dashboard.html` (read-only generated HTML; user content in the `.claude/dashboard-state.json` sidecar). Primary communication channel during build phase. Regenerated after task changes. |
 | **Dashboard Freshness** | Whether dashboard reflects current state. Two dimensions: content freshness (comparing `task_hash` against current computed hash) and format freshness (comparing `template_version` in META against `.claude/version.json`). Either mismatch triggers regeneration. |

@@ -2,14 +2,14 @@
 
 Specialist for testing and validating implementations against the specification.
 
-**Model:** per `.claude/CLAUDE.md § Model Requirement` — the canonical source for both the pin and the `Task` dispatch value.
+**Model:** per `.claude/CLAUDE.md § Model Requirement` — the canonical source for both the pin and the `Agent` dispatch value.
 
 ## Reasoning Effort
 
 Verification demands the deepest reasoning in the system — this is where mistakes get caught. The Opus tier's adaptive thinking automatically reasons between tool calls, which is critical here: each check result should inform how you approach subsequent checks.
 
 - **Per-task verification:** Apply thorough reasoning. Re-evaluate your assessment after each check — runtime validation results (T4b) may change how you interpret spec alignment (T3). Use the think tool for genuinely ambiguous judgments (see below).
-- **Phase-level verification:** This requires maximum reasoning depth. Cross-cutting concerns, integration gaps, and subtle spec deviations only surface with careful analysis. On subscription plans where effort defaults to medium, phase-level verification benefits from elevated reasoning — consider using "ultrathink" when spawning this mode.
+- **Phase-level verification:** This requires maximum reasoning depth. Cross-cutting concerns, integration gaps, and subtle spec deviations only surface with careful analysis. Opus 5.5 runs at `medium` effort by default, so the phase-level dispatch adds "ultrathink", which requests deeper reasoning for that turn without changing the effort level.
 
 ## Purpose
 
@@ -31,11 +31,11 @@ When `/work` invokes this agent, it specifies the mode. Follow the corresponding
 
 ## Tool Preferences
 
-See `.claude/rules/agents.md § Tool Preferences` for the canonical tool/operation mapping that applies to all subagents.
+See `.claude/rules/agents.md § Tool Preferences` for the canonical tool/operation mapping that applies to all subagents. Where this file says `Grep`, use the Grep tool if the harness provides one, else `rg --hidden` via Bash.
 
 **Bash usage:** git commands, running test suites, running CLI/script deliverables, `curl` for API testing. When a Bash call is needed, combine related commands into a single call (e.g., `git diff --name-only && git status --short`) to minimize permission prompts.
 
-**Negative findings:** any absence claim ("no consumer found", "code path never fires", "field unused") destined for your report's `issues[]`, `friction_markers[]`, or `notes` must satisfy `rules/agents.md § "Negative Findings Require a Positive Control"` — produce it with the `Grep` tool, or include the positive control (the same probe finding a known-present target) in the report. Absent both, phrase it as "unverified absence" and do not present it as a finding.
+**Negative findings:** an absence claim your report rests on needs a positive control that returned a hit, whatever tool you searched with: the same probe (tool, flags, root, filters) finding a known-present target, included in the report (`rules/agents.md § "Negative Findings Require a Positive Control"`). That covers findings in `issues[]`, `friction_markers[]` or `notes` ("no consumer found", "code path never fires", "field unused") and checks you pass because a search came back empty (T2c's "no referencing files", a closure sweep). Read `.claude/support/reference/negative-findings.md` before reporting one, and before mutation-testing a guard: restore by copy and hash check, never `git checkout -- <file>`, which destroys unstaged work. Without a control, phrase it as "unverified absence": not a finding, and not grounds to pass a check.
 
 ## When to Follow This Workflow
 
@@ -74,7 +74,7 @@ Spawned as separate context from implement-agent. Two modes:
 
 ## Turn Budget Protocol
 
-When spawned, your caller specifies a turn limit via `max_turns`. Plan your work accordingly:
+When spawned, your dispatch prompt states a turn budget. Plan your work accordingly:
 
 **Per-task mode (default: 30 turns):** If you reach turn 25 without completing all checks, return your partial report with `result: "fail"` and `notes: "Verification incomplete — N of 7 checks completed before turn limit"`. Checks not yet completed get value `"skipped"`. The orchestrator handles the retry flow.
 
@@ -142,6 +142,8 @@ For each file in `files_affected`:
 
 Detect files modified during implementation that were NOT listed in `files_affected`:
 
+**Re-verification after a spec edit.** When your brief carries the line `Re-verification after a spec edit: the implementation is unchanged; check it against the current section text.`, skip this diff-based undeclared-file check: the implementation was committed long ago, so `git diff` holds no implementation changes, only perhaps the uncommitted spec edit. Set `scope_validation` to "pass" with the note "re-verification: no implementation diff", and judge the existing artifacts in `files_affected` against the current section text. Every other step runs unchanged.
+
 ```
 1. Determine which files were modified by this task using a SINGLE Bash call:
    a. Run: git diff --name-only 2>/dev/null; echo "---"; git diff --name-only --cached 2>/dev/null
@@ -161,6 +163,11 @@ Detect files modified during implementation that were NOT listed in `files_affec
    - .claude/drift-deferrals.json
    - .claude/verification-result.json
    - .claude/dashboard-state.json
+   - .claude/spec_v*.md
+   - .claude/spec_v*.index.json
+   - .claude/support/previous_specifications/*
+   (An uncommitted spec edit, such as the one behind a drift re-verification,
+   isn't counted as this task's undeclared change.)
 
 4. IF undeclared_files is non-empty:
    - Severity depends on context:
@@ -194,19 +201,21 @@ Detect files modified during implementation that were NOT listed in `files_affec
 
 Check that the modified files are consistent with each other and with unmodified files that reference them. This catches a common class of errors where editing one document breaks references, terminology, or formatting in related documents.
 
-1. For each file in `files_affected`, use `Grep` to find other files that reference it (by filename, anchors, or shared key terms from the task's domain)
+1. For each file the task modified (`files_affected` plus anything else the implementation touched), use `Grep` to find other files, including the spec under `.claude/`, that reference it (by filename, anchors, or shared key terms from the task's domain)
 2. Read any referencing files found and check for:
    - Stale references (links, filenames, section headings that no longer match)
    - Schema or format mismatches (e.g., a JSON field renamed in one file but not in files that consume it)
    - Terminology drift (e.g., a concept renamed in the task deliverable but still using the old name in related files)
-3. Scope this check to the task's blast radius — `files_affected` plus direct references — not a full project scan (that's Tier 2's job)
+3. Scope this check to the task's blast radius — the modified files plus direct references — not a full project scan (that's Tier 2's job)
+4. **When the task corrects or closes a claim** (a status, a count, a deferral, a relationship stated in prose), check that the claim is now true everywhere, not just that the edited phrasings are gone (FB-115). Stale restatements use different words, so search by what the claim is *about* — task IDs, entity or column names, the figure — not by the old wording. For task-status claims, cross-reference each task ID mentioned in the affected documents against that task's actual status. Include places no approval gate covers (READMEs, architecture docs), not only the spec. If the task moved a dated anchor ("measured YYYY-MM-DD"), every figure under it must have been re-measured: moving the date re-certifies them all.
 
 **Fail conditions:**
 - Stale references that would cause broken links or incorrect cross-references
 - Schema mismatches between files that are supposed to align
+- A corrected or closed claim still stated, in any wording, elsewhere in the blast radius
 
 **Pass conditions:**
-- No referencing files found (common for isolated deliverables) — set to `"pass"`
+- No referencing files found (common for isolated deliverables), shown with a positive control (`.claude/support/reference/negative-findings.md`) — set to `"pass"`
 - All references and cross-file terminology are consistent
 - Minor formatting differences that don't affect correctness (informational note, not a failure)
 
@@ -543,7 +552,7 @@ Follow this workflow when spawned in **phase-level** mode — all spec tasks are
 
 Each step produces a required output. The phase-level report (Step 7) must contain real per-criterion data from Step 3, not fabricated results.
 
-**Output size awareness:** Claude Code caps output at 32K tokens per response. Phase-level verification with elevated reasoning (ultrathink) uses a significant share for thinking, leaving less for tool call arguments. To keep the return report within the budget:
+**Output size awareness:** output per response is capped (model-dependent; see `.claude/CLAUDE.md § Model Requirement`), and thinking shares the cap. Phase-level verification with elevated reasoning (ultrathink) uses a significant share for thinking, leaving less for tool call arguments. To keep the return report within the budget:
 - Keep per-criterion `notes` concise (one sentence each)
 - Keep fix-task `task_json` payloads to essential fields only
 - Reference detailed observations in the `summary` rather than repeating them per criterion
@@ -636,6 +645,8 @@ For each major/critical issue found, construct a fix-task entry in the `fix_task
 - **Recommendations** (improvements beyond spec acceptance criteria): `out_of_spec: true`. The orchestrator queues these for user approval before execution.
 
 In both cases, set `"source": "verify-agent"` and `"status": "Pending"` in the `task_json` payload.
+
+**Live state in fix-task descriptions:** when a fix task's description rests on external or live state (a deployed model, a live table, an API's behaviour), re-measure it before writing it in. Don't copy it from an earlier task record. If you can't re-measure it, say so in the description ("per task-NNN, not re-measured"). See `rules/agents.md § "Orchestrator-Authored State Claims"`.
 
 ### Step 7: Include Verification Result in Report
 

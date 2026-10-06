@@ -7,17 +7,28 @@ Three specialist agents with distinct roles:
 - **verify-agent** — validates implementation independently (separate context, no implementation memory). Does not fix.
 - **research-agent** — investigates options for decisions. Populates evidence and comparison matrices but never makes selections.
 
-**Writer/Reviewer scales further with parallel sessions.** Within a single session, implement-agent and verify-agent already provide the writer/reviewer separation. For higher-rigor review — security audit, architectural review, independent quality pass — you can run two separate `claude` instances: Session A implements; Session B (fresh context, no implementation memory) reviews the finished code. This is optional and external to the template; the existing implement-agent / verify-agent split is sufficient for most work.
-
 ## Context Separation
 
-verify-agent always runs as a separate Task agent, dispatched by the `/work` orchestrator — never inline in the implementation conversation. This applies to both sequential and parallel execution modes. "Fresh eyes" is preserved because the verifier evaluates in its own context with no implementation memory; the fact that the orchestrator (not the verify-agent itself) writes the verification result to the task JSON does not affect verification independence. See DEC-004.
+verify-agent always runs as a separate subagent (`Agent` tool), dispatched by the `/work` orchestrator — never inline in the implementation conversation. This applies to both sequential and parallel execution modes. "Fresh eyes" is preserved because the verifier evaluates in its own context with no implementation memory; the fact that the orchestrator (not the verify-agent itself) writes the verification result to the task JSON does not affect verification independence. See DEC-004.
+
+## Dispatch Invariants vs Efficiency Defaults (FB-119)
+
+The orchestrator's own work gets the same independent check as a subagent's. Two kinds of dispatch rule, and they are not interchangeable:
+
+- **Invariant — verify-agent dispatch.** Every task reaches Finished only through a separate verify-agent, **whoever implemented it**, orchestrator included. The orchestrator never verifies its own work, writes a "rollup" pass, or skips verification because a change was small. If the harness can't dispatch a subagent (the Agent tool is unavailable or restricted), the task stays in Awaiting Verification and goes on the Needs-you card; it does not become Finished.
+- **Efficiency default — implement-agent dispatch.** For a task you can finish in a handful of tool calls (typically difficulty ≤ 2, touching one or two files), the orchestrator may implement inline instead of dispatching implement-agent. Inline work follows the same contract implement-agent would: set In Progress first; run the project's existing checks; for a behaviour-changing edit, record what the behaviour was before and after (e.g. the outputs the change affects), because a regression can't be seen from the diff alone; prepend an `[INLINE]` note to `notes`, naming files touched and checks run; record any friction markers you'd expect implement-agent to emit; then set Awaiting Verification and dispatch verify-agent. Anything larger goes to implement-agent.
+
+## Orchestrator-Authored State Claims (FB-119)
+
+When the orchestrator writes a claim *about* state into `.claude/` — "the build did not change since verification", a hash, a count, a timestamp, a supersession annotation in `verification-result.json` — the claim must come from a measurement made in the same step, and it names the measurement: the command and its range (e.g. `git log <verified_at>..HEAD -- <paths>`: 0 commits). A claim you can't back with a measurement is written as unverified, or not written.
+
+The same applies when carrying a task record's description of external or live state (a deployed model, a live table, an API's behaviour) into a new task or fix task: re-measure it, or mark it as quoted-unverified. Recorded descriptions of live state go stale; the record is not evidence that the state is still true.
 
 ## State Ownership
 
-All `.claude/` state transitions (task JSON writes, dashboard regeneration, verification-result.json, session-log.jsonl) are owned by the `/work` orchestrator. Subagents (implement-agent, verify-agent, research-agent) return structured reports; they do not write to `.claude/` paths. This is a hard constraint of the Claude Code harness (subagents are sandboxed from `.claude/` writes per Anthropic issue #38806) and is not expected to change. See DEC-004 for the full rationale.
+All `.claude/` state transitions (task JSON writes, dashboard regeneration, verification-result.json, session-log.jsonl) are owned by the orchestrator (the main session running `/work`, or `/research` for decision records). Subagents (implement-agent, verify-agent, research-agent) return structured reports; they do not write to `.claude/` paths. This is a hard constraint of the Claude Code harness (subagents are sandboxed from `.claude/` writes per Anthropic issue #38806) and is not expected to change. See DEC-004 for the full rationale.
 
-**Capability grounding:** the subagent boundaries above (no `.claude/` writes, no nested `Task` calls, no `permissions.allow` inheritance, Explore/Plan agents skip CLAUDE.md + git status) are documented in `.claude/support/reference/claude-code-authoring.md § "Subagent Boundaries"` as load-bearing constraints for spec/skill/agent authors who would otherwise design workflows that violate them. The reference doc is the canonical home for "facts about Claude Code that authors trip over" (DEC-017).
+**Capability grounding:** the subagent boundaries above (no `.claude/` writes, no `permissions.allow` inheritance, Explore/Plan agents skip CLAUDE.md + git status; nested dispatch is platform-supported but not used by the template) are documented in `.claude/support/reference/claude-code-authoring.md § "Subagent Boundaries"` as load-bearing constraints for spec/skill/agent authors who would otherwise design workflows that violate them. The reference doc is the canonical home for "facts about Claude Code that authors trip over" (DEC-017).
 
 ## Root Cause Over Symptom
 
@@ -74,19 +85,7 @@ This complements the heartbeat (which reduces ping frequency) by catching the pi
 
 ## Command Invocation Gates
 
-Slash commands that perform substantive or irreversible work carry `disable-model-invocation: true` in YAML frontmatter to prevent autonomous invocation by the model. User-typed slash invocation continues to work; the model can still *suggest* the command in conversation. The gate only blocks the model's autonomous decision to fire the command via the `Skill` tool.
-
-**Gated commands (template-shipped):** `/breakdown`, `/research`, `/iterate`, `/work`, `/feedback`.
-
-**Selection criteria:**
-- **Gate**: substantive writes, irreversible state transitions, ledger changes, expensive/long-running flows where autonomous fire is a foot-gun.
-- **Leave open**: read-only audits (`/status`, `/health-check`, `/review`, `/audit-coherence` / `/audit-ui` non-triage modes) and conversational entry points where the model legitimately benefits from being able to ambient-invoke.
-
-**Sub-mode coupling.** `disable-model-invocation` is per-file. Multi-mode commands (`/iterate`, `/work`, `/feedback`) gate as a whole — the model can no longer ambient-invoke their read-only sub-modes (`/work` no-args, `/iterate` no-args, `/feedback [text]` capture, `/feedback list`) either. Acceptable because user-typed slash invocation continues to work for all sub-modes, and the model can still surface suggestions in conversation. Future refactor option: split multi-mode files (e.g., `work-complete.md` separate from `work.md`) if the coupling produces observed friction.
-
-**Defense-in-depth.** Upstream of DEC-005 (permission-layer auto mode) and DEC-016 (spec/decision/vision Edit/Write ask). DEC-005 catches tool calls the model shouldn't make; DEC-016 catches writes to protected paths; this gate prevents the model's *decision* to fire the command in the first place. All three layers compound.
-
-**Authoring hazards.** Skill frontmatter scoping (`disable-model-invocation`, turn-scoped `model:` / `effort:`, `context: fork` + `agent:` pattern, `allowed-tools`) is documented in `.claude/support/reference/claude-code-authoring.md § "Skill Frontmatter Scope"` (DEC-017). Spec authors writing flows that depend on these primitives should consult that reference to avoid the "design pattern only obvious after hitting a wall" failure mode.
+`/breakdown`, `/research`, `/iterate`, `/work`, `/feedback` and `/zoom-out` carry `disable-model-invocation: true`: you can't fire them yourself via the `Skill` tool, but the user can type them and you can suggest them. Selection criteria, sub-mode coupling, and authoring hazards: `.claude/support/reference/claude-code-authoring.md § "disable-model-invocation: true"` (lazy).
 
 ## Cross-Project Capture Protocol
 
@@ -102,45 +101,27 @@ Slash commands that perform substantive or irreversible work carry `disable-mode
 
 ## Tool Preferences
 
-All agents use dedicated tools (Read, Glob, Grep, Edit, Write) for file operations. Bash is reserved for operations requiring shell execution: git commands, running tests, executing deliverables, network requests. This minimizes permission prompts when agents run as subagents.
+Prefer the harness's dedicated file tools (Read, Edit, Write; Glob and Grep where present) over `cat`/`sed`/`echo >` and Bash search (fewer permission prompts in subagents). Without a Grep/Glob tool, search via Bash (`rg`, `find`); instructions naming Grep or Glob then mean that. Plain `rg` skips hidden paths like `.claude/` and gitignored files (`--hidden` adds the first, `-uu` both). Bash is otherwise for git, tests, running deliverables, and network calls. Each agent's own `## Tool Preferences` covers its Bash and editing specifics.
 
-| Operation | Use | NOT |
-|-----------|-----|-----|
-| Read files | `Read` tool | `cat`, `head`, `tail` |
-| Search by filename | `Glob` tool | `find`, `ls` |
-| Search file content | `Grep` tool | `grep`, `rg` |
-| Edit files | `Edit` tool | `sed`, `awk` |
-| Write files | `Write` tool | `echo >`, heredoc |
+Subagents cannot write to `.claude/` paths and don't inherit parent `permissions.allow` rules; when an agent's workflow describes a state transition, it means "include in the return report", and the orchestrator writes it. Nested dispatch is platform-supported (three levels by default) but the template doesn't use it: the orchestrator performs all dispatch, for portability and because state writes still flow through the orchestrator.
 
-Per-agent files reference this canonical mapping rather than restating it; bash-usage specifics, editing strategy, and large-file strategy live in each agent's own `## Tool Preferences` section.
-
-Subagents cannot write to `.claude/` paths, cannot spawn nested `Task` tool calls, and do not inherit parent `permissions.allow` rules. When an agent's documented workflow describes a state transition, it means "include in return report"; the orchestrator performs the actual write.
-
-**Scripts under `.claude/scripts/`** are deterministic helpers that ship with the template and are intended to be invoked by the orchestrator via the Bash tool. They have their own invocation contract (see `.claude/scripts/README.md`): stdlib only, read-only by default, structured stdout, clear exit codes. Subagents should not invoke them — the scripts return computed values for the orchestrator to write to `.claude/` state, which subagents cannot do. When a script is present, it is an advisory alternative to the matching prose procedure; when absent, the prose procedure still works.
-
-Template-owned `.claude/settings.json` includes `Bash(python3 .claude/scripts/*.py:*)` in `permissions.allow` so orchestrator script invocations don't prompt. Tests for the scripts live in `.claude/scripts/tests/`; run with `python3 -m unittest discover .claude/scripts/tests/`.
+**Scripts under `.claude/scripts/`** are deterministic, read-only-by-default helpers the orchestrator runs via Bash (contract: `.claude/scripts/README.md`; `settings.json` allows `python3 .claude/scripts/*.py` without prompting). Subagents don't run them. A script is an advisory alternative to its matching prose procedure; without it, the prose still works. Tests: `python3 -m unittest discover .claude/scripts/tests/`.
 
 ## Negative Findings Require a Positive Control
 
-A **negative finding** — "X is absent / dormant / unused / has no consumer / never fires" — may only be persisted to durable state (friction register, handoff, dashboard, verification result, retirement proposal) when the probe that produced it is shown to work: either (a) it used the dedicated `Grep` tool (ripgrep — reliable empty-vs-error semantics), or (b) it includes a **positive control** — the same probe demonstrably finding a known-present target. Without one of these, report the claim as "unverified absence" and do not write it to state.
+An absence claim ("X is absent / dormant / unused / has no consumer / never fires") may be persisted to durable state (friction register, handoff, dashboard, verification result, memory, retirement proposal), or used to close a finding, only with a **positive control that returns a hit**: the same probe (tool, flags, root, filters) finding a known-present target, whatever the tool. Otherwise report "unverified absence" and write nothing. Trust a new guard or check only after seeing it fail on the regression it targets. Read `.claude/support/reference/negative-findings.md` before persisting an absence claim, closing a finding with a sweep, or mutation-testing a guard.
 
-Why: bash `grep` on macOS/BSD can silently produce no output on certain files, and an empty result is indistinguishable from "not found". Observed cost (styler FR-040, 2026-06-10): a silent grep failure became a false "engine dormant" finding, propagated into the handoff, dashboard, and memory, and consumed a full session to unwind. Complements the Pre-Retirement Engine-Consumer Audit in `rules/feature-retirement.md` (FB-084 covers *which patterns* to search; this rule covers *whether the probe works at all*).
+Why: probes fail silently, and an empty result reads as "not found" (styler FR-040: a silent grep failure became a false "engine dormant" finding that cost a session).
 
 ## Dispatch Convention
 
-When dispatching implement-agent, verify-agent, or research-agent via the `Task` tool, set `subagent_type: "general-purpose"` and direct the agent persona via prompt content ("You are the verify-agent. Read `.claude/agents/verify-agent.md`..."). The three current dispatch sites — `commands/work.md` (§ "If Verifying (Per-Task)" and § "If Verifying (Phase-Level)") and `commands/research.md` (§ "Step 3: Spawn Research Agent") — follow this convention. (Cross-file references use section names, not line numbers — line numbers go stale on every edit.)
-
-**Why not named subagent_types?** Claude Code can auto-discover `.claude/agents/*.md` and expose each definition file as a named subagent_type (`implement-agent`, `verify-agent`, etc.), which would align dispatch shape with definition shape. As of 2026-05-13, the runtime availability of named-from-disk subagent types is not uniform across Claude Code harness versions — relying on auto-discovery risks dispatch failures in harnesses where it's absent. The persona-via-prompt-content pattern is portable across all current harness versions.
-
-**Future migration:** When Claude Code's `.claude/agents/*.md` auto-discovery is stable across all supported harness versions, switch the three dispatch sites to named types. Validation gate: smoke-test by dispatching a single task with `subagent_type: "verify-agent"` and confirming the agent returns a per-task verification report (vs an error). Once validated, sweep all three sites and remove this rationale.
-
-Until then, keep all three call sites uniform on `subagent_type: "general-purpose"` — the rule exists to prevent the previous state where the choice was neither documented nor uniformly applied.
+Dispatch implement-agent, verify-agent and research-agent via the `Agent` tool with `subagent_type: "general-purpose"`, directing the persona in the prompt ("You are the verify-agent. Read `.claude/agents/verify-agent.md`..."). Keep all dispatch sites uniform on this; the portability rationale and the migration gate to named types live in `.claude/support/reference/claude-code-authoring.md § "subagent_type: \"general-purpose\" portability convention"` (lazy).
 
 ## Model Requirement
 
-All agents run on the model pinned in `.claude/CLAUDE.md § Model Requirement` — the canonical source for both the design pin and the `Task` dispatch value.
+All agents run on the model pinned in `.claude/CLAUDE.md § Model Requirement` — the canonical source for both the design pin and the `Agent` dispatch value.
 
-**Effort defaults:** Max/Team subscriptions default to medium reasoning effort. Use "ultrathink" in prompts when deeper reasoning is needed (phase-level verification, complex design decisions).
+**Effort defaults:** Opus 5.5 defaults to `medium` effort on every plan, which matches or beats Opus 5 at `high` on coding and knowledge work. Don't add "ultrathink" or "think carefully" instructions by default. The standing exception is phase-level verification, whose dispatch includes "ultrathink" (it requests deeper reasoning for that turn; the effort level sent to the API is unchanged). To lower thinking, lower effort rather than instructing it in the prompt. Per-agent effort is possible via `effort:` frontmatter in a named agent definition, which the `general-purpose` Dispatch Convention doesn't use yet.
 
 ## Friction Register
 

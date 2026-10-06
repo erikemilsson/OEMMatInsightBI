@@ -9,12 +9,14 @@ hard-retired in this change; HTML is the only surface.
 
 Division of labor (per support/reference/dashboard-regeneration.md
 § Script-First Rendering): the script renders every structural/data section
-deterministically; the LLM fills the SYNTHESIS placeholders — Action Required
-(the "Needs you" card) and Custom Views rendered content — via the
-`<!-- CLAUDE: fill ... -->` HTML comments this script emits, with HTML. The
+deterministically, including every mechanical Action Required ("Needs you")
+row (FB-105); the LLM fills only the Custom Views placeholder, via the
+`<!-- CLAUDE: fill ... -->` HTML comment this script emits, with HTML. The
 sidecar (dashboard-state.json) owns user content: section_toggles control which
-sections render; user_notes seeds the read-only Notes card. The user does not
-hand-edit the HTML — there are no in-file editable markers (DEC-024).
+sections render; user_notes seeds the read-only Notes card; augment_rows[]
+carries the Needs-you card's judgment rows, rendered as its final "Also Needs
+You" sub-section (FB-118). Nobody hand-edits the HTML — there are no in-file
+editable markers (DEC-024), and a full regen would wipe any hand edit.
 
 Modes:
   --html                   render the FULL dashboard as HTML to stdout
@@ -22,11 +24,18 @@ Modes:
 
 Canonical task_hash (this script is the single authority — fixes the
 three-way divergence observed in styler 2026-06-11):
-  sha256 over "\\n".join(sorted("{id}:{status}:{difficulty}:{owner}"
-  for each ACTIVE task)) + "\\n"   — string sort, archive excluded,
-  rendered with a "sha256:" prefix. Carried in the <!-- DASHBOARD META -->
-  comment (relocated to <head>) for freshness consumers (/work Step 1a,
-  /status, /health-check) — they string-parse it byte-identically in HTML.
+  sha256 over "\\n".join(sorted("{id}:{status}:{difficulty}:{owner}:{review}"
+  for each ACTIVE task)) + "\\n"   — review = 1 when user_review_pending is
+  truthy, else 0 (FB-118: toggling a review flag must read as stale); string
+  sort, archive excluded, rendered with a "sha256:" prefix. Carried in the
+  <!-- DASHBOARD META --> comment (relocated to <head>) for freshness consumers
+  (/work Step 1a, /status, /health-check) — they string-parse it
+  byte-identically in HTML.
+
+Spec drift (FB-128): compute_drift() is loaded from the sibling fingerprint.py
+by path (importlib) and runs on every render. It feeds META drift_sections, the
+footer indicator, the pulse "drift" number and the Needs-you Spec Drift rows. If
+it can't load or fails, drift reads as unchecked and nothing else breaks.
 
 Archive awareness: {tasks-dir}/archive/task-*.json are read for COUNTS and
 phase-name canonicalization only. Archived Finished count toward phase
@@ -52,6 +61,7 @@ Exit codes: 0 success, 2 runtime/usage error.
 import argparse
 import hashlib
 import html
+import importlib.util
 import json
 import math
 import re
@@ -59,6 +69,11 @@ import sys
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+if sys.version_info < (3, 10):  # Python floor (FB-120); see README § Invocation contract
+    print(f"error: {Path(__file__).name} needs Python 3.10+; this is Python "
+          f"{'.'.join(map(str, sys.version_info[:3]))} ({sys.executable})", file=sys.stderr)
+    sys.exit(2)
 
 OWNER_EMOJI = {"human": "❗", "claude": "🤖", "both": "👥"}
 UNRESOLVED_DECISION = {"draft", "proposed"}
@@ -167,6 +182,9 @@ def load_spec(claude_dir: Path):
     path = specs[-1]
     try:
         text = path.read_text(encoding="utf-8")
+        # bytes, not decoded text (A7): the same hash as fingerprint.py --spec and
+        # compute_drift, so a CRLF spec doesn't read as changed on every /work
+        fingerprint = "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
     except OSError:
         return {"version": path.stem, "status": "—", "fingerprint": "—", "title": None}
     fm = parse_frontmatter(text)
@@ -177,9 +195,61 @@ def load_spec(claude_dir: Path):
     return {
         "version": path.stem,
         "status": fm.get("status", "active"),
-        "fingerprint": "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        "fingerprint": fingerprint,
         "title": title,
     }
+
+
+def _deferral_items(drift):
+    """Usable drift-deferrals.json entries: `{"deferrals": [...]}` or a bare list, keeping
+    only objects with a string `section`, the same entries fingerprint.py's
+    load_drift_deferrals() reads. Any other shape counts as no deferrals (it used to
+    crash the render)."""
+    items = drift.get("deferrals") if isinstance(drift, dict) else drift
+    if not isinstance(items, list):
+        return []
+    return [e for e in items if isinstance(e, dict) and isinstance(e.get("section"), str)]
+
+
+def _load_compute_drift():
+    """compute_drift() from the sibling fingerprint.py, loaded by path so it resolves
+    both when this file runs as a CLI and when tests load it by path. None when it
+    can't be loaded: the render goes on with drift unchecked."""
+    path = Path(__file__).resolve().with_name("fingerprint.py")
+    saved = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True  # read-only: no __pycache__ beside the scripts
+    try:
+        mod_spec = importlib.util.spec_from_file_location("fingerprint", path)
+        module = importlib.util.module_from_spec(mod_spec)
+        mod_spec.loader.exec_module(module)
+        return module.compute_drift
+    except (Exception, SystemExit) as exc:  # absent, broken, older, or its version guard
+        print(f"warning: drift unchecked: can't load compute_drift from {path.name} ({exc})",
+              file=sys.stderr)
+        return None
+    finally:
+        sys.dont_write_bytecode = saved
+
+
+def load_drift_check(claude_dir: Path):
+    """What the render needs from compute_drift(): the unreconciled section count, the
+    unreconciled drifted sections with their non-deferred task statuses, and the
+    missing sections with their task counts. None = drift unchecked (never raises)."""
+    compute = _load_compute_drift()
+    if compute is None:
+        return None
+    try:
+        result = compute(claude_dir)
+        return {
+            "unreconciled": int(result["unreconciled_sections"]),
+            "drifted": [(str(d["section"]),
+                         [str(t["status"]) for t in d["tasks"] if not t["deferred"]])
+                        for d in result["drifted"] if not d["deferred"]],
+            "missing": [(str(m["section"]), len(m["tasks"])) for m in result["missing"]],
+        }
+    except Exception as exc:
+        print(f"warning: drift unchecked: compute_drift failed ({exc})", file=sys.stderr)
+        return None
 
 
 # ------------------------------------------------------------ phase model
@@ -354,18 +424,32 @@ DECISION_STATUS_DISPLAY = {"approved": "Decided", "implemented": "Decided",
 
 # --------------------------------------------- META + task_hash (shared)
 
+def _review_pending(task):
+    """The user's review/testing half is still open (user_review_pending truthy)."""
+    return bool(task.get("user_review_pending"))
+
+
 def canonical_task_hash(active):
-    rows = sorted(f"{t.get('id')}:{t.get('status')}:{t.get('difficulty')}:{t.get('owner')}"
+    """sha256 over sorted "{id}:{status}:{difficulty}:{owner}:{review}" rows
+    (review = 1 when user_review_pending is truthy, else 0), newline-joined
+    plus a trailing newline. The review field makes setting or clearing a
+    review flag a freshness change (FB-118)."""
+    rows = sorted(f"{t.get('id')}:{t.get('status')}:{t.get('difficulty')}:{t.get('owner')}:"
+                  f"{1 if _review_pending(t) else 0}"
                   for t in active)
     return "sha256:" + hashlib.sha256(("\n".join(rows) + "\n").encode("utf-8")).hexdigest()
 
 
-def render_meta(active, decisions, spec, version, drift, verification_result, now):
+def render_meta(active, decisions, spec, version, drift, verification_result, now,
+                drift_check=None):
     debt = sum(1 for t in active if t.get("status") == "Finished"
                and (t.get("task_verification") or {}).get("result") != "pass")
     debt += sum(1 for t in active if t.get("status") == "Awaiting Verification")
     counts = Counter(d["status"] for d in decisions)
-    drift_count = len(drift.get("deferrals", drift) if isinstance(drift, (dict, list)) else []) if drift else 0
+    drift_count = len(_deferral_items(drift))
+    # spec_fingerprint = the spec this page was rendered from; drift_sections = the
+    # live check (FB-128), "unchecked" when compute_drift couldn't run
+    drift_sections = drift_check["unreconciled"] if drift_check is not None else "unchecked"
     return "\n".join([
         "<!-- DASHBOARD META",
         f"generated: {now.strftime('%Y-%m-%dT%H:%M:%SZ')}",
@@ -377,6 +461,7 @@ def render_meta(active, decisions, spec, version, drift, verification_result, no
         f"template_version: {version.get('template_version', '—')}",
         f"verification_debt: {debt}",
         f"drift_deferrals: {drift_count}",
+        f"drift_sections: {drift_sections}",
         f"decision_count: {len(decisions)}",
         f"decisions_approved: {counts.get('approved', 0) + counts.get('implemented', 0)}",
         f"decisions_superseded: {counts.get('superseded', 0)}",
@@ -754,8 +839,8 @@ def _html_acceptance(verification_result):
             note = str(c.get("notes", "")).strip()
             if criterion:
                 disp, full = _clip(note, 240)
-                note_html = (f' <span class="acnote"'
-                             f'{f" title=\"{_esc(full)}\"" if full else ""}>— {_esc(disp)}</span>'
+                title = f' title="{_esc(full)}"' if full else ""
+                note_html = (f' <span class="acnote"{title}>— {_esc(disp)}</span>'
                              if note else "")
                 body = f'<span class="actext">{_esc(criterion)}{note_html}</span>'
             else:
@@ -952,16 +1037,64 @@ def _load_feedback_counts(claude_dir: Path):
     return (counts["new"], counts["refined"], counts["ready"])
 
 
+def _attempts(task):
+    """verification_attempts as an int; 0 when absent or malformed."""
+    try:
+        return int(task.get("verification_attempts") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _augment_items(sidecar, active, archived):
+    """Sidecar augment_rows[] → (action_texts, fyi_texts), the valid and unexpired
+    rows in sidecar order (FB-118). Each item: {"text": str (required),
+    "task_id": str, "kind": "action" | "fyi" (default "action"), "created":
+    "YYYY-MM-DD"}. Malformed input is skipped, never fatal: a non-list
+    augment_rows, items that aren't objects, items without non-empty string text.
+    Expiry: a row whose task_id names a known task (active, else archived) is
+    dropped once that task is Absorbed, or Finished without user_review_pending.
+    An unknown task_id keeps the row — never silently hide a user-gated item."""
+    items = sidecar.get("augment_rows") if isinstance(sidecar, dict) else None
+    if not isinstance(items, list):
+        return [], []
+    # archived entries default to Finished (load_archived's index fallback may omit status)
+    known = {str(t.get("id")): (t.get("status", "Finished"), _review_pending(t)) for t in archived}
+    known.update({str(t.get("id")): (t.get("status"), _review_pending(t)) for t in active})
+    actions, fyis = [], []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        text = item.get("text")
+        if not isinstance(text, str) or not text.strip():
+            continue
+        task_id = item.get("task_id")
+        state = known.get(str(task_id).strip()) if task_id is not None else None
+        if state and (state[0] == "Absorbed" or (state[0] == "Finished" and not state[1])):
+            continue
+        kind = str(item.get("kind") or "action").strip().lower()
+        (fyis if kind == "fyi" else actions).append(text.strip())
+    return actions, fyis
+
+
+def _status_counts_text(statuses):
+    """'3 Finished, 1 Pending': counts in DONUT_STATUS_ORDER, any other status after."""
+    counts = Counter(statuses)
+    order = DONUT_STATUS_ORDER + sorted(s for s in counts if s not in DONUT_STATUS_ORDER)
+    return ", ".join(f"{counts[s]} {_esc(s)}" for s in order if counts.get(s))
+
+
 def _html_needs_you(active, decisions, phases_model, status_map, sidecar,
-                    verification_result, drift, claude_dir):
-    """Deterministic Action Required rows (FB-105).
+                    verification_result, drift, claude_dir, archived=(), drift_check=None):
+    """Deterministic Action Required rows (FB-105, FB-118).
 
     The script owns every mechanically-derivable row so the human-gated coverage
     invariant cannot be silently dropped by an unfilled placeholder (observed: a
-    regen left the card empty while 5 user-gated items were outstanding). The LLM
-    appends judgment items — unanswered questions from a paused session, nuanced
-    phrasing — into the trailing augment placeholder. Sub-section order follows
-    dashboard-regeneration.md § Section Display Rules.
+    regen left the card empty while 5 user-gated items were outstanding).
+    Judgment items the script can't derive (unanswered questions from a paused
+    session, context a mechanical row would miss) come from sidecar augment_rows[]
+    and render as the final "Also Needs You" sub-section, so a regen never wipes
+    them. Sub-section order follows dashboard-regeneration.md § Section Display
+    Rules.
     """
     out = []
 
@@ -990,7 +1123,11 @@ def _html_needs_you(active, decisions, phases_model, status_map, sidecar,
     # Verification Pending / Debt
     non_absorbed = [t for t in active if t.get("status") != "Absorbed"]
     open_tasks = [t for t in non_absorbed if t.get("status") != "Finished"]
-    if non_absorbed and not open_tasks and not verification_result:
+    # Held while any review is open, even when every task is Finished: a
+    # display-order choice (the user's open review comes first), not a readiness
+    # gate; /work's phase routing doesn't check the flag (FB-118, from LTP).
+    review_open = any(_review_pending(t) for t in non_absorbed)
+    if non_absorbed and not open_tasks and not verification_result and not review_open:
         sub("Verification Pending", [row(
             "All tasks Finished but no phase verification result — run <code>/work</code> "
             "to dispatch phase-level verification")])
@@ -1001,11 +1138,21 @@ def _html_needs_you(active, decisions, phases_model, status_map, sidecar,
         f'<span class="tid">{_esc(t.get("id"))}</span>{_esc(t.get("title") or "")} — '
         f'verification incomplete → run <code>/work</code>') for t in debt])
 
-    # Spec Drift
-    d_items = (drift or {}).get("deferrals") or (drift if isinstance(drift, list) else [])
+    # Spec Drift — one row per unreconciled section (FB-128: drifted, then missing),
+    # then the deferral row
+    rows = []
+    if drift_check is not None:
+        rows += [row(f'<code>{_esc(section)}</code> changed since its tasks were built '
+                     f'({_status_counts_text(statuses)}) → run <code>/work</code> to reconcile')
+                 for section, statuses in drift_check["drifted"]]
+        rows += [row(f'<code>{_esc(section)}</code> is no longer in the spec ({n} open task(s) '
+                     f'reference it) → run <code>/work</code> to reconcile')
+                 for section, n in drift_check["missing"]]
+    d_items = _deferral_items(drift)
     if d_items:
-        sub("Spec Drift", [row(f'{len(d_items)} deferred spec-drift reconciliation(s) '
-                               f'→ run <code>/work</code> to review')])
+        rows.append(row(f'{len(d_items)} deferred spec-drift reconciliation(s) '
+                        f'→ run <code>/work</code> to review'))
+    sub("Spec Drift", rows)
 
     # Audit Findings
     digest = sidecar.get("audit_digest") or {}
@@ -1035,28 +1182,35 @@ def _html_needs_you(active, decisions, phases_model, status_map, sidecar,
         f'<a href="support/decisions/{_esc(d["file"])}">{_esc(d["file"])}</a>')
         for d in decisions if d["status"] in UNRESOLVED_DECISION])
 
-    # Your Tasks — human-owned unblocked, both-owned awaiting review, On Hold
+    # Your Tasks — at most one row per task, first match wins (FB-118). Scans all
+    # non-Absorbed tasks: user_review_pending is set together with Finished, so
+    # scanning open_tasks made every review row unreachable.
+    #   (a) On Hold  (b) review pending: Finished + user_review_pending, any owner
+    #   (the flag is only set with Finished; a stale flag on reworked work is ignored
+    #   so the card never offers /work complete for unverified work)  (c) Blocked on the user: owner both/human, or
+    #   verification escalated (>= 3 attempts)  (d) human-owned, actionable, deps met
+    #   (not Broken Down: /work complete rejects a parent; its subtasks carry the work)
     rows = []
-    for t in sorted(open_tasks, key=lambda t: numeric_key(t.get("id"))):
+    for t in sorted(non_absorbed, key=lambda t: numeric_key(t.get("id"))):
         owner, status = t.get("owner"), t.get("status")
         deps_ok = all(str(d) in finished_ids for d in (t.get("dependencies") or [])) and \
                   all(str(d) in resolved for d in (t.get("decision_dependencies") or []))
+        attempts = _attempts(t)
         tid = f'<span class="tid">{_esc(t.get("id"))}</span>{_esc(t.get("title") or "")}'
         cmd = f' → run <code>/work complete {_esc(t.get("id"))}</code>'
+        resume = f' → run <code>/work {_esc(t.get("id"))}</code>'
         if status == "On Hold":
-            rows.append(row(f'{tid} — On Hold; only you can resume it → run '
-                            f'<code>/work {_esc(t.get("id"))}</code>'))
-        elif owner == "human" and deps_ok and status != "Blocked":
+            rows.append(row(f'{tid} — On Hold; only you can resume it{resume}'))
+        elif status == "Finished" and _review_pending(t):
+            half = ("Claude's half verified; your review closes it" if owner == "both"
+                    else "verified; your review or testing closes it")
+            rows.append(row(f'{tid} — {half}{cmd}'))
+        elif status == "Blocked" and (owner in ("both", "human") or attempts >= 3):
+            why = (f"verification escalated after {attempts} attempts" if attempts >= 3
+                   else "needs you")
+            rows.append(row(f"{tid} — Blocked — {why}; the blocker is in the task's notes{resume}"))
+        elif owner == "human" and status not in ("Blocked", "Broken Down", "Finished", "On Hold") and deps_ok:
             rows.append(row(f'{tid} — yours to do{cmd}'))
-    # both-owned awaiting review is set together with status "Finished" by the
-    # State Persistence Protocol (verify pass -> Finished + user_review_pending),
-    # so it can never appear in open_tasks (which excludes Finished). Scan the
-    # full non_absorbed set instead, or this row is structurally unreachable.
-    for t in sorted(non_absorbed, key=lambda t: numeric_key(t.get("id"))):
-        if t.get("owner") == "both" and t.get("user_review_pending"):
-            tid = f'<span class="tid">{_esc(t.get("id"))}</span>{_esc(t.get("title") or "")}'
-            rows.append(row(f'{tid} — Claude\'s half verified; your review closes it → run '
-                            f'<code>/work complete {_esc(t.get("id"))}</code>'))
     sub("Your Tasks", rows)
 
     # Reviews — out-of-spec awaiting approval
@@ -1066,14 +1220,17 @@ def _html_needs_you(active, decisions, phases_model, status_map, sidecar,
         for t in open_tasks if t.get("out_of_spec")
         and not t.get("out_of_spec_approved") and not t.get("out_of_spec_rejected")])
 
+    # Also Needs You — judgment rows from sidecar augment_rows[] (FB-118): action
+    # rows first, then muted FYI rows; same inline markdown as the Notes card.
+    script_rows = bool(out)
+    actions, fyis = _augment_items(sidecar, active, archived)
     out.append(
-        "<!-- CLAUDE: augment — append <li> rows ONLY for judgment items the script"
-        " cannot derive: unanswered questions from a paused session, and context a"
-        " mechanical row would miss. The rows above are script-owned (task JSON,"
-        " decisions, sidecar, feedback.md) — do NOT restate or duplicate them. Leave"
-        " this comment in place. Contract: dashboard-regeneration.md § Action Item"
-        " Contract. -->")
-    if len(out) == 1:  # no mechanical rows at all
+        "<!-- Judgment rows come from sidecar augment_rows[] in dashboard-state.json"
+        " (contract: dashboard-regeneration.md); the HTML is generated and not"
+        " hand-edited. -->")
+    sub("Also Needs You", [row(_mdi(text)) for text in actions] +
+        [f'<li style="color:var(--soft)">FYI — {_mdi(text)}</li>' for text in fyis])
+    if not script_rows and not actions:  # fyi rows ask nothing of the user
         out.insert(0, '<li style="color:var(--soft)">Nothing blocked on you right now.</li>')
     return "".join(out)
 
@@ -1084,10 +1241,16 @@ def render_full_html(claude_dir: Path, now: datetime):
     active = load_tasks(tasks_dir) if tasks_dir.is_dir() else []
     archived = load_archived(tasks_dir) if tasks_dir.is_dir() else []
     decisions = load_decisions(claude_dir / "support" / "decisions")
-    sidecar = load_json_file(claude_dir / "dashboard-state.json") or {}
+    sidecar = load_json_file(claude_dir / "dashboard-state.json")
+    if not isinstance(sidecar, dict):  # missing, unreadable, or valid JSON that isn't an object
+        if sidecar is not None:
+            print("warning: dashboard-state.json is not a JSON object; rendering as if absent",
+                  file=sys.stderr)
+        sidecar = {}
     version = load_json_file(claude_dir / "version.json") or {}
     verification_result = load_json_file(claude_dir / "verification-result.json")
     drift = load_json_file(claude_dir / "drift-deferrals.json")
+    drift_check = load_drift_check(claude_dir)  # None = drift unchecked (FB-128)
     spec = load_spec(claude_dir)
     _GLOBAL_FINISHED = {str(t.get("id")) for t in active if t.get("status") == "Finished"} | \
                        {str(t.get("id")) for t in archived if t.get("status", "Finished") == "Finished"}
@@ -1123,13 +1286,16 @@ def render_full_html(claude_dir: Path, now: datetime):
         f'<span class="lgn">{_legend_label(s)}</span><b>{status_counts.get(s, 0)}</b></div>'
         for s in DONUT_STATUS_ORDER if status_counts.get(s, 0))
 
-    meta_block = render_meta(active, decisions, spec, version, drift, verification_result, now)
+    meta_block = render_meta(active, decisions, spec, version, drift, verification_result, now,
+                             drift_check)
     debt = sum(1 for t in active if t.get("status") == "Finished"
                and (t.get("task_verification") or {}).get("result") != "pass")
     debt += sum(1 for t in active if t.get("status") == "Awaiting Verification")
-    drift_count = len(drift.get("deferrals", drift) if isinstance(drift, (dict, list)) else []) if drift else 0
+    drift_count = len(_deferral_items(drift))
+    unreconciled = drift_check["unreconciled"] if drift_check is not None else 0
+    drift_total = unreconciled + drift_count  # just the deferrals when unchecked
     debt_color = "var(--bad)" if debt else "var(--ok)"
-    drift_color = "var(--bad)" if drift_count else "var(--ok)"
+    drift_color = "var(--bad)" if drift_total else "var(--ok)"
 
     pulse = (
         f'<section><div class="pulse">{_ring(segs, frac)}'
@@ -1140,7 +1306,7 @@ def render_full_html(claude_dir: Path, now: datetime):
         f'<div><div class="big">{active_ph}</div><div class="lbl">active now</div></div></div>'
         f'<div class="row">'
         f'<div><div class="big" style="color:{debt_color}">{debt}</div><div class="lbl">verif debt</div></div>'
-        f'<div><div class="big" style="color:{drift_color}">{drift_count}</div><div class="lbl">drift</div></div>'
+        f'<div><div class="big" style="color:{drift_color}">{drift_total}</div><div class="lbl">drift</div></div>'
         f'</div></div></div></section>')
 
     heatmap = _html_heatmap(phases_model, status_map)
@@ -1151,7 +1317,7 @@ def render_full_html(claude_dir: Path, now: datetime):
 
     if toggles.get("action_required", True):
         needs_you = _html_needs_you(active, decisions, phases_model, status_map, sidecar,
-                                    verification_result, drift, claude_dir)
+                                    verification_result, drift, claude_dir, archived, drift_check)
     else:
         needs_you = '<li style="color:var(--soft)">Action Required section is toggled off.</li>'
     twocol = (
@@ -1181,8 +1347,13 @@ def render_full_html(claude_dir: Path, now: datetime):
                       f'<summary>Notes<span class="ntoggle"></span></summary>'
                       f'<div class="mini notescard">{_html_notes(user_notes, spec)}</div></details></section>')
 
-    indicator = (f'⚠️ {drift_count} drift deferrals, {debt} verification debt'
-                 if (debt or drift_count) else 'spec aligned · 0 drift deferrals, 0 verification debt')
+    if drift_check is None:
+        indicator = f'drift unchecked · {drift_count} drift deferrals, {debt} verification debt'
+    elif unreconciled or drift_count or debt:
+        indicator = (f'⚠️ {unreconciled} changed spec section(s), {drift_count} drift deferrals, '
+                     f'{debt} verification debt')
+    else:
+        indicator = 'spec aligned · 0 drift deferrals, 0 verification debt'
     # task count == the completion-ring / phase-map basis (total_all: active
     # non-absorbed + archived-finished), NOT len(active) which omits archived
     # tasks and contradicts the ring/donut/phase totals on archived projects.

@@ -18,7 +18,7 @@ These snapshots enable:
 ## How It's Used
 
 1. **At decomposition**: `/work` copies the current spec here
-2. **At drift detection**: `/work` loads the snapshot to generate diffs
+2. **At drift reconciliation**: `/work` loads the snapshot to show what changed in each section
 3. **In health check**: Validates that referenced snapshots exist
 
 ## File Naming
@@ -34,4 +34,4 @@ Old snapshots can be safely deleted if:
 - All tasks have been re-decomposed against a newer spec
 - You don't need historical diff capability
 
-The system will fall back to full-spec comparison if a snapshot is missing.
+A missing snapshot doesn't affect drift detection, which compares each task's section fingerprint with the current spec. It only means the reconciliation prompt can't show a diff and shows the current section text instead.

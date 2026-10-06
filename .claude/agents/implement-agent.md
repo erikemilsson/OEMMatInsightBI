@@ -2,13 +2,13 @@
 
 Specialist for executing tasks.
 
-**Model:** per `.claude/CLAUDE.md § Model Requirement` — the canonical source for both the pin and the `Task` dispatch value.
+**Model:** per `.claude/CLAUDE.md § Model Requirement` — the canonical source for both the pin and the `Agent` dispatch value.
 
 ## Reasoning Effort
 
 Match reasoning depth to task complexity. This agent benefits from the Opus tier's adaptive thinking — it automatically reasons between tool calls (interleaved thinking), re-evaluating its approach as new information emerges from file reads and command outputs.
 
-- **Difficulty 1-2 tasks:** Straightforward execution. Don't overthink — read the spec section, implement, self-review, move on.
+- **Difficulty 1-2 tasks:** Straightforward execution. Don't overthink — read the spec section, implement, run any existing checks, move on.
 - **Difficulty 3-4 tasks:** Standard multi-step work. Let interleaved thinking naturally guide your approach as you discover codebase patterns.
 - **Difficulty 5-6 tasks:** Design decisions involved. Reason carefully about architectural choices before implementing. If you discover the approach isn't working mid-implementation, re-evaluate rather than pushing through.
 
@@ -21,7 +21,7 @@ Match reasoning depth to task complexity. This agent benefits from the Opus tier
 
 ## Tool Preferences
 
-See `.claude/rules/agents.md § Tool Preferences` for the canonical tool/operation mapping that applies to all subagents.
+See `.claude/rules/agents.md § Tool Preferences` for the canonical tool/operation mapping that applies to all subagents. Where this file says `Grep` or `Glob`, use those tools if the harness provides them, else `rg --hidden` or `find` via Bash.
 
 **Bash usage:** running build commands, executing scripts, installing dependencies, git operations. When multiple Bash commands are needed, combine them into a single call where possible to minimize permission prompts.
 
@@ -91,7 +91,7 @@ If any check fails, do not proceed to Step 2.
 Before starting:
 - Read task description fully
 - Read `.claude/spec_v{N}.md` **section-scoped** (specs can exceed 200K tokens): if `.claude/spec_v{N}.index.json` exists, resolve the task's `spec_section` heading to its `line_start`/`line_end` and `Read` only that range (`offset`/`limit`); else `Grep` the heading then scoped-`Read`. See `rules/spec-workflow.md § "Section-scoped spec reading"`.
-- Check what files will be affected
+- Before editing, search for what your change invalidates: every file that reads, restates, or tests the thing you're changing (a name, column, type, signature, path, or documented behaviour), inside or outside `files_affected`. Use Grep. `files_affected` is the expected scope, not a limit: when the change requires editing another file, edit it, list it in `files_modified`, and name the addition in `notes`. **Exception, parallel batches:** if the dispatch lists files owned by other tasks in the batch, don't edit those; report the need in `issues_discovered` (`suggested_action: "stop and report"`) instead
 - Understand the "done" criteria from spec acceptance criteria
 
 ### Step 3: Set In Progress
@@ -108,20 +108,15 @@ Do the work:
 - Use `.claude/support/workspace/` for temporary files (see `README.md` there for placement rules)
 - If `.claude/support/learnings/` contains files, check for patterns relevant to this task
 
-### Step 5: Self-Review
+### Step 5: Run Existing Checks
 
-**Required artifact:** Document the review in your return report's `notes` field (even briefly). A task completed without any self-review note indicates this step was skipped.
+Run the project's existing tests or validation checks for what you changed, if any exist, and fix what they surface. If you ran checks, name them and their outcome in `notes`.
 
-Before returning:
-- Review all changes made
-- Check for errors and edge cases
-- Verify against task requirements
-- For multi-file changes: spot-check cross-file consistency (stale references, broken links, terminology alignment between modified files)
-- Run existing tests or validation checks if available
+Don't add a separate re-review pass on top of this: verify-agent independently verifies every completed task in a fresh context.
 
 ### Step 6: Return Structured Report
 
-After self-review (Step 5), construct and return the structured implementation report per the schema below. Do not attempt to write to `.claude/tasks/`, do not attempt to spawn verify-agent — subagents cannot do either, and the orchestrator handles both.
+After Step 5, construct and return the structured implementation report per the schema below. Do not attempt to write to `.claude/tasks/`, do not attempt to spawn verify-agent — subagents cannot do either, and the orchestrator handles both.
 
 **Return schema:**
 
@@ -179,10 +174,10 @@ After self-review (Step 5), construct and return the structured implementation r
 **Multi-file scope flag:** When the task modified multiple files, include the count in `notes` (e.g., `[Multi-file: 5 files modified]`). This signals verify-agent to calibrate its cross-file consistency check — single-file tasks need minimal consistency checking, while multi-file tasks need thorough cross-reference validation.
 
 **What the orchestrator does with your report:**
-- For `completed`: sets status to "Awaiting Verification", writes your notes/completion_date, dispatches verify-agent
-- For `partial`: leaves status "In Progress", prepends `[PARTIAL]` to notes, returns control to `/work`
-- For `partial_resume_pending`: leaves status "In Progress", persists `partial_completion` envelope on the task JSON, prepends `[PARTIAL_RESUME_PENDING]` to notes. Next `/work` reads the envelope, runs a git-diff audit, and re-dispatches with the envelope injected into the prompt
-- For `blocked`: sets status to "Blocked", returns control with your `issues_discovered` list
+- For `completed`: sets status to "Awaiting Verification", prepends your notes to the task's `notes` (earlier notes are kept), writes completion_date, dispatches verify-agent
+- For `partial`: leaves status "In Progress", prepends your notes tagged `[PARTIAL]`, returns control to `/work`
+- For `partial_resume_pending`: leaves status "In Progress", persists `partial_completion` envelope on the task JSON, prepends your notes tagged `[PARTIAL_RESUME_PENDING]`. Next `/work` reads the envelope, runs a git-diff audit, and re-dispatches with the envelope injected into the prompt
+- For `blocked`: sets status to "Blocked", prepends your notes tagged `[BLOCKED]`, returns control with your `issues_discovered` list
 - For `misaligned`: does not advance status, routes to spec-alignment flow
 
 In all cases, the orchestrator appends your `friction_markers` to `.claude/support/workspace/.session-log.jsonl` (canonical session log) AND, for audit-eligible kinds (`vocab_drift`, `path_drift`, `design_contradiction`, `terminology_mismatch`, `spec_implementation_gap`), to `.claude/support/friction.jsonl` (audit register, consumed by `audit-coherence` — see `.claude/support/reference/friction-register.md`). The orchestrator assigns `FR-NNN` ids and `status: open` for register entries. You do not perform any of these persistence steps yourself.
@@ -218,7 +213,7 @@ Extend each location in the same task — don't trust `files_affected` to be exh
 
 ### Progress Tracking
 
-For larger tasks, include progress information in the `notes` field of your return report (e.g., "Phase 1/3: Database schema created. Starting API routes next."). The orchestrator writes these notes to the task JSON.
+For larger tasks, include progress information in the `notes` field of your return report (e.g., "Phase 1/3: Database schema created. Starting API routes next."). The orchestrator prepends these notes to the task's `notes`.
 
 ## Handling Issues
 
@@ -268,7 +263,7 @@ When you sense an approaching usage limit AND have unfinished sub-targets, retur
 
 **Detection signals (either triggers the envelope):**
 
-- `tool_uses` count > 75% of your `max_turns` AND remaining sub-targets > 0
+- `tool_uses` count > 75% of your turn budget AND remaining sub-targets > 0
 - The Claude Agent SDK has emitted an in-band wrap-up message ("wrap up immediately — provide your final answer now"). Treat that message as authoritative — it precedes the `error_max_turns` terminal signal
 
 **To return a partial-resume envelope:**
@@ -280,8 +275,8 @@ When you sense an approaching usage limit AND have unfinished sub-targets, retur
    - `resume_instructions`: brief prose (1-3 sentences) telling the next dispatch where to start and what precedent to follow. Example: `"Resume from field_Z. Follow same bucket-taxonomy precedent established for field_X. After all remaining sub-targets, sweep audit to confirm 0 violations."`
    - `confidence`:
      - `high` — clean boundary: finished a logical unit; declared remaining work has not been started
-     - `moderate` — mid-unit boundary: declared completed sub-targets verified by self-review; remaining sub-targets are in flux
-     - `low` — rushed boundary: SDK wrap-up fired before self-review; declared completed sub-targets not independently re-checked
+     - `moderate` — mid-unit boundary: declared completed sub-targets checked (existing tests/validation run where they exist); remaining sub-targets are in flux
+     - `low` — rushed boundary: SDK wrap-up fired before declared completed sub-targets were checked
 3. Do NOT include `completion_date` (work is incomplete)
 4. List every file you modified during this dispatch in `files_modified[]`. Orchestrator audits at re-dispatch via `git diff` — declared-completed sub-targets that don't show up in the diff surface as warnings
 
@@ -311,7 +306,7 @@ During implementation, observe workflow deviations, spec drift, informal decisio
 
 **Marker object shape (within your return report):**
 ```json
-{"type": "workflow_deviation", "timestamp": "2026-04-17T14:30:00Z", "details": "Skipped Step 5 self-review due to trivial change", "template_area": "implement-agent Step 5"}
+{"type": "workflow_deviation", "timestamp": "2026-04-17T14:30:00Z", "details": "Skipped Step 5 test run: suite needs a live database unavailable locally", "template_area": "implement-agent Step 5"}
 ```
 Note: `task_id` is added by the orchestrator from the task dispatched to you — do not include it yourself.
 
@@ -323,7 +318,7 @@ Note: `task_id` is added by the orchestrator from the task dispatched to you —
 
 ## Wind-Down Protocol
 
-When `/work pause` is triggered during implementation, wind down gracefully. Finish the current logical unit if close, otherwise stop. Return your report with `implementation_status: "partial"` and `[PARTIAL]`-prefixed notes (what's done, what remains). The orchestrator keeps task status as "In Progress" and writes the handoff file.
+When `/work pause` is triggered during implementation, wind down gracefully. Finish the current logical unit if close, otherwise stop. Return your report with `implementation_status: "partial"` and plain notes: what's done, what remains. Don't prefix them with `[PARTIAL]`; the orchestrator adds the tag once when it prepends your notes. It keeps task status as "In Progress" and writes the handoff file.
 
 **Full procedure:** `.claude/support/reference/context-transitions.md` § "Implement-Agent Wind-Down"
 

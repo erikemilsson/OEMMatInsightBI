@@ -20,26 +20,7 @@ For workflow concepts (phases, agent synergy, checkpoints), see `.claude/support
 
 ## User Communication Strategy
 
-Communication uses two tiers to keep the user informed without wasteful file I/O:
-
-### Tier 1: Dashboard Regeneration (strategic moments)
-
-Regenerate `dashboard.html` per `.claude/support/reference/dashboard-regeneration.md` only at moments when the user needs it current:
-
-| Trigger | Rationale |
-|---------|-----------|
-| After decomposition | User needs to see the full task list |
-| After parallel batch completes | Many changes at once, single regen |
-| At session boundaries (before presenting final results) | User will check the dashboard |
-| At project completion | Final state matters |
-| When routing async work to dashboard (phase gates, decision reviews) | User will go read the dashboard |
-| `/work complete` (user-initiated) | User explicitly interacting with task state |
-| After decision resolution | May unblock tasks, dashboard needs to reflect new state |
-| Step 1a freshness check | Catch-up on entry |
-
-### Tier 2: Inline CLI Communication (routine status changes)
-
-Brief, contextual messages in the CLI conversation — no file I/O, no full regen:
+**Tier 1 — full dashboard regeneration** at the strategic moments listed in `rules/dashboard.md § "Regeneration Strategy"` (decomposition, parallel batch end, session boundaries, `/work complete`, phase gates, decision resolution, Step 1a mismatch, drift reconciliation applied). **Tier 2 — inline CLI messages** for routine changes, no file I/O:
 
 | Event | Inline message |
 |-------|---------------|
@@ -49,9 +30,7 @@ Brief, contextual messages in the CLI conversation — no file I/O, no full rege
 | Human task becomes unblocked | `Note: Task {id} ("{title}") is now available for you — {brief description}` |
 | Auto-continuation step | `Moving to task {id}: "{title}"` |
 
-### Proactive Surfacing
-
-When implementation work unblocks a human-owned or both-owned task, mention it inline during auto-continuation. Don't wait for the user to discover it on the dashboard — surface it conversationally.
+When implementation work unblocks a human- or both-owned task, say so inline during auto-continuation rather than leaving it for the dashboard.
 
 ---
 
@@ -165,29 +144,9 @@ When Step 0a found no handoff and Step 0b found no recovery issues (clean start)
 
 **First-run fallback:** If no dashboard META block exists (first `/work` invocation), skip the summary — Step 1 will handle first-run detection.
 
-**Relationship to Step 1c:** Step 0c provides session context (temporal: "what happened recently"). Step 1c provides spec state ("Spec: v1 (active) — aligned with tasks"). They are complementary, not overlapping.
-
-Note: This reads task files and dashboard META before Step 1, but Step 1 reads the same data. The summary re-uses data that would be loaded regardless — it's surfaced earlier for user orientation.
-
 #### Step 0d: Friction-Marker Catchup
 
-Reconcile any friction markers persisted to the transient pending buffer in a prior session that never reached the canonical log (DEC-011 Option ABp). Runs once per `/work` invocation, before any agent dispatch.
-
-**Procedure:**
-
-1. If `.claude/support/workspace/.pending-markers.jsonl` does not exist, this step is a no-op — proceed to Step 1.
-2. Read both files (create `.session-log.jsonl` empty if missing):
-   - `.pending-markers.jsonl` — append-only buffer dual-written at agent-return time
-   - `.session-log.jsonl` — canonical log
-3. Build a dedup set from `.session-log.jsonl` entries using the composite key: `(task_id, timestamp, type, sha256(details))`. For entries missing any of these fields, fall back to `sha256(full_json_line)`.
-4. Iterate `.pending-markers.jsonl` entries. For each entry NOT already in the dedup set, append to `.session-log.jsonl`.
-5. Count appended entries. If count > 0, surface inline: `Step 0d: Caught up {N} friction markers from prior session.` (Inform — not an error.)
-6. After successful merge, truncate `.pending-markers.jsonl` (write empty file) — the canonical log now holds the entries.
-7. If the merge fails (read error, write error), do NOT truncate. Surface inline: `Step 0d: Catchup failed ({error}). Pending buffer preserved for retry.`
-
-**Why this exists:** The "After implement-agent returns" protocol Step 2 dual-writes markers to both the pending buffer and the canonical log immediately upon agent return. The pending buffer's purpose is purely the sub-second window where the orchestrator could be terminated between agent return and writes completing. Step 0d guarantees that any markers in the pending buffer that didn't make it to the canonical log are reconciled before the next agent dispatch.
-
-**Composability with PreCompact hook:** `.claude/hooks/pre-compact-handoff.sh` runs the same catchup before its Track 1 export compile. The two entry points (here + PreCompact) cover both "normal /work resume" and "compaction-triggered wind-down" paths.
+If `.claude/support/workspace/.pending-markers.jsonl` exists and is non-empty, read `.claude/support/reference/work-recovery.md § "Friction-Marker Catchup"` and follow it before any agent dispatch (reconciles markers a prior session buffered but never wrote to the canonical log, DEC-011). Otherwise skip.
 
 #### Step 0e: Uncommitted-Work Check (FB-088)
 
@@ -195,82 +154,41 @@ Detect silent drift between "tasks marked Finished" and "code committed". Runs o
 
 **Procedure:**
 
-1. If `.git` is absent (no git repository), this step is a no-op — proceed to Step 0f.
+1. If `git rev-parse --is-inside-work-tree` doesn't print `true` (the project isn't in a git work tree), this step is a no-op — proceed to Step 0f. Don't test for `.git` in the project root: a project nested in a larger repository has none, and Step 4's commands still work there, relative to the project root.
 2. Run `git log -1 --format=%ct HEAD` to get last-commit Unix timestamp. If the command fails (no commits in repo), skip Step 0e — proceed to Step 0f.
 3. Convert timestamp to YYYY-MM-DD format (last-commit date).
-4. Compute working-copy state (git's native gitignore handling does the `.claude/` scoping — see note below):
-   - `MODIFIED = git diff --name-only HEAD` (tracked files only — gitignored `.claude/` state never appears here)
+4. Compute working-copy state from the project root, so both commands list paths relative to it (git's native gitignore handling does the `.claude/` scoping — see note below):
+   - `MODIFIED = git diff --name-only --relative HEAD` (tracked files only — gitignored `.claude/` state never appears here)
    - `UNTRACKED = git ls-files --others --exclude-standard` (`--exclude-standard` omits gitignored paths)
-   - Count = len(MODIFIED) + len(UNTRACKED)
-5. Scan task files for finished-since-commit count: tasks where `status == "Finished"` AND `completion_date >= last-commit-date`.
-6. If `finished_since_commit < 3` OR `(MODIFIED + UNTRACKED) == 0`: silent, proceed to Step 0f.
-7. Else surface inline:
-   - Default form: `Step 0e: {N} tasks Finished since last commit ({M} files modified, {K} untracked). Consider committing before continuing. Use \`git status\` to inspect.`
-   - Post-handoff form (when Step 0a just deleted a handoff): `Step 0e: {N} tasks Finished since last commit (prior session paused without committing). Consider committing before resuming work.`
+5. Count `finished_uncommitted`: tasks with `status == "Finished"`, `completion_date >= last-commit-date`, and at least one `files_affected` entry matching a path in MODIFIED ∪ UNTRACKED. An entry matches a path when it is that path, a directory entry ending `/` that contains it, or a glob that matches it (`**` crosses `/`; `*` and `?` don't; every other character, `[` included, is literal).
+6. If `finished_uncommitted < 3` OR MODIFIED and UNTRACKED are both empty: silent, proceed to Step 0f.
+7. Else surface inline, with `{N}` = `finished_uncommitted`, `{M}` = len(MODIFIED), `{K}` = len(UNTRACKED):
+   - Default form: `Step 0e: {N} finished tasks have uncommitted changes in their files ({M} files modified, {K} untracked). Consider committing before continuing. Use \`git status\` to inspect.`
+   - Post-handoff form (when Step 0a just deleted a handoff): `Step 0e: {N} finished tasks have uncommitted changes in their files (prior session paused without committing). Consider committing before resuming work.`
 8. Always proceed to Step 0f (never block).
 
-**Why this exists:** Long-running multi-session projects accumulate uncommitted state when sessions don't bind to git boundaries. `/work pause` writes a handoff file but does not commit; `/work complete` may complete tasks but does not enforce a commit boundary. Over many sessions, the gap between "tasks marked Finished" and "code committed" grows silently — observed in styler 2026-05-20 (~14-task uncommitted backlog discovered mid-commit).
+The file match is needed because `completion_date` is only a date: tasks finished and committed earlier the same day have clean files, so they no longer count.
 
-**Why threshold N≥3:** smallest count that meaningfully exceeds "single in-flight feature about to be committed." Empirical tuning is cheap (single integer constant).
+Rely on git's own gitignore handling for `.claude/` — don't add a blanket `.claude/` filter (projects that track `.claude/` files should see them counted; FB-099).
 
-**Why gitignore-scoped (not blanket) `.claude/` filter (FB-099):** whether `.claude/` is state-not-source is decided by whether the project tracks it — exactly what `.gitignore` already encodes. Projects that gitignore `.claude/**` (a deliberate fork convention) never surface `.claude/` paths here: `git diff HEAD` lists only tracked files and `--exclude-standard` honors `.gitignore`, so gitignored state (spec, tasks, dashboard) is already excluded with no manual filter. Projects that *track* `.claude/` (committed vision docs, command edits, or task JSON under version control) should see those uncommitted source changes counted — an earlier blanket `.claude/` exclusion silently hid git-tracked `.claude/vision/*.md` edits. So: rely on git's native gitignore semantics and do not blanket-filter `.claude/`. Build artifacts (`node_modules`, `dist/`, etc.) live in `.gitignore` and are already excluded. Future configurability deferred until cross-project friction surfaces. (A complementary informational surfacing of *untracked source-of-truth* lives in `/health-check` Part 4 check 5.)
+#### Step 0f: Track 2 Stale-File Recovery
 
-#### Step 0f: Track 2 Stale-File Recovery (FB-089)
-
-Recover from a prior session's interrupted `/work pause` that left `.claude/support/workspace/.interaction-assessment.json` on disk. Without recovery, next session's Write tool fails on that path because the file exists but hasn't been Read.
-
-**Procedure:**
-
-1. If `.claude/support/workspace/.interaction-assessment.json` does not exist, this step is a no-op — proceed to Step 1.
-2. Read the file. If invalid JSON, surface inline `Step 0f: Stale Track 2 capture malformed — discarded.`, delete, proceed to Step 1.
-3. Read `.claude/support/workspace/.session-log.jsonl` if present (Track 1 markers also orphaned from same interrupted pause).
-4. Read `.claude/version.json` for `template_version` + `template_inbox_path`.
-5. Compile a recovered export matching `/work pause § Session Export` shape:
-   ```json
-   {
-     "export_version": 1,
-     "source_project": "[project name]",
-     "template_version": "[from version.json]",
-     "session_date": "[YYYY-MM-DD from current date]",
-     "automated_markers": [/* from .session-log.jsonl if present, else [] */],
-     "session_metrics": {
-       "tasks_completed": [computed from current task files],
-       "verification_pass_rate": [computed],
-       "recovery_events": 0
-     },
-     "claude_assessment": [/* parsed Track 2 JSON */],
-     "export_quality": "recovered"
-   }
-   ```
-6. Compute timestamp `YYYY-MM-DD-HHMM` (minute-granular per FB-079).
-7. Write the recovered export to `.claude/support/workspace/.session-export-{timestamp}-recovered.json`.
-8. If `template_inbox_path` is configured, copy the export there (parallel to Session Export step 6).
-9. Delete `.interaction-assessment.json` AND `.session-log.jsonl`.
-10. Surface inline: `Step 0f: Recovered stale Track 2 capture from interrupted pause → .session-export-{timestamp}-recovered.json` (Inform — not an error.)
-11. Proceed to Step 1.
-
-**Why this exists:** `/work pause § Session Export step 7` cleans up `.interaction-assessment.json` after compiling the export. If pause is interrupted between the write (Interaction Assessment sub-section) and step 7 cleanup — usage limit, user `Ctrl+C`, harness crash — the file persists. Observed in echothread 2026-05-17.
-
-**Why `export_quality: "recovered"` is a new enum value:** distinguishes recovered exports (`session_metrics` computed at recovery time, not at original pause time — lossy property) from canonical exports. Coexists with `"full"` (canonical `/work pause`) and `"markers_only"` (PreCompact hook fallback).
-
-**No PreCompact hook coordination needed:** the hook never reads `.interaction-assessment.json` (it writes `claude_assessment: None` and produces markers-only exports). Step 0f and the hook operate on disjoint Track 2 territory — no double-ingestion risk.
-
-**`.session-log.jsonl` standalone case:** if Track 2 is absent but Track 1 markers exist, Step 0f does NOT trigger recovery — Step 0d's catchup already handles the pending-buffer half, and the PreCompact hook is the canonical disposal mechanism for orphan logs.
+If `.claude/support/workspace/.interaction-assessment.json` exists (a prior `/work pause` was interrupted), read `.claude/support/reference/work-recovery.md § "Stale Track 2 Recovery"` and follow it before continuing: it compiles a recovered session export and removes the stale file, which would otherwise make the next Write to that path fail. Otherwise skip.
 
 #### Step 0g: Waiting-on-You Queue (always runs)
 
 Enumerate every item currently gated on the user and surface it before routing. This is the session-start half of the **human-gated coverage invariant** (`rules/dashboard.md § Sections`): nothing blocked on the user may live only in handoff prose.
 
-1. Scan task files for: `owner: "human"` with status `"Pending"` and all dependencies `"Finished"`; `owner: "both"` with `user_review_pending: true`; any task with status `"On Hold"`.
-2. Scan `.claude/support/decisions/decision-*.md` for unresolved records (status `proposed`/`draft` — a selection is awaited).
-3. If a handoff was consumed in Step 0a: extract any questions asked of the user last session that were never answered (mid-decision pauses).
+1. Scan task files for the card's Your Tasks set (`dashboard-regeneration.md § "Section Display Rules"`): status `"On Hold"`; Finished with `user_review_pending: true` (any owner); `"Blocked"` with owner `human`/`both` or `verification_attempts` ≥ 3; unfinished `owner: "human"` (not Broken Down) with all dependencies `"Finished"`.
+2. Scan `.claude/support/decisions/decision-*.md` for unresolved records (status `proposed`/`draft` — a selection is awaited). A `proposed` record whose `## Select an Option` box is already ticked is listed as "ticked — recorded this run" instead; Step 1d's checkbox scan approves it.
+3. Read sidecar `augment_rows[]` in `.claude/dashboard-state.json`: each unexpired action row is an item (expiry: `dashboard-regeneration.md § "Augment Rows"`), folded into its task's line when its `task_id` names a task from step 1. If a handoff was consumed in Step 0a, also extract any questions asked of the user last session that were never answered (mid-decision pauses) and no row already carries.
 4. Output, merged into Step 0c's summary when both fire (skip the block entirely when N == 0):
    ```
    Waiting on you ({N}):
    1. {item} — {concrete question or action} → {file link}
    ...
    ```
-5. **Dashboard cross-check:** every item found must have a 🚨 Action Required ("Needs you") item with the question/action inline. If any are missing, regenerate `dashboard.html` (a full regen is cheap, and the script re-derives every mechanical row) so the queue is complete. Unanswered questions from a paused session are the LLM-augmented part — append them to the card's `<!-- CLAUDE: augment -->` slot after the regen.
+5. **Dashboard cross-check:** every item found must have a 🚨 Action Required ("Needs you") item with the question/action inline. If any are missing, regenerate `dashboard.html` (a full regen is cheap, and the script re-derives every mechanical row) so the queue is complete. Unanswered questions from a paused session are judgment rows: make sure each is in sidecar `augment_rows[]` (add missing ones, prune answered ones) before that regen — never edit the HTML (`dashboard-regeneration.md § "Augment Rows"`).
 
 ### Step 1: Gather Context
 
@@ -287,7 +205,7 @@ Read and analyze:
 - `.claude/spec_v{N}.md` - The specification (source of truth)
 - `.claude/dashboard.html` - Task status and progress (read the `<!-- DASHBOARD META -->` comment in the `<head>`)
 
-**Fast-path optimization:** If dashboard META block shows matching task_count and spec_fingerprint, skip Steps 1a/1b and jump to Step 1c. Always check drift-deferrals.json for stale deferrals even on fast-path.
+**Steps 1a and 1b run on every `/work`;** each is one script call, and nothing skips them (FB-128). Always check `drift-deferrals.json` too: an over-budget or expired deferral triggers Drift Reconciliation even when Step 1b finds no new drift.
 
 **Malformed task file handling:** When reading task JSON files, if any file fails to parse:
 1. Skip the file — do not abort the entire scan
@@ -297,55 +215,77 @@ Read and analyze:
 
 ### Step 1a: Dashboard Freshness Check
 
-**Pending-decomposition check first (FB-106).** Before any freshness/fast-path logic, read `pending_decomposition[]` from `.claude/dashboard-state.json`. For each listed `## ` heading, check whether any task references it (`spec_section`). If a section has **zero** referencing tasks, surface it and offer decomposition:
+**Pending-decomposition check first (FB-106).** Before the freshness checks, read `pending_decomposition[]` from `.claude/dashboard-state.json`. For each listed `## ` heading, check whether any task references it (`spec_section`). If a section has **zero** referencing tasks, surface it and offer decomposition:
 
 ```
 Spec section "{heading}" was added by /iterate and has no tasks yet.
 [D] Decompose it now | [S] Skip this session | [X] Drop it from the queue (not buildable yet)
 ```
 
-Remove a heading from the array once it has referencing tasks or the user picks `[X]`. This runs ahead of the fast path deliberately: a matching `spec_fingerprint` would otherwise skip drift detection entirely and route to an unrelated pending task, leaving the new section silently undecomposed. (This marker supersedes the interim pause carve-out in § "Context Transition" — with `pending_decomposition[]` present, regenerating at pause is safe again.)
+Remove a heading from the array once it has referencing tasks or the user picks `[X]`. This check comes first because the drift check (Step 1b) can't see a new section: no task references it, so nothing in it can drift, and `/work` would route to an unrelated pending task. (This marker supersedes the interim pause carve-out in § "Context Transition" — with `pending_decomposition[]` present, regenerating at pause is safe again.)
 
-Verify the dashboard is current before using its data. Compute a SHA-256 hash of all task IDs, statuses, difficulties, and owners, compare against the dashboard's `<!-- DASHBOARD META -->` block. If the hash differs or no metadata exists, regenerate the dashboard from task JSON files before continuing.
+Verify the dashboard is current before using its data. Compute the canonical `task_hash` (`python3 .claude/scripts/dashboard-render.py --task-hash`; its rows include each task's review flag) and compare against the dashboard's `<!-- DASHBOARD META -->` block. Regenerate the dashboard from task JSON files before continuing if the hash differs, if META `spec_fingerprint` ≠ the current spec hash (`python3 .claude/scripts/fingerprint.py --spec .claude/spec_v{N}.md`), or if no metadata exists. META `spec_fingerprint` records the spec the dashboard was rendered from; it is not evidence that drift was checked.
 
-Also compare `template_version` in the META block against `template_version` in `.claude/version.json`. If they differ or the META field is absent, the dashboard was generated with older format rules and should be regenerated (see dashboard-regeneration.md § "Format Staleness"). **Migration (DEC-024):** if a legacy Markdown `.claude/dashboard.md` is present, migrate its `<!-- USER SECTION -->` / `<!-- SECTION TOGGLES -->` / `<!-- CUSTOM VIEWS INSTRUCTIONS -->` content into the sidecar, delete it, and regenerate `dashboard.html`.
+Also compare `template_version` in the META block against `template_version` in `.claude/version.json`. If they differ or the META field is absent, the dashboard was generated with older format rules and should be regenerated (see dashboard-regeneration.md § "Format Staleness"). **Migration (DEC-024):** if a legacy Markdown `.claude/dashboard.md` is present, migrate its `<!-- USER SECTION -->` / `<!-- SECTION TOGGLES -->` / `<!-- CUSTOM VIEWS INSTRUCTIONS -->` content into the sidecar, delete it, and regenerate `dashboard.html`. Likewise, before regenerating over hand-inserted rows at an old `<!-- CLAUDE: augment -->` comment (pre-FB-118), move the still-relevant ones into sidecar `augment_rows[]`.
 
 **Full procedure:** `.claude/support/reference/drift-reconciliation.md` § "Dashboard Freshness Check"
 
 ### Step 1b: Spec Drift Detection
 
-Compare the current spec's SHA-256 fingerprint against task fingerprints. If different, perform section-level analysis to identify which sections changed and group affected tasks. For a large changed `## ` section, narrow to `### ` subsection level so tasks in unchanged subsections aren't re-flagged (DEC-021; see `drift-reconciliation.md § "Subsection-level drift narrowing"`).
+Run `python3 .claude/scripts/fingerprint.py --drift .claude` (read-only; JSON on stdout). It compares each task's `section_fingerprint` with the current hash of the section it names:
+- `unreconciled_sections` > 0 → Drift Reconciliation (after Step 1c). Tasks marked `subsection_unchanged` are shown as "likely unaffected", never dropped (DEC-021; `drift-reconciliation.md § "Subsection-level drift narrowing"`).
+- `unmigrated` non-empty → Task Migration (Drift Reconciliation step 2).
+- `unreadable` → report each file per the malformed-file rule above.
+- No script → apply the prose rules in `drift-reconciliation.md § "Spec Drift Detection"` (this reads every task JSON).
 
-**Script alternative:** `.claude/scripts/fingerprint.py --spec` / `--sections` for deterministic hashes when the orchestrator runs the drift check.
-
-**Spec index refresh (DEC-021):** while you have the full-spec fingerprint in hand, refresh the section index if stale — if `.claude/spec_v{N}.index.json` is missing or its `spec_fingerprint` ≠ the current full-spec hash, regenerate it: `python3 .claude/scripts/fingerprint.py --index .claude/spec_v{N}.md > .claude/spec_v{N}.index.json`. The index powers section-scoped spec reads (`rules/spec-workflow.md § "Section-scoped spec reading"`); it carries no task provenance, so this never affects drift reconciliation. Full rule: `drift-reconciliation.md § "Spec Index Freshness"`.
+**Spec index refresh (DEC-021):** if `.claude/spec_v{N}.index.json` is missing or its `spec_fingerprint` ≠ the drift JSON's `spec_fingerprint` (the current full-spec hash), regenerate it: `python3 .claude/scripts/fingerprint.py --index .claude/spec_v{N}.md > .claude/spec_v{N}.index.json`. The index powers section-scoped spec reads (`rules/spec-workflow.md § "Section-scoped spec reading"`); it carries no task provenance, so this never affects drift reconciliation. Full rule: `drift-reconciliation.md § "Spec Index Freshness"`.
 
 **Full procedure:** `.claude/support/reference/drift-reconciliation.md` § "Spec Drift Detection"
 
 ### Step 1c: Spec State Summary
 
-After drift detection completes (or was skipped by fast-path), output a brief status line:
+After drift detection completes, output a brief status line (`u` = the drift JSON's `unreconciled_sections`, `d` = active drift deferrals):
 
 ```
 If no tasks exist:
   "Spec: v{N} (draft) — no tasks yet"
 
-If tasks exist and spec is aligned:
+If tasks exist, u == 0 and d == 0:
   "Spec: v{N} (active) — aligned with tasks ✓"
   "Tasks: {total} total ({finished} finished, {in_progress} in progress, {pending} pending{, N on hold}{, N absorbed})"
 
-If tasks exist and spec has changed:
-  "Spec: v{N} (active) — {M} sections changed since decomposition"
+If tasks exist and u > 0 or d > 0:
+  "Spec: v{N} (active) — ⚠️ {u} changed spec section(s), {d} drift deferral(s)"
   "Tasks: {total} total ({finished} finished, {in_progress} in progress, {pending} pending{, N on hold}{, N absorbed})"
 
-If version transition detected (tasks reference older spec version):
+If the drift JSON's `unmigrated` list is non-empty (open tasks on an older spec version):
   "Spec: v{N} (draft) — new version, tasks reference v{N-1}"
   "Tasks: {total} total — migration needed (see below)"
 ```
 
+### Drift Reconciliation (if triggered)
+
+Runs after Step 1c and before Step 1d when Step 1b reports unreconciled drift or `unmigrated` tasks, or a deferral is over budget or expired. It can create actionable work (reset or re-verify), so Step 1d waits for it. Each check delegates to `drift-reconciliation.md`:
+
+1. **Substantial change detection** — evaluates change magnitude, may suggest version bump. § "Substantial Change Detection"
+2. **Task migration** (version transitions only) — migrates task provenance to new spec version, then re-runs `--drift`. § "Task Migration on Version Transition"
+3. **Drift budget enforcement** — checks deferred reconciliations against limits. § "Drift Budget Enforcement"
+4. **Granular reconciliation UI** — with 2+ drifted sections, a batch prompt first: `[E]` Go through each section | `[K]` Keep all (all-Finished sections only; a section with open tasks is marked and always gets its own prompt). Per section, Claude recommends one option and the user picks: `[A]` Apply (reset Finished tasks to Pending), `[V]` Re-verify (no rebuild), `[K]` Keep verification, `[R]` Review individually, `[S]` Skip (defer); `[A]` and `[V]` also update open tasks. Open tasks whose section left the spec go through `[D]`/`[O]`/`[R]` per task. § "Granular Reconciliation UI"
+
+**Post-reconciliation In Progress warning:** After reconciliation completes, check if any "In Progress" tasks had their section fingerprints updated. If so, warn:
+
+```
+⚠️ Task {id} "{title}" is In Progress but its spec section changed during reconciliation.
+  Review the task's partial work against the updated requirements before continuing.
+```
+
+**Then regenerate the dashboard** if any choice wrote a task file or `drift-deferrals.json` (Tier-1 trigger: drift reconciliation applied). `task_hash` covers neither fingerprints nor deferrals, so Step 1a can't catch it.
+
 ### Step 1d: Non-Actionable State Fast Path (auto-detect only)
 
-After Step 1c, check whether the project state has any Claude-actionable work. This avoids running the full analysis pipeline (Steps 2, 2b, 2c, 3) when there's nothing for Claude to do.
+After Step 1c and Drift Reconciliation, check whether the project state has any Claude-actionable work. This avoids running the full analysis pipeline (Steps 2, 2b, 2c, 3) when there's nothing for Claude to do.
+
+First run Step 2b's checkbox detection (§ "Required inline trigger — checkbox detection on every entry"), so a decision the user ticked since the last run is approved before the decision clause below counts it as unresolved. Step 2b's own scan still runs; it's idempotent.
 
 **Preconditions (all must be true):**
 - Auto-detect mode (no user request or task ID provided)
@@ -354,6 +294,7 @@ After Step 1c, check whether the project state has any Claude-actionable work. T
 - No tasks in `"In Progress"` status (active work exists)
 - No tasks in `"Awaiting Verification"` status (verification takes priority)
 - No unverified Finished tasks (verification debt takes priority)
+- No unreconciled spec drift (Drift Reconciliation, which now runs before Step 1d, leaves `unreconciled_sections` at 0)
 
 **Remaining tasks** = spec tasks where status NOT IN (`"Finished"`, `"Absorbed"`, `"Broken Down"`, `"In Progress"`)
 
@@ -361,77 +302,32 @@ After Step 1c, check whether the project state has any Claude-actionable work. T
 IF remaining_tasks is NOT empty
    AND every task in remaining_tasks satisfies at least one of:
      - owner == "human" (regardless of status)
-     - owner == "both" AND user_review_pending == true (Claude's half done, awaiting the user — FB-100)
      - status == "Blocked"
      - status == "On Hold"
+     - an unresolved decision dependency (a `decision_dependencies` entry
+       whose record is missing or has status `draft`/`proposed`)
    → FAST EXIT
 ```
 
-**`owner: "both"` and the fast path (FB-100):** a both-owned task is Claude-actionable while Claude's half is unstarted — it becomes non-actionable only once Claude's contribution is delivered and the task is waiting on the user, signalled by `user_review_pending == true` (set when verify-agent passes Claude's half, per the State Persistence Protocol). A both-owned task gated on a *physical-world prerequisite before Claude can act* should carry `status: "Blocked"` (e.g., a dependency on a human-owned setup task) or `"On Hold"` so it is caught by those clauses — do not leave it `Pending`, or the fast path will treat the project as having actionable work when it does not.
+A both-owned task counts as non-actionable only when Blocked, On Hold or waiting on a decision: once Claude's half is delivered it is Finished with `user_review_pending` and out of `remaining_tasks` (a stale flag on unfinished work doesn't count). One waiting on a physical-world prerequisite should be `Blocked` or `On Hold`, not `Pending` (FB-100).
 
 **Before presenting fast-exit output:** Verify dashboard freshness (same check as Step 5 item 4). If stale, regenerate first — the user may check the dashboard after seeing this message.
 
-**Fast-exit output by category:**
-
-All human-owned:
+**Fast-exit output:**
 ```
-No Claude-actionable work — {N} remaining tasks are human-owned.
+No Claude-actionable work — {N} remaining tasks{: X human-owned, Y blocked, Z on hold, W waiting on decisions}.
 
-Your next actions:
-- Task {id}: "{title}" — {brief description}
-- Task {id}: "{title}" — {brief description}
-
-Run `/work complete {id}` when done with a task.
+{For each category present, a heading and one line per task:}
+Your next actions:            - Task {id}: "{title}" — {brief description}
+Blockers:                     - Task {id}: "{title}" — {blocker from notes}
+On hold:                      - Task {id}: "{title}" — {reason from notes}
+Waiting on decisions:         - Task {id}: "{title}" — waiting on {DEC-ID} → /research {DEC-ID}
 ```
-
-All Blocked:
-```
-No Claude-actionable work — {N} remaining tasks are blocked.
-
-Blockers:
-- Task {id}: "{title}" — {blocker from notes}
-- Task {id}: "{title}" — {blocker from notes}
-
-Resolve the blockers above, then run `/work` to continue.
-```
-If any blocked task has `decision_dependencies`, suggest `/research {DEC-ID}`.
-
-All On Hold:
-```
-No Claude-actionable work — {N} remaining tasks are on hold.
-
-On hold:
-- Task {id}: "{title}" — {reason from notes}
-
-Resume a task by setting its status to "Pending", then run `/work`.
-```
-
-Mixed non-actionable:
-```
-No Claude-actionable work — {N} remaining tasks: {X} human-owned, {Y} blocked, {Z} on hold.
-
-{list by category, same format as above}
-```
+A task waiting on a decision is listed only under `Waiting on decisions:`. This matches Step 2c, which already keeps such tasks out of batches.
 
 After output, append 1-2 contextual command suggestions (see Contextual Command Suggestions below), then proceed to Step 5 (post-dispatch validation) — skip Steps 2, 2b, 2c, 3, and 4.
 
-If none of the fast-path conditions are met, proceed to Drift Reconciliation / Step 2 as normal.
-
-### Drift Reconciliation (if triggered)
-
-When Step 1b detects spec drift, the following checks run in sequence. Each delegates to `drift-reconciliation.md` for the full procedure:
-
-1. **Substantial change detection** — evaluates change magnitude, may suggest version bump. § "Substantial Change Detection"
-2. **Task migration** (version transitions only) — migrates task provenance to new spec version. § "Task Migration on Version Transition"
-3. **Drift budget enforcement** — checks deferred reconciliations against limits. § "Drift Budget Enforcement"
-4. **Granular reconciliation UI** — per-section options: `[A]` Apply, `[R]` Review, `[S]` Skip. § "Granular Reconciliation UI"
-
-**Post-reconciliation In Progress warning:** After reconciliation completes, check if any "In Progress" tasks had their section fingerprints updated. If so, warn:
-
-```
-⚠️ Task {id} "{title}" is In Progress but its spec section changed during reconciliation.
-  Review the task's partial work against the updated requirements before continuing.
-```
+If the fast-exit conditions aren't met, proceed to Step 2.
 
 ### Step 2: Spec Check (if request provided)
 
@@ -487,7 +383,7 @@ This step MUST run on every Step 2b invocation. It is the caller's responsibilit
 **When a decision blocks work**, present options including research:
 ```
 Decision {DEC-NNN}: "{title}" is unresolved and blocks Task {id}.
-  [R] Research options (spawns research-agent to investigate and populate the decision record)
+  [R] Research options (spawns research-agent to investigate; its findings populate the decision record)
   [S] Skip (you'll research manually — non-blocked tasks still dispatch normally)
 ```
 
@@ -500,7 +396,7 @@ Ambiguity detected: {description of the choice point}
 ```
 Claude must never resolve ambiguities autonomously. This applies during routing, spec checking, task dispatch, and any other step where Claude faces a choice the user hasn't explicitly decided.
 
-If user selects `[R]`: Gather context (decision record, spec, related tasks/decisions), then spawn research-agent. See `.claude/commands/research.md` Steps 2-4 for the delegation flow. After research completes, re-present the decision for user selection. If user selects via checkbox, auto-update frontmatter per the phase-decision-gates procedure and continue.
+If user selects `[R]`: if no decision record exists yet (e.g. a task's `decision_dependencies` names a DEC-NNN with no record file), first create one via `.claude/commands/research.md` Step 1's topic branch ("If a topic was provided"). Gather context (decision record, spec, related tasks/decisions), then spawn research-agent. See `.claude/commands/research.md` Steps 2-4 for the delegation flow. After research completes, re-present the decision for user selection. If user selects via checkbox, auto-update frontmatter per the phase-decision-gates procedure and continue.
 
 If all checks pass → proceed to Step 2c.
 
@@ -519,25 +415,15 @@ After phase and decision checks, assess whether multiple tasks can be dispatched
 2. Route to the "If Executing" section in Step 4
 3. Continue to Step 5 (validation)
 
-**If no request provided** (auto-detect mode):
+**If no request provided** (auto-detect mode), stop early for these states first:
 
-| Condition | Action |
-|-----------|--------|
-| No spec exists, no tasks | Stop — direct user to create a vision document in `.claude/vision/` and run `/iterate distill` |
-| No spec exists, tasks exist | **Stop and warn** — tasks without a spec cannot be verified. Options: `[S]` Create spec, `[M]` Mark all out-of-spec, `[X]` Stop. |
-| Spec incomplete | Stop — prompt user to complete spec |
-| Spec complete, no tasks | **Decompose** — read and follow `decomposition.md` |
-| Phase transition pending approval | **Stop** — direct user to approve phase gate in dashboard *(enforced by Step 2b)* |
-| Any spec task in "Awaiting Verification" | **Verify (per-task)** — see Step 4 |
-| Spec tasks pending, parallel batch >= 2 | **Execute (Parallel)** — see Step 4 |
-| Spec tasks pending, no parallel batch | **Execute** — see Step 4 |
-| All spec tasks "Finished" with passing verification, no valid phase verification result | **Verify (phase-level)** — see Step 4 |
-| Phase-level verification `"fail"` (fix tasks exist) | **Execute** — fix tasks need implementation |
-| All spec tasks finished, valid phase verification result | **Complete** — see Step 4 |
+- No spec, no tasks → direct the user to create a vision in `.claude/vision/` and run `/iterate distill`
+- No spec, tasks exist → **stop and warn** (tasks without a spec can't be verified): `[S]` Create spec | `[M]` Mark all out-of-spec | `[X]` Stop
+- Spec incomplete → prompt the user to complete it
+- Spec complete, no tasks → **Decompose** (Step 4)
+- Phase transition pending approval → stop; approve the gate (enforced by Step 2b)
 
-**Priority order matters.** Per-task verification takes priority over executing the next task.
-
-**CRITICAL: Verification enforcement.** Before routing to phase-level verification or completion, EVERY "Finished" spec task must have `task_verification.result == "pass"`. Never skip this check. This is structurally enforced — `/work`, `/health-check`, and the task schema all check this invariant. There is no way to bypass verification by marking tasks Finished directly.
+Otherwise route with the algorithm below. Per-task verification always outranks starting the next task, and no Finished task without a passing `task_verification` may reach phase-level verification or completion.
 
 **Explicit routing algorithm:**
 ```
@@ -574,31 +460,13 @@ After phase and decision checks, assess whether multiple tasks can be dispatched
    → Proceed to Step 5 (post-dispatch validation) — skip Step 4
 ```
 
-**Auto-continuation within phases:** After a task finishes (passes per-task verification), `/work` loops back to Step 3 to determine the next action — no user prompt, no pause. Each iteration starts with an inline announcement: `Moving to task {id}: "{title}"`. Before dispatching the next task, check if any human-owned or both-owned tasks just became unblocked — if so, mention them inline: `Note: Task {id} ("{title}") is now available for you — {brief description}`. This continues automatically until a natural stopping point: phase boundary (gate approval needed), blocking decision, verification failure requiring human escalation, or all remaining tasks non-actionable (human-owned, blocked, or on hold — see Step 1d). The value of front-loaded decomposition and structured verification is that work flows autonomously between these stops.
+**Auto-continuation within phases:** After a task finishes (passes per-task verification), `/work` loops back to Step 3 to determine the next action — no user prompt, no pause. Each iteration starts with an inline announcement: `Moving to task {id}: "{title}"`. Before dispatching the next task, check if any human-owned or both-owned tasks just became unblocked — if so, mention them inline: `Note: Task {id} ("{title}") is now available for you — {brief description}`. This continues automatically until a natural stopping point: phase boundary (gate approval needed), blocking decision, verification failure requiring human escalation, or all remaining tasks non-actionable (human-owned, blocked, on hold, or waiting on a decision — see Step 1d). The value of front-loaded decomposition and structured verification is that work flows autonomously between these stops.
 
-**Autonomous batch heartbeat (FB-081):** maintain an in-memory `autonomous_batch_position` counter, incremented by 1 on each sequential auto-continuation loop iteration. The counter resets to 0 on: (a) any natural stopping point (phase boundary, blocking decision, verification failure, all-tasks-non-actionable), (b) any user message arriving during the loop, (c) `/work` exit. Parallel-batch dispatches do NOT increment the counter (the user already approved at parallel pre-dispatch confirmation); only sequential auto-continuations increment.
-
-When `autonomous_batch_position >= 3`, replace the standard `Moving to task {id}: "{title}"` line with a heartbeat line:
-
-```
-[Auto-batch: task {position} of {batch_total} — {task_id}: "{title}"]
-```
-
-Where `batch_total` is the count of pending sequential tasks projected to dispatch in the current batch (computed from the routing-eligible task list at counter-start). Below `position >= 3`, use the standard `Moving to task` line. The counter is invocation-scoped — a new `/work` after `/work complete` starts fresh at 0.
-
-This is a Tier 2 inline message; do NOT write heartbeats to dashboard Recent Activity (heartbeats are progress signals, not state transitions — flooding Recent Activity would violate its 7-entry cap and chronological-pointer-not-narrative rule).
-
-See `.claude/rules/agents.md § "Behavioral Rules" — "Acknowledge mid-batch user messages"` for the complementary reactive rule that handles user pings during long autonomous batches.
+**Autonomous batch heartbeat (FB-081):** keep an in-memory `autonomous_batch_position`, +1 per sequential auto-continuation (parallel dispatches don't count); reset to 0 at any natural stopping point, any user message, or `/work` exit. At `>= 3`, replace the `Moving to task` line with `[Auto-batch: task {position} of {batch_total} — {task_id}: "{title}"]` (`batch_total` = sequential tasks projected for this batch). Heartbeats are inline only, never dashboard entries. For user messages mid-batch see `rules/agents.md § "Behavioral Rules"`.
 
 **Important — spec tasks vs out-of-spec tasks:** Phase routing is based on spec tasks only (excluding `out_of_spec: true`). Out-of-spec tasks are excluded from **phase detection** (determining whether a phase is complete, triggering phase-level verification, or reaching project completion) to prevent a verify → execute → verify infinite loop. However, out-of-spec tasks still run the **full implement → verify cycle** — they are not exempt from per-task verification. The structural invariant applies universally: no task (spec or out-of-spec) can reach "Finished" without `task_verification.result == "pass"`.
 
-**Out-of-spec task handling:** After phase routing completes (or at phase boundaries), check for pending out-of-spec tasks: `[A]` Accept (sets `out_of_spec_approved: true`), `[R]` Reject, `[D]` Defer, `[AA]` Accept all. Never auto-execute out-of-spec tasks. Accepted out-of-spec tasks are routed to implement-agent → verify-agent like any other task.
-
-**Reject behavior (`[R]`):**
-1. Prompt for optional rejection reason
-2. Set `out_of_spec_rejected: true` and `rejection_reason` (if provided) on task JSON
-3. Move task file to `.claude/tasks/archive/`
-4. Task preserved for audit trail but excluded from active processing and dashboard
+**Out-of-spec tasks:** after phase routing (or at phase boundaries), if out-of-spec tasks are pending approval, read `.claude/support/reference/work-user-flows.md § "Out-of-Spec Task Approval"` and follow it. Never auto-execute them.
 
 ### Contextual Command Suggestions
 
@@ -626,26 +494,7 @@ Rules:
 
 ### Interaction Mode Selection
 
-When a task involves human action (owner `"human"` or `"both"`, or `user_review_pending`), Claude should select the interaction channel that minimizes friction. This is a judgment call, not a rigid rule.
-
-| Factor | Dashboard-mediated | CLI-direct |
-|--------|-------------------|------------|
-| Timing | User will do it later (async) | User should do it now (synchronous) |
-| Duration | Extended (reading docs, thinking through decisions) | Quick (run a command, confirm output, yes/no) |
-| Terminal needed? | No | Yes — commands to run, output to check |
-| Multiple items | Batch of unrelated items | Single focused task |
-| Interaction type | Passive review (read, think, decide) | Active testing (run, observe, respond) |
-
-**Scenario examples:**
-- Test a CLI/TUI → `cli_direct` (run commands, observe output)
-- Test a web UI → `cli_direct` (Playwright screenshots, visual confirmation)
-- Review a long document → `dashboard` (user needs reading time)
-- Make a design decision → `dashboard` (user weighs options)
-- Configure API keys → `cli_direct` (Claude guides step by step)
-- Phase gate approval → `dashboard` (user reviews overall progress)
-- Quick confirmation → `cli_direct` (2-second yes/no)
-
-The `interaction_hint` is set by verify-agent during Step T4b/T7. `/work` respects the hint but users can always override by using `/work complete {id}` from the dashboard flow.
+When a task needs the user (owner `human`/`both`, or `user_review_pending`), choose the channel: dashboard for async, extended, or passive review; CLI-direct for quick, synchronous, hands-on testing. Criteria and the guided-testing flows: `.claude/support/reference/work-user-flows.md`.
 
 ### Step 4: Execute Action
 
@@ -678,31 +527,15 @@ The orchestrator owns ALL `.claude/` state transitions — agents cannot write t
 
 **Before dispatch:** orchestrator sets task JSON to `{"status": "In Progress", "updated_date": today}`.
 
-**Resume-pending check (per DEC-010):** if the selected task JSON has a `partial_completion` field from a previous dispatch:
+**Resume-pending check (DEC-010):** if the task JSON has a `partial_completion` field, read `.claude/support/reference/work-recovery.md § "Resume-Pending Dispatch"` and follow it (git-diff audit, envelope injection, clearing the field afterwards) as part of this dispatch.
 
-1. Read the envelope's `completed_subtargets`, `remaining_subtargets`, `resume_instructions`, `confidence`
-2. Run a git-diff audit on the task's declared `files_affected`:
-   - `git diff --name-only` (combined with `--cached` if needed)
-   - If files in `files_affected` show no diff since the partial dispatch, surface inline: `⚠ Task {id} resume: declared-completed sub-targets show no file changes since partial. Audit may have rolled back. Continue? [Y/N]`
-   - If files outside `files_affected` show diffs, surface inline: `⚠ Task {id} resume: {N} files modified since partial — review before resuming.`
-3. When `confidence: low`, surface: `⚠ Task {id} resume: previous dispatch flagged low confidence in partial state. Spot-check before continuing.`
-4. Inject the envelope content into the dispatch prompt for the re-dispatched implement-agent:
-   ```
-   RESUME-PENDING TASK. Previously completed sub-targets: {completed_subtargets}.
-   Remaining sub-targets: {remaining_subtargets}.
-   Resume instructions from previous dispatch: {resume_instructions}.
-   Confidence in prior state: {confidence}.
-   Before continuing, spot-check that the declared completed sub-targets are
-   actually present in the deliverable. If any are missing, treat them as
-   remaining_subtargets instead.
-   ```
-5. **After re-dispatch returns** `completed` or a fresh `partial_resume_pending`: clear the `partial_completion` field from the task JSON. (For fresh `partial_resume_pending`, the new envelope replaces the old.)
-
-Dispatch implement-agent (Task tool; set `model` per `.claude/CLAUDE.md § Model Requirement`) instructing it to read `.claude/agents/implement-agent.md` and follow Steps 1-6. Agent returns a structured report. **The dispatch prompt must state the envelope contract explicitly** — include: *"Return ONLY the structured JSON report envelope from `implement-agent.md § Step 6` — raw JSON, no prose summary, no markdown fences."* (Persona-via-prompt alone does not reliably transmit the output contract; a prose return was observed downstream.)
+Dispatch implement-agent (Agent tool; set `model` per `.claude/CLAUDE.md § Model Requirement`) instructing it to read `.claude/agents/implement-agent.md` and follow Steps 1-6. Agent returns a structured report. **The dispatch prompt must state the envelope contract explicitly** — include: *"Return ONLY the structured JSON report envelope from `implement-agent.md § Step 6` — raw JSON, no prose summary, no markdown fences."* (Persona-via-prompt alone does not reliably transmit the output contract; a prose return was observed downstream.)
 
 **After agent returns:** apply "After implement-agent returns" from State Persistence Protocol. Then, if `implementation_status == "completed"`, dispatch verify-agent per "If Verifying (Per-Task)" and apply "After verify-agent returns" protocol.
 
-**Context to provide:** Current task, relevant spec sections, constraints/notes, and an explicit instruction that the agent must not attempt writes to `.claude/` — return the structured report only.
+**Inline implementation (small tasks):** for a task you can finish in a handful of tool calls, you may implement it yourself instead of dispatching implement-agent, following the inline contract in `.claude/rules/agents.md § "Dispatch Invariants vs Efficiency Defaults"` (`[INLINE]` notes, existing checks, before/after behaviour for behaviour-changing edits). Verify-agent dispatch is **not** optional for inline work — set Awaiting Verification and continue with "If Verifying (Per-Task)".
+
+**Context to provide:** Current task, relevant spec sections, constraints/notes, and an explicit instruction that the agent must not attempt writes to `.claude/` — return the structured report only. If the task's notes contain a scope note newer than its `files_affected`, pass the scope note as the authority and say so. Present `files_affected` as the expected scope, not a write limit: the agent searches for what the change invalidates and may edit other files it requires, reporting them (FB-113; `implement-agent.md` Step 2).
 
 **Inline status update (tier 2):** announce `Starting task {id}: "{title}"` when dispatching and a pass/fail summary after verify-agent completes. Dashboard regen deferred to next strategic moment (session boundary, parallel batch end, or async routing to dashboard).
 
@@ -722,13 +555,12 @@ When Step 2c produces a parallel batch of >= 2 tasks, execute them concurrently.
 
 #### If Verifying (Per-Task)
 
-**You must spawn verify-agent as a separate agent. Do not verify inline.**
+**You must spawn verify-agent as a separate agent. Do not verify inline.** This holds for tasks you implemented inline too, and if you cannot dispatch a subagent, the task stays in Awaiting Verification (`rules/agents.md § "Dispatch Invariants vs Efficiency Defaults"`).
 
 ```
-Task tool call:
+Agent tool call:
   subagent_type: "general-purpose"
-  model: "opus[1m]"  # canonical value: .claude/CLAUDE.md § Model Requirement
-  max_turns: 30
+  model: "opus"  # canonical value: .claude/CLAUDE.md § Model Requirement
   description: "Verify task {id}"
   prompt: |
     You are the verify-agent. Read `.claude/agents/verify-agent.md` and follow
@@ -738,92 +570,34 @@ Task tool call:
     Spec file: .claude/spec_v{N}.md (section: "{spec_section}")
 
     Verify the implementation independently. Do NOT assume correctness.
+    {If the task carries `drift_reverify`: "Re-verification after a spec edit: the
+     implementation is unchanged; check it against the current section text."}
+    Turn budget: about 30 tool calls. If you get close, follow verify-agent.md § Turn Budget Protocol (result "fail", unfinished checks "skipped").
     Return ONLY the structured JSON verification report (verify-agent.md
     per-task report schema) — raw JSON, no prose summary, no markdown fences.
 ```
 
-**Timeout handling:** If verify-agent exhausts `max_turns` without returning a valid report, treat as verification failure — per State Persistence Protocol, increment `verification_attempts`, set task to "Blocked" with `[VERIFICATION TIMEOUT]` note, report to user.
+**Timeout handling:** If verify-agent returns without a valid report (prose instead of the report schema, malformed JSON, or nothing usable), ask it once for the report — resume it with SendMessage, or re-dispatch — without incrementing `verification_attempts`. Only a second invalid return is a timeout: treat as verification failure — per State Persistence Protocol, increment `verification_attempts`, set task to "Blocked" with `[VERIFICATION TIMEOUT]` note, report to user. **Infrastructure terminations are interruptions, not timeouts (FB-120):** after a zero-token return, a usage-limit/HTTP 429 kill, an API or harness error, or a stop the user asked for, do NOT increment `verification_attempts` (same rule as an interrupted verifier at `/work pause`); the task stays Awaiting Verification. Per `work-procedures.md § "State Persistence Protocol"` → "After implement-agent returns" step 1, "Zero-token return — platform limit cutoff (FB-103)", report the interruption to the user and apply its post-limit dispatch rule before re-dispatching a fresh verify-agent.
 
-**Empirical Evidence Gate (before persisting a pass):** when `report.result == "pass"` AND the task's output is a web-UI route/component in a project with a web framework (same applies-when detection as `/audit-ui`) AND `checks.runtime_validation` is `"partial"` — or `"pass"` reached without browser measurement — run the evidence step at orchestrator level BEFORE applying the persistence protocol:
-
-1. Ensure Playwright MCP tools are loaded (ToolSearch if absent) and a dev server is available (starting one for verification is sanctioned; respect-prior-kills applies).
-2. Execute `report.empirical_assertions[]` (named by verify-agent per `verify-agent.md § Step T4b` item 5; if absent, default to HTTP status + console-error scan per affected route). Use `browser_evaluate` targeted queries — never full-tree snapshots on long pages.
-3. **Client-bundle check (FB-076 mitigation 1):** if the task touched client-marked files (`'use client'` or framework equivalent) and root `./CLAUDE.md` declares a build command (§ Verification Hooks), run the production build; record as a `build`-type evidence entry.
-4. Record each outcome into `task_verification.evidence[]` (schema: `task-schema.md § "Evidence Sub-field"`).
-5. Any failing assertion → treat the verification as `fail`: route through the normal fail path with the failing evidence appended to `issues[]`. All passing → proceed to the persistence protocol with `evidence[]` included.
-
-Non-web tasks, projects without a web framework, and `runtime_validation: "not_applicable"` tasks skip this gate entirely — zero change for non-software domains.
+**Empirical Evidence Gate:** if `report.result == "pass"` and the task's output is a web-UI route/component in a web-framework project, and `checks.runtime_validation` is `"partial"` (or `"pass"` without browser measurement), read `.claude/support/reference/work-web-evidence.md § "Empirical Evidence Gate"` and run it **before** persisting the pass. Non-web tasks skip it.
 
 **After per-task verification completes:** verify-agent returns a structured per-task report. Run the Empirical Evidence Gate above when it applies, then apply "After verify-agent returns (per-task mode)" from State Persistence Protocol.
 
 **Auto-continuation:** after the orchestrator persists verification state:
-- **Pass**: announce inline `Task {id} verified`. If `report.user_review_pending == true`, check `interaction_hint` for routing (see below). Before looping, check if any human-owned or both-owned tasks just became unblocked by this completion — if so, surface them inline: `Note: Task {id} ("{title}") is now available for you — {brief description}`. Then loop back to Step 3 (auto-continuation). Dashboard regen deferred to next strategic moment.
+- **Pass**: announce inline `Task {id} verified`. If `report.user_review_pending == true`, route per `work-user-flows.md § "After a Per-Task Pass with user_review_pending"`. Before looping, check if any human-owned or both-owned tasks just became unblocked by this completion — if so, surface them inline: `Note: Task {id} ("{title}") is now available for you — {brief description}`. Then loop back to Step 3 (auto-continuation). Dashboard regen deferred to next strategic moment.
 - **Fail (retry)**: announce inline `Task {id} verification failed: {summary} — routing back to implement-agent`. Task was set back to "In Progress" by the protocol. Route to implement-agent to fix, then re-verify. No dashboard regen needed (Claude is fixing it immediately).
 - **Fail (escalated)**: announce inline `Task {id} verification escalated after 3 attempts`. Stop auto-continuation; report to user.
-
-**Interaction mode routing (after per-task verification pass):**
-
-When a task passes verification and has `user_review_pending: true` (set for `owner: "both"` tasks AND any task with a `test_protocol`), check for an `interaction_hint` field:
-
-| `interaction_hint` | Routing |
-|--------------------|---------|
-| `"cli_direct"` | Present the task for guided testing or confirmation directly in the CLI conversation (see Guided Testing Flow below). Do NOT wait for the user to discover it in the dashboard. |
-| `"dashboard"` or absent | Existing flow — task appears in dashboard "Your Tasks" / "Action Required". User reviews asynchronously. |
-
-**Guided Testing Flow (CLI-direct with test_protocol):**
-
-When a task has `interaction_hint: "cli_direct"` AND a `test_protocol`, present the testing flow immediately:
-
-```
-Task {id}: "{title}" — guided testing ({estimated_time})
-
-{automated_results}
-
-Step 1/{N}: {instruction}
-  Expected: {expected}
-  [R] Run command  [S] Skip  [P] Pass  [F] Fail
-  (Available options depend on step type — "command" shows [R], others show [P]/[F])
-
-Step 2/{N}: {instruction}
-  Expected: {expected}
-  [P] Pass  [S] Skip  [F] Fail
-
-Guided testing complete: {passed}/{total} passed
-```
-
-**Step type handling:**
-- `"command"` steps: Offer `[R]` Run — execute the command via Bash and show output. Then ask `[P]` Pass / `[F]` Fail based on the output.
-- `"interactive"` steps: Show instruction and expected result. User tests manually, then signals `[P]` Pass / `[F]` Fail.
-- `"visual"` steps: If a screenshot is available (e.g., from Playwright), show it. Otherwise, show instruction. User confirms `[P]` Pass / `[F]` Fail.
-
-**After guided testing:**
-- All steps passed or skipped → clear `user_review_pending`, continue auto-continuation
-- Any step failed → record failure in task's `user_feedback` field, set task back to "In Progress" for fixes, route to implement-agent
-- User can also provide freeform feedback at the end of the guided testing flow
-
-**CLI-direct without test_protocol:**
-
-When a task has `interaction_hint: "cli_direct"` but NO `test_protocol` (e.g., a quick confirmation), present the task inline:
-
-```
-Task {id}: "{title}" — ready for your review
-
-{task description / notes summary}
-
-[C] Complete  [F] Needs fixes (provide feedback)
-```
 
 #### If Verifying (Phase-Level)
 
 **You must use the verify-agent phase-level workflow. Do not verify directly.**
 
-**MANDATORY: Reconciliation Gate** — Before starting phase-level verification, ALL drift must be reconciled. Check `drift-deferrals.json`; if any deferrals exist, block verification until reconciled.
+**MANDATORY: Reconciliation Gate** — Before starting phase-level verification, ALL drift must be reconciled. Re-run `python3 .claude/scripts/fingerprint.py --drift .claude` (a spec edited mid-session would otherwise slip past) and check `drift-deferrals.json`; if `unreconciled_sections` > 0 or any deferral exists, block verification until reconciled (§ "Drift Reconciliation").
 
 ```
-Task tool call:
+Agent tool call:
   subagent_type: "general-purpose"
-  model: "opus[1m]"  # canonical value: .claude/CLAUDE.md § Model Requirement
-  max_turns: 50
+  model: "opus"  # canonical value: .claude/CLAUDE.md § Model Requirement
   description: "Phase-level verification"
   prompt: |
     ultrathink
@@ -836,13 +610,14 @@ Task tool call:
 
     Validate the full implementation against spec acceptance criteria.
     Create fix tasks for any issues found. Do NOT implement fixes yourself.
+    Turn budget: about 50 tool calls. If you get close, follow verify-agent.md § Turn Budget Protocol (result "fail", plus one "Complete phase-level verification" fix task).
     Return ONLY the structured JSON phase-level report (verify-agent.md
     phase-level schema) — raw JSON, no prose summary, no markdown fences.
 ```
 
 **After phase-level verification completes:** verify-agent returns a structured phase-level report. Apply "After verify-agent returns (phase-level mode)" from State Persistence Protocol.
 
-**Phase UI smoke (orchestrator-level, web projects only):** before acting on a phase-level `pass`, if any task in the phase touched web-UI routes/components (same applies-when detection as `/audit-ui`), run one lite pass over the affected routes: navigate each, assert HTTP status, scan console errors, and re-check that the phase's accumulated `task_verification.evidence[]` assertions still hold (`browser_evaluate` targeted queries; load Playwright tools via ToolSearch if absent). Failures create fix tasks exactly like phase-level verification failures — loop to Execute. For depth beyond the smoke (visual quality, IA, affordances), suggest `/audit-ui`; this gate is the in-loop minimum, not a replacement. Non-web projects skip.
+**Phase UI smoke:** before acting on a phase-level `pass`, if any task in the phase touched web-UI routes/components, read `.claude/support/reference/work-web-evidence.md § "Phase UI Smoke"` and run it; failures create fix tasks. Non-web projects skip.
 
 | Result | Action |
 |--------|--------|
@@ -873,7 +648,7 @@ Run quick validation after task dispatch to catch issues early:
 1. **Task file integrity** — Verify the task JSON that was just modified is valid JSON and parseable
 2. **Dashboard exists** — Confirm `.claude/dashboard.html` exists and has a `<!-- DASHBOARD META -->` comment in its `<head>`
 3. **Session sentinel** — Write `.claude/tasks/.last-clean-exit.json` with current timestamp and in-progress task list (enables fast-path recovery check on next `/work` run)
-4. **Session boundary dashboard freshness** — When the main work loop has reached a natural stopping point (phase boundary, blocking decision, verification failure needing human escalation, or no more eligible tasks), verify dashboard freshness against actual task state. Compute a hash of all task IDs/statuses/owners and compare against the `<!-- DASHBOARD META -->` block. If stale, regenerate now — the user should never see a stale dashboard as the final state of a work session.
+4. **Session boundary dashboard freshness** — When the main work loop has reached a natural stopping point (phase boundary, blocking decision, verification failure needing human escalation, or no more eligible tasks), verify dashboard freshness against actual task state: recompute `task_hash` (`dashboard-render.py --task-hash`) and compare against the `<!-- DASHBOARD META -->` block; META `spec_fingerprint` ≠ the current spec hash also means stale (Step 1a). If stale, regenerate now — the user should never see a stale dashboard as the final state of a work session.
 
 For full maintenance validation (schema checks, decision integrity, template sync), use `/health-check`.
 
@@ -889,30 +664,7 @@ For full maintenance validation (schema checks, decision integrity, template syn
 
 ## Output
 
-Reports:
-- Current phase and what was done
-- Any spec misalignments surfaced
-- Next steps or blockers
-
-## Examples
-
-```
-# Auto-detect and continue work
-/work
-
-# Work on specific task
-/work 5
-
-# Handle ad-hoc request (gets spec-checked)
-/work "Add rate limiting to the API"
-
-# Complete the current in-progress task
-/work complete
-
-# Complete a specific task
-/work complete 5
-
-```
+Report the current phase and what was done, any spec misalignments surfaced, and next steps or blockers.
 
 ---
 
@@ -940,9 +692,9 @@ Read `.claude/support/reference/context-transitions.md` and follow the Path A (U
 - Do NOT increment `verification_attempts` if verify-agent was interrupted
 - Do NOT skip the handoff file — that's the whole point
 - `session_knowledge` captures what would otherwise be lost: user preferences, informal decisions, discovered patterns
-- **Open-question sweep (human-gated coverage):** before writing the handoff, enumerate every question asked of the user this session that went unanswered, plus any newly user-gated items (tasks put On Hold, unblocked `owner: "human"` tasks, unresolved decisions). Each MUST land in the dashboard's 🚨 Action Required ("Needs you") card with the concrete question inline — regenerate `dashboard.html` so the card is complete. The handoff may point at those items; it must never be a blocking question's only home. (Counterpart: Step 0g prints this queue at the next session start.)
-- **New spec sections (FB-106):** if `/iterate` added a new `## ` section this session that no task references, confirm its heading is in `pending_decomposition[]` in `.claude/dashboard-state.json` (`/iterate`'s post-apply step writes it). Regenerating at pause is then safe — Step 1a consumes the marker ahead of the fast path, so the decomposition offer survives the refreshed `spec_fingerprint`. If the marker is somehow absent and you cannot add it, fall back to the pre-v5.4.0 rule: skip the regen, print blocking items inline, and flag the undecomposed section in the handoff.
+- **Open-question sweep (human-gated coverage):** before writing the handoff, enumerate every question asked of the user this session that went unanswered, plus any newly user-gated items (tasks put On Hold, Blocked on the user or flagged for review, unblocked `owner: "human"` tasks, unresolved decisions). Each MUST land in the dashboard's 🚨 Action Required ("Needs you") card with the concrete question inline: the script derives task and decision rows; write each unanswered question (and any Blocked task's open choice) to sidecar `augment_rows[]`, prune answered ones, then regenerate `dashboard.html` — never edit the HTML (`dashboard-regeneration.md § "Augment Rows"`). The handoff may point at those items; it must never be a blocking question's only home. (Counterpart: Step 0g prints this queue at the next session start.)
+- **New spec sections (FB-106):** if `/iterate` added a new `## ` section this session that no task references, confirm its heading is in `pending_decomposition[]` in `.claude/dashboard-state.json` (`/iterate`'s post-apply step writes it). Regenerating at pause is then safe: Step 1a reads the marker before anything else, so the decomposition offer survives the regen. If the marker is somehow absent and you cannot add it, fall back to the pre-v5.4.0 rule: skip the regen, print blocking items inline, and flag the undecomposed section in the handoff.
 
 ### Interaction Assessment + Session Export (Track 2 — Cross-Project Logging)
 
-After the handoff file is written, complete the pause: generate the interaction assessment (`.interaction-assessment.json`), compile the session export (`.session-export-YYYY-MM-DD-HHMM.json`; copy to `template_inbox_path` when configured), then clean up the working files. **Procedure + schemas: `context-transitions.md § "Pause Follow-Through (Track 2 — Cross-Project Logging)"`** — the same file the pause procedure above already directs you to read; do not improvise the export shape from memory. Interrupted-pause recovery is Step 0f's job (FB-089); if the PreCompact hook fires instead of `/work pause`, it compiles a markers-only export on its own.
+After the handoff file is written, complete the pause: generate the interaction assessment (`.interaction-assessment.json`), compile the session export (`.session-export-YYYY-MM-DD-HHMM.json`; copy to `template_inbox_path` when configured), then clean up the working files. **Procedure + schemas: `context-transitions.md § "Pause Follow-Through (Track 2 — Cross-Project Logging)"`** — the same file the pause procedure above already directs you to read; do not improvise the export shape from memory. **The inbox copy (Session Export step 6) is mechanized (FB-109): invoke `python3 .claude/scripts/persist-session-export.py --source <export-path>` — never `cp` the dot-prefixed working filename to the inbox verbatim; the script enforces the never-dot-prefixed rename structurally.** Interrupted-pause recovery is Step 0f's job (FB-089); if the PreCompact hook fires instead of `/work pause`, it compiles a markers-only export on its own.

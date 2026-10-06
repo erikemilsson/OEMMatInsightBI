@@ -4,11 +4,11 @@ Environment instructions for Claude Code. This file is template-owned — do not
 
 ## Model Requirement
 
-This environment targets the **current Claude Opus tier** via the floating `opus[1m]` alias (float ratified 2026-06-11 per FB-096 sub-issue B; originally designed and validated on Opus 4.7). All agents (implement-agent, verify-agent, research-agent) run on the Opus tier.
+This environment targets the **current Claude Opus tier** via the floating `opus[1m]` alias for the main session (float ratified 2026-06-11 per FB-096 sub-issue B; originally designed and validated on Opus 4.7; `opus` resolves to Opus 5.5 as of 2026-09). All agents (implement-agent, verify-agent, research-agent) run on the Opus tier.
 
-**Canonical dispatch value** (single source — dispatch sites and agent files cite this section rather than restating it): `Task` dispatches set `model: "opus[1m]"`. The alias floats with the latest Opus release by design. **Regression escape hatch:** if agent regressions appear after an Opus release, pin dispatches to the last-known-good explicit model ID via a deliberate template change (full model IDs are accepted — docs-verified 2026-06-11, see `support/reference/claude-code-authoring.md § "Agent tool model parameter granularity"`) and record the pin + reason here.
+**Canonical dispatch value** (single source — dispatch sites and agent files cite this section rather than restating it): `Agent` dispatches set `model: "opus"` (`model` takes only `sonnet | opus | haiku | fable`; `opus` floats with the latest Opus and inherits the main session's exact Opus model, `[1m]` included — see the authoring doc cited below). **Regression escape hatch:** if agent regressions appear after an Opus release, pin every subagent to the last-known-good full model ID with `CLAUDE_CODE_SUBAGENT_MODEL=<ID>` plus `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` in `env` — `.claude/settings.json` for a template-wide pin (it syncs to every project), `.claude/settings.local.json` for one project (Claude Code v2.1.257+; see `support/reference/claude-code-authoring.md § "Agent tool model parameter granularity"`), and record the pin + reason here. For the main session, `[1m]` is redundant on Opus 4.7 and later (native 1M window on the Anthropic API) but still selects the 1M window on older Opus models and some gateway or third-party-provider setups.
 
-**Output token constraint:** Claude Code caps output at 32K tokens per response (thinking + text + tool arguments share this budget). Agents should avoid writing large artifacts and reasoning deeply in the same response.
+**Output token constraint:** each response has an output cap that thinking, text, and tool arguments share. The cap depends on the model: Claude Code sets it per model (the API maximum for Opus 5.5 is 128K), `CLAUDE_CODE_MAX_OUTPUT_TOKENS` overrides it, and model IDs Claude Code doesn't recognize (e.g. gateway names) fall back to 32K. Deep reasoning and a very large artifact in one response can still collide, so write large artifacts in their own response.
 
 **Context budget:** 1M is headroom, not license. Keep agent context minimal — fewer, more accurate tokens produce higher-quality output. Prefer targeted reads, focused plans, and subagent delegation over broad context dumps.
 
@@ -87,7 +87,7 @@ This environment is domain-agnostic — it works for software, research, procure
 
 ## Workflow Rules
 
-Rules files are loaded via explicit imports (Claude Code auto-reads `@path` references in CLAUDE.md):
+Claude Code loads every `.claude/rules/*.md` without `paths:` frontmatter at launch; the imports below list those seven:
 
 @.claude/rules/task-management.md
 @.claude/rules/spec-workflow.md
@@ -105,7 +105,7 @@ Summary of each:
 - `agents.md` — agent separation, tool preferences, model requirement (MCP patterns + cross-project capture protocol live in lazy reference docs; the stubs inside say when to read them)
 - `archiving.md` — file placement, archive locations, credentials
 - `session-management.md` — ending sessions, persistence mechanisms, plans, context survival (user-facing session ops: `.claude/README.md § "Session Operations"`)
-- `feature-retirement.md` — **lazy, NOT auto-loaded:** before retiring or restoring ANY feature, READ `.claude/rules/feature-retirement.md` first (snapshot, manifest, spec annotation, restore path)
+- `feature-retirement.md` — **path-scoped, not loaded at launch:** its `paths:` frontmatter loads it only when a file under `.claude/support/retired/` is read or edited (Read, Write or Edit tool). Before retiring or restoring ANY feature, READ `.claude/rules/feature-retirement.md` first (snapshot, manifest, spec annotation, restore path)
 
 ## Glossary
 
