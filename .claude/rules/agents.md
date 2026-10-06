@@ -105,7 +105,7 @@ Prefer the harness's dedicated file tools (Read, Edit, Write; Glob and Grep wher
 
 Subagents cannot write to `.claude/` paths and don't inherit parent `permissions.allow` rules; when an agent's workflow describes a state transition, it means "include in the return report", and the orchestrator writes it. Nested dispatch is platform-supported (three levels by default) but the template doesn't use it: the orchestrator performs all dispatch, for portability and because state writes still flow through the orchestrator.
 
-**Scripts under `.claude/scripts/`** are deterministic, read-only-by-default helpers the orchestrator runs via Bash (contract: `.claude/scripts/README.md`; `settings.json` allows `python3 .claude/scripts/*.py` without prompting). Subagents don't run them. A script is an advisory alternative to its matching prose procedure; without it, the prose still works. Tests: `python3 -m unittest discover .claude/scripts/tests/`.
+**Scripts under `.claude/scripts/`** are deterministic, read-only-by-default helpers the orchestrator runs via Bash (contract: `.claude/scripts/README.md`; `settings.json` allows `python3 .claude/scripts/*.py` without prompting, except `sync-apply.py`, the template-sync writer, which asks). Subagents don't run them. A script is an advisory alternative to its matching prose procedure; without it, the prose still works. Tests: `python3 -m unittest discover .claude/scripts/tests/`.
 
 ## Negative Findings Require a Positive Control
 

@@ -17,7 +17,8 @@
       "Edit(.claude/support/decisions/decision-*.md)",
       "Write(.claude/support/decisions/decision-*.md)",
       "Edit(.claude/vision/**/*.md)",
-      "Write(.claude/vision/**/*.md)"
+      "Write(.claude/vision/**/*.md)",
+      "Bash(python3 .claude/scripts/sync-apply.py:*)"
     ]
   }
 }

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Template-sync check for /health-check Part 5 (FB-126): retired sync patterns,
-retired template files, and synced files left uncommitted.
+"""Template-sync check for /health-check Part 5 (FB-126, FB-136): per-file
+classification against the template's blob history, retired sync patterns, retired
+template files, stale local manifest lists, and synced files left uncommitted.
 
 Mirrors .claude/commands/health-check.md Part 5 Step 2 (and its prose fallback).
 Any change to the rules here MUST be mirrored there, and vice versa
@@ -25,13 +26,42 @@ Output: one JSON object on stdout (indent=2); every key is always present.
                           their path, not only REF's (an earlier sync, left uncommitted
                           while the template moved on); deletions of retired files;
                           plus version.json and sync-manifest.json when changed
+  history_complete        false when REF's history in TEMPLATE_REPO is cut short: a commit
+                          listed in the repository's `shallow` file is reachable from REF
+                          (history may not place an older copy; only then is the sidecar
+                          read as the fallback)
+  files                   one entry per compare-set file: a regular-file blob at REF that
+                          matches `compare` and that upstream `sync` names exactly or no
+                          upstream customize/ignore pattern matches. Sorted by path.
+    status                up_to_date    = the path's blob at REF
+                          template_copy = an older template version of the path
+                                          (basis "history"), or, only when history_complete
+                                          is false, the content the sync-state sidecar
+                                          recorded (basis "sidecar"): no local edits
+                          modified      = matches no template version, or the local path
+                                          is not a regular file
+                          new           = absent locally
+    mode, mode_matches    "100644"/"100755" at REF; whether the local owner-execute bit
+                          agrees (null for new and non-regular paths)
+    version, basis        template_copy only: the template_version that introduced that
+                          content (history; null when unavailable), and "history"/"sidecar"
+    shared_lines          modified regular files only: share (0..1, 2 decimals) of the
+                          local non-blank lines, whitespace-stripped, found in any
+                          template version of the path; null when it has no such line
+  manifest.<cat>          for customize and ignore: `add` = upstream entries the local
+                          list lacks; `drop` = local entries the template once listed
+                          there (or now lists in another category); `list` = upstream
+                          entries followed by the project's own
+  sidecar                 .claude/.sync-state.json: exists; gitignored and tracked in the
+                          project repo (null when the project is not a git work tree)
 Globs: `**` matches any characters including `/`, `*` any except `/`, `?` one
 character except `/`; every other character is literal. An exact `sync` entry beats
 customize/ignore globs (amendment A1): upstream `sync` for uncommitted_sync, the
 manifest at the deleting commit's parent for retired_files. A wildcard never does.
 
 Read-only: never writes files, never fetches. Git runs with GIT_OPTIONAL_LOCKS=0,
-so `git status` doesn't refresh the index.
+so `git status` doesn't refresh the index. sync-apply.py is the writer; it imports
+check() from this file.
 
 Exit codes: 0 success, findings or none; 2 usage/runtime error (no .claude/ under
 --project, --template-repo not a git repository, --ref not a commit, no parseable
@@ -39,6 +69,7 @@ Exit codes: 0 success, findings or none; 2 usage/runtime error (no .claude/ unde
 """
 import argparse
 import functools
+import hashlib
 import json
 import os
 import re
@@ -59,6 +90,10 @@ PRUNE_NAMES = {".git", "node_modules", "__pycache__"}  # pruned at any depth
 PRUNE_PATHS = {".claude/worktrees"}  # project-root-relative
 WARN_LOCAL_MANIFEST = "local sync-manifest.json missing or unreadable; local patterns treated as empty"
 WARN_NOT_GIT = "project is not a git work tree; uncommitted_sync skipped"
+WARN_SHALLOW = ("template history is shallow; files it cannot place are classified from the "
+                "sync-state sidecar")
+WARN_SIDECAR = "sync-state sidecar unreadable; ignored"
+SIDECAR = ".claude/.sync-state.json"
 # `git log` with the user config that would change its output pinned to the defaults
 # the parsers below expect.
 LOG = ("-c", "log.follow=false", "-c", "log.showSignature=false", "-c", "log.showRoot=true",
@@ -70,15 +105,20 @@ class CheckError(Exception):
     """An exit-2 condition; main() prints the message to stderr."""
 
 
-def git(cwd, *args, check=True):
+def git(cwd, *args, check=True, stdin=None, literal=True):
     """Run git in cwd and return the CompletedProcess (stdout and stderr as bytes).
+    stdin: bytes for the command's standard input.
 
     GIT_OPTIONAL_LOCKS=0: `git status` doesn't refresh (write) the index.
     GIT_LITERAL_PATHSPECS=1: paths after `--` are literal paths, never globs.
+    literal=False leaves that out, for commands that reject it (`check-ignore`).
     """
-    env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", GIT_LITERAL_PATHSPECS="1")
+    env = dict(os.environ, GIT_OPTIONAL_LOCKS="0")
+    if literal:
+        env["GIT_LITERAL_PATHSPECS"] = "1"
     try:
-        r = subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, env=env)
+        r = subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, env=env,
+                           input=stdin)
     except OSError as e:
         raise CheckError(f"cannot run git: {e}") from e
     if check and r.returncode != 0:
@@ -155,7 +195,7 @@ class Template:
 
     def __init__(self, repo, commit):
         self.repo, self.commit = repo, commit
-        self._blobs, self._blob_ids = {}, {}
+        self._blobs, self._blob_history = {}, {}
 
     def read(self, rev, path):
         """Content of path at rev (bytes), or None when absent."""
@@ -173,14 +213,14 @@ class Template:
         return parse_version(self.read(rev, VERSION_FILE))
 
     def tree(self):
-        """{path: (object type, blob id)} for every entry in the tree at the commit."""
+        """{path: (object type, blob id, mode)} for every entry in the tree at the commit."""
         out = {}
         raw = git(self.repo, "ls-tree", "-r", "-z", "--full-tree", self.commit).stdout
         for rec in raw.split(b"\0"):
             if rec:
                 meta, _, path = rec.partition(b"\t")
-                _mode, kind, oid = meta.split()
-                out[os.fsdecode(path)] = (kind.decode(), oid.decode())
+                mode, kind, oid = meta.split()
+                out[os.fsdecode(path)] = (kind.decode(), oid.decode(), mode.decode())
         return out
 
     def manifest_history(self):
@@ -205,20 +245,51 @@ class Template:
                 out.setdefault(os.fsdecode(tok), commit)
         return out
 
-    def blob_ids(self, path):
-        """Every blob id path had in the template's history: old and new ids of
-        `git log REF --no-renames --raw --no-abbrev --format= -- path`, zeros excluded."""
-        if path not in self._blob_ids:
-            raw = git(self.repo, *LOG, "--no-renames", "--raw", "--no-abbrev", "--format=",
+    def blob_history(self, path):
+        """[(commit, old id, new id)], newest first, for every change to path in
+        `git log REF --no-renames --raw --no-abbrev --format=%H -- path`."""
+        if path not in self._blob_history:
+            raw = git(self.repo, *LOG, "--no-renames", "--raw", "--no-abbrev", "--format=%H",
                       self.commit, "--", path).stdout
-            ids = set()
+            out, commit = [], None
             for line in raw.split(b"\n"):
                 if line.startswith(b":"):  # ":<mode> <mode> <old id> <new id> <status>\t<path>"
-                    for oid in line.split(b"\t", 1)[0].split()[2:4]:
-                        if oid.strip(b"0"):
-                            ids.add(oid.decode())
-            self._blob_ids[path] = ids
-        return self._blob_ids[path]
+                    old, new = line.split(b"\t", 1)[0].split()[2:4]
+                    out.append((commit, old.decode(), new.decode()))
+                elif OID.fullmatch(line):
+                    commit = line.decode()
+            self._blob_history[path] = out
+        return self._blob_history[path]
+
+    def blob_ids(self, path):
+        """Every blob id path had in the template's history: old and new ids of
+        blob_history(path), zeros excluded."""
+        return {oid for _c, old, new in self.blob_history(path) for oid in (old, new)
+                if oid.strip("0")}
+
+    def set_by(self, path, blob_id):
+        """The newest commit that set path to blob_id (the new id of a `--raw` line);
+        None when the id only ever appears as an old id."""
+        return next((c for c, _old, new in self.blob_history(path) if new == blob_id), None)
+
+    def read_blobs(self, ids):
+        """Contents of the given blob ids (one `git cat-file --batch`); ids git can't
+        read are left out."""
+        ids = sorted(ids)
+        if not ids:
+            return []
+        raw = git(self.repo, "cat-file", "--batch", stdin="\n".join(ids).encode() + b"\n").stdout
+        out, pos = [], 0
+        while pos < len(raw):  # "<id> blob <size>\n<content>\n" or "<id> missing\n"
+            end = raw.index(b"\n", pos)
+            header = raw[pos:end].split()
+            pos = end + 1
+            if len(header) == 3 and header[2].isdigit():
+                size = int(header[2])
+                if header[1] == b"blob":
+                    out.append(raw[pos:pos + size])
+                pos += size + 1
+        return out
 
     def hash_files(self, paths):
         """{absolute path: blob id} via `git hash-object --no-filters` in the template repo,
@@ -407,6 +478,14 @@ def check(project, template_repo, ref):
                     listed.setdefault(path, "modified")
         uncommitted = [{"path": p, "change": listed[p]} for p in sorted(listed)]
 
+    history_complete = ref_history_complete(repo, ref_commit)
+    files, sidecar_warning = classify_files(tpl, project, ref_tree, compare, upstream_sync,
+                                            upstream_excluded, history_complete)
+    if not history_complete:
+        warnings.append(WARN_SHALLOW)
+    if sidecar_warning:
+        warnings.append(WARN_SIDECAR)
+
     return {
         "ref": ref,
         "ref_commit": ref_commit,
@@ -416,8 +495,140 @@ def check(project, template_repo, ref):
         "patterns": {"compare": compare, "project_added": project_added, "retired": retired},
         "retired_files": sorted(retired_files, key=lambda e: e["path"]),
         "uncommitted_sync": uncommitted,
+        "history_complete": history_complete,
+        "files": files,
+        "manifest": {cat: manifest_lists(cat, upstream, local, history)
+                     for cat in ("customize", "ignore")},
+        "sidecar": sidecar_state(project, is_git),
         "warnings": warnings,
     }
+
+
+def ref_history_complete(repo, commit):
+    """True when no commit listed in the repository's `shallow` file is reachable from
+    the commit: its history is whole, whatever other histories in the repository (a
+    shallow project clone) are cut short. An absent or empty file means no cut."""
+    shallow = os.fsdecode(git(repo, "rev-parse", "--git-path", "shallow").stdout.rstrip(b"\n"))
+    cut = set((read_local(os.path.join(repo, shallow)) or b"").split())
+    if not cut:
+        return True
+    return cut.isdisjoint(git(repo, "rev-list", commit).stdout.split())
+
+
+def classify_files(tpl, project, ref_tree, compare, upstream_sync, upstream_excluded,
+                   history_complete):
+    """(`files` entries, sidecar-unreadable flag). The test for "did the project edit
+    this file" is the template's own history: content equal to any template version of
+    the path is an unchanged copy. The sidecar is consulted only when that history is
+    incomplete (history_complete false) and can't place the content: with the whole
+    history, content it doesn't hold is the project's own, whatever a sidecar says."""
+    paths = sorted(p for p, (kind, _oid, mode) in ref_tree.items()
+                   if kind == "blob" and mode.startswith("100")  # regular files, not symlinks
+                   and matches(p, compare)
+                   # an exact upstream `sync` entry beats customize/ignore globs (A1)
+                   and (p in upstream_sync or not matches(p, upstream_excluded)))
+    local_modes = {}  # path -> st_mode; absent paths are left out
+    for path in paths:
+        try:
+            local_modes[path] = os.lstat(os.path.join(project, path)).st_mode
+        except OSError:
+            pass
+    regular = [p for p in paths if p in local_modes and stat.S_ISREG(local_modes[p])]
+    local_ids = tpl.hash_files([os.path.join(project, p) for p in regular])
+    recorded, sidecar_warning = read_sidecar(project)
+
+    files = []
+    for path in paths:
+        _kind, ref_id, ref_mode = ref_tree[path]
+        mode = "100755" if ref_mode == "100755" else "100644"
+        entry = {"path": path, "status": "modified", "mode": mode, "mode_matches": None,
+                 "version": None, "basis": None, "shared_lines": None}
+        files.append(entry)
+        if path not in local_modes:
+            entry["status"] = "new"
+            continue
+        if not stat.S_ISREG(local_modes[path]):  # symlink, directory: never read through
+            continue
+        entry["mode_matches"] = (local_modes[path] & 0o100 != 0) == (mode == "100755")
+        local_id = local_ids.get(os.path.join(project, path))
+        if local_id is not None and local_id == ref_id:
+            entry["status"] = "up_to_date"
+        elif local_id is not None and local_id in tpl.blob_ids(path):
+            commit = tpl.set_by(path, local_id)
+            entry.update(status="template_copy", basis="history",
+                         version=tpl.version(commit) if commit else None)
+        else:
+            content = read_local(os.path.join(project, path))
+            if (not history_complete and content is not None and path in recorded
+                    and recorded[path] == "sha256:" + hashlib.sha256(content).hexdigest()):
+                entry.update(status="template_copy", basis="sidecar")
+            elif content is not None:
+                entry["shared_lines"] = shared_lines(
+                    content, tpl.read_blobs(tpl.blob_ids(path) | {ref_id}))
+    return files, sidecar_warning
+
+
+def content_lines(content):
+    """Non-blank lines of a file's bytes, each stripped of surrounding whitespace."""
+    return [line for line in (raw.strip() for raw in content.split(b"\n")) if line]
+
+
+def shared_lines(content, template_blobs):
+    """Share of the local non-blank lines found in any template version of the path
+    (2 decimals); None when the local file has no non-blank line. A low value means the
+    file is not a variant of the template file (a project's own file at that path)."""
+    local = content_lines(content)
+    if not local:
+        return None
+    known = {line for blob in template_blobs for line in content_lines(blob)}
+    return round(sum(line in known for line in local) / len(local), 2)
+
+
+def read_sidecar(project):
+    """({path: synced_hash}, unreadable flag) from the sync-state sidecar. Missing: no
+    entries. Present but unparseable or not an object with a `files` object: no
+    entries and the flag set."""
+    path = os.path.join(project, SIDECAR)
+    if not os.path.lexists(path):
+        return {}, False
+    raw = read_local(path)
+    try:
+        data = json.loads(raw) if raw is not None else None
+    except (ValueError, RecursionError):
+        data = None
+    entries = data.get("files") if isinstance(data, dict) else None
+    if not isinstance(entries, dict):
+        return {}, True
+    return {p: e["synced_hash"] for p, e in entries.items()
+            if isinstance(e, dict) and isinstance(e.get("synced_hash"), str)}, False
+
+
+def sidecar_state(project, is_git):
+    """The `sidecar` object. The file is per-clone state and must be gitignored, so
+    Part 5 offers to ignore it, and to untrack it when it was committed."""
+    out = {"exists": is_regular(os.path.join(project, SIDECAR)), "gitignored": None,
+           "tracked": None}
+    if is_git:
+        # --no-index: a tracked file still reports the ignore rule that covers it.
+        out["gitignored"] = git(project, "check-ignore", "-q", "--no-index", "--", SIDECAR,
+                                check=False, literal=False).returncode == 0
+        out["tracked"] = git(project, "ls-files", "--error-unmatch", "--", SIDECAR,
+                             check=False).returncode == 0
+    return out
+
+
+def manifest_lists(cat, upstream, local, history):
+    """{add, drop, list} for one of the local customize/ignore lists. A local entry is
+    stale (drop) when the template once listed it in this category, or now lists it as
+    `sync` or in the other category; any other local entry is the project's own (kept)."""
+    other = "ignore" if cat == "customize" else "customize"
+    up = dedupe(upstream[cat])
+    in_history = {p for _c, cats in history if cats for p in cats[cat]}
+    moved = set(upstream["sync"]) | set(upstream[other])
+    mine = dedupe(local[cat])
+    drop = [p for p in mine if p not in up and (p in in_history or p in moved)]
+    return {"add": [p for p in up if p not in mine], "drop": drop,
+            "list": up + [p for p in mine if p not in up and p not in drop]}
 
 
 def pattern_removed_in(tpl, history, pattern):
@@ -452,9 +663,10 @@ def is_regular(path):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="Template-sync check for /health-check Part 5: retired sync patterns, "
-                    "retired template files and synced files left uncommitted, as JSON on "
-                    "stdout. Read-only; never fetches.")
+        description="Template-sync check for /health-check Part 5: per-file classification "
+                    "against the template's history, retired sync patterns, retired template "
+                    "files, stale manifest lists and synced files left uncommitted, as JSON "
+                    "on stdout. Read-only; never fetches.")
     parser.add_argument("--project", default=".", metavar="DIR",
                         help="project root, the directory that contains .claude/ (default: .)")
     parser.add_argument("--template-repo", metavar="DIR",

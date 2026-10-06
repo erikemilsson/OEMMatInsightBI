@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for sync-check.py (FB-126), run against temporary git repos.
+"""Tests for sync-check.py (FB-126, FB-136), run against temporary git repos.
 
 One template repo is built per module. Its history: c0 has no manifest; c1 (1.0.0)
 uses the flat manifest format; c2 (1.1.0) drops a pattern; cX commits an
@@ -11,9 +11,14 @@ to customize, re-adds `.claude/README.md` (as the real template did) and adds sy
 files: one listed exactly that an upstream ignore glob also matches, and one that a
 wildcard sync pattern and a customize glob both match (amendment A1: an exact sync
 entry beats customize/ignore globs, a wildcard never does). Projects are plain
-directories or git repos built per test. Git is isolated from the user's config
+directories or git repos built per test. A second template repo (F, built by
+build_files_template) carries the history the per-file classification tests need:
+several versions of one path, a version whose version.json is unreadable, content that
+returns to an earlier version, an executable file, and customize/ignore lists that
+changed. Git is isolated from the user's config
 (GIT_CONFIG_GLOBAL=/dev/null, GIT_CONFIG_NOSYSTEM=1) with fixed identities and dates.
 """
+import hashlib
 import importlib.util
 import json
 import os
@@ -91,6 +96,23 @@ BASE = None  # TemporaryDirectory holding every repo
 ROOT = None  # its realpath
 T = None     # template repo
 C = {}       # commit name -> sha
+F = None     # second template repo: per-file classification (FB-136)
+D = {}       # its commits
+
+F_SYNC = [".claude/commands/*.md", ".claude/scripts/*.py", ".claude/rules/*.md",
+          ".claude/vision/README.md"]
+F_IGNORE_V1 = [".claude/version.json", ".claude/sync-manifest.json", ".claude/dashboard.md",
+               ".claude/vision/*.md", ".claude/to-customize.md"]
+F_CUSTOMIZE = [".claude/README.md", ".claude/rules/project-*.md", ".claude/to-customize.md",
+               ".claude/README.md"]  # the duplicate is deliberate
+F_IGNORE = [".claude/version.json", ".claude/sync-manifest.json", ".claude/dashboard.html",
+            ".claude/vision/*.md"]
+WORK_V1 = "# Work\nstep one\nstep two\n"
+WORK_V2 = "# Work\nstep one\nstep two\nstep three\n"   # committed with a broken version.json
+WORK_V4 = "# Work\nstep one\nstep 2\nstep three\nstep four\n"
+F_FILES = [".claude/commands/added.md", ".claude/commands/flip.md", ".claude/commands/same.md",
+           ".claude/commands/work.md", ".claude/rules/core.md", ".claude/scripts/plain.py",
+           ".claude/scripts/tool.py", ".claude/vision/README.md"]  # the compare-set files at d4
 
 
 def git(cwd, *args, n=None):
@@ -128,8 +150,44 @@ class Repo:
         return git(self.path, "rev-parse", "HEAD")
 
 
+def build_files_template(path):
+    """d1 (1.0.0) → d2 (unreadable version.json) → d3 (1.2.0) → d4 (1.3.0)."""
+    repo = Repo(path)
+    write(path, {".claude/scripts/tool.py": "print('tool v1')\n"})
+    os.chmod(path / ".claude/scripts/tool.py", 0o755)  # mode 100755 in the tree
+    D["d1"] = repo.commit("1.0.0", {
+        ".claude/version.json": version("1.0.0"),
+        ".claude/sync-manifest.json": manifest(F_SYNC + [".claude/old/*.md"],
+                                               F_CUSTOMIZE[:2], F_IGNORE_V1),
+        ".claude/commands/work.md": WORK_V1,
+        ".claude/commands/flip.md": "flip A\n",
+        ".claude/commands/same.md": "same\n",
+        ".claude/scripts/plain.py": "print('plain')\n",
+        ".claude/rules/core.md": "core v1\n",
+        ".claude/rules/project-x.md": "project x\n",  # wildcard sync; customize glob
+        ".claude/vision/README.md": "vision v1\n",    # exact sync entry; ignore glob
+        ".claude/README.md": "readme\n"})
+    D["d2"] = repo.commit("unreadable version", {
+        ".claude/version.json": "{ broken\n",
+        ".claude/commands/work.md": WORK_V2,
+        ".claude/commands/flip.md": "flip B\n"})
+    D["d3"] = repo.commit("1.2.0: lists change, flip.md returns to A", {
+        ".claude/version.json": version("1.2.0"),
+        ".claude/sync-manifest.json": manifest(F_SYNC, F_CUSTOMIZE, F_IGNORE),
+        ".claude/commands/flip.md": "flip A\n",
+        ".claude/commands/added.md": "added v1\n",
+        ".claude/rules/core.md": "core v2\n",
+        ".claude/scripts/tool.py": "print('tool v2')\n"})
+    D["d4"] = repo.commit("1.3.0", {
+        ".claude/version.json": version("1.3.0"),
+        ".claude/commands/work.md": WORK_V4,
+        ".claude/commands/flip.md": "flip C\n",
+        ".claude/vision/README.md": "vision v2\n"})
+    return repo
+
+
 def setUpModule():
-    global BASE, ROOT, T
+    global BASE, ROOT, T, F
     BASE = tempfile.TemporaryDirectory()
     ROOT = Path(os.path.realpath(BASE.name))
     ENV["GIT_CEILING_DIRECTORIES"] = str(ROOT)  # plain dirs under ROOT are never "in a repo"
@@ -167,6 +225,8 @@ def setUpModule():
         ".claude/rules/project-example.md": "project example v1\n",  # wildcard sync; customize glob
         ".claude/vision/README.md": "vision v1\n",  # exact sync entry; ignore glob
         ".claude/unlisted.md": "unlisted v1\n"})  # in no manifest category
+    F = ROOT / "files-template"
+    build_files_template(F)
 
 
 def tearDownModule():
@@ -239,6 +299,7 @@ class PlainProjectTests(Case):
     def test_every_key_present(self):
         self.assertEqual(list(self.out), ["ref", "ref_commit", "upstream_version", "local_version",
                                           "git", "patterns", "retired_files", "uncommitted_sync",
+                                          "history_complete", "files", "manifest", "sidecar",
                                           "warnings"])
         self.assertEqual(list(self.out["patterns"]), ["compare", "project_added", "retired"])
         self.assertEqual(self.out["ref"], "main")
@@ -592,6 +653,410 @@ class UncommittedSyncTests(Case):
             {"path": ".claude/notes/scratch.md", "change": "deleted"},
             {"path": ".claude/version.json", "change": "modified"},
         ])
+
+
+# ---------------------------------------------------------------- files[] (FB-136)
+
+def sha(content):
+    return "sha256:" + hashlib.sha256(content.encode()).hexdigest()
+
+
+def sidecar(files, **extra):
+    return json.dumps({"schema_version": "1.0", **extra,
+                       "files": {p: {"synced_hash": h} for p, h in files.items()}}) + "\n"
+
+
+def entry(path, status, mode="100644", mode_matches=True, version=None, basis=None,
+          shared_lines=None):
+    return {"path": path, "status": status, "mode": mode, "mode_matches": mode_matches,
+            "version": version, "basis": basis, "shared_lines": shared_lines}
+
+
+# One file per status and basis; see ClassificationTests.test_statuses for the expectations.
+F_PROJECT = {
+    ".claude/version.json": version("1.0.0"),
+    ".claude/sync-manifest.json": manifest(F_SYNC, F_CUSTOMIZE[:2], F_IGNORE_V1),
+    ".claude/commands/flip.md": "flip A\n",
+    ".claude/commands/same.md": "same\n",
+    ".claude/commands/work.md": WORK_V2,
+    ".claude/rules/core.md": "core v1\n",
+    ".claude/rules/project-x.md": "project x\n",
+    ".claude/scripts/plain.py": "print('plain')\nprint('mine')\n",
+    ".claude/scripts/tool.py": "print('tool v2')\n",
+    ".claude/vision/README.md": "vision v1\n",
+    ".claude/README.md": "readme\n",
+}
+
+
+class FilesCase(Case):
+    def project(self, files=None, **changes):
+        """A plain-directory project: F_PROJECT (or files) with changes applied
+        (None deletes a path)."""
+        project = self.new_dir()
+        write(project, {p: c for p, c in {**(F_PROJECT if files is None else files),
+                                          **changes}.items() if c is not None})
+        return project
+
+    def files(self, project, *extra, repo=None, ref="main"):
+        out = self.check("--project", str(project), "--template-repo", str(repo or F),
+                         "--ref", ref, *extra)
+        return out, {f["path"]: f for f in out["files"]}
+
+
+class ClassificationTests(FilesCase):
+    def test_statuses(self):
+        project = self.project()
+        os.chmod(project / ".claude/scripts/plain.py", 0o755)
+        out, files = self.files(project)
+        self.assertIs(out["history_complete"], True)
+        self.assertEqual(out["warnings"], ["project is not a git work tree; uncommitted_sync skipped"])
+        self.assertEqual(out["files"], [
+            entry(".claude/commands/added.md", "new", mode_matches=None),
+            # A at d1 (1.0.0), B at d2, A again at d3 (1.2.0): the newest commit that set it
+            entry(".claude/commands/flip.md", "template_copy", version="1.2.0", basis="history"),
+            entry(".claude/commands/same.md", "up_to_date"),
+            # version.json is unreadable at the commit that set this content
+            entry(".claude/commands/work.md", "template_copy", basis="history"),
+            entry(".claude/rules/core.md", "template_copy", version="1.0.0", basis="history"),
+            # 1 of its 2 lines is a template line; local mode 0755 against 100644
+            entry(".claude/scripts/plain.py", "modified", mode_matches=False, shared_lines=0.5),
+            # equals REF's blob (set at d3, unchanged at d4); local mode 0644 against 100755
+            entry(".claude/scripts/tool.py", "up_to_date", mode="100755", mode_matches=False),
+            # named exactly in upstream `sync`, so the ignore glob doesn't exclude it (A1)
+            entry(".claude/vision/README.md", "template_copy", version="1.0.0", basis="history"),
+        ])
+        self.assertEqual(sorted(files), F_FILES)
+
+    def test_compare_set_membership(self):
+        """Not in files[]: a path under an upstream customize glob that only a wildcard
+        sync pattern covers, customize/ignore files, and a project file the template
+        never shipped. Positive control: each exists locally, and the excluded template
+        paths are blobs at REF."""
+        project = self.project(**{".claude/commands/mine.md": "mine\n"})
+        _out, files = self.files(project)
+        with self.isolated():
+            tree = sc.Template(str(F), D["d4"]).tree()
+        for path in (".claude/rules/project-x.md", ".claude/README.md", ".claude/version.json",
+                     ".claude/sync-manifest.json"):
+            self.assertEqual(tree[path][0], "blob", path)
+            self.assertTrue((project / path).is_file(), path)
+            self.assertNotIn(path, files)
+        self.assertNotIn(".claude/commands/mine.md", files)
+        self.assertEqual(tree[".claude/scripts/tool.py"][2], "100755")
+        self.assertEqual(tree[".claude/scripts/plain.py"][2], "100644")
+
+    def test_symlink_blob_at_ref_is_not_a_compare_set_file(self):
+        """A mode-120000 blob that matches a sync pattern stays out of files[]: its
+        content is a link target, never file content to write."""
+        repo = Repo(self.new_dir() / "linked-template")
+        write(repo.path, {".claude/version.json": version("1.0.0"),
+                          ".claude/sync-manifest.json": manifest([".claude/commands/*.md"]),
+                          ".claude/commands/work.md": "work\n"})
+        os.symlink("work.md", repo.path / ".claude/commands/link.md")
+        repo.commit("1.0.0", {})
+        with self.isolated():
+            tree = sc.Template(str(repo.path), git(repo.path, "rev-parse", "HEAD")).tree()
+        self.assertEqual(tree[".claude/commands/link.md"][::2], ("blob", "120000"))
+        self.assertTrue(sc.matches(".claude/commands/link.md", [".claude/commands/*.md"]))
+        project = self.project(files={".claude/commands/work.md": "work\n"})
+        _out, files = self.files(project, repo=repo.path)
+        self.assertEqual(sorted(files), [".claude/commands/work.md"])
+
+    def test_project_added_pattern_joins_the_compare_set(self):
+        """`.claude/README.md` is an upstream customize file, so a local sync pattern can't
+        pull it in; `.claude/extra/*.md` matches nothing at REF. Neither adds an entry."""
+        project = self.project(**{".claude/sync-manifest.json": manifest(
+            F_SYNC + [".claude/README.md", ".claude/extra/*.md"], F_CUSTOMIZE, F_IGNORE)})
+        out, files = self.files(project)
+        self.assertEqual(out["patterns"]["retired"], [{"pattern": ".claude/README.md",
+                                                       "removed_in": None}])
+        self.assertEqual(out["patterns"]["project_added"], [".claude/extra/*.md"])
+        self.assertEqual(sorted(files), F_FILES)
+
+    def test_mode_matches(self):
+        project = self.project()
+        os.chmod(project / ".claude/scripts/tool.py", 0o700)   # owner-execute is what counts
+        os.chmod(project / ".claude/commands/same.md", 0o600)
+        _out, files = self.files(project)
+        self.assertIs(files[".claude/scripts/tool.py"]["mode_matches"], True)
+        self.assertIs(files[".claude/commands/same.md"]["mode_matches"], True)
+        os.chmod(project / ".claude/commands/same.md", 0o744)
+        _out, files = self.files(project)
+        self.assertIs(files[".claude/commands/same.md"]["mode_matches"], False)
+        self.assertEqual(files[".claude/commands/same.md"]["status"], "up_to_date")
+
+    def test_non_regular_local_paths(self):
+        """A symlink (even to identical content) and a directory are `modified` with null
+        mode_matches and shared_lines: the script never reads through them."""
+        project = self.project(**{".claude/commands/same.md": None, ".claude/rules/core.md": None,
+                                  "elsewhere/same.md": "same\n"})
+        os.symlink("../../elsewhere/same.md", project / ".claude/commands/same.md")
+        (project / ".claude/rules/core.md").mkdir()
+        self.assertEqual((project / ".claude/commands/same.md").read_text(), "same\n")
+        _out, files = self.files(project)
+        for path in (".claude/commands/same.md", ".claude/rules/core.md"):
+            self.assertEqual(files[path], entry(path, "modified", mode_matches=None))
+        # Positive control: the same content as a regular file is up to date.
+        (project / ".claude/commands/same.md").unlink()
+        write(project, {".claude/commands/same.md": "same\n"})
+        _out, files = self.files(project)
+        self.assertEqual(files[".claude/commands/same.md"], entry(".claude/commands/same.md",
+                                                                  "up_to_date"))
+
+    def test_shared_lines(self):
+        cases = {
+            # template lines of work.md across d1, d2, d4: "# Work", "step one", "step two",
+            # "step three", "step 2", "step four"
+            "  # Work  \r\n\n\tstep two\nmine\n": 0.67,           # whitespace-stripped: 2 of 3
+            "step four\nstep one\nx\ny\nz\nq\n": 0.33,            # 2 of 6
+            "nothing\nin common\n": 0.0,
+            "step one\nstep one\nstep one\nstep 9\n": 0.75,       # counts lines, not distinct lines
+            "# Work\nstep two\nstep four\n": 1.0,                 # a mix of versions: all shared
+            "\n   \n\t\n": None,                                  # no non-blank line
+            "": None,
+        }
+        for content, expected in cases.items():
+            with self.subTest(content=content):
+                project = self.project(**{".claude/commands/work.md": content})
+                _out, files = self.files(project)
+                self.assertEqual(files[".claude/commands/work.md"],
+                                 entry(".claude/commands/work.md", "modified",
+                                       shared_lines=expected))
+
+    def test_shared_lines_reads_the_blob_at_ref(self):
+        """The template set includes REF's blob even when no `--raw` line carries it: at a
+        root commit with log.showRoot the id is listed, so drop it from blob_ids to show
+        the union with REF's blob is what supplies the lines."""
+        project = self.project(**{".claude/commands/same.md": "same\nmine\n"})
+        with self.isolated(), mock.patch.object(sc.Template, "blob_ids", return_value=set()):
+            out = sc.check(str(project), str(F), "main")
+        files = {f["path"]: f for f in out["files"]}
+        self.assertEqual(files[".claude/commands/same.md"]["shared_lines"], 0.5)
+
+    def test_version_helpers(self):
+        with self.isolated():
+            t = sc.Template(str(F), D["d4"])
+            history = t.blob_history(".claude/commands/flip.md")
+            self.assertEqual([c for c, _old, _new in history],
+                             [D["d4"], D["d3"], D["d2"], D["d1"]])
+            a = history[1][2]
+            self.assertEqual(history[3][2], a)                       # set twice
+            self.assertEqual(t.set_by(".claude/commands/flip.md", a), D["d3"])  # newest wins
+            self.assertIsNone(t.set_by(".claude/commands/flip.md", "f" * 40))
+            self.assertEqual(t.blob_ids(".claude/commands/flip.md"),
+                             {new for _c, _old, new in history})
+            self.assertEqual(sorted(t.read_blobs({a, history[0][2], "f" * 40})),
+                             [b"flip A\n", b"flip C\n"])
+            self.assertEqual(t.read_blobs(set()), [])
+
+    def test_older_ref_classifies_against_its_own_history(self):
+        """At d3, d4's content is not a template version yet."""
+        project = self.project(**{".claude/commands/work.md": WORK_V4,
+                                  ".claude/commands/flip.md": "flip B\n"})
+        _out, files = self.files(project, ref=D["d3"])
+        self.assertEqual(files[".claude/commands/work.md"]["status"], "modified")
+        self.assertEqual(files[".claude/commands/flip.md"],
+                         entry(".claude/commands/flip.md", "template_copy", basis="history"))
+        _out, files = self.files(project)
+        self.assertEqual(files[".claude/commands/work.md"]["status"], "up_to_date")
+
+
+class SidecarTests(FilesCase):
+    LOCAL = "a project edit\n"
+
+    def shallow(self):
+        """A depth-1 clone of F: history that can't place an older copy."""
+        clone = self.new_dir() / "shallow"
+        git(ROOT, "clone", "-q", "--depth", "1", F.as_uri(), str(clone))
+        return clone
+
+    def test_sidecar_is_the_fallback(self):
+        """Read only when the template history is shallow. With the whole history a
+        recorded hash never makes a file a template copy: content no template version
+        holds is the project's own (a project's own file at a path the template later
+        ships, recorded by an earlier sync, must not update under bare [A])."""
+        project = self.project(**{
+            ".claude/commands/same.md": self.LOCAL,      # no template version; recorded
+            ".claude/scripts/plain.py": self.LOCAL,      # no template version; stale record
+            ".claude/.sync-state.json": sidecar({
+                ".claude/commands/same.md": sha(self.LOCAL),
+                ".claude/scripts/plain.py": sha("something else\n"),
+                ".claude/commands/flip.md": sha("flip A\n"),
+                ".claude/commands/work.md": "not-a-hash"})})
+        out, files = self.files(project, repo=self.shallow(), ref="HEAD")
+        self.assertIs(out["history_complete"], False)
+        self.assertEqual(files[".claude/commands/same.md"],
+                         entry(".claude/commands/same.md", "template_copy", basis="sidecar"))
+        self.assertEqual(files[".claude/scripts/plain.py"],
+                         entry(".claude/scripts/plain.py", "modified", shared_lines=0.0))
+        self.assertEqual(out["sidecar"], {"exists": True, "gitignored": None, "tracked": None})
+        out, files = self.files(project)
+        self.assertIs(out["history_complete"], True)
+        self.assertEqual(out["warnings"], ["project is not a git work tree; uncommitted_sync skipped"])
+        self.assertEqual(files[".claude/commands/same.md"],
+                         entry(".claude/commands/same.md", "modified", shared_lines=0.0))
+        self.assertEqual(files[".claude/commands/flip.md"]["basis"], "history")
+        self.assertNotIn("sidecar", [f["basis"] for f in out["files"]])
+
+    def test_missing_sidecar_is_silent_and_unreadable_warns(self):
+        project = self.project(**{".claude/commands/same.md": self.LOCAL})
+        shallow = self.shallow()
+        out, files = self.files(project, repo=shallow, ref="HEAD")
+        self.assertNotIn("sync-state sidecar unreadable; ignored", out["warnings"])
+        self.assertEqual(out["sidecar"]["exists"], False)
+        entries = {".claude/commands/same.md": {"synced_hash": sha(self.LOCAL)}}
+        bad = ["{ nope\n", "[]\n", json.dumps({"files": [entries]}), json.dumps(entries), ""]
+        for content in bad:
+            with self.subTest(content=content):
+                write(project, {".claude/.sync-state.json": content})
+                out, files = self.files(project, repo=shallow, ref="HEAD")
+                self.assertIn("sync-state sidecar unreadable; ignored", out["warnings"])
+                self.assertEqual(files[".claude/commands/same.md"]["status"], "modified")
+        # Positive control: the same entries in the right shape are read.
+        write(project, {".claude/.sync-state.json": json.dumps({"files": entries})})
+        out, files = self.files(project, repo=shallow, ref="HEAD")
+        self.assertNotIn("sync-state sidecar unreadable; ignored", out["warnings"])
+        self.assertEqual(files[".claude/commands/same.md"]["basis"], "sidecar")
+
+    def test_shallow_template_history(self):
+        """A depth-1 clone can't place older copies: they fall to the sidecar, or to
+        `modified`. The full history places the same files (positive control)."""
+        shallow = self.shallow()
+        project = self.project(**{".claude/.sync-state.json": sidecar(
+            {".claude/commands/flip.md": sha("flip A\n")})})
+        out, files = self.files(project, repo=shallow, ref="HEAD")
+        self.assertIs(out["history_complete"], False)
+        self.assertEqual(out["warnings"], [
+            "project is not a git work tree; uncommitted_sync skipped",
+            "template history is shallow; files it cannot place are classified from the "
+            "sync-state sidecar"])
+        self.assertEqual(files[".claude/commands/flip.md"],
+                         entry(".claude/commands/flip.md", "template_copy", basis="sidecar"))
+        self.assertEqual(files[".claude/rules/core.md"],
+                         entry(".claude/rules/core.md", "modified", shared_lines=0.0))
+        self.assertEqual(files[".claude/commands/same.md"]["status"], "up_to_date")
+        self.assertEqual(files[".claude/commands/added.md"]["status"], "new")
+        out, files = self.files(project)
+        self.assertIs(out["history_complete"], True)
+        self.assertEqual(files[".claude/commands/flip.md"]["basis"], "history")
+        self.assertEqual(files[".claude/rules/core.md"]["basis"], "history")
+
+    def test_history_complete_is_about_the_ref(self):
+        """The repository being shallow is not the test: REF's own history is. A full
+        project repo that fetched the template at depth 1 has a cut template history; a
+        shallow project clone that fetched the whole template does not."""
+        full = Repo(self.new_dir() / "proj")
+        full.commit("project", F_PROJECT)
+        full.commit("more", {"src/app.py": "print('hi')\n"})
+        git(full.path, "remote", "add", "template", F.as_uri())
+        git(full.path, "fetch", "-q", "--depth", "1", "template")
+        self.assertEqual(git(full.path, "rev-list", "--count", "HEAD"), "2")  # its own history is whole
+        out, files = self.files(full.path, repo=full.path, ref="template/main")
+        self.assertIs(out["history_complete"], False)
+        self.assertIn("template history is shallow; files it cannot place are classified from "
+                      "the sync-state sidecar", out["warnings"])
+        self.assertEqual(files[".claude/rules/core.md"]["status"], "modified")
+        # The advice Part 5 prints for this case completes it.
+        git(full.path, "fetch", "-q", "--unshallow", "template")
+        out, files = self.files(full.path, repo=full.path, ref="template/main")
+        self.assertIs(out["history_complete"], True)
+        self.assertEqual(files[".claude/rules/core.md"]["basis"], "history")
+
+        clone = self.new_dir() / "clone"
+        git(ROOT, "clone", "-q", "--depth", "1", full.path.as_uri(), str(clone))
+        git(clone, "remote", "add", "template", F.as_uri())
+        git(clone, "fetch", "-q", "template")
+        self.assertEqual(git(clone, "rev-parse", "--is-shallow-repository"), "true")
+        self.assertEqual(git(clone, "rev-list", "--count", "HEAD"), "1")
+        out, files = self.files(clone, repo=clone, ref="template/main")
+        self.assertIs(out["history_complete"], True)
+        self.assertNotIn("template history is shallow; files it cannot place are classified from "
+                         "the sync-state sidecar", out["warnings"])
+        self.assertEqual(files[".claude/rules/core.md"]["basis"], "history")
+
+    def test_gitignored_and_tracked(self):
+        path = ".claude/.sync-state.json"
+        cases = {  # name: (.gitignore content, add the sidecar to the index, expected)
+            "ignored": (".claude/.sync-state.json\n", False, (True, True, False)),
+            "ignored by a glob": (".claude/**\n", False, (True, True, False)),
+            "untracked, no rule": ("", False, (True, False, False)),
+            "tracked, no rule": ("", True, (True, False, True)),
+            "tracked, with a rule": (".claude/.sync-state.json\n", True, (True, True, True)),
+            "no sidecar, rule present": (".claude/.sync-state.json\n", None, (False, True, False)),
+            "no sidecar, no rule": ("", None, (False, False, False)),
+        }
+        for name, (ignore, tracked, expected) in cases.items():
+            with self.subTest(name):
+                repo = Repo(self.new_dir() / "proj")
+                files = {".gitignore": ignore, ".claude/commands/same.md": "same\n"}
+                if tracked is not None:
+                    files[path] = sidecar({})
+                write(repo.path, files)
+                git(repo.path, "add", "-f", "--", ".gitignore", ".claude/commands/same.md")
+                if tracked:
+                    git(repo.path, "add", "-f", "--", path)
+                git(repo.path, "commit", "-q", "-m", "project", n=1)
+                out, _files = self.files(repo.path)
+                self.assertIs(out["git"], True)
+                self.assertEqual(tuple(out["sidecar"][k] for k in ("exists", "gitignored", "tracked")),
+                                 expected)
+
+    def test_gitignored_in_a_project_below_its_repo_root(self):
+        repo = Repo(self.new_dir() / "mono")
+        repo.commit("app", {"app/.claude/commands/same.md": "same\n",
+                            "app/.claude/.sync-state.json": sidecar({}),
+                            ".gitignore": "lib/.claude/.sync-state.json\n"})
+        out, _files = self.files(repo.path / "app")
+        self.assertEqual(out["sidecar"], {"exists": True, "gitignored": False, "tracked": True})
+        write(repo.path, {".gitignore": "app/.claude/.sync-state.json\n"})
+        out, _files = self.files(repo.path / "app")
+        self.assertEqual(out["sidecar"], {"exists": True, "gitignored": True, "tracked": True})
+
+
+class ManifestListTests(FilesCase):
+    def lists(self, local_manifest):
+        project = self.project(**{".claude/sync-manifest.json": local_manifest})
+        out, _files = self.files(project)
+        self.assertEqual(list(out["manifest"]), ["customize", "ignore"])
+        for cat in out["manifest"].values():
+            self.assertEqual(list(cat), ["add", "drop", "list"])
+        return out["manifest"]
+
+    def test_add_drop_list(self):
+        m = self.lists(manifest(
+            F_SYNC,
+            [".claude/mine-first.md", ".claude/README.md", ".claude/commands/*.md",
+             ".claude/dashboard.html", ".claude/mine-first.md", ".claude/dashboard.md"],
+            [".claude/version.json", ".claude/dashboard.md", ".claude/local/*",
+             ".claude/to-customize.md", ".claude/README.md", ".claude/scripts/*.py",
+             ".claude/secrets.md", ".claude/dashboard.md"]))
+        self.assertEqual(m["customize"], {
+            "add": [".claude/rules/project-*.md", ".claude/to-customize.md"],  # upstream order
+            # in upstream `sync`; in upstream `ignore` (the other category)
+            "drop": [".claude/commands/*.md", ".claude/dashboard.html"],
+            # upstream (deduplicated), then the project's own in local order. dashboard.md was
+            # only ever an ignore entry, so as a customize entry it is the project's own.
+            "list": [".claude/README.md", ".claude/rules/project-*.md", ".claude/to-customize.md",
+                     ".claude/mine-first.md", ".claude/dashboard.md"]})
+        self.assertEqual(m["ignore"], {
+            "add": [".claude/sync-manifest.json", ".claude/dashboard.html", ".claude/vision/*.md"],
+            # once an upstream ignore entry (twice); upstream customize; upstream sync
+            "drop": [".claude/dashboard.md", ".claude/to-customize.md", ".claude/README.md",
+                     ".claude/scripts/*.py"],
+            "list": F_IGNORE + [".claude/local/*", ".claude/secrets.md"]})
+
+    def test_lists_in_step_with_upstream(self):
+        m = self.lists(manifest(F_SYNC, F_CUSTOMIZE, F_IGNORE, flat=True))
+        self.assertEqual(m["customize"], {"add": [], "drop": [], "list": F_CUSTOMIZE[:3]})
+        self.assertEqual(m["ignore"], {"add": [], "drop": [], "list": F_IGNORE})
+
+    def test_missing_or_unparseable_local_manifest(self):
+        for content in (None, "{ nope\n"):
+            with self.subTest(content=content):
+                m = self.lists(content)
+                self.assertEqual(m["customize"], {"add": F_CUSTOMIZE[:3], "drop": [],
+                                                  "list": F_CUSTOMIZE[:3]})
+                self.assertEqual(m["ignore"], {"add": F_IGNORE, "drop": [], "list": F_IGNORE})
 
 
 # ---------------------------------------------------------------- exit 2

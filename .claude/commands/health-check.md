@@ -21,8 +21,8 @@ Parts 1–7 NEVER prompt inline during the run. Every fixable issue becomes a **
 **Queue item shape:** `id` (sequential number in queue order) · `part` · `file` · one-line proposed fix (with diff stats where applicable) · `risk` flag.
 
 **Risk flags:**
-- `—` — safe to bundle: concrete fix, nothing locally-authored is lost (regen, add missing field, move entries between files).
-- `⚠ overwrites local` — applying replaces locally-modified content: ALL sync-category file applies (Part 5), `.claude/CLAUDE.md` revert (Part 2a). Excluded from bare `[A]`; explicit inclusion required. Sync rows the sidecar hash-verifies as unmodified since last sync carry the annotation `(hash-verified: no local edits)` so inclusion is an easy call — but they are still ⚠, never bundled silently.
+- `—` — safe to bundle: concrete fix, nothing locally-authored is lost (regen, add missing field, move entries between files, update a sync file that is an unchanged template copy).
+- `⚠ overwrites local` — applying replaces locally-modified content: Part 5 "Locally modified" sync files (content that matches no template version of the path), `.claude/CLAUDE.md` revert (Part 2a). Excluded from bare `[A]`; explicit inclusion required.
 - `⚠ deletes` — removes a file: Part 5 retired-template-file rows. Excluded from bare `[A]`; explicit inclusion required. The row says whether the file is an unchanged template copy (nothing local is lost) or locally modified (`[D]` shows the diff against the template's last version).
 - `⚠ edits decision record` — changes the body of a decision record (Part 3 `## Selected` heading rename). Excluded from bare `[A]`; explicit inclusion required.
 - `⚠ unreviewed append` — adds new ledger content the user hasn't read (Part 7 proposed FB entries). Excluded from bare `[A]`; review via `[D]` or include explicitly.
@@ -242,9 +242,9 @@ Two separate checks: environment CLAUDE.md template alignment, and project root 
 `.claude/CLAUDE.md` is template-owned and should not be modified by users. This check compares the local file against the template version.
 
 **Process:**
-1. If template remote is configured (Part 5), diff `.claude/CLAUDE.md` against `template/{default_branch}:.claude/CLAUDE.md`
+1. If template remote is configured (Part 5), diff `.claude/CLAUDE.md` against `template/{default_branch}:.claude/CLAUDE.md` (a non-git project: against the same path in Part 5's temporary clone)
 2. If no template remote, compare against a known hash stored in `.claude/version.json` (field: `claude_md_hash`)
-3. If the file has been modified locally, report the deviations and queue a `needs-input` fix item with the choices inline (reply `{id}: revert` / `{id}: keep` / `{id}: merge`):
+3. If the file has been modified locally, report the deviations and queue a `needs-input` fix item with the choices inline (reply `{id}: revert` / `{id}: keep` / `{id}: merge`). The row is decided once Part 5's classification is in hand, and queued only when Part 5's `files[]` entry for `.claude/CLAUDE.md` is `modified`: for a `template_copy` (an older template version, no local edits) Part 5's `—` update row covers it, and this check reports ℹ️ "older template version; Part 5 updates it". When Part 5 can't classify the file (offline, or no script), queue the row as before:
    - **revert** — restore template version (⚠ overwrites local — explicit choice required, never bundled)
    - **keep** — acknowledge deviation (record in `version.json` as `claude_md_override: true`)
    - **merge** — show diff, decide line by line (interactive sub-flow once chosen)
@@ -252,6 +252,7 @@ Two separate checks: environment CLAUDE.md template alignment, and project root 
 **What to report:**
 - ✓ if `.claude/CLAUDE.md` matches template
 - ⚠️ if deviations found (with diff summary)
+- ℹ️ if the file is an unchanged copy of an older template version (Part 5 updates it)
 - ℹ️ if template remote not configured (skip check)
 
 ### Part 2b: Root `./CLAUDE.md` Audit
@@ -526,11 +527,11 @@ Use `git check-ignore` (reliable exit-code semantics), not a grep against `.giti
 
 ## Part 5: Template Sync Check
 
-Checks whether the project's `.claude/` workflow files are up to date with the template repository using git-based comparison. Skipped in the template repo (mirror of Parts 5d / 7: a `template-maintenance/` directory at the project root indicates the template repo, where syncing the template against itself is self-referential and meaningless — `template_repo` points to the same URL as `origin`).
+Checks whether the project's `.claude/` workflow files are up to date with the template repository, by comparing their content with the template's git history. Skipped in the template repo (mirror of Parts 5d / 7: a `template-maintenance/` directory at the project root indicates the template repo, where syncing the template against itself is self-referential and meaningless — `template_repo` points to the same URL as `origin`).
 
 ### Purpose
 
-The upstream template may improve commands, agents, and reference docs. This check uses the template repo as a git remote to compare sync files and present updates.
+The upstream template may improve commands, agents, and reference docs. This check compares the project's sync files against the template repo (a git remote, or a temporary clone for a project that isn't a git repository) and presents updates.
 
 ### Repo-type skip
 
@@ -538,19 +539,16 @@ Before running any sync step: if a `template-maintenance/` directory exists at t
 
 ### Requirements
 
-- `.claude/version.json` — contains `template_repo` (git URL) and `template_version`
+- `.claude/version.json` — contains `template_repo` (git URL), `template_version` and `template_release_date`
 - `.claude/sync-manifest.json` — defines `sync` (updatable) vs `customize` (user-owned) vs `ignore` (project data) file categories
-- `git` available (no `gh` CLI dependency)
-- `python3` for `.claude/scripts/sync-check.py` (optional; the prose fallback in Step 2 works without it)
+- `git` available (no `gh` CLI dependency). The project itself doesn't have to be a git repository (Step 1)
+- `python3` for `.claude/scripts/sync-check.py` and `.claude/scripts/sync-apply.py` (optional; the prose fallbacks in Steps 2 and 4 work without it)
 
 ### Sync State Sidecar
 
-Per-file last-synced state lives in `.claude/.sync-state.json` (gitignored, in `ignore` category). The sidecar lets Part 5 distinguish two diff shapes that look identical to a naive `git diff`:
+Whether the project edited a sync file is decided from the template's own history: a file whose content equals any template version of its path is an unchanged template copy. `.claude/.sync-state.json` (the sidecar) is the fallback, read only when the template history is shallow and so can't place a file. With the whole history it is never consulted: content that no template version holds is the project's own, whatever the sidecar says. It records the content each sync file had when it last equalled the template.
 
-- **Template content not yet applied** — local is byte-for-byte identical to the last-synced state; the diff is pure template movement. Default action: APPLY.
-- **Modified upstream** — local differs from the last-synced state (user edited it post-sync, or the file has never been synced). User adjudicates.
-
-**Schema:**
+**Schema** (unchanged):
 
 ```json
 {
@@ -563,54 +561,62 @@ Per-file last-synced state lives in `.claude/.sync-state.json` (gitignored, in `
 }
 ```
 
-**Hash format:** full SHA-256 hex with `sha256:` prefix. Aligns with `fingerprint.py`, `task_hash`, `spec_fingerprint`, dashboard META — one hash convention across the template. Computed over the file's raw bytes via `shasum -a 256 <path>` (macOS) or `sha256sum <path>` (Linux).
+`synced_hash` is the SHA-256 of the file's raw bytes, as full hex with a `sha256:` prefix.
 
 **Lifecycle:**
-- **Read** in Step 2 to classify per-file diffs.
-- **Written/updated** in Step 4 after each successful sync — only files the user actually accepted get their `synced_hash` recorded/refreshed. Files the user skipped retain their prior entry (or remain absent if never synced).
-- **Missing entries** (file not in sidecar) fall through to "Modified upstream" — graceful migration for pre-3.15.0 projects without a sidecar, and for files newly added to the `sync` manifest that haven't been synced yet.
-
-**First-run population:** the sidecar appears silently the first time Part 5 applies updates after 3.15.0 ships. No user-facing announcement. The file is gitignored (in `sync-manifest.json` `ignore` array), so it doesn't surface in `git status`.
-
-**Recovery:** if the sidecar is deleted or corrupted, Part 5 falls through to current behavior on the next run. The next successful sync repopulates it from the post-checkout file hashes.
+- **Read** by `sync-check.py` in Step 2, and used only when `history_complete` is false, for a differing file that matches no template version of its path: when the file's hash equals its `synced_hash`, the file is an unchanged template copy (`basis: "sidecar"`). A missing sidecar gives no entries; an unreadable one is ignored with a warning.
+- **Written** by `sync-apply.py` in Step 4. After a run the sidecar holds exactly the compare-set files that equal the upstream copy, each with its `synced_hash`, not only the files the run wrote. Every other entry is dropped: a path outside the compare set (a project's own file, a deleted one), or a compare-set file that differs from upstream (except the entry a shallow-history classification still rests on, when that file wasn't updated in the run). Other top-level keys are kept. The script creates the sidecar when it is missing and replaces one it can't parse.
+- **Gitignored.** The sidecar describes one working copy, so it is in the manifest's `ignore` category and belongs in `.gitignore`. Step 3 queues a row when it isn't ignored.
 
 ### Process
 
 #### 1. Setup Remote
 
-Ensure the template repo is configured as a git remote named `template`:
+**Git project** (`git rev-parse --is-inside-work-tree` prints `true`). Ensure the template repo is configured as a git remote named `template`:
 
 ```
 IF "template" remote doesn't exist → git remote add template {template_repo}
 IF "template" remote exists but URL differs from version.json → warn, ask to update
 ```
 
-Fetch latest: `git fetch template` (fetch only, never merge or pull).
+Fetch latest: `git fetch template` (fetch only, never merge or pull). Determine the template's default branch via `git remote show template` (typically `main`). In the steps below, `{ref}` is `template/{branch}`.
 
-If fetch fails (offline, invalid URL) → report as informational, skip remaining sync checks.
+**Non-git project** (the command fails). Don't add a remote. Clone the template into a temporary directory outside the project (`mktemp -d`, or the session scratchpad): `git clone --quiet {template_repo} "$TMP/template"`. Clone the full history (no `--depth`): classification reads it. In the steps below, `{ref}` is `origin/HEAD`, both scripts take `--template-repo "$TMP/template" --ref origin/HEAD`, and every template `git` command in the fallbacks and in `[D]` takes `-C "$TMP/template"`. Skip Step 5, and delete the clone when the run ends.
+
+If the fetch or clone fails (offline, invalid URL) → report as informational, skip remaining sync checks.
 
 #### 2. Compare Sync Files
 
-Determine the template's default branch via `git remote show template` (typically `main`), then run `python3 .claude/scripts/sync-check.py --ref template/{branch}` from the project root (read-only; JSON on stdout). Read `.claude/.sync-state.json` (see "Sync State Sidecar" above) if present; absence triggers fallback (every diff classifies as "Modified upstream").
+Run `python3 .claude/scripts/sync-check.py --ref {ref}` from the project root (read-only; JSON on stdout). The script classifies every sync file by content, against the template's history; Part 5 doesn't diff files one by one.
 
-**Which patterns:** the script's `patterns.compare` — the **upstream** manifest's `sync` patterns plus project-added ones (local `sync` patterns the template never listed). The local manifest alone would skip every file the template added since setup. Retired patterns (`patterns.retired`: local ones the template no longer syncs, because it dropped them from `sync` or now lists them as `customize`/`ignore`) are not compared. Carry `patterns.retired`, `retired_files` and `uncommitted_sync` into Steps 3 and 5. `uncommitted_sync` is what an earlier sync changed and nobody committed: changed sync files present upstream whose content equals **any** template version of their path, not only the current one (so the sync is still found after the template moves on), deletions of retired files, and `.claude/version.json` and `.claude/sync-manifest.json` alongside them. For each file matching the compare patterns, use `git diff` to compare the local version against `template/{default_branch}:.claude/...`. A path matching an upstream `customize` or `ignore` pattern is never compared, even when a sync pattern also matches it, unless the upstream `sync` list names that exact path (it names `.claude/vision/README.md`, which `ignore`'s `.claude/vision/*.md` also matches).
+**Which patterns:** the script's `patterns.compare` — the **upstream** manifest's `sync` patterns plus project-added ones (local `sync` patterns the template never listed). The local manifest alone would skip every file the template added since setup. Retired patterns (`patterns.retired`: local ones the template no longer syncs, because it dropped them from `sync` or now lists them as `customize`/`ignore`) are not compared. A path matching an upstream `customize` or `ignore` pattern is never compared, even when a sync pattern also matches it, unless the upstream `sync` list names that exact path (it names `.claude/vision/README.md`, which `ignore`'s `.claude/vision/*.md` also matches).
 
 **Glob semantics** (patterns match project-root-relative POSIX paths): `**` matches any characters including `/`; `*` matches any characters except `/`; `?` matches one character except `/`; every other character is literal.
 
-**Fallback** (script missing or failing):
-- *Retired patterns:* a local `sync` pattern the upstream list lacks is retired when `git log template/{branch} -S'"<pattern>"' --format=%h -1 -- .claude/sync-manifest.json` prints a commit (the template once listed it); otherwise it is project-added.
-- *Retired files:* from `git log template/{branch} --no-renames --diff-filter=D --name-only --format=%H -- .claude/`, keep paths that exist locally, are absent upstream and match no `customize`/`ignore` pattern of the upstream or local manifest (unless `git show <commit>^:.claude/sync-manifest.json` names the exact path in `sync`), and that also match one of that manifest's `sync` patterns or have a `git hash-object --no-filters` id among the path's *template blob ids*: the ids in `git log template/{branch} --no-renames --raw --no-abbrev --format= -- <path>`. The `%H` line above a path's first appearance is its `<commit>` (`removed_commit`).
-- *Uncommitted sync:* from `git status --porcelain -uall -- .claude` (without `-uall`, a new directory shows as one entry), list each changed file that the compare loop covers and that exists upstream, when its `git hash-object --no-filters <path>` id is among its template blob ids (not `git diff --quiet`, which reports an untracked file as deleted); each deleted path that passes the retired-files rule (the file is gone, so its id is `git rev-parse HEAD:<path>`); and `.claude/version.json` and `.claude/sync-manifest.json` when changed and anything else is listed.
-
-Per-file status:
-- **Up to date** — no diff
-- **Template content not yet applied** — template differs from local AND `local_hash == sidecar.files[path].synced_hash`. The local file is byte-for-byte identical to the last-synced state; the diff is pure template movement. Default action in Step 3: APPLY.
-- **Modified upstream** — template differs from local AND (sidecar entry is missing OR `local_hash != sidecar.files[path].synced_hash`). Local was modified post-sync, or has never been synced. Default action in Step 3: present diff for user adjudication (Apply / Keep / Show diff).
-- **New in template** — file exists upstream but not locally
+**Per-file status.** `files[]` has one entry per upstream file in the compare set, with the keys `path`, `status`, `mode`, `mode_matches`, `version`, `basis` and `shared_lines`:
+- **Up to date** — `up_to_date`.
+- **Unchanged template copy** — `template_copy`: the local content equals template v{version} of this path (or, with `basis: "sidecar"`, the content recorded at the last sync; that basis occurs only when the template history is shallow). Nothing local is lost by updating. `version` is `null` when history can't name the release, and always with `basis: "sidecar"`.
+- **Locally modified** — `modified`: matches no template version. User adjudicates. `shared_lines` is the share (0 to 1) of the file's non-blank lines that appear in any template version of the path. A path that is a symlink or a directory locally is also `modified`, with `shared_lines: null`; Step 4 refuses to write it.
+- **New in template** — `new`: the file exists upstream but not locally.
 - **Retired upstream** — the template shipped this path (as a sync file, or with exactly this content) and later deleted it (offered for removal). These are the `retired_files` entries.
 - **Local only** — present locally, absent upstream, and not a retired template file (kept, never flagged). Every file the template never shipped is Local only.
 
-**Compute `local_hash`:** `shasum -a 256 <path>` (macOS) or `sha256sum <path>` (Linux); prefix `sha256:` to the bare hex. Compare string-equal against the sidecar's `synced_hash`. The hash is over raw bytes — line-ending differences DO produce different hashes (intentional: a CRLF/LF normalization at sync time is a real change, not a no-op).
+`mode` is the file's mode upstream (`100644`, or `100755` for an executable); `mode_matches` is false when the local file's executable bit differs.
+
+**Also carry into Steps 3–5:**
+- `patterns.retired` and `retired_files`.
+- `uncommitted_sync`: what an earlier sync changed and nobody committed. It lists changed sync files present upstream whose content equals **any** template version of their path, not only the current one (so the sync is still found after the template moves on), deletions of retired files, and `.claude/version.json` and `.claude/sync-manifest.json` alongside them.
+- `history_complete`: false when the template history is shallow (a commit in the repository's `shallow` file is reachable from `{ref}`); a shallow project clone with the whole template fetched is complete. The sidecar is read only when it is false.
+- `manifest.customize` and `manifest.ignore`, each with `add` (upstream entries the local list lacks), `drop` (local entries the template has retired or moved to another category) and `list` (the upstream list followed by the project-added entries).
+- `sidecar`: `exists`, `gitignored`, `tracked` (the last two are `null` for a non-git project).
+
+**Fallback** (script missing or failing):
+- *Per-file status:* a file is up to date when its `git hash-object --no-filters <path>` id equals `git rev-parse {ref}:<path>`, and new when it is missing locally. A differing file is an unchanged template copy when its id is among the path's *template blob ids* (the ids in `git log {ref} --no-renames --raw --no-abbrev --format= -- <path>`), or, only when the template history is shallow, when its `sha256:` hash equals the sidecar's `synced_hash`; otherwise it is locally modified.
+- *Retired patterns:* a local `sync` pattern the upstream list lacks is retired when `git log {ref} -S'"<pattern>"' --format=%h -1 -- .claude/sync-manifest.json` prints a commit (the template once listed it); otherwise it is project-added.
+- *Retired files:* from `git log {ref} --no-renames --diff-filter=D --name-only --format=%H -- .claude/`, keep paths that exist locally, are absent upstream and match no `customize`/`ignore` pattern of the upstream or local manifest (unless `git show <commit>^:.claude/sync-manifest.json` names the exact path in `sync`), and that also match one of that manifest's `sync` patterns or have a `git hash-object --no-filters` id among the path's template blob ids. The `%H` line above a path's first appearance is its `<commit>` (`removed_commit`).
+- *Uncommitted sync:* from `git status --porcelain -uall -- .claude` (without `-uall`, a new directory shows as one entry), list each changed file that is in the compare set and exists upstream, when its `git hash-object --no-filters <path>` id is among its template blob ids (not `git diff --quiet`, which reports an untracked file as deleted); each deleted path that passes the retired-files rule (the file is gone, so its id is `git rev-parse HEAD:<path>`); and `.claude/version.json` and `.claude/sync-manifest.json` when changed and anything else is listed.
+- *Sidecar:* ignored when `git check-ignore -q --no-index -- .claude/.sync-state.json` exits 0; tracked when `git ls-files --error-unmatch -- .claude/.sync-state.json` exits 0.
+- *File modes and manifest lists:* not checked without the script; the next run with it queues those rows.
 
 #### 3. Present Changes (report) and Queue Apply Rows
 
@@ -619,12 +625,12 @@ Group files by the per-file status from Step 2 and present them in the report �
 ```
 Template updates available (v5.7.4 → v5.10.0):
 
-  Template content not yet applied (hash-verified: no local edits):
-    .claude/support/reference/dashboard-regeneration.md (+12 -0 lines)
+  Unchanged template copies (no local edits):
+    .claude/support/reference/dashboard-regeneration.md (copy of v5.4.0)
+    .claude/commands/work.md (copy of v5.7.4)
 
-  Modified upstream (local edits — review before including):
-    .claude/commands/work.md (+15 -8 lines)
-    .claude/support/reference/paths.md (+3 -1 lines)
+  Locally modified (review before including):
+    .claude/support/reference/paths.md
 
   New:
     .claude/support/reference/new-feature.md
@@ -637,38 +643,63 @@ Template updates available (v5.7.4 → v5.10.0):
     .claude/skills/*/SKILL.md (as of v4.12.0)
 ```
 
+An unchanged copy whose `version` is `null` reads `(copy of an earlier template version)`, or `(unchanged since the last sync)` with `basis: "sidecar"`.
+
 When `uncommitted_sync` is non-empty, add `ℹ️ {N} synced files are not committed (an earlier sync was never committed)`; Step 5 offers the commit.
+
+When `history_complete` is false, add `ℹ️ Template history is shallow: files it can't place are classified from the sync-state sidecar; "Locally modified" may include unchanged copies. git fetch --unshallow template gives the full answer.`
 
 **Grouping heuristic** (bigger changes): group related files by workflow area (e.g., a command and the reference docs it depends on) and state the impact per group, plus the per-file classification.
 
 **Queue one fix item per file** (per the Fix Queue Protocol) instead of prompting:
 
-- Sync-category file applies (both classifications) → `⚠ overwrites local`, excluded from bare `[A]`, explicit inclusion required. "Template content not yet applied" rows carry the `(hash-verified: no local edits)` annotation so inclusion is an easy call; "Modified upstream" rows carry the diff stats.
-- "New in template" files → risk `—` (new file, nothing overwritten).
+- "Unchanged template copy" files → `Update template file (unchanged copy of v5.4.0)`, risk `—`, included in bare `[A]`. With `basis: "sidecar"` the row reads `Update template file (unchanged since the last sync)`; with a `null` version on a history copy, `Update template file (unchanged copy of an earlier template version)`.
+- "Locally modified" files → `Update template file (locally modified, [D] shows the diff)`, risk `⚠ overwrites local`, excluded from bare `[A]`, explicit inclusion required. When `shared_lines` is not null and below 0.25, the row reads `Update template file (local content is not a variant of the template file: {N}% of its lines appear in any template version; move it to a project-*.md file before including)`, with `{N}` = `shared_lines` × 100, rounded: the project stored its own content at a template-owned path, and updating would destroy it.
+- "New in template" files → `Add new template file`, risk `—` (new file, nothing overwritten).
+- An up-to-date file whose `mode_matches` is false → `Fix file mode ({mode})`, risk `—`. A file with any other status gets its mode set when its update row applies.
 - "Retired upstream" files → `Remove retired template file (removed upstream in v4.12.0; unchanged template copy)` when `state` is `unmodified`, `Remove retired template file (removed upstream in v1.5.0; locally modified, [D] shows the diff)` when `modified`; risk `⚠ deletes`.
 - Retired sync patterns → `Drop retired sync pattern ".claude/skills/*/SKILL.md" (the template no longer syncs it as of v4.12.0)`, file `.claude/sync-manifest.json`, risk `—`. "No longer syncs" covers both cases: the template dropped the pattern, or now lists it as `customize`/`ignore`.
+- `manifest.customize` or `manifest.ignore` with a non-empty `add` or `drop` → one row for both lists: `Update local manifest lists (add .claude/dashboard.html; drop .claude/dashboard.md)`, file `.claude/sync-manifest.json`, risk `—`. Project-added entries are kept. A local entry that names a path or pattern the template syncs is not project-added: it is dropped, and it never excluded the file from sync.
+- `sidecar.gitignored` false → `Add .claude/.sync-state.json to .gitignore`, file `.gitignore`, risk `—`. When `sidecar.tracked` is also true the row reads `Stop tracking .claude/.sync-state.json and add it to .gitignore`. Not queued for non-git projects.
 
 When `removed_in` is `null`, leave the version out of the row (`(removed upstream; …)` / `(the template no longer syncs it)`) and of the report line.
 
-Exclusion = the old "Keep current": the sidecar entry is NOT updated, so the file resurfaces on the next sync; an excluded removal or drop row leaves the file or pattern in place, and the next run offers it again. Full diffs are available pre-decision via the triage table's `[D]` (prints `git diff template/{branch}:<path> <path>`, or for a removal row `git show {removed_commit}^:{path} | diff -u - {path}`; truncated to ~100 lines with a "...truncated" marker) — the route for adjudicating ambiguous classifications, e.g. pre-3.15.0 projects without a sidecar (every diff falls into "Modified upstream"), or files genuinely modified locally where the user has forgotten what they changed.
+An excluded row changes nothing: the file, pattern or list stays as it is, and the next run offers the row again. Full diffs are available pre-decision via the triage table's `[D]`, which prints `git show {ref}:{path} | diff -u - {path}` (for a removal row `git show {removed_commit}^:{path} | diff -u - {path}`), truncated to ~100 lines with a "...truncated" marker.
 
 #### 4. Apply Updates
 
-Read the upstream `template_version` from `template/{default_branch}:.claude/version.json`.
+Apply the included Part 5 rows in this order.
 
-For accepted changes:
-- Check out the accepted files from `template/{default_branch}` into the working tree
-- Remove each included retired file: `git rm -q -- {path}` when tracked, else `rm -- {path}`; then remove parent directories left empty, up to but not including `.claude/`. If `git rm` refuses because of uncommitted edits, report the row as failed (never `-f`).
-- Update `template_version` in local `.claude/version.json` to the upstream version, only when a sync-file row (an update or a new file) applied. Removal and pattern-drop rows alone don't bump it, so a run that only removes files or drops patterns doesn't raise the version Step 5's commit message reports (`Sync template vA → vB`)
-- Set the local `.claude/sync-manifest.json` `sync` list to `patterns.compare` plus any retired pattern whose drop row the user did not include
-- **Update the sync-state sidecar** — for each file the user accepted, compute the new local SHA-256 (post-checkout) and write/update its entry in `.claude/.sync-state.json` under `files["<path>"].synced_hash`. Drop `files["{path}"]` for each removed file, and every entry whose path no longer exists locally. When `template_version` was bumped, refresh top-level `last_full_sync_version` (to the upstream version just synced) and `last_full_sync_date` (current date, ISO 8601). If the sidecar doesn't exist yet, create it with `schema_version: "1.0"`. Files the user skipped retain their prior sidecar entries (or remain absent if never synced).
-- Report what was changed
+**a. Retired files.** Remove each included retired file: `git rm -q -- {path}` when tracked, else `rm -- {path}`; then remove parent directories left empty, up to but not including `.claude/`. If `git rm` refuses because of uncommitted edits, report the row as failed (never `-f`).
 
-**Post-sync dashboard re-check:** If any included sync row touches the renderer or a dashboard-rule file (`scripts/dashboard-render.py`, `dashboard-regeneration.md`, `rules/dashboard.md`, or `shared-definitions.md`), the dashboard was generated with older format rules — regenerate it as part of applying that row (no extra prompt; the row's one-line description notes "includes dashboard regen", so the user sees the consequence before responding). This catches the ordering issue where Part 1 ran dashboard checks before Part 5 synced the new rules, and dedupes with any Part 1 regen row — the dashboard regenerates at most once per run, last. Regeneration follows `.claude/support/reference/dashboard-regeneration.md` (which is now the updated version).
+**b. Sync files, modes, manifest and sidecar: one script call.** Write the paths of the included update, new-file and mode rows to a file, one project-root-relative path per line (in the session scratchpad or `.claude/support/workspace/`), then run from the project root:
+
+```
+python3 .claude/scripts/sync-apply.py --ref {ref} --paths-from {file} [--keep-pattern "{pattern}"]… [--manifest-lists]
+```
+
+- `.claude/settings.json` asks before this command runs (`permissions.ask`): it is the one script that writes template files into `.claude/`. That prompt is expected, once per call.
+- `--keep-pattern` once per retired sync pattern whose drop row was **not** included (the pattern then stays in the local `sync` list).
+- `--manifest-lists` when the manifest-lists row was included.
+- Leave out `--paths-from` when no update, new-file or mode row was included; the script then does only its bookkeeping.
+
+Run it whenever a Part 5 row other than the `.gitignore` row was included. The script does the following, all inside `.claude/`:
+- writes each listed file with the template's content and mode (a mode row is a `chmod`);
+- sets `template_version` and `template_release_date` in `.claude/version.json` to the upstream values, only when it wrote a file's content, or when every compare-set file now equals upstream and the local version differs (the re-run after an interrupted run). Removal, pattern-drop, manifest-list and mode rows alone don't bump the version unless every sync file already equals upstream, so a run that only removes files or drops patterns doesn't claim a version whose files it doesn't hold (Step 5's commit message reports the version: `Sync template vA → vB`);
+- sets the local `sync` list to `patterns.compare` plus the kept retired patterns, and with `--manifest-lists` sets `customize` and `ignore` to `manifest.<cat>.list`;
+- updates the sidecar as described under "Sync State Sidecar", and refreshes `last_full_sync_version` and `last_full_sync_date` when it bumped the version.
+
+Report from its JSON output: `written` and `mode_fixed` are the applied rows, each `failed` entry (`path`, `error`) is a failed row, `version` says whether the version was bumped, `changed_paths` feeds Step 5, and `remaining` lists the sync files still not up to date. Exit `1` means some rows failed and everything else was applied. Exit `2` means the run did not complete (message on stderr): fix the cause and re-run, or use the fallback. After an exit 2 some files may already be written; after the re-run, run `sync-check.py` again and take Step 5's paths from its `uncommitted_sync` as well.
+
+**Fallback** (script missing or failing): for each included file, `git show {ref}:{path} > {path}` (create parent directories; skip a path that is a symlink or directory locally and report the row as failed), then `chmod 755` when `git ls-tree {ref} -- {path}` shows mode `100755`, else `chmod 644`. When a file's content was written (or every compare-set file now equals upstream and the local version differs), set `template_version` and `template_release_date` in `.claude/version.json` to the values in `{ref}:.claude/version.json`. Set the manifest's `sync` list as above. In the sidecar, record `synced_hash` for every compare-set file that now equals its upstream copy, drop every other entry (when the template history is shallow, keep the entry of a file classified by it that you did not update), and refresh the two `last_full_sync_*` fields when the version was bumped (create the file with `schema_version: "1.0"` when missing).
+
+**c. The `.gitignore` row.** When the sidecar is tracked: `git rm --cached -q -- .claude/.sync-state.json` (the file stays on disk). Then append the line `.claude/.sync-state.json` to the project root's `.gitignore`, creating it when missing.
+
+**d. Post-sync dashboard re-check.** If any included sync row touches the renderer or a dashboard-rule file (`scripts/dashboard-render.py`, `dashboard-regeneration.md`, `rules/dashboard.md`, or `shared-definitions.md`), the dashboard was generated with older format rules — regenerate it as part of applying that row (no extra prompt; the row's one-line description notes "includes dashboard regen", so the user sees the consequence before responding). This catches the ordering issue where Part 1 ran dashboard checks before Part 5 synced the new rules, and dedupes with any Part 1 regen row — the dashboard regenerates at most once per run, last. Regeneration follows `.claude/support/reference/dashboard-regeneration.md` (which is now the updated version).
 
 #### 5. Commit Offer
 
-Fires when the project is a git work tree and either a Part 5 row was applied in this run or `uncommitted_sync` is non-empty; runs after the batch triage's post-apply summary (or after the report when the queue was empty). Paths = files Part 5 changed or removed in this run, plus `.claude/version.json` and `.claude/sync-manifest.json` when changed, plus `uncommitted_sync` paths; minus gitignored paths (`git check-ignore -q`) and paths with no change in `git status`. With no path left, there's no offer. Each path is listed with `M`, `A` or `D`:
+Fires when the project is a git work tree and either a Part 5 row was applied in this run or `uncommitted_sync` is non-empty; runs after the batch triage's post-apply summary (or after the report when the queue was empty). Paths = `sync-apply.py`'s `changed_paths` (fallback: the files Step 4 wrote, plus `.claude/version.json` and `.claude/sync-manifest.json` when changed), plus the retired files removed in this run, plus `.gitignore` when its row applied, plus `uncommitted_sync` paths; minus gitignored paths (`git check-ignore -q`) and paths with no change in `git status`. `.claude/.sync-state.json` is listed in one case only: as `D` when the stop-tracking row applied. With no path left, there's no offer. Each path is listed with `M`, `A` or `D`:
 
 ```
 Template sync changed {N} files and they are not committed:
@@ -680,20 +711,19 @@ Commit them now? [C] Commit as "Sync template v{old} → v{new}" | [L] Leave unc
 
 `{old}` = `template_version` in `HEAD:.claude/version.json` (fallback: the local value before this run); `{new}` = the local value after this run; when they're equal, the message is `Sync template files (v{new})`. When a sync-file row was left unapplied, append ` (partial: {k} sync files not updated)`.
 
-- `[C]`: `git add -- <paths that still exist>` (skip it when none do), then `git commit -m "<message>" -- <paths>`. The commit takes deletions itself (`git add` rejects a path `git rm` already removed) and commits only those paths, even if other changes are staged. Never pushes.
+- `[C]`: `git add -- <paths that still exist>` (skip it when none do), then `git commit -m "<message>" -- <paths>`. The commit takes deletions itself (`git add` rejects a path `git rm` already removed) and commits only those paths, even if other changes are staged. Never pushes. When the sidecar's `D` is listed, leave it out of the `git add`, move `.claude/.sync-state.json` out of the project before the commit and move it back afterwards: `git commit -- <paths>` re-adds a listed path that exists in the working tree, which would undo the untracking.
 - `[L]`: `Left uncommitted. The next /health-check will offer this commit again.`
 
 With `--report`: no offer; the `ℹ️` line only.
 
 ### Key Rules
 
-- **Actual file diffs required** — you MUST `git fetch template` and diff each sync file against the remote. Comparing `template_version` strings is NOT a substitute for file-level comparison. Version numbers can match while files diverge (e.g., local edits, partial syncs, template patches). The version number is only used for display and for updating `version.json` after applying changes.
+- **File-level comparison required** — you MUST fetch (or clone) the template and compare every sync file's content against it, with `sync-check.py` or the Step 2 fallback. Comparing `template_version` strings is NOT a substitute. Version numbers can match while files diverge (e.g., local edits, partial syncs, template patches). The version number is only used for display and for updating `version.json` after applying changes.
 - **Sync category only** — never touch `customize` or `ignore` category files; upstream `customize`/`ignore` lists win over a local `sync` pattern
 - **Files the template never shipped are never flagged** (e.g. a project's own skills or commands). A file the template shipped (as a sync file, or with exactly this content) and later deleted is offered for removal (`⚠ deletes`, explicit inclusion only); nothing is removed without that.
 - **No silent changes** — always present changes and get confirmation before applying
 - **Fetch only** — never merge, pull, or rebase from the template remote
-- **Sidecar populates silently on first sync** — `.claude/.sync-state.json` appears the first time Step 4 applies updates after 3.15.0. No user-facing announcement; the file is gitignored.
-- **Sidecar absence is fine** — pre-3.15.0 projects (no sidecar) fall through to "Modified upstream" classification for every diff. Behavior matches pre-3.15.0; sidecar populates on the first successful sync.
+- **Blob history decides, the sidecar is the fallback** — a file equal to any template version of its path is an unchanged copy and updates under bare [A]; only a file matching no template version needs adjudication. The sidecar is read only when the template history is shallow.
 
 ### Report Format
 
@@ -712,7 +742,7 @@ With `--report`: no offer; the `ℹ️` line only.
 ℹ️ 36 synced files are not committed (an earlier sync was never committed)
 ```
 
-**Offline / fetch failed:**
+**Offline / fetch or clone failed:**
 ```
 ### Template Sync
 
@@ -777,7 +807,7 @@ Validates the layered-settings contract: `.claude/settings.json` is template-own
      - Queue a fix item: move the unexpected entries to `.claude/settings.local.json` (risk `—`; content is moved, not lost — create the local file if missing, concatenate+dedupe for array fields like `permissions.allow`, preserve existing keys for object fields like `hooks`, then strip them from `.claude/settings.json`). If excluded: leave files as-is; next sync will overwrite.
 
 3. **Validate base-set drift (template vs. local):**
-   - Read the template's `.claude/settings.json` from the template remote (if configured and reachable — same fetch as Part 5). Skip this check if offline.
+   - Read the template's `.claude/settings.json` from the template remote, or from Part 5's temporary clone in a non-git project (if configured and reachable — same fetch as Part 5). Skip this check if offline.
    - Compare the local `permissions.allow` AND `permissions.ask` arrays against the template's.
    - If entries differ: this is normal (user has not yet synced, or template has been updated). Part 5's sync flow will offer the update — no Part 5c action needed.
    - This check exists purely to reassure users that additions/removals from the template base will propagate through normal sync.
@@ -1118,7 +1148,7 @@ READ .claude/sync-manifest.json (file categories)
 SCAN .claude/support/previous_specifications/ for archived specs
 SCAN .claude/support/workspace/ for stale files
 SCAN for misplaced spec files in non-canonical locations
-FETCH template remote, RUN sync-check.py, diff sync files (skip if offline)
+FETCH template remote (non-git project: temporary clone), RUN sync-check.py (skip if offline)
 ```
 
 ### Step 2: Run Checks
@@ -1164,8 +1194,8 @@ Proposed fixes (7):
 |---|------|------|--------------|------|
 | 1 | 1  | .claude/dashboard.html          | Regenerate (stale hash + format)          | — |
 | 2 | 3  | decision-004-*.md               | Move trailing comment off the `status:` line | — |
-| 3 | 5  | .claude/commands/work.md        | Apply template version (+15 -8)            | ⚠ overwrites local |
-| 4 | 5  | .claude/rules/dashboard.md      | Apply template version (+4 -1; includes dashboard regen) | ⚠ overwrites local (hash-verified: no local edits) |
+| 3 | 5  | .claude/commands/work.md        | Update template file (locally modified, [D] shows the diff) | ⚠ overwrites local |
+| 4 | 5  | .claude/rules/dashboard.md      | Update template file (unchanged copy of v5.4.0; includes dashboard regen) | — |
 | 5 | 2d | claude-code-authoring.md        | Run [V] verify-against-docs pass ("5: defer" suppresses 30d) | — |
 | 6 | 7  | template-maintenance/feedback.md | Append FB-097 "verify-agent: …"            | ⚠ unreviewed append |
 | 7 | 1  | task-12.json                    | Stale In Progress (9d) — reply "7: pending / on-hold / blocked / keep" | needs-input |
@@ -1173,10 +1203,10 @@ Proposed fixes (7):
 One response resolves the queue:
   [A] apply all unflagged (⚠ and needs-input rows excluded — listed back as still-open)
   "A except 1,2" — exclude specific unflagged rows
-  "A include 3,4" — ⚠ rows apply only on explicit inclusion by id
+  "A include 3,6" — ⚠ rows apply only on explicit inclusion by id
   [N] none
   "[D] 3,6" — show full diffs / full text for those ids first, then re-prompt (the [D] round doesn't consume the response)
-  Per-item answers combine freely: "A include 4, 5: defer, 7: on-hold"
+  Per-item answers combine freely: "A include 3, 5: defer, 7: on-hold"
 ```
 
 **Apply mechanics:**
@@ -1196,7 +1226,7 @@ One response resolves the queue:
 
 **Large root `./CLAUDE.md` (>200 lines):** Flags as error, suggests extracting sections to `.claude/support/reference/project-*.md`
 
-**`.claude/CLAUDE.md` deviations:** Reports diff summary; revert/keep/merge choice rides the fix queue as a `needs-input` row
+**`.claude/CLAUDE.md` deviations:** Reports diff summary; revert/keep/merge choice rides the fix queue as a `needs-input` row (only for a locally modified file; an unchanged copy of an older template version is a Part 5 update row)
 
 **Subtask ID collisions:** Detects `5_1` already exists before creating duplicate
 
@@ -1207,6 +1237,8 @@ One response resolves the queue:
 **Missing version.json or sync-manifest.json:** Template sync skipped with informational note
 
 **Template repo unreachable:** Template sync skipped gracefully, other checks still run
+
+**Project is not a git repository:** Template sync runs against a temporary clone of the template (Part 5 Step 1); no commit offer
 
 ---
 
