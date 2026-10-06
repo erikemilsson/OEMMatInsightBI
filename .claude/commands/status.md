@@ -80,7 +80,7 @@ Display the appropriate output format based on mode.
 |----------|-------------|-----------------------|---------|---------|---------|
 | 12       | 1           | 0                     | 4       | 0       | 1       |
 
-**Human tasks ready:** 2 · **Decisions pending:** 1
+**Human tasks ready:** 2 · **Decisions pending:** 1 · **Agent decisions to ratify:** 2
 
 ### Health Indicators
 - ✓ Dashboard current
@@ -90,6 +90,7 @@ Display the appropriate output format based on mode.
 
 ### Attention Needed
 - Decision pending: Auth approach (decision-001)
+- 2 agent decisions await ratification: DEC-004, DEC-005 (/work ratify all)
 - Human task ready: Configure LDAP credentials (Task 7)
 
 ### Recent Activity (last 24h)
@@ -200,6 +201,7 @@ These are read-only indicators. Use `/health-check` for full validation with aut
 ## Notes
 
 - `/status` is purely informational — use `/work` to actually do work
+- "Decisions pending" counts `draft`/`proposed` records. `recorded` records (agent decisions, already built and verified) are counted separately as "Agent decisions to ratify"; omit that figure and its Attention line at 0
 - Task counts come from task JSON files directly (not the dashboard), ensuring accuracy even if the dashboard is stale
 - Phase detection and verification validation also read task files and spec directly
 - Brief mode is ideal for quick context before starting work

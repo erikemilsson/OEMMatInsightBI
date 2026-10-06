@@ -745,5 +745,145 @@ class TestSpecDrift(NeedsYouBase):
                 self.assertIn(f"drift_deferrals: {count}\n", out)
 
 
+def recorded_md(num, title="Agent choice", status="recorded", decided_by="implement-agent"):
+    """An agent-recorded decision (FB-129): no Select an Option section."""
+    return (f"---\nid: DEC-{num:03d}\ntitle: {title}\nstatus: {status}\ndecided: 2026-06-01\n"
+            f"decided_by: {decided_by}\n---\n\n## Decision\n\n**Selected:** A\n")
+
+
+class TestRecordedDecisions(NeedsYouBase):
+    """FB-129: status `recorded` = agent-made, verified, not yet ratified. Resolved
+    for dependencies, not "Decided", and one Needs-you row for the whole project."""
+
+    RATIFY = "ratification"
+
+    def test_recorded_is_resolved_for_decision_dependencies(self):
+        self.assertNotIn("recorded", dr.UNRESOLVED_DECISION)
+        decs = [{"id": "DEC-001", "title": "Q", "status": "recorded", "selected": None, "file": "x.md"}]
+        self.assertEqual(dr.resolved_decision_ids(decs), {"DEC-001"})
+        nodes, _ = dr.build_graph([task(1, "Pending", decision_dependencies=["DEC-001"])], decs)
+        self.assertNotIn("DDEC-001", nodes)  # no decision node gates the task
+
+    def test_human_task_depending_on_recorded_decision_is_actionable(self):
+        active = [task(1, "Pending", "1", owner="human", title="Sign the form",
+                       decision_dependencies=["DEC-001"])]
+        card = self.card_for(active, decisions=[recorded_md(1)])
+        self.assertIn("Sign the form", card)
+        self.assertIn("/work complete 1", card)
+        self.assertNotIn("unresolved", card)
+        # positive control: the same task behind a proposed record is not listed
+        card = self.card_for(active, decisions=[recorded_md(1, status="proposed")])
+        self.assertNotIn("Sign the form", card)
+
+    def test_recorded_decision_does_not_block_a_phase(self):
+        active = [task(1, "Pending", "1"),
+                  task(2, "Pending", "2", decision_dependencies=["DEC-001"])]
+        out = self.render(self.make_env(active=active, decisions=[recorded_md(1)]))
+        self.assertNotIn("Blocked (DEC-001)", out)
+        out = self.render(self.make_env(active=active,
+                                        decisions=[recorded_md(1, status="proposed")]))
+        self.assertIn("Blocked (DEC-001)", out)  # positive control
+
+    def test_single_record_renders_one_singular_row(self):
+        card = self.card_for([task(1, "Pending", "1")], decisions=[recorded_md(1)])
+        self.assertIn(
+            '<li>1 agent decision awaits ratification: '
+            '<a href="support/decisions/decision-001-x.md">DEC-001</a> — run '
+            '<code>/work ratify all</code> (or <code>/work ratify DEC-NNN</code>)</li>', card)
+        self.assertEqual(card.count(self.RATIFY), 1)
+        self.assertNotIn("Nothing blocked on you right now", card)
+
+    def test_several_records_share_one_row_in_id_order(self):
+        card = self.card_for([task(1, "Pending", "1")],
+                             decisions=[recorded_md(n) for n in (3, 1, 2)])
+        self.assertEqual(card.count(self.RATIFY), 1)
+        self.assertIn("3 agent decisions await ratification: ", card)
+        self.assertLess(card.index(">DEC-001<"), card.index(">DEC-002<"))
+        self.assertLess(card.index(">DEC-002<"), card.index(">DEC-003<"))
+        self.assertNotIn("more", card[card.index(self.RATIFY):])
+
+    def test_more_than_eight_records_truncate_with_count(self):
+        card = self.card_for([task(1, "Pending", "1")],
+                             decisions=[recorded_md(n) for n in range(1, 12)])
+        self.assertEqual(card.count(self.RATIFY), 1)
+        self.assertIn("11 agent decisions await ratification: ", card)
+        self.assertIn(">DEC-008</a>, +3 more — run", card)
+        self.assertNotIn("DEC-009", card)
+
+    def test_exactly_eight_records_list_all_ids(self):
+        card = self.card_for([task(1, "Pending", "1")],
+                             decisions=[recorded_md(n) for n in range(1, 9)])
+        self.assertIn(">DEC-008</a> — run", card)
+
+    def test_row_escapes_markup_in_the_record_id(self):
+        md = recorded_md(1).replace("id: DEC-001", "id: DEC-<b>")
+        card = self.card_for([task(1, "Pending", "1")], decisions=[md])
+        row = card[card.rindex("<li>", 0, card.index(self.RATIFY)):]
+        row = row[:row.index("</li>")]
+        self.assertIn("1 agent decision awaits ratification: ", row)
+        self.assertNotIn("<b>", row)
+        self.assertIn(">DEC-&lt;b&gt;</a>", row)
+
+    def test_no_recorded_records_no_row(self):
+        card = self.card_for([task(1, "Pending", "1")],
+                             decisions=[decision_md(1, "Pick", "approved", "A")])
+        self.assertNotIn(self.RATIFY, card)
+        self.assertIn("Nothing blocked on you right now", card)
+
+    def test_legacy_agent_approved_records_get_no_row(self):
+        decs = [recorded_md(1, status="approved"), recorded_md(2, status="implemented")]
+        out = self.render(self.make_env(active=[task(1, "Pending", "1")], decisions=decs))
+        self.assertNotIn(self.RATIFY, self.card(out))
+        self.assertIn("decisions_recorded: 0\n", out)
+        self.assertIn("decisions_approved: 2\n", out)
+
+    def test_row_sits_with_the_unresolved_decision_rows(self):
+        card = self.card_for([task(1, "Pending", "1")],
+                             decisions=[recorded_md(1), decision_md(2, "Open", "proposed")])
+        self.assertEqual(card.count("<b>Decisions</b>"), 1)
+        start = card.index("<b>Decisions</b>")
+        block = card[start:card.index("</ul>", start)]
+        self.assertIn("unresolved", block)
+        self.assertIn(self.RATIFY, block)
+
+    def test_meta_counts_recorded_separately_from_approved(self):
+        decs = [recorded_md(1), recorded_md(2, decided_by="orchestrator"),
+                decision_md(3, "Pick", "approved", "A")]
+        out = self.render(self.make_env(active=[task(1, "Pending", "1")], decisions=decs))
+        head = out[:out.index("</head>")]
+        self.assertIn("decision_count: 3\n", head)
+        self.assertIn("decisions_recorded: 2\n", head)
+        self.assertIn("decisions_approved: 1\n", head)
+
+    def test_ratifying_changes_the_meta_block(self):
+        # the freshness signal decisions already have (META counts) covers the row
+        root = self.make_env(active=[task(1, "Pending", "1")], decisions=[recorded_md(1)])
+        before = self.render(root)
+        path = root / "support" / "decisions" / "decision-001-x.md"
+        path.write_text(path.read_text(encoding="utf-8").replace(
+            "status: recorded", "status: approved\nratified: 2026-06-02"), encoding="utf-8")
+        after = self.render(root)
+        self.assertIn("decisions_recorded: 1\n", before)
+        self.assertIn("decisions_recorded: 0\n", after)
+        self.assertNotIn(self.RATIFY, self.card(after))
+
+    def test_display_label_and_decisions_section(self):
+        self.assertEqual(dr.DECISION_STATUS_DISPLAY["recorded"], "Recorded")
+        out = self.render(self.make_env(
+            active=[task(1, "Pending", "1")],
+            decisions=[recorded_md(1), decision_md(2, "Pick", "approved", "A")]))
+        self.assertIn('data-status="recorded"', out)
+        self.assertIn('<span class="bdg warn">Recorded</span>', out)
+        self.assertIn("1 decided · 1 recorded · 0 superseded", out)  # not counted as decided
+        self.assertIn('data-f="recorded"', out)
+
+    def test_decisions_section_unchanged_without_recorded(self):
+        out = self.render(self.make_env(
+            active=[task(1, "Pending", "1")],
+            decisions=[decision_md(1, "Pick", "approved", "A")]))
+        self.assertIn("1 decided · 0 superseded", out)
+        self.assertNotIn('data-f="recorded"', out)
+
+
 if __name__ == "__main__":
     unittest.main()

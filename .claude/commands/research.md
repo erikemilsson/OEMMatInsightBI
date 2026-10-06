@@ -10,7 +10,7 @@ Investigate options for decisions, technology choices, or architectural question
 
 ```
 /research {topic}           # Research a topic (creates decision record if needed)
-/research {DEC-NNN}         # Research options for an existing decision
+/research {DEC-NNN}         # Research options for an existing decision (a `recorded` one: confirm, then reconsider)
 /research                   # Auto-detect: find draft/proposed decisions needing research
 ```
 
@@ -43,6 +43,8 @@ Investigate options for decisions, technology choices, or architectural question
 3. Read frontmatter: check `status`
 4. If status is `approved` or `implemented`: report that the decision is already resolved. Offer to research validation of the chosen option instead.
 5. If status is `superseded`: report and stop
+6. If status is `recorded` (`decisions.md § "Agent-recorded decisions"`): tell the user and confirm — "DEC-{NNN} is an agent-recorded decision: it is already built and verified (task {related.tasks}). Researching it reopens it. [Y] Reconsider and research | [N] Leave as recorded". On `[N]`, stop. On `[Y]`, reconsider it as `/work reconsider DEC-NNN` does (`status: proposed`; if an older record has a `## Select an Option` box the agent ticked, untick it in the same edit and say so, or the next `/work` or `/iterate` approves it; the task stays Finished), then continue
+7. If the record has no `## Select an Option` section (a reconsidered agent-recorded decision): insert the template sections it lacks, so the agent's edits and the user's selection have a place to land — `## Select an Option` directly under the title with one unchecked box per option the record already names, and empty `## Option Details` and `## Your Notes & Constraints` after `## Options Comparison`. Leave `## Decision` as it is (it records what was built) until the user selects
 
 **If a topic was provided** (`/research OAuth libraries for Node.js`) — or `/work` Step 2b's `[R]` reaches a decision with no record yet (a task's `decision_dependencies` names a DEC-NNN with no record file):
 1. Scan existing decision records for a match (title or background contains relevant keywords)

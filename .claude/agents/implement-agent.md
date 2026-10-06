@@ -138,15 +138,15 @@ After Step 5, construct and return the structured implementation report per the 
   ],
   "issues_discovered": [
     {
-      "type": "blocker | non_blocking | scope_creep | spec_drift | decision_made | spec_misalignment",
+      "type": "blocker | non_blocking | scope_creep | spec_drift | spec_misalignment",
       "description": "one-sentence description",
       "suggested_action": "create new task | flag for human | proceed | stop and report"
     }
   ],
   "decisions_to_record": [
     {
-      "title": "short title for the decision",
-      "summary": "one-sentence summary of what was decided",
+      "title": "short title for the decision (one entry per coupled set of choices — normally one per task)",
+      "summary": "one-sentence summary of what was chosen",
       "options_considered": ["Option A", "Option B"],
       "selected_option": "Option A",
       "rationale": "why this option over the others",
@@ -244,10 +244,11 @@ If task grows larger than expected:
 ### Decisions Made During Implementation
 
 If you make a significant choice during implementation:
-1. Read `.claude/support/reference/decisions.md` for the decision record format and required fields
-2. Generate the decision content (title, summary, options considered, selected option, rationale, related task IDs) and include it in your return report under the `decisions_to_record` array (see Return schema above)
-3. Add an `issues_discovered` entry (type: `decision_made`, suggested_action: `flag for human`) noting that a decision was recorded — the orchestrator assigns the DEC-NNN ID when it creates the file and surfaces it on the dashboard
-4. **Never write `decision-*.md` files yourself.** Subagents are sandboxed from `.claude/` writes (DEC-004; `rules/agents.md § State Ownership`). The orchestrator owns this write. Follows the same report-pattern as research-agent (see `research-agent.md` § "If no decision record exists").
+1. Read `.claude/support/reference/decisions.md` § "When to Create Records". A choice that meets "Skip Records For" (obvious, trivial, already documented, temporary) goes in your report's `notes` in a sentence, not in `decisions_to_record`.
+2. Put the rest in `decisions_to_record` (see Return schema above): **one entry per coupled set of choices, normally one per task**. Choices that only make sense together share an entry, with every option you weighed in `options_considered` and the reasoning in `rationale`.
+3. **Restate the full current set on every return**, fix rounds after a failed verification and partial returns included. On those rounds the dispatch gives you the set held so far. The orchestrator replaces what it held with what you send; it does not merge, so an entry you leave out is dropped.
+4. **Your choice is not an approval.** The orchestrator holds the entries until verification passes, then writes one decision record for the task with status `recorded`, which goes to the user to ratify or reconsider. Never describe a choice as approved, decided by the user, or final, in the entry, your notes, code comments or deliverables.
+5. **Never write `decision-*.md` files yourself.** Subagents are sandboxed from `.claude/` writes (DEC-004; `rules/agents.md § State Ownership`). The orchestrator owns this write. Follows the same report-pattern as research-agent (see `research-agent.md` § "If no decision record exists").
 
 ### Spec Misalignment Discovered
 

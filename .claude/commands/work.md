@@ -16,7 +16,13 @@ For workflow concepts (phases, agent synergy, checkpoints), see `.claude/support
 /work complete           # Complete current in-progress task
 /work complete {id}      # Complete specific task
 /work pause              # Graceful wind-down — preserve context for next session
+/work ratify             # List agent-recorded decisions awaiting ratification
+/work ratify all         # Ratify every `recorded` decision
+/work ratify DEC-NNN …   # Ratify the named decision(s)
+/work reconsider DEC-NNN # Reopen an agent-recorded decision for a real selection
 ```
+
+`ratify` and `reconsider` are sub-modes like `complete` and `pause`: when the first argument is one of them, run § "Decision Ratification" and stop — no routing.
 
 ## User Communication Strategy
 
@@ -119,7 +125,7 @@ Check for workspace plan files from a previous session.
 
 Check for tasks left in recoverable states by a previous session. Read `.claude/support/reference/session-recovery.md` and follow its procedure:
 1. **Check session sentinel** (`.claude/tasks/.last-clean-exit.json`) — if clean exit, skip full scan
-2. **If sentinel missing or stale** — run full recovery scan (6-case logic in the reference file)
+2. **If sentinel missing or stale** — run full recovery scan (7-case logic in the reference file)
 3. **After recovery actions complete** — proceed to Step 1
 
 **Malformed files during scan:** If a task file fails to parse during Step 0, skip it and continue. Report the error in Step 1.
@@ -179,8 +185,8 @@ If `.claude/support/workspace/.interaction-assessment.json` exists (a prior `/wo
 
 Enumerate every item currently gated on the user and surface it before routing. This is the session-start half of the **human-gated coverage invariant** (`rules/dashboard.md § Sections`): nothing blocked on the user may live only in handoff prose.
 
-1. Scan task files for the card's Your Tasks set (`dashboard-regeneration.md § "Section Display Rules"`): status `"On Hold"`; Finished with `user_review_pending: true` (any owner); `"Blocked"` with owner `human`/`both` or `verification_attempts` ≥ 3; unfinished `owner: "human"` (not Broken Down) with all dependencies `"Finished"`.
-2. Scan `.claude/support/decisions/decision-*.md` for unresolved records (status `proposed`/`draft` — a selection is awaited). A `proposed` record whose `## Select an Option` box is already ticked is listed as "ticked — recorded this run" instead; Step 1d's checkbox scan approves it.
+1. Scan task files for the card's Your Tasks set (`dashboard-regeneration.md § "Section Display Rules"`): status `"On Hold"`; Finished with `user_review_pending: true` (any owner); `"Blocked"` with owner `human`/`both` or `verification_attempts` ≥ 3; unfinished `owner: "human"` (not Broken Down) with all dependencies `"Finished"`. This scan reads every task file on every run, so also: a Finished task with a non-empty `decisions_pending` had its record write interrupted — run "Persist decisions" for it now (`work-procedures.md § "State Persistence Protocol"`).
+2. Scan `.claude/support/decisions/decision-*.md` for unresolved records (status `proposed`/`draft` — a selection is awaited). Records with status `recorded` are resolved but unratified: list them together as one item (`{N} agent decision(s) await ratification: {ids} → /work ratify all`); the script derives their card row, so no augment row is needed. A `draft`/`proposed` record whose `## Select an Option` box is already ticked is listed as "ticked — approved this run" instead; Step 1d's checkbox scan approves it.
 3. Read sidecar `augment_rows[]` in `.claude/dashboard-state.json`: each unexpired action row is an item (expiry: `dashboard-regeneration.md § "Augment Rows"`), folded into its task's line when its `task_id` names a task from step 1. If a handoff was consumed in Step 0a, also extract any questions asked of the user last session that were never answered (mid-decision pauses) and no row already carries.
 4. Output, merged into Step 0c's summary when both fire (skip the block entirely when N == 0):
    ```
@@ -305,7 +311,8 @@ IF remaining_tasks is NOT empty
      - status == "Blocked"
      - status == "On Hold"
      - an unresolved decision dependency (a `decision_dependencies` entry
-       whose record is missing or has status `draft`/`proposed`)
+       whose record is missing or has status `draft`/`proposed`; `recorded`
+       is resolved and never makes a task wait)
    → FAST EXIT
 ```
 
@@ -366,17 +373,17 @@ Read `.claude/support/reference/phase-decision-gates.md` and follow its procedur
 
 **Required inline trigger — checkbox detection on every entry:**
 
-For every `decision-*.md` file with frontmatter `status: proposed`:
+For every `decision-*.md` file with frontmatter `status: draft` or `proposed`:
 
 1. Read the file's `## Select an Option` section
 2. Scan for checked boxes — match `[x]`, `[X]`, `[✓]`, `[✔]` (per the normalization in `phase-decision-gates.md` § "Phase Check")
-3. If a checked box is found AND frontmatter `status` is still `proposed`:
+3. If a checked box is found AND frontmatter `status` is still `draft`/`proposed`:
    - Extract the selected option name (text after `[x] ` on the matched line)
-   - Update frontmatter: `status: approved`, `decided: <today's YYYY-MM-DD>`
-   - Populate the Decision section using the option name and the matching Option Details rationale
-   - Run the Post-Decision Check (`phase-decision-gates.md` § "Post-Decision Check") — handles inflection-point pause if applicable
+   - Update frontmatter: `status: approved`, `decided: <today's YYYY-MM-DD>`. When the record has `decided_by: implement-agent` or `orchestrator` (a reconsidered agent decision), also add `ratified: <today>`: the tick is the user's confirmation; `decided_by` stays
+   - For a reconsidered agent decision (`decided_by` set), first note the existing `**Selected:**` choice (the Post-Decision Check compares against it); then populate the Decision section using the option name and the matching Option Details rationale
+   - Run the Post-Decision Check (`phase-decision-gates.md` § "Post-Decision Check") — handles inflection-point pause if applicable, and the follow-up-task offer for a reconsidered agent decision
    - Log: `Decision {DEC-ID} resolved → status updated to 'approved' (selected: {option_name})`
-4. If no checked boxes are found across all proposed decisions, proceed to the rest of Step 2b without changes.
+4. If no checked boxes are found across all `draft`/`proposed` decisions, proceed to the rest of Step 2b without changes.
 
 This step MUST run on every Step 2b invocation. It is the caller's responsibility — `phase-decision-gates.md` defines the algorithm, but `/work` Step 2b is what fires it. Do not skip this scan even if other Step 2b checks suggest no new decisions.
 
@@ -484,11 +491,12 @@ When Step 3 reaches a stopping point (no agent dispatch), append 1-3 relevant co
 | Unresolved decision blocks work | "Run `/research {DEC-ID}` to investigate, or resolve it in the dashboard." |
 | Spec incomplete | "Run `/iterate` to refine the specification." |
 | No spec exists | "Create a vision document in `.claude/vision/` and run `/iterate distill`." |
+| Decisions with status `recorded` exist | "{N} agent decision(s) await ratification. Run `/work ratify all`, or `/work reconsider {DEC-ID}` to reopen one." |
 | Feedback items exist (new/refined) | "You have {N} feedback items. Run `/feedback review` to triage." |
 
 Rules:
 - Maximum 3 suggestions per stopping point
-- Prioritize by actionability: human tasks ready > decisions > feedback
+- Prioritize by actionability: human tasks ready > decisions > ratification > feedback
 - Always include the specific command with arguments, not just a description
 - Only suggest commands relevant to the current state
 
@@ -519,7 +527,7 @@ Read `.claude/support/reference/decomposition.md` and follow its 10-step procedu
 
 #### State Persistence Protocol
 
-**STOP — read `.claude/support/reference/work-procedures.md § "State Persistence Protocol"` NOW (once per session, before processing any agent return).** It is the canonical body for the three after-return protocols this file references by name: **"After implement-agent returns"** (status transitions for completed/partial/partial_resume_pending/blocked/misaligned; DEC-011 dual-write friction-marker append — immediate, never deferred — plus audit-register projection; decision persistence; dashboard regen; verify dispatch on `completed`), **"After verify-agent returns (per-task mode)"** (attempts + history; `task_verification` write incl. `evidence[]` from the Empirical Evidence Gate; pass/fail/escalate transitions; timeout detection; parent auto-completion; FB-086 `files_affected` drift update), and **"After verify-agent returns (phase-level mode)"** (`verification-result.json`; fix-task creation; loop-or-complete).
+**STOP — read `.claude/support/reference/work-procedures.md § "State Persistence Protocol"` NOW (once per session, before processing any agent return).** It is the canonical body for the three after-return protocols this file references by name: **"After implement-agent returns"** (status transitions for completed/partial/partial_resume_pending/blocked/misaligned; DEC-011 dual-write friction-marker append — immediate, never deferred — plus audit-register projection; holding the agent's decisions in the task's `decisions_pending` — no decision file before verification; dashboard regen; verify dispatch on `completed`), **"After verify-agent returns (per-task mode)"** (attempts + history; `task_verification` write incl. `evidence[]` from the Empirical Evidence Gate; pass/fail/escalate transitions; on pass, one `status: recorded` decision record from `decisions_pending`; timeout detection; parent auto-completion; FB-086 `files_affected` drift update), and **"After verify-agent returns (phase-level mode)"** (`verification-result.json`; fix-task creation; loop-or-complete).
 
 The orchestrator owns ALL `.claude/` state transitions — agents cannot write there (DEC-004). Do not improvise any after-return step from this summary; the procedure file is the contract.
 
@@ -533,9 +541,9 @@ Dispatch implement-agent (Agent tool; set `model` per `.claude/CLAUDE.md § Mode
 
 **After agent returns:** apply "After implement-agent returns" from State Persistence Protocol. Then, if `implementation_status == "completed"`, dispatch verify-agent per "If Verifying (Per-Task)" and apply "After verify-agent returns" protocol.
 
-**Inline implementation (small tasks):** for a task you can finish in a handful of tool calls, you may implement it yourself instead of dispatching implement-agent, following the inline contract in `.claude/rules/agents.md § "Dispatch Invariants vs Efficiency Defaults"` (`[INLINE]` notes, existing checks, before/after behaviour for behaviour-changing edits). Verify-agent dispatch is **not** optional for inline work — set Awaiting Verification and continue with "If Verifying (Per-Task)".
+**Inline implementation (small tasks):** for a task you can finish in a handful of tool calls, you may implement it yourself instead of dispatching implement-agent, following the inline contract in `.claude/rules/agents.md § "Dispatch Invariants vs Efficiency Defaults"` (`[INLINE]` notes, existing checks, before/after behaviour for behaviour-changing edits). Hold your own significant choices in `decisions_pending` exactly as for an agent return ("After implement-agent returns" step 3, with `decided_by: "orchestrator"`); they become a record only when verification passes. Verify-agent dispatch is **not** optional for inline work — set Awaiting Verification and continue with "If Verifying (Per-Task)".
 
-**Context to provide:** Current task, relevant spec sections, constraints/notes, and an explicit instruction that the agent must not attempt writes to `.claude/` — return the structured report only. If the task's notes contain a scope note newer than its `files_affected`, pass the scope note as the authority and say so. Present `files_affected` as the expected scope, not a write limit: the agent searches for what the change invalidates and may edit other files it requires, reporting them (FB-113; `implement-agent.md` Step 2).
+**Context to provide:** Current task, relevant spec sections, constraints/notes, and an explicit instruction that the agent must not attempt writes to `.claude/` — return the structured report only. If the task's notes contain a scope note newer than its `files_affected`, pass the scope note as the authority and say so. If the task has `decisions_pending` (a fix round or resume), pass the entries: the agent restates the set, amended as needed, in its report. Present `files_affected` as the expected scope, not a write limit: the agent searches for what the change invalidates and may edit other files it requires, reporting them (FB-113; `implement-agent.md` Step 2).
 
 **Inline status update (tier 2):** announce `Starting task {id}: "{title}"` when dispatching and a pass/fail summary after verify-agent completes. Dashboard regen deferred to next strategic moment (session boundary, parallel batch end, or async routing to dashboard).
 
@@ -637,7 +645,7 @@ When all tasks are finished and verification conditions are met:
 
 1. **Update spec status** to `complete` (set `status: complete`, `updated: YYYY-MM-DD` in frontmatter)
 2. **Regenerate dashboard** to reflect completion state (Action Required clears; Progress shows final phase complete; Tasks section collapses fully-finished phases)
-3. **Present final checkpoint** — report completion with verification summary
+3. **Present final checkpoint** — report completion with verification summary, plus the count and ids of any decisions still `recorded` (`/work ratify all`); they don't block completion
 4. **Learning capture prompt** — "Project complete. Any patterns or learnings to capture? [L] Share  [S] Skip". If [L]: append to `.claude/support/learnings/project-learnings.md`. If [S]: continue silently.
 5. **Stop** — do not route to any agent. The project is done.
 
@@ -672,7 +680,40 @@ Report the current phase and what was done, any spec misalignments surfaced, and
 
 Manual task completion outside implement-agent's workflow — human-owned tasks, work done outside the normal flow, quick tasks. (implement-agent handles its own completion internally; `/work complete` is not needed after it finishes.)
 
-**STOP — read `.claude/support/reference/work-procedures.md § "Task Completion (/work complete)"` NOW and follow its 10-step Process + Rules.** Hard invariants enforced there: no task reaches "Finished" without `task_verification.result == "pass"` (human tasks auto-generate `self_attested`; unverified tasks get verify-agent dispatched first); deliverable validation for `human`/`both` tasks (`[A]/[P]/[W]`); the two-prompt completion-notes collection (project notes always; template notes only when `template_inbox_path` is configured); dashboard-marker fallback capture; parent auto-completion; dashboard regen + unblocked-task surfacing; auto-archive check; Step 5 post-dispatch validation. Do not improvise the flow from this summary.
+**STOP — read `.claude/support/reference/work-procedures.md § "Task Completion (/work complete)"` NOW and follow its 10-step Process + Rules.** Hard invariants enforced there: no task reaches "Finished" without `task_verification.result == "pass"` (human tasks auto-generate `self_attested`; unverified tasks get verify-agent dispatched first); deliverable validation for `human`/`both` tasks (`[A]/[P]/[W]`); the two-prompt completion-notes collection (project notes always; template notes only when `template_inbox_path` is configured); dashboard-marker fallback capture; writing the task's held `decisions_pending` as a `recorded` decision record; parent auto-completion; dashboard regen + unblocked-task surfacing; auto-archive check; Step 5 post-dispatch validation. Do not improvise the flow from this summary.
+
+---
+
+## Decision Ratification (`/work ratify`, `/work reconsider`)
+
+Agent-recorded decisions (status `recorded`: an agent chose during implementation, the work passed verification, you haven't confirmed the choice) never block tasks or phase gates. These two sub-modes are how the user closes them. Shape and lifecycle: `.claude/support/reference/decisions.md`.
+
+Both edit **frontmatter only**, with one exception: reconsider unticks a box the agent ticked on an older record (its step 2). They are infrastructure operations under DEC-016 (`rules/spec-workflow.md § "Direct edits to spec, decision, and vision files (DEC-016)"`), so they don't route through `/iterate` or `/research`. The `permissions.ask` prompt on decision files still fires (once per session with "Yes, don't ask again"). Otherwise never touch the record body here.
+
+### `/work ratify [all | DEC-NNN …]`
+
+1. **Resolve targets.** `all` → every `decision-*.md` with `status: recorded`. Ids → those records. If none are `recorded` (`all` or no argument): `No agent decisions await ratification.` and stop. No argument → list the `recorded` records (id, title, related task, each `**Selected:**` line) and ask:
+   ```
+   {N} agent decision(s) await ratification.
+   [A] Ratify all | [DEC-NNN …] Ratify these | [N] None now
+   ```
+   To change one instead of ratifying it: `/work reconsider DEC-NNN`.
+2. **For each target:** if the record is missing or its status isn't `recorded`, report `DEC-NNN is {status} — skipped` and leave it alone. Otherwise set `status: approved` and add `ratified: <today's YYYY-MM-DD>`. Leave `decided` and `decided_by` as they are (provenance).
+3. **Regenerate the dashboard** (Tier 1: decision resolution).
+4. **Report:** `Ratified: DEC-…` and, if any, `Skipped: DEC-… ({status})`. Then stop.
+
+### `/work reconsider DEC-NNN`
+
+1. The record must have `status: recorded`; for any other status report it and point to `decisions.md § "Revisiting Decisions"`.
+2. Set `status: proposed` (no other frontmatter change). If the record has a `## Select an Option` section with a ticked box (older agent-written records), untick it in the same edit and say so: the agent ticked it, and a ticked box on a `proposed` record is approved by the next `/work` or `/iterate`. That is the only body edit this sub-mode makes.
+3. Regenerate the dashboard — the record now shows as an unresolved decision.
+4. Output:
+   ```
+   DEC-NNN reopened. Run /research DEC-NNN to compare the options and select one.
+   Task {id} stays Finished. If your selection differs from what was built, the change becomes a new task.
+   ```
+
+Never reset or re-open the related task here, and never add the record to its `decision_dependencies`. The follow-up task is offered when the selection lands (`phase-decision-gates.md § "Post-Decision Check"`, run from Step 2b or `/iterate` Step 1a).
 
 ---
 

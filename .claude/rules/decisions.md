@@ -11,6 +11,10 @@ When facing significant choices that block downstream work, create a decision re
 - **Pick-and-go** — after resolution, dependent tasks simply unblock (default)
 - **Inflection point** — the outcome changes *what* gets built. After resolution, `/work` pauses and suggests `/iterate` to revisit the spec
 
+## Agent-Recorded Decisions
+
+A non-trivial choice an agent makes while implementing is held on the task until verification passes, then written as one `recorded` record per task. `recorded` never blocks a task or phase gate; the user ratifies it with `/work ratify` (or reopens it with `/work reconsider DEC-NNN`).
+
 ## Where Things Live
 
 - Records: `.claude/support/decisions/decision-*.md`

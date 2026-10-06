@@ -37,19 +37,19 @@ Determine the current spec version using the same version discovery as `/work`: 
 
 Before assessing spec state, scan for unresolved-but-checked decisions. This mirrors `/work` Step 2b's inline trigger — both entry points to spec-adjacent work must fire the auto-finalization algorithm.
 
-For every `decision-*.md` file with frontmatter `status: proposed`:
+For every `decision-*.md` file with frontmatter `status: draft` or `proposed`:
 
 1. Read the file's `## Select an Option` section
 2. Scan for checked boxes — match `[x]`, `[X]`, `[✓]`, `[✔]` (per the normalization in `phase-decision-gates.md § "Phase Check"`)
-3. If a checked box is found AND frontmatter `status` is still `proposed`:
+3. If a checked box is found AND frontmatter `status` is still `draft`/`proposed`:
    - Extract the selected option name (text after `[x] ` on the matched line)
-   - Update frontmatter: `status: approved`, `decided: <today's YYYY-MM-DD>`
-   - Populate the Decision section using the option name and matching Option Details rationale
-   - Run the Post-Decision Check (`phase-decision-gates.md § "Post-Decision Check"`) — handles inflection-point pause
+   - Update frontmatter: `status: approved`, `decided: <today's YYYY-MM-DD>`. When the record has `decided_by: implement-agent` or `orchestrator` (a reconsidered agent decision), also add `ratified: <today>`: the tick is the user's confirmation; `decided_by` stays
+   - For a reconsidered agent decision (`decided_by` set), first note the existing `**Selected:**` choice (the Post-Decision Check compares against it); then populate the Decision section using the option name and matching Option Details rationale
+   - Run the Post-Decision Check (`phase-decision-gates.md § "Post-Decision Check"`) — handles inflection-point pause, and the follow-up-task offer for a reconsidered agent decision
    - Log: `Decision {DEC-ID} resolved → status updated to 'approved' (selected: {option_name})`
-4. If no checked boxes are found across all proposed decisions, proceed to Step 1b without changes.
+4. If no checked boxes are found across all `draft`/`proposed` decisions, proceed to Step 1b without changes.
 
-This step MUST run on every `/iterate` invocation. It is the caller's responsibility — `phase-decision-gates.md` defines the algorithm; `/iterate` Step 1a is what fires it. This prevents the case where the user checks a decision and runs `/iterate` (not `/work`) and the decision stays `proposed`.
+This step MUST run on every `/iterate` invocation. It is the caller's responsibility — `phase-decision-gates.md` defines the algorithm; `/iterate` Step 1a is what fires it. This prevents the case where the user checks a decision and runs `/iterate` (not `/work`) and the decision stays `draft`/`proposed`.
 
 ### Step 1b: Check Feedback Items
 

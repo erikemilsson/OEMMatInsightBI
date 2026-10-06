@@ -121,6 +121,7 @@ Canonical definitions for terms used across the environment. Terms already defin
 | Term | Definition |
 |------|------------|
 | **Pick-and-Go Decision** | Default decision type. After resolution, blocked tasks simply unblock and `/work` continues. Any decision without `inflection_point: true`. |
+| **Agent-Recorded Decision** | A non-trivial choice an agent made while implementing a task, written as a decision record with status `recorded` once the task's verification passes (one record per task). Never blocks; not "Decided" until the user ratifies it (`/work ratify` → `approved` + `ratified`) or reopens it (`/work reconsider` → `proposed`). See `decisions.md § "Agent-recorded decisions"`. |
 | **Comparison Matrix** | Core of a decision record. Criteria-vs-options table forcing structured evaluation. Common criteria: Performance, Complexity, Cost, Ecosystem, Fit, Risk. |
 | **Weighted Scoring** | Optional addition for high-stakes decisions. Each criterion gets a percentage weight, options scored 1–5. Makes evaluation explicit. |
 | **Implementation Anchor** | Reference linking a decision to where it was realized. Added at `implemented` status. Fields: `file`, `line` (optional), `description`. Validated by `/health-check`. |

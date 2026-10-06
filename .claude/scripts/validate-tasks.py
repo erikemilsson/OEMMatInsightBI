@@ -53,6 +53,12 @@ def validate_task(data: dict, path: Path) -> list[str]:
         if field in data and not isinstance(data[field], bool):
             errors.append(f"{field} must be boolean, got {type(data[field]).__name__} {data[field]!r}")
 
+    # decisions_pending (FB-129): optional; agent decisions held until the verify pass
+    if "decisions_pending" in data:
+        dp = data["decisions_pending"]
+        if not isinstance(dp, list) or not all(isinstance(e, dict) for e in dp):
+            errors.append("decisions_pending must be an array of objects")
+
     if data.get("status") == "Absorbed" and not data.get("absorbed_into"):
         errors.append("status Absorbed requires non-empty absorbed_into")
     if data.get("status") == "Broken Down" and not data.get("subtasks"):

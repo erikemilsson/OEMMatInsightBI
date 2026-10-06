@@ -57,6 +57,7 @@ This environment targets the **current Claude Opus tier** via the floating `opus
 | `/work` | Start or continue work (decompose, route to agents, complete tasks) |
 | `/work pause` | Graceful wind-down (preserve context before compaction) |
 | `/work complete` | Complete current in-progress task |
+| `/work ratify` | Ratify agent-recorded decisions (`all` or `DEC-NNN`); `/work reconsider DEC-NNN` reopens one |
 | `/iterate` | Spec review and refinement |
 | `/grill` | Interview-style interrogation; no-args triages candidate areas first; auto-detects `./CONTEXT.md` |
 | `/shakedown` | Acceptance-by-example: capture the edge-cases & real-world knowledge only you have, probing examples against a vision, the spec, or the build (DEC-019, DEC-023) |

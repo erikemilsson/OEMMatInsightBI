@@ -24,6 +24,7 @@ Parts 1–7 NEVER prompt inline during the run. Every fixable issue becomes a **
 - `—` — safe to bundle: concrete fix, nothing locally-authored is lost (regen, add missing field, move entries between files).
 - `⚠ overwrites local` — applying replaces locally-modified content: ALL sync-category file applies (Part 5), `.claude/CLAUDE.md` revert (Part 2a). Excluded from bare `[A]`; explicit inclusion required. Sync rows the sidecar hash-verifies as unmodified since last sync carry the annotation `(hash-verified: no local edits)` so inclusion is an easy call — but they are still ⚠, never bundled silently.
 - `⚠ deletes` — removes a file: Part 5 retired-template-file rows. Excluded from bare `[A]`; explicit inclusion required. The row says whether the file is an unchanged template copy (nothing local is lost) or locally modified (`[D]` shows the diff against the template's last version).
+- `⚠ edits decision record` — changes the body of a decision record (Part 3 `## Selected` heading rename). Excluded from bare `[A]`; explicit inclusion required.
 - `⚠ unreviewed append` — adds new ledger content the user hasn't read (Part 7 proposed FB entries). Excluded from bare `[A]`; review via `[D]` or include explicitly.
 - `needs-input` — the fix can't be computed without an answer (which task to keep, a path, revert-vs-keep-vs-merge). The row carries the question and choices inline; resolved only by a per-item reply (`{id}: <answer>`). Bare `[A]` skips these; unresolved rows are reported as still-open, never silently dropped.
 
@@ -80,7 +81,7 @@ When breaking down tasks, IDs must not collide:
 The dashboard is derived and gitignored (DEC-024): `dashboard-render.py --html` renders it whole from task JSON, decision records and the sidecar, so there are no rows or sections to reconcile.
 
 - **Presence:** with no `task-*.json` yet, `.claude/dashboard.html` may be absent (the first `/work` after decomposition generates it). Tasks exist but no file (e.g. a fresh clone): ⚠️.
-- **META parses:** the `<!-- DASHBOARD META` … `-->` comment holds one `key: value` per line, with the same keys as the META of a fresh `dashboard-render.py --html` run (currently the 13 in `dashboard-regeneration.md § "4. Compute and Add Metadata Block"`). Missing or extra keys (e.g. `session_*`): ⚠️. If regenerating doesn't clear a mismatch, that list is stale. Check 10 compares the values; Part 6 check 1 covers placement in `<head>` and the offline invariant.
+- **META parses:** the `<!-- DASHBOARD META` … `-->` comment holds one `key: value` per line, with the same keys as the META of a fresh `dashboard-render.py --html` run (currently the 15 in `dashboard-regeneration.md § "4. Compute and Add Metadata Block"`). Missing or extra keys (e.g. `session_*`): ⚠️. If regenerating doesn't clear a mismatch, that list is stale. Check 10 compares the values; Part 6 check 1 covers placement in `<head>` and the offline invariant.
 - **Legacy `.claude/dashboard.md`:** present → the pre-DEC-024 dashboard was never migrated: ⚠️. Regenerating migrates it first (`dashboard-regeneration.md` Step 2c), as `/work` Step 1a does.
 
 For any of these, the fix is always: regenerate.
@@ -359,7 +360,7 @@ Validates the decision documentation system for schema compliance and consistenc
 
 ### Repo-type branch (template repo)
 
-Part 3's scan reads `.claude/support/decisions/decision-*.md` — the shipped decision-records directory. In the template repo that directory is the empty shipped placeholder; the real template decision records live in root `decisions/` (21 of them). When a `template-maintenance/` directory exists at the project root, scan `decisions/decision-*.md` (root) **instead of** the shipped path — otherwise schema, staleness, anchor-integrity, and cross-reference checks (1–6 below) all silently validate an empty set and every check vacuously passes. Mirrors the Parts 5/5d/7 `template-maintenance/` sentinel. No behavior change for downstream projects (no sentinel → the shipped path is scanned as before; downstream decision records do live at `.claude/support/decisions/`).
+Part 3's scan reads `.claude/support/decisions/decision-*.md` — the shipped decision-records directory. In the template repo that directory is the empty shipped placeholder; the real template decision records live in root `decisions/` (21 of them). When a `template-maintenance/` directory exists at the project root, scan `decisions/decision-*.md` (root) **instead of** the shipped path — otherwise schema, staleness, anchor-integrity, and cross-reference checks (1–7 below) all silently validate an empty set and every check vacuously passes. Mirrors the Parts 5/5d/7 `template-maintenance/` sentinel. No behavior change for downstream projects (no sentinel → the shipped path is scanned as before; downstream decision records do live at `.claude/support/decisions/`).
 
 ### Validation Checks
 
@@ -370,12 +371,14 @@ Each `decision-*.md` file must have valid frontmatter:
 **Required fields:**
 - `id` - Format: `DEC-NNN` (e.g., DEC-001, DEC-042). Must match `\d+` pattern after `DEC-`. The numeric portion must match the filename: `decision-{NNN}-*.md` → frontmatter `id: DEC-{NNN}`. Mismatch is an ERROR.
 - `title` - Non-empty string
-- `status` - One of: `draft`, `proposed`, `approved`, `implemented`, `superseded`, `partially_superseded`
+- `status` - One of: `draft`, `proposed`, `recorded`, `approved`, `implemented`, `superseded`, `partially_superseded`
 - `category` - One of: `architecture`, `technology`, `process`, `scope`, `methodology`, `vendor`, `ux`, `design`, `ui-ia`, `ui-content` (UI-side categories added per FB-074 — see `.claude/support/reference/decisions.md § Categories` for definitions)
 - `created` - Valid date in YYYY-MM-DD format
 
 **Optional fields:**
-- `decided` - Date when decision was finalized
+- `decided` - Date when decision was finalized (for an agent-recorded decision, the date of the verify pass)
+- `decided_by` - `implement-agent` or `orchestrator` on an agent-recorded decision (`decisions.md § "Agent-recorded decisions"`)
+- `ratified` - Date the user ratified an agent-recorded decision
 - `related.tasks` - Array of task IDs
 - `related.decisions` - Array of decision IDs
 - `spec_revised` - Boolean, set after `/iterate` processes an inflection point
@@ -383,9 +386,9 @@ Each `decision-*.md` file must have valid frontmatter:
 
 #### 2. Dashboard Derivation
 
-There is no decisions table to keep in sync: `dashboard-render.py` derives the Decisions card, the "Needs you" Decisions rows and the META decision counts from `.claude/support/decisions/decision-*.md` on every regen. Its frontmatter reader is line-based and stricter than YAML:
+There is no decisions table to keep in sync: `dashboard-render.py` derives the Decisions card, the "Needs you" Decisions rows (unresolved records, and the one ratify row for `recorded` records) and the META decision counts from `.claude/support/decisions/decision-*.md` on every regen. Its frontmatter reader is line-based and stricter than YAML:
 - `---` opens the file (no BOM or leading blank line), and `id`, `title`, `status` are each one plain `key: value` line (no folded or multi-line value, no trailing `# comment`). Otherwise the renderer falls back to the filename for `id`/`title` and to `draft` for `status` (an unresolved row; dependent tasks show as blocked), or reads a garbled status the META counts miss.
-- When `dashboard.html` exists, its META `decision_count`, `decisions_approved` (`approved` + `implemented`), `decisions_superseded` and `decisions_partially_superseded` match counts from the files. A mismatch means a decision changed since the last regen; Part 1 check 10's `task_hash` covers tasks only.
+- When `dashboard.html` exists, its META `decision_count`, `decisions_approved` (`approved` + `implemented`), `decisions_recorded` (`recorded`), `decisions_superseded` and `decisions_partially_superseded` match counts from the files. A mismatch means a decision changed since the last regen; Part 1 check 10's `task_hash` covers tasks only.
 
 Template repo: skip this check — the renderer reads only `.claude/support/decisions/`.
 
@@ -394,11 +397,15 @@ Template repo: skip this check — the renderer reads only `.claude/support/deci
 - Decisions with status `draft` created > 30 days ago
 - Decisions with status `proposed` created > 14 days ago without resolution
 
-#### 4. Completeness (for approved/implemented)
+#### 4. Completeness (for recorded/approved/implemented)
 
-Decisions with status `approved` or `implemented` must have (headings per the template in `.claude/support/reference/decisions.md`):
-- Non-empty `## Decision` section (selected option and rationale; `/work` Step 2b fills it from the box ticked under `## Select an Option`)
+Decisions with status `recorded`, `approved` or `implemented` must have (headings per the template in `.claude/support/reference/decisions.md`):
+- Non-empty `## Decision` section (selected option and rationale; `/work` Step 2b fills it from the box ticked under `## Select an Option`, or, for an agent-recorded decision, the "Persist decisions" step writes it)
 - At least one option in the `## Options Comparison` table
+
+`## Select an Option` is not required: an agent-recorded decision has none, before or after ratification.
+
+A record with a `## Selected` heading and no `## Decision` heading (older agent-written records) fails the first requirement on its heading alone: queue the rename row (Decision Auto-Fixes) instead of reporting it incomplete.
 
 #### 5. Implementation Anchor Validation
 
@@ -421,6 +428,12 @@ Reports mismatches between decision `related.tasks` and task `decision_dependenc
 
 This is a reporting check. The primary enforcement and interactive resolution happens in `/work` Step 2b.
 
+#### 7. Legacy Agent-Approved Decisions
+
+Before v5.11.0, a choice an agent made during implementation was written straight to `approved`, which the user never gave. Find records with status `approved` or `implemented`, `decided_by: implement-agent`, and no `ratified` key. If any exist, queue **one** row for the project with the count and ids. The dashboard never surfaces these, so this row is their only route to the user.
+
+Records with status `recorded` are not an issue here: the dashboard's ratify row covers them.
+
 ### Decision Auto-Fixes
 
 Per the Fix Queue Protocol: each detected issue queues one fix item; "Ask user: …" entries become `needs-input` rows with the question inline. Nothing here prompts mid-run.
@@ -435,7 +448,11 @@ Per the Fix Queue Protocol: each detected issue queues one fix item; "Ask user: 
 | Anchor file not found | Report for manual review |
 | Cross-reference mismatch | Report for manual review (never auto-add: the task may be the decision's origin, not a dependent) |
 | ID/filename mismatch | Ask user: rename file or update frontmatter ID |
+| Legacy agent-approved decisions (check 7) | One `needs-input` row: "{N} decisions were approved by an agent, never ratified: DEC-NNN, … — reply `{id}: ratified / recorded / keep`" (`ratified / keep` only when every listed record is `implemented`; with a mix, the row adds "`recorded` skips the {M} `implemented`"). `ratified` adds `ratified: {today}` to each (status unchanged, so `implemented` stays `implemented`); `recorded` sets each `approved` one to `status: recorded` so they join the dashboard's ratify row (then regenerate dashboard.html) and never changes an `implemented` one, which ratifying would leave `approved` — those stay in the row for a later `ratified` or `keep`; `keep` (default, and what an unanswered row means) changes nothing and the row returns next run. Frontmatter only |
+| `## Selected` heading, no `## Decision` (check 4) | Rename the heading line to `## Decision`, body untouched. One row per record, `⚠ edits decision record` |
 | Task references non-existent decision | Ask user: remove dependency or create the decision record |
+
+The legacy and `## Selected` rows, like every fix here that edits a decision record, trigger DEC-016's `permissions.ask` prompt when applied (once per session with "Yes, don't ask again"). That's expected: check 7's fix is frontmatter-only, and the rename changes a heading label, not the decision's text.
 
 ### Non-Fixable Issues (Manual Required)
 
@@ -444,7 +461,7 @@ Per the Fix Queue Protocol: each detected issue queues one fix item; "Ask user: 
 | Invalid frontmatter syntax | Need to examine YAML |
 | Invalid status/category/ID value | Need to determine correct value |
 | Missing required field | Need human input |
-| Incomplete approved decision | Need Decision section content |
+| Incomplete recorded/approved decision | Need Decision section content |
 
 ---
 
@@ -1108,7 +1125,7 @@ FETCH template remote, RUN sync-check.py, diff sync files (skip if offline)
 
 - Part 1: Task system validation (checks 1-11)
 - Part 2: Instruction files audit (2a: template alignment, 2b: root bloat, 2c: rules validation)
-- Part 3: Decision system validation (checks 1-6)
+- Part 3: Decision system validation (checks 1-7)
 - Part 4: Archive validation (checks 1-4)
 - Part 5: Template sync + collision + settings checks
 - Part 6: UX evaluation (checks 1-5)

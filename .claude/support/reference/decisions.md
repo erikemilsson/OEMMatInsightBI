@@ -158,7 +158,7 @@ Include enough context for someone unfamiliar to understand.]
 
 **"Your Notes & Constraints" section:** This section in the template is user-owned. Claude reads it when processing the decision but never overwrites it. Use it to record constraints, preferences, or questions that should inform the choice. Content here persists across decision doc updates and dashboard regenerations.
 
-**Numbering namespace:** project decision records number independently (`DEC-001`, `DEC-002`, …) from the *template's* decision records that the shipped rules and reference docs cite (e.g., DEC-004, DEC-016, DEC-021, DEC-024). A template citation in synced files is not a project record — when picking the next project number, count only the files in `.claude/support/decisions/`.
+**Numbering namespace:** project decision records number independently (`DEC-001`, `DEC-002`, …) from the *template's* decision records that the shipped rules and reference docs cite (e.g., DEC-004, DEC-016, DEC-021, DEC-024). A template citation in synced files is not a project record — when picking the next project number, count only the files in `.claude/support/decisions/`. In project files (task notes, decision records, handoffs, code comments), a bare `DEC-NNN` means the project's record; cite a template record as `template DEC-NNN`.
 
 ---
 
@@ -187,13 +187,16 @@ Include enough context for someone unfamiliar to understand.]
 
 ```
 draft → proposed → approved → implemented
-                      ↓
-                 superseded
+            ↑          ↑  ↓
+            │          │  superseded
+            └ recorded ┘
+  (reconsidered)   (ratified)
 ```
 
 - **draft**: Research phase. Gathering options, running experiments.
 - **proposed**: Options documented, recommendation made. Ready for stakeholder input.
-- **approved**: Decision finalized. May await implementation.
+- **recorded**: An agent made the choice during implementation and the work is verified; the user has not ratified it. Resolved for `decision_dependencies` (never blocks), but not "Decided". Exits: ratified → `approved` plus `ratified: YYYY-MM-DD`; reconsidered → `proposed`. See § "Agent-recorded decisions".
+- **approved**: Decision finalized by the user (selected, or ratified). May await implementation.
 - **implemented**: Decision reflected in project. Common end state.
 - **superseded**: Replaced by a newer decision. Link to replacement in Impact section.
 
@@ -202,6 +205,35 @@ draft → proposed → approved → implemented
 Decisions aren't permanent. Revisit when circumstances change, trade-offs prove worse than expected, or better options become available.
 
 When superseding: create a new record, reference the old one, mark old as `superseded`, note the replacement in the old record's Impact section.
+
+---
+
+## Agent-recorded decisions
+
+A non-trivial choice an agent makes while implementing a task (implement-agent, or the orchestrator for inline work) is recorded for the user to ratify afterwards. It never blocks a task, `/work` Step 1d or a phase gate.
+
+**When it is written.** After implement-agent returns, the orchestrator holds the choices on the task (`decisions_pending`); nothing is written to `.claude/support/decisions/`. When the task's verification passes, it writes **one record per task** covering all of that task's held choices. (A task reworked after its record exists gets a new record only if its choices changed; the new one links the old in `related.decisions` and supersedes it while it is still `recorded`.) Choices that meet § "Skip Records For" get no record: they go to the task's `notes` as `[CHOICE] …`. Procedure: `work-procedures.md` § "State Persistence Protocol", steps "Hold decisions" and "Persist decisions".
+
+**Record shape.** The template's frontmatter with:
+
+```yaml
+status: recorded
+decided: YYYY-MM-DD
+decided_by: implement-agent
+related:
+  tasks: [<task id>]
+```
+
+`decided` is the date of the verify pass. `decided_by` is `implement-agent`, or `orchestrator` for inline work, and never changes afterwards (provenance). The id is the next free project number (§ "Numbering namespace") and is never added to any task's `decision_dependencies`.
+
+Sections, in order: `## Background`, `## Options Comparison`, `## Decision` (for each choice, a `**Selected:**` line and its rationale), `## Trade-offs`, `## Impact`. No `## Select an Option` section: the user selected nothing, and a ticked box would say they had.
+
+**Ratifying or reconsidering.** The dashboard's Needs-you card lists all `recorded` records in one row. The user then runs one of:
+
+- `/work ratify all` or `/work ratify DEC-NNN …` → `status: approved` and a new key `ratified: YYYY-MM-DD`. Frontmatter only.
+- `/work reconsider DEC-NNN` → `status: proposed`; the record is now an unresolved decision like any other, and `/research DEC-NNN` adds the sections a user selection needs (`## Select an Option` and the rest) and investigates. Frontmatter only, except on an older record whose `## Select an Option` box the agent ticked: that box is unticked in the same edit, or the next `/work` or `/iterate` would approve the record. When the user later ticks a box, the record becomes `approved` with `ratified` added (`decided_by` stays). The task stays Finished; any follow-up work is a new task after the user selects.
+
+`/research DEC-NNN` on a `recorded` record confirms, then does the same as reconsider.
 
 ---
 

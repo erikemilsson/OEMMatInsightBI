@@ -77,6 +77,11 @@ if sys.version_info < (3, 10):  # Python floor (FB-120); see README § Invocatio
 
 OWNER_EMOJI = {"human": "❗", "claude": "🤖", "both": "👥"}
 UNRESOLVED_DECISION = {"draft", "proposed"}
+# FB-129: an agent made the choice during implementation, the work is verified and
+# the user has not ratified it. Resolved for decision_dependencies (deliberately not
+# in UNRESOLVED_DECISION, so it never blocks), but not "Decided".
+RECORDED_DECISION = "recorded"
+RATIFY_ROW_MAX_IDS = 8
 
 
 def numeric_key(value):
@@ -418,6 +423,7 @@ def week_activity(active, now):
 
 DECISION_STATUS_DISPLAY = {"approved": "Decided", "implemented": "Decided",
                            "draft": "Pending", "proposed": "Pending",
+                           RECORDED_DECISION: "Recorded",
                            "superseded": "Superseded",
                            "partially_superseded": "Partially Superseded"}
 
@@ -464,6 +470,7 @@ def render_meta(active, decisions, spec, version, drift, verification_result, no
         f"drift_sections: {drift_sections}",
         f"decision_count: {len(decisions)}",
         f"decisions_approved: {counts.get('approved', 0) + counts.get('implemented', 0)}",
+        f"decisions_recorded: {counts.get(RECORDED_DECISION, 0)}",
         f"decisions_superseded: {counts.get('superseded', 0)}",
         f"decisions_partially_superseded: {counts.get('partially_superseded', 0)}",
         "-->",
@@ -765,7 +772,9 @@ def _html_decisions(decisions):
     for d in sorted(decisions, key=lambda d: numeric_key(d["id"])):
         display = DECISION_STATUS_DISPLAY.get(d["status"], d["status"].title())
         st = "superseded" if "superseded" in d["status"].lower() else \
-             ("decided" if display == "Decided" else "pending")
+             ("decided" if display == "Decided" else
+              "recorded" if d["status"] == RECORDED_DECISION else "pending")
+        badge = "warn" if st == "recorded" else _status_class(display)  # awaits ratification
         search = html.escape((d["id"] + " " + d["title"] + " " + (d.get("selected") or "")).lower(), quote=True)
         href = f"support/decisions/{d['file']}"
         sel = d.get("selected")
@@ -773,19 +782,23 @@ def _html_decisions(decisions):
         rows.append(
             f'<details class="dec" data-status="{st}" data-search="{search}"><summary>'
             f'<span class="did">{_esc(d["id"])}</span><span class="dt">{_esc(d["title"])}</span>'
-            f'<span class="bdg {_status_class(display)}">{_esc(display)}</span></summary>'
+            f'<span class="bdg {badge}">{_esc(display)}</span></summary>'
             f'<div class="dbody">{sel_html}<a href="{_esc(href)}">open record →</a></div></details>')
     ndec = len(decisions)
     nsup = sum(1 for d in decisions if "superseded" in d["status"].lower())
     ndecided = sum(1 for d in decisions if DECISION_STATUS_DISPLAY.get(d["status"], "") == "Decided")
+    # recorded (FB-129): own count + filter, shown only when a record awaits ratification
+    nrec = sum(1 for d in decisions if d["status"] == RECORDED_DECISION)
+    rec_sum = f" · {nrec} recorded" if nrec else ""
+    rec_btn = '<button class="fbtn" data-f="recorded">recorded</button>' if nrec else ""
     return (
         f'<details class="decwrap"><summary><b>📋 Decisions</b> <span class="pill">{ndec}</span>'
-        f'<span class="decsum">{ndecided} decided · {nsup} superseded</span>'
+        f'<span class="decsum">{ndecided} decided{rec_sum} · {nsup} superseded</span>'
         f'<span class="open">browse ▾</span></summary><div class="decin">'
         f'<div class="dtools"><input id="dq" placeholder="search {ndec} decisions… ( / )" oninput="decFilter()">'
         f'<button class="fbtn on" data-f="all">all</button>'
         f'<button class="fbtn" data-f="decided">decided</button>'
-        f'<button class="fbtn" data-f="superseded">superseded</button>'
+        f'{rec_btn}<button class="fbtn" data-f="superseded">superseded</button>'
         f'<span class="pill" id="dcount">{ndec}</span></div>'
         f'<div class="declist">{"".join(rows)}<div class="empty" id="dempty" style="display:none">no match</div></div>'
         f'</div></details>')
@@ -1175,12 +1188,27 @@ def _html_needs_you(active, decisions, phases_model, status_map, sidecar,
             f'({fb_new} new, {fb_ref} refined, {fb_ready} ready) → run '
             f'<code>/feedback review</code>')])
 
-    # Decisions — unresolved records
-    sub("Decisions", [row(
+    # Decisions — unresolved records, then ONE row for every agent-recorded decision
+    # awaiting ratification (FB-129). Keyed on status alone: a legacy approved or
+    # implemented record with decided_by: implement-agent gets no row (/health-check's).
+    rows = [row(
         f'<span class="tid">{_esc(d["id"])}</span>{_esc(d.get("title") or "")} — unresolved '
         f'({_esc(d["status"])}) → tick your option in '
         f'<a href="support/decisions/{_esc(d["file"])}">{_esc(d["file"])}</a>')
-        for d in decisions if d["status"] in UNRESOLVED_DECISION])
+        for d in decisions if d["status"] in UNRESOLVED_DECISION]
+    recorded = sorted((d for d in decisions if d["status"] == RECORDED_DECISION),
+                      key=lambda d: numeric_key(d["id"]))
+    if recorded:
+        n = len(recorded)
+        ids = [f'<a href="support/decisions/{_esc(d["file"])}">{_esc(d["id"])}</a>'
+               for d in recorded[:RATIFY_ROW_MAX_IDS]]
+        if n > RATIFY_ROW_MAX_IDS:
+            ids.append(f"+{n - RATIFY_ROW_MAX_IDS} more")
+        noun = "agent decision awaits" if n == 1 else "agent decisions await"
+        rows.append(row(
+            f'{n} {noun} ratification: {", ".join(ids)} — run <code>/work ratify all</code> '
+            f'(or <code>/work ratify DEC-NNN</code>)'))
+    sub("Decisions", rows)
 
     # Your Tasks — at most one row per task, first match wins (FB-118). Scans all
     # non-Absorbed tasks: user_review_pending is set together with Finished, so

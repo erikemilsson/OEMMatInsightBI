@@ -123,6 +123,35 @@ class ValidateTasksCLITests(unittest.TestCase):
             self.assertEqual(result.returncode, 0)
             self.assertIn("Validated 0 task files", result.stdout)
 
+    def test_decisions_pending_array_of_objects_passes(self):
+        """FB-129: the optional decisions_pending field (also when empty) is accepted."""
+        for value in ([{"title": "Cache layer", "selected": "LRU"}], []):
+            with tempfile.TemporaryDirectory() as task_dir:
+                task = _conformant_task()
+                task["decisions_pending"] = value
+                with open(os.path.join(task_dir, "task-1.json"), "w") as f:
+                    json.dump(task, f)
+                result = subprocess.run(
+                    [sys.executable, str(SCRIPT), task_dir],
+                    capture_output=True, text=True, timeout=10,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("Schema: OK", result.stdout)
+
+    def test_decisions_pending_wrong_shape_reports_error(self):
+        for value in ("DEC-001", {"title": "x"}, ["DEC-001"], [{"title": "x"}, 3]):
+            with tempfile.TemporaryDirectory() as task_dir:
+                task = _conformant_task()
+                task["decisions_pending"] = value
+                with open(os.path.join(task_dir, "task-1.json"), "w") as f:
+                    json.dump(task, f)
+                result = subprocess.run(
+                    [sys.executable, str(SCRIPT), task_dir],
+                    capture_output=True, text=True, timeout=10,
+                )
+                self.assertEqual(result.returncode, 1, repr(value))
+                self.assertIn("decisions_pending must be an array of objects", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

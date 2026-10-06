@@ -34,7 +34,7 @@ To create or revise specifications, run `/iterate`.
 
 **Vision files (`.claude/vision/**/*.md`, DEC-023)** are editable in place **while developing** (maturity 🟡/🔵, `status: vision`) — `/grill`/`/shakedown` findings, fork resolutions, amendment-log entries; the vision's amendments log and fork tracker are its audit trail. **After graduation** (🟢 / `status: distilled-to-spec`) a section is frozen: changes route through `/iterate` against the spec.
 
-**Infrastructure operations stay autonomous:** archiving (`spec_v{N}.md` → `previous_specifications/`), version transitions (creating `spec_v{N+1}.md`), and frontmatter updates (e.g. `decided:` after the user selects). They don't change substantive text.
+**Infrastructure operations stay autonomous:** archiving (`spec_v{N}.md` → `previous_specifications/`), version transitions (creating `spec_v{N+1}.md`), and frontmatter updates (e.g. `decided:` after the user selects; `status` and `ratified` on an agent-recorded decision after the user says to ratify or reconsider it, plus unticking a box the agent ticked when one is reconsidered). They don't change substantive text.
 
 **Enforcement:** `.claude/settings.json` `permissions.ask` on `Edit`/`Write` to these three path patterns prompts before any such edit lands; "Yes, don't ask again" makes it one click per session.
 
