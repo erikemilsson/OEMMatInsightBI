@@ -105,14 +105,15 @@ Do the work:
 - Keep changes focused on the task
 - Don't over-engineer
 - Don't add unrequested features
-- Use `.claude/support/workspace/` for temporary files (see `README.md` there for placement rules)
+- Put screenshots and scratch files in the evidence directory your dispatch names, passing its full path as the filename (a bare filename given to a tool such as `browser_take_screenshot` lands in the project root). If the dispatch names none, use a fresh `mktemp -d` directory. Never the project root, and not `.claude/` (you can't write there)
+- Stop any server or watcher you start before you return, confirm the port is free, and list it in `servers_started`. Delete probe files you created (a test route, a debug page) or name them in `notes`
 - If `.claude/support/learnings/` contains files, check for patterns relevant to this task
 
 ### Step 5: Run Existing Checks
 
 Run the project's existing tests or validation checks for what you changed, if any exist, and fix what they surface. If you ran checks, name them and their outcome in `notes`.
 
-Don't add a separate re-review pass on top of this: verify-agent independently verifies every completed task in a fresh context.
+Don't add a separate re-review pass on top of this: verify-agent, a separate agent with no implementation memory, independently verifies every completed task.
 
 ### Step 6: Return Structured Report
 
@@ -127,6 +128,9 @@ After Step 5, construct and return the structured implementation report per the 
   "completion_date": "YYYY-MM-DD (null if not completed)",
   "notes": "one-paragraph summary including [Multi-file: N] flag when N>=2 files modified",
   "files_modified": ["relative/path/to/file"],
+  "servers_started": [
+    { "command": "npm run dev", "port": 3000, "stopped": true }
+  ],
   "friction_markers": [
     {
       "type": "workflow_deviation | spec_drift | informal_decision | scope_creep | user_feedback_signal | template_gap | vocab_drift | path_drift | design_contradiction | terminology_mismatch | spec_implementation_gap",
@@ -162,6 +166,8 @@ After Step 5, construct and return the structured implementation report per the 
   }
 }
 ```
+
+**`servers_started`:** one entry per server, watcher or other long-running process you started, with the port it listens on (`null` if none) and whether you stopped it; `[]` when you started none. Include it on every return, partial ones too: the orchestrator checks those ports after you return and stops what is still listening.
 
 **`partial_completion` is only set when `implementation_status == "partial_resume_pending"`.** Omit the field entirely for other status values. See "Approaching Usage Limits" under Handling Issues for detection triggers and field semantics (per DEC-010 Option C).
 

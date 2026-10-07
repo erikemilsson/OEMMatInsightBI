@@ -110,7 +110,7 @@
 | files_affected | Array | File paths this task will modify |
 | external_dependency | Object | External blocker - see External Dependencies below |
 | notes | String | Context, warnings, or completion notes, newest first: every write prepends and never replaces - see Completion Notes Contract below |
-| user_feedback | String | Feedback provided by the user via dashboard inline areas or during /work complete |
+| user_feedback | String | Feedback the user gave during `/work complete` or guided testing. History, newest first: each write prepends a `[YYYY-MM-DD]` entry and never overwrites (`work-procedures.md § "State Persistence Protocol"`) |
 | spec_fingerprint | String | SHA-256 hash of the full spec at task decomposition, refreshed by drift reconciliation. The drift check doesn't use it (it compares `section_fingerprint`) |
 | spec_version | String | Spec filename when task was created (e.g., "spec_v1") |
 | spec_section | String | Originating section heading from spec |
@@ -132,7 +132,7 @@
 | conflict_note | String | **Transient.** Set during parallel dispatch when a task is held back due to file conflicts (e.g., `"Held: file conflict with Task 3 on src/models.py"`). Cleared when the task is dispatched or during post-parallel cleanup. Surfaced in the dashboard Status column. |
 | recovery_state | String | **Transient.** Set by `/work` Step 0 when auto-recovering a stuck task. Values: `"verification_retry"` (respawning verify-agent), `"agent_retry"` (user chose to retry after timeout). Cleared after recovery completes. Prevents double-recovery if `/work` runs again before recovery finishes. |
 | user_review_pending | Boolean | Set to `true` by `/work` (from verify-agent's report) when a `both`-owned task passes verification, OR when any task has a `test_protocol` (runtime validation was partial, human testing needed). Keeps the task visible for user action until the user runs `/work complete {id}` or completes guided testing. Cleared by `/work complete`. |
-| verification_attempts | Number | Count of per-task verification attempts (incremented by the `/work` orchestrator when verify-agent returns, per DEC-004). Escalates to human review at >= 3 (initial + 2 retries). Default: 0 (omit until first verification). Drift reconciliation's `[A]` and `[V]` reset it to 0 on the Finished tasks they send back to rebuild or re-verification; `verification_history` keeps the earlier record. |
+| verification_attempts | Number | Count of per-task verification attempts (incremented by the `/work` orchestrator when a dispatched verify-agent returns, per DEC-004; a delta re-check by a resumed verifier is recorded in `verification_history` but not counted here and never escalates). Escalates to human review at >= 3 (initial + 2 retries). Default: 0 (omit until first verification). Reset to 0 whenever a task that had passed is sent back for a fresh verification: by drift reconciliation's `[A]` and `[V]`, and when a Finished task is reopened after its pass (`work-procedures.md § "State Persistence Protocol"`, "Post-verify delta", "Reopening resets the counter"). `verification_history` keeps the earlier record. |
 | drift_reverify | Object (optional) | `{"section": "<heading>", "date": "YYYY-MM-DD"}`. Set by drift reconciliation's `[V]` on each Finished task it sends to Awaiting Verification. While present, every per-task verify dispatch for the task adds the line `Re-verification after a spec edit: the implementation is unchanged; check it against the current section text.` Removed when a per-task verification result is written for the task, pass or fail, or when the task goes back to Pending or In Progress for rework (the implementation then changes). A timeout keeps it for the retry. See `drift-reconciliation.md § "Granular Reconciliation UI"`. |
 | verification_history | Array | Append-only log of all verification attempts (pass and fail). Each entry records attempt number, result, checks, issues, and notes. Coexists with `task_verification` (which stays as the latest result for quick checks). See Verification History section below. |
 | task_verification | Object | Per-task verification result (verify-agent's report, recorded by `/work`) |
@@ -356,17 +356,18 @@ Append-only log of every verification attempt (pass and fail). Provides a full r
 
 | Sub-field | Type | Description |
 |-----------|------|-------------|
-| `attempt` | Number | Attempt number (matches `verification_attempts` at time of recording) |
+| `attempt` | Number | Attempt number (matches `verification_attempts` at time of recording). Not unique: a `delta` entry repeats the number of the pass it follows, and numbers restart whenever the counter is reset, so identify an entry by `attempt` and `timestamp` together |
 | `result` | String | `"pass"` or `"fail"` |
 | `timestamp` | String | ISO 8601 timestamp of when this attempt completed |
 | `checks` | Object | Per-check pass/fail (same keys as `task_verification.checks`) |
 | `issues` | Array | Issues found during this attempt |
 | `notes` | String | Brief summary of this attempt's findings |
-| `cost` | Object | Optional. The verify-agent dispatch's usage as reported by the harness: `total_tokens` (reported as `subagent_tokens` or `total_tokens`), `tool_uses`, `duration_ms`. Omitted when the harness doesn't report it (and on entries written before v5.5.2). Measures what per-task verification costs, by difficulty |
+| `cost` | Object | Optional. The verify-agent dispatch's usage as reported by the harness: `total_tokens` (reported as `subagent_tokens` or `total_tokens`), `tool_uses`, `duration_ms`. Omitted when the harness doesn't report it (and on entries written before v5.5.2). Measures what per-task verification costs, by difficulty. When the usage arrives after the report (in the completion notification), the orchestrator adds it then, to the entry with the same `attempt` and `timestamp` |
+| `delta` | Boolean | Optional. `true` on an entry made by resuming the verifier that had just passed the task, to re-check a small follow-up edit (`work-procedures.md § "State Persistence Protocol"`, "Post-verify delta"). Absent on every fresh dispatch. A delta entry, pass or fail, does not increment `verification_attempts` (its `attempt` repeats the current value) and never triggers escalation; a refused or unusable delta re-check writes no entry. A fresh verification that follows a delta starts from a counter reset to 0. A delta entry's `cost` covers only the resumed turn, so counts and medians of per-task verification cost (the DEC-025 recheck) exclude entries with `delta: true` |
 
 #### Behavior Rules
 
-- **Append-only** — never modify or remove previous entries
+- **Append-only** — never modify or remove previous entries. One exception: a late-arriving `cost` is added to the entry it belongs to
 - **Includes passing result** — the final passing attempt is recorded in both `verification_history` and `task_verification`
 - **Coexists with `task_verification`** — `task_verification` remains the latest result for quick status checks; `verification_history` provides the full trail
 - **Created on first verification** — array is created when verify-agent runs Step T6 for the first time on a task

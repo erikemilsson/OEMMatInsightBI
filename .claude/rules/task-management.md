@@ -29,7 +29,7 @@ Every new task file is written with section provenance, whoever creates it and b
 ## Parallel Execution
 
 Multiple tasks "In Progress" allowed when parallel-eligible:
-- `files_affected` don't overlap between tasks
+- `files_affected` don't overlap between tasks, and no task needs to run the build to be implemented (`parallel-execution.md § "Single-Instance Resources"`)
 - All dependencies satisfied
 - Within `max_parallel_tasks` limit
 

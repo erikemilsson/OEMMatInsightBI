@@ -41,7 +41,7 @@ This environment targets the **current Claude Opus tier** via the floating `opus
 - The spec is the source of truth. All work aligns with it, or the spec is updated intentionally.
 - Verification is structurally enforced. A task cannot reach "Finished" without `task_verification.result == "pass"`.
 - Use the project's task system (`.claude/tasks/task-*.json`). Never use built-in TaskCreate/TaskUpdate/TaskList tools.
-- verify-agent always runs as a separate agent (fresh context, no implementation memory).
+- verify-agent always runs as a separate agent (no implementation memory).
 - Exactly one `spec_v{N}.md` exists in `.claude/` at any time.
 - Never commit credentials to tracked files.
 - Never create working documents in the project root — use `.claude/support/workspace/`.

@@ -261,9 +261,11 @@ Examine the task's `description`, `files_affected`, `spec_section`, and the proj
 |-------------|----------|
 | **CLI/script** | Run via Bash with test inputs, validate stdout/stderr against expected behavior from spec |
 | **TUI** | Run with `--help`, `--version`, or non-interactive flags; validate output structure |
-| **Web UI** | Use Playwright MCP (`browser_navigate`, `browser_snapshot`, `browser_take_screenshot`) to load the page, check structure, validate key elements |
+| **Web UI** | Use Playwright MCP (`browser_navigate`, `browser_snapshot`, `browser_take_screenshot`) to load the page, check structure, validate key elements. Give `browser_take_screenshot` a `filename` that is a full path inside your evidence directory; a bare filename, or none, lands in the project root. If the tool refuses a path outside its own output directory, move the file into the evidence directory before you return |
 | **API** | Make HTTP requests via Bash (`curl`), validate response status codes and body structure |
 | **Data pipeline** | Run pipeline, check output files/tables exist with expected structure |
+
+**Leave nothing behind.** Screenshots and scratch files go only in the evidence directory your dispatch names (a fresh `mktemp -d` directory if it names none), never the project root. Stop any server you start before you return, confirm the port is free, and list it in your report's `servers_started`. You create no files in the project; if a check needed a probe file, delete it and say so in `notes`.
 
 **3. Record the result** in your return report's `checks.runtime_validation`:
 
@@ -367,9 +369,12 @@ Construct and return the structured per-task verification report per the schema 
   "test_protocol": { "...T4b shape..." } | null,
   "interaction_hint": "cli_direct | dashboard | null",
   "user_review_pending": true | false,
+  "servers_started": [ { "command": "npm run dev", "port": 3000, "stopped": true } ],
   "friction_markers": [ "...same shape as implement-agent..." ]
 }
 ```
+
+`servers_started` lists every server or other long-running process you started for runtime validation, with its port (`null` if none) and whether you stopped it; `[]` when you started none. The orchestrator checks those ports after you return.
 
 The `task_verification` sub-object that the orchestrator writes to the task JSON is constructed from the `result`, `timestamp`, `checks`, `notes`, and `issues` fields of your report. The examples below show the resulting `task_verification` shapes so you can see what passes/fails look like in practice.
 
@@ -501,6 +506,8 @@ Return your verification report to the caller. Do NOT set task status, do NOT wr
 - `result: "pass"`: writes `task_verification`, appends `verification_history`, sets status to "Finished", writes `user_review_pending`/`test_protocol`/`interaction_hint` if present
 - `result: "fail"` (attempts < 3): writes `task_verification`, appends `verification_history`, sets status to "In Progress", prepends `[VERIFICATION FAIL #N]` to notes
 - `result: "fail"` (attempts >= 3): writes `task_verification`, appends `verification_history`, sets status to "Blocked", adds `[VERIFICATION ESCALATED]` note
+
+**Delta re-check.** After a pass, the orchestrator may resume you with a small follow-up edit (your own minor finding, or a micro-edit the user approved). It sends only that edit: a `diff -u` of each file before and after it, or the old and new strings; the rest of the implementation is what you already passed. Re-run the checks the edit affects (always T2c for the edited files, and T4b if it changes runtime behaviour), carry your earlier results for the rest, and return the full per-task report again, using the same evidence directory; `fail` it like any other change if it breaks something. If the edit touches a file outside the task's `files_affected`, or changes more than you can judge by re-running the affected checks, don't return a report: return `{"task_id": "...", "delta_refused": true, "reason": "..."}`. That is not a fail; the orchestrator then dispatches a fresh verification.
 
 You do not distinguish retry vs. escalate — that's the orchestrator's responsibility using the report's `attempt_number` and the current task JSON's `verification_attempts`.
 
@@ -686,6 +693,7 @@ Do NOT write `.claude/verification-result.json`. Include the full verification r
       "reason": "why this fix is needed"
     }
   ],
+  "servers_started": [ { "command": "npm run dev", "port": 3000, "stopped": true } ],
   "friction_markers": [ "...same shape as implement-agent..." ]
 }
 ```
@@ -704,6 +712,7 @@ Do NOT write `.claude/verification-result.json`. Include the full verification r
 | `criteria` | Array | Per-criterion results. Each entry: `{"name": "Criterion text", "status": "pass"|"fail", "notes": "How verified"}`. Feeds dashboard acceptance criteria checklist. |
 | `issues` | Object | Count of issues by severity |
 | `fix_tasks_to_create` | Array | Fix-task entries for the orchestrator to create |
+| `servers_started` | Array | Servers you started, as in the per-task report (Step T6); `[]` when none |
 | `friction_markers` | Array | Friction markers observed during verification (orchestrator appends to session log) |
 
 **Persistence rules (applied by the orchestrator):**

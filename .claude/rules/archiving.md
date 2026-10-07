@@ -12,7 +12,7 @@ Do not create new archive locations. Use these canonical paths:
 
 ## Workspace
 
-Temporary documents go in `.claude/support/workspace/` (scratch, research, drafts). This is Claude's scratch space for intermediate analysis, research notes, and working drafts.
+Temporary documents go in `.claude/support/workspace/` (scratch, research, drafts); subagents can't write there and use the evidence directory their dispatch names. This is Claude's scratch space for intermediate analysis, research notes, and working drafts.
 
 ## User-Facing Documents
 

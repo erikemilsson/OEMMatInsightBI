@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Python-floor tests for every script in .claude/scripts/ (FB-120).
+"""Python-floor tests for the scripts the template ships in .claude/scripts/ (FB-120).
 
 README promises Python 3.10+. Pins the two ways that promise broke:
 - syntax newer than the floor: dashboard-render.py once put backslashes inside
@@ -9,6 +9,12 @@ README promises Python 3.10+. Pins the two ways that promise broke:
 - a missing version guard: below the floor each script must exit 2 with a
   message naming itself, the version found and sys.executable, not a
   SyntaxError/TypeError from deep in the file.
+
+Only the scripts named in SHIPPED are tested: a project may keep scripts of its
+own in this directory, and the floor is the template's promise, not theirs. In
+the template repo (the one with a template-maintenance/ directory at its root)
+SHIPPED must also equal the directory's *.py files, so a new script can't ship
+without being listed here.
 """
 import shutil
 import subprocess
@@ -17,7 +23,19 @@ import tempfile
 import unittest
 from pathlib import Path
 
-SCRIPTS = sorted(Path(__file__).resolve().parents[1].glob("*.py"))
+SCRIPTS_DIR = Path(__file__).resolve().parents[1]   # <root>/.claude/scripts
+REPO_ROOT = SCRIPTS_DIR.parents[1]                   # <root>
+
+SHIPPED = (
+    "dashboard-render.py",
+    "fingerprint.py",
+    "persist-friction.py",
+    "persist-session-export.py",
+    "sync-apply.py",
+    "sync-check.py",
+    "validate-tasks.py",
+)
+SCRIPTS = [SCRIPTS_DIR / name for name in SHIPPED]
 
 COMPILE = "import py_compile, sys; py_compile.compile(sys.argv[1], cfile=sys.argv[2], doraise=True)"
 
@@ -57,8 +75,18 @@ def find_python310():
 
 class PythonFloorTests(unittest.TestCase):
     def test_scripts_found(self):
-        """Positive control: the glob sees the scripts, so the loops below aren't vacuous."""
-        self.assertIn("dashboard-render.py", [s.name for s in SCRIPTS])
+        """Positive control: every listed script is a file here, so the loops below aren't vacuous."""
+        self.assertTrue(SCRIPTS)
+        for script in SCRIPTS:
+            with self.subTest(script=script.name):
+                self.assertTrue(script.is_file(), f"{script} is listed in SHIPPED but missing")
+
+    def test_shipped_list_matches_directory_in_template_repo(self):
+        """In the template repo every *.py in the scripts directory must be listed in SHIPPED."""
+        if not (REPO_ROOT / "template-maintenance").is_dir():
+            self.skipTest("not the template repo (no template-maintenance/ at the root): "
+                          "a project's own scripts are not held to the floor")
+        self.assertEqual(sorted(SHIPPED), sorted(p.name for p in SCRIPTS_DIR.glob("*.py")))
 
     def test_scripts_compile_on_python_3_10(self):
         py310 = find_python310()

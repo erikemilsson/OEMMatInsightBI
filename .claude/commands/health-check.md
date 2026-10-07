@@ -102,7 +102,7 @@ For any of these, the fix is always: regenerate.
 | Status | Rules |
 |--------|-------|
 | `Pending` | No special requirements |
-| `In Progress` | Multiple allowed only when parallel-eligible: `files_affected` don't overlap, all deps satisfied, within `max_parallel_tasks` limit. **ERROR** if parallel conditions violated. |
+| `In Progress` | Multiple allowed only when parallel-eligible: `files_affected` don't overlap, all deps satisfied, within `max_parallel_tasks` limit. **ERROR** if parallel conditions violated. (The browser and the build are shared too; that rule is `parallel-execution.md § "Single-Instance Resources"` and isn't checked here.) |
 | `Awaiting Verification` | Transitional only — must proceed to verification immediately. Auto-recovered by `/work` Step 0. |
 | `Blocked` | Should have `notes` explaining the blocker |
 | `On Hold` | Should have `notes` explaining why paused. Not auto-routed by `/work`. Warning if on hold > 30 days. |
