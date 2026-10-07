@@ -420,4 +420,4 @@ This is a derived line — computed during dashboard regeneration, not stored. I
 - **Large feedback log:** If `feedback.md` exceeds 50 entries, suggest running `/feedback review` to triage
 - **Mixed-state sessions:** Phase 1 shows all items regardless of status. Phase 2 skips already-refined items. Phase 3 only operates on `refined` items. A review session with items at different statuses flows naturally through all three phases.
 - **No spec yet:** Impact assessment (Phase 3) works without task files — it assesses against the spec only, noting that no tasks exist yet
-- **Existing `FEEDBACK:{id}` markers:** No conflict — those use task IDs for per-task inline feedback in the dashboard; this system uses `FB-NNN` IDs for project-level feedback
+- **Per-task feedback:** No conflict — that is the notes prompt of `/work complete`, stored in the task's `user_feedback`; this system uses `FB-NNN` IDs for project-level feedback

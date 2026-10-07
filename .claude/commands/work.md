@@ -71,28 +71,36 @@ Check for a context transition handoff from a previous session before anything e
 
 2. Read and validate handoff file
    IF invalid JSON or missing required fields → warn, delete, skip to Step 0b
+   (per-entry fields a `truncated` handoff lacks are not missing:
+    context-transitions.md § "Path B", step 3)
 
 3. Check staleness
    IF timestamp > 7 days old:
      → "Handoff from {date} — project state may have changed. Reference only."
-     → Delete handoff, skip to Step 0b (don't use for routing)
+     → Delete handoff and its overflow file (rule below the block), skip to
+       Step 0b (don't use for routing)
 
 4. Present summary (2-4 lines):
    "Resuming from previous session ({trigger}, {relative time}):
     {task titles + progress from position/active_work}"
+   (`truncated` set: add that the PreCompact hook cut this handoff to fit, so
+    titles and notes may be short or missing; the task files have them.)
 
-5. Load session_knowledge into working context
+5. Load session_knowledge into working context. If overflow_ref is non-null,
+   read the overflow file now: item 6 deletes it
    (Available for routing and implement-agent enrichment. NOT passed to verify-agent.)
 
-6. Delete .handoff.json
+6. Delete .handoff.json and its overflow file (rule below the block)
    EXCEPTION — concurrent session (FB-104): if the handoff's active task(s)
    have CHANGED STATUS since the handoff timestamp (another session is
-   progressing them), do NOT consume-and-delete. Preserve the file, use it
-   read-only for orientation, flag "Handoff appears to belong to a concurrent
+   progressing them), do NOT consume-and-delete. Preserve the file and its
+   overflow file, use it read-only for orientation, flag "Handoff appears to belong to a concurrent
    session — preserved", and reconcile/merge at the next pause.
 
 7. Proceed to Step 0b
 ```
+
+**Overflow file.** When item 3 or 6 deletes a handoff whose `overflow_ref` is non-null, delete the file it names too, but only if that path is directly under `.claude/support/workspace/` and its name matches `handoff-overflow-*.md`; anything else is left and mentioned. Item 5 has read it by then; a stale handoff's (item 3) is deleted unread, like the handoff. An invalid handoff (item 2) names nothing to delete.
 
 **Full procedure:** `.claude/support/reference/context-transitions.md` § "Restoration"
 
@@ -124,8 +132,8 @@ Check for workspace plan files from a previous session.
 #### Step 0b: Session Recovery Check
 
 Check for tasks left in recoverable states by a previous session. Read `.claude/support/reference/session-recovery.md` and follow its procedure:
-1. **Check session sentinel** (`.claude/tasks/.last-clean-exit.json`) — if clean exit, skip full scan
-2. **If sentinel missing or stale** — run full recovery scan (7-case logic in the reference file)
+1. **Check session sentinel** (`.claude/tasks/.last-clean-exit.json`) — if clean exit (closed, under 24 hours old), skip full scan
+2. **If sentinel missing, open or stale** — run full recovery scan (7-case logic in the reference file). An open sentinel means a session was cut off with an agent out: its In Progress tasks are asked about whatever their age (case 6)
 3. **After recovery actions complete** — proceed to Step 1
 
 **Malformed files during scan:** If a task file fails to parse during Step 0, skip it and continue. Report the error in Step 1.
@@ -433,6 +441,8 @@ After phase and decision checks, assess whether multiple tasks can be dispatched
 
 Otherwise route with the algorithm below. Per-task verification always outranks starting the next task, and no Finished task without a passing `task_verification` may reach phase-level verification or completion.
 
+**Continued from recovery.** An In Progress task whose `notes` begin with `[CONTINUE {date}]` (written at `[C]` in `session-recovery.md` case 6), that has no agent running and that was not left with `[L]` in this run is routed here as if requested by id, once items 2–6 of the algorithm have nothing to verify: implement-agent, "If Executing", with its notes and the state of its files in the brief. The note is read from the task file, so the choice survives compaction and a pause. The dispatch prepends `[RE-DISPATCHED {YYYY-MM-DD}]` over it ("If Executing", "Before dispatch"), so a task stops matching once it has gone out, whatever comes back. The algorithm itself never picks an In Progress task: one left with `[L]` stays as it is, and when nothing else is dispatchable item 11's output names it as In Progress elsewhere, not as waiting on dependencies.
+
 **Explicit routing algorithm:**
 ```
 1. Get all spec tasks (exclude out_of_spec: true, exclude status "Absorbed")
@@ -524,9 +534,11 @@ The safety gate applies to implement-agent dispatch, verify-agent runtime valida
 
 Three things hold for every implement-agent and verify-agent dispatch, sequential or parallel, per-task or phase-level:
 
-- **Residue baseline.** Immediately before dispatching, run three commands and keep their output: `git status --short`; `ls -A` on the project root (ignore rules can hide root files from git); and `lsof -nP -iTCP -sTCP:LISTEN`, which lists every listening port with its PID (without `lsof`, the platform's equivalent, e.g. `ss -ltnp`). This is what the Residue check compares against when the agent returns or is cut off (`work-procedures.md § "State Persistence Protocol"`, "Residue check"). A parallel batch takes one baseline, before its first dispatch; agents dispatched later into the same batch (incremental re-dispatch, a queued verification) are compared against it too. Resuming an agent with SendMessage takes no baseline. The baseline lives only in this conversation: when it is missing (compaction, an agent from an earlier session, a resumed agent), the Residue check reports and changes nothing.
+- **Residue baseline.** Immediately before dispatching, run `git status --short`, `ls -A` on the project root (ignore rules can hide root files from git) and `lsof -nP -iTCP -sTCP:LISTEN` (every listening port with its PID; without `lsof`, the platform's equivalent, e.g. `ss -ltnp`). Keep the output, and write it to `{scratch}/residue-baseline.txt` (`{scratch}` as in the next item) in place of the previous baseline, under a first line that names the batch (its task ids and the time) or, in sequential mode, the one dispatch (task id, role, time). The Residue check compares against it when the agent returns or is cut off, reading the file when the output has left the conversation (`work-procedures.md § "State Persistence Protocol"`, "Residue check"). A parallel batch takes one baseline, before its first dispatch; it also serves agents dispatched into the batch later (a queued verification; incremental re-dispatch, which adds the new task's id to the file's first line). A SendMessage resume takes none. With no baseline for the returning agent in the conversation or the file (a resumed agent, one from an earlier session, a lost `{scratch}`), the check reports and changes nothing.
 - **Evidence directory.** Create a directory for this dispatch and name it in the brief: `{scratch}/agent-{task_id}-{role}-{n}/`. `role` is `implement` or `verify`; `{n}` is the verification attempt the dispatch belongs to (the task's `verification_attempts` + 1), so a retry never sits beside an earlier attempt's screenshots. Phase-level verification uses `{scratch}/agent-phase-{phase}-verify-{n}/`, `{n}` counting that phase's verification runs in this session. If the directory already exists (attempt numbers restart at 1 after a drift re-verification and when a passed task is reopened), add a letter: `-1b`. `{scratch}` is the session scratchpad when the harness lists one, else one directory made with `mktemp -d` and reused for the session; never the project root, never a generic shared name. Brief line: `Evidence directory: {path} — write screenshots and scratch files only here, passing the full path as the filename (a bare filename lands in the project root), and delete nothing outside it. List every server you start in servers_started, with its port and whether you stopped it.`
 - **Claims in the brief.** Anything you assert in a brief about the code, config, data or a mechanism is measured in this session, or labelled `(unverified)`. Add the line: `Statements in this brief marked (unverified) are my assumptions. Check them before relying on them, and report any claim of mine you find wrong.` (`rules/agents.md § "Orchestrator-Authored State Claims"`.)
+
+**Open sentinel.** A session with an agent out has not ended cleanly yet. Before a dispatch or resume, unless you marked it earlier in this session and nothing has written it closed since (Step 5, a pause), mark `.claude/tasks/.last-clean-exit.json` open: Read it and Write it back with `"open": true` added and its other keys kept (no file yet: write `{"open": true}`). When you can't tell whether it is open (after compaction), read it; marking twice is harmless. A batch marks once, before its first dispatch. Step 5 and `/work pause` write the sentinel closed; a session cut off before either leaves it open, and the next `/work` runs the full recovery scan whatever its timestamp (`session-recovery.md § "Session Sentinel"`, which defines open and closed).
 
 #### If Decomposing (spec → tasks)
 
@@ -542,7 +554,7 @@ The orchestrator owns ALL `.claude/` state transitions — agents cannot write t
 
 #### If Executing
 
-**Before dispatch:** orchestrator sets task JSON to `{"status": "In Progress", "updated_date": today}`.
+**Before dispatch:** orchestrator sets task JSON to `{"status": "In Progress", "updated_date": today}`. For a task routed by Step 3's "Continued from recovery", the same write prepends `[RE-DISPATCHED {YYYY-MM-DD}]` to its `notes`.
 
 **Resume-pending check (DEC-010):** if the task JSON has a `partial_completion` field, read `.claude/support/reference/work-recovery.md § "Resume-Pending Dispatch"` and follow it (git-diff audit, envelope injection, clearing the field afterwards) as part of this dispatch.
 
@@ -667,7 +679,7 @@ Run quick validation after task dispatch to catch issues early:
 
 1. **Task file integrity** — Verify the task JSON that was just modified is valid JSON and parseable
 2. **Dashboard exists** — Confirm `.claude/dashboard.html` exists and has a `<!-- DASHBOARD META -->` comment in its `<head>`
-3. **Session sentinel** — Write `.claude/tasks/.last-clean-exit.json` with current timestamp and in-progress task list (enables fast-path recovery check on next `/work` run)
+3. **Session sentinel** — Write `.claude/tasks/.last-clean-exit.json` closed: current `timestamp`, `task_count`, the in-progress task ids as `in_progress_tasks`, and no `open` key (enables fast-path recovery check on next `/work` run). Not while an agent is still running: the sentinel stays open until the last one has returned. **Kept open, for every writer of the sentinel** (this step, `/work complete`, `/work pause`): write it with `"open": true` in two cases. (a) Recovery case 6 was answered `[L]` Leave for any task in this run, whatever state the sentinel was in then (closed, missing or stale included): whoever has that task may still be working on it, and the next `/work` runs the full scan and asks again. (b) The sentinel was already open when this conversation first read it, and this conversation has not run Step 0b (a sub-mode in a fresh session): another session's cutoff has not been scanned, and marking the file again before a dispatch of your own doesn't change that. Otherwise write it closed: a conversation that ran a plain `/work` has run Step 0b, and one that first read the sentinel closed or missing opened it itself. After compaction a summary showing either is enough; keep it open only when it shows neither (that costs one full scan)
 4. **Session boundary dashboard freshness** — When the main work loop has reached a natural stopping point (phase boundary, blocking decision, verification failure needing human escalation, or no more eligible tasks), verify dashboard freshness against actual task state: recompute `task_hash` (`dashboard-render.py --task-hash`) and compare against the `<!-- DASHBOARD META -->` block; META `spec_fingerprint` ≠ the current spec hash also means stale (Step 1a). If stale, regenerate now — the user should never see a stale dashboard as the final state of a work session.
 
 For full maintenance validation (schema checks, decision integrity, template sync), use `/health-check`.
@@ -692,7 +704,7 @@ Report the current phase and what was done, any spec misalignments surfaced, and
 
 Manual task completion outside implement-agent's workflow — human-owned tasks, work done outside the normal flow, quick tasks. (implement-agent handles its own completion internally; `/work complete` is not needed after it finishes.)
 
-**STOP — read `.claude/support/reference/work-procedures.md § "Task Completion (/work complete)"` NOW and follow its 10-step Process + Rules.** Hard invariants enforced there: no task reaches "Finished" without `task_verification.result == "pass"` (human tasks auto-generate `self_attested`; unverified tasks get verify-agent dispatched first); deliverable validation for `human`/`both` tasks (`[A]/[P]/[W]`); the two-prompt completion-notes collection (project notes always; template notes only when `template_inbox_path` is configured); dashboard-marker fallback capture; writing the task's held `decisions_pending` as a `recorded` decision record; parent auto-completion; dashboard regen + unblocked-task surfacing; auto-archive check; Step 5 post-dispatch validation. Do not improvise the flow from this summary.
+**STOP — read `.claude/support/reference/work-procedures.md § "Task Completion (/work complete)"` NOW and follow its 10-step Process + Rules.** Hard invariants enforced there: no task reaches "Finished" without `task_verification.result == "pass"` (human tasks auto-generate `self_attested`; unverified tasks get verify-agent dispatched first); deliverable validation for `human`/`both` tasks (`[A]/[P]/[W]`); the two-prompt completion-notes collection (project notes always; template notes only when `template_inbox_path` is configured); writing the task's held `decisions_pending` as a `recorded` decision record; parent auto-completion; dashboard regen + unblocked-task surfacing; auto-archive check; Step 5 post-dispatch validation. Do not improvise the flow from this summary.
 
 ---
 

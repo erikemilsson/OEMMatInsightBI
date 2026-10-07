@@ -47,31 +47,43 @@ tasks_dir = os.path.join(project_dir, ".claude", "tasks")
 handoff_path = os.path.join(tasks_dir, ".handoff.json")
 trigger = sys.argv[1] if len(sys.argv) > 1 else "unknown"
 
-# Read all active task files
+# Read all active task files. A file that can't be read as a JSON object
+# (bad JSON, not UTF-8, a list/string/null at the top level) is skipped.
 tasks = []
 for path in glob.glob(os.path.join(tasks_dir, "task-*.json")):
     try:
         with open(path) as f:
-            tasks.append(json.load(f))
-    except (json.JSONDecodeError, IOError):
+            data = json.load(f)
+    except (ValueError, OSError):
         continue
+    if isinstance(data, dict):
+        tasks.append(data)
 
 if not tasks:
     sys.exit(0)
 
-def notes_head(t, limit=600):
-    """First `limit` characters of a task's notes (newest entries first), plus an ellipsis when cut."""
+NOTES_LIMIT = 600   # characters of a task's notes carried as partial_notes
+TITLE_KEEP = 60     # a title is cut to this before recently_completed is touched
+MAX_BYTES = 2560    # whole-handoff bound (context-transitions.md, "Bounds and Overflow")
+
+def head(text, limit):
+    """First `limit` characters of `text`, plus an ellipsis when cut."""
+    return text if len(text) <= limit else text[:limit] + "\u2026"
+
+def notes_head(t, limit=NOTES_LIMIT):
+    """Head of a task's notes (newest entries first)."""
     notes = t.get("notes") or ""
     if not isinstance(notes, str):
         notes = str(notes)
-    return notes if len(notes) <= limit else notes[:limit] + "\u2026"
+    return head(notes, limit)
 
 # Identify in-flight work
 active_work = []
+noted = []  # (entry, task) for each entry that carries a notes head
 for t in tasks:
     status = t.get("status", "")
     if status == "In Progress":
-        active_work.append({
+        entry = {
             "task_id": t.get("id", "?"),
             "task_title": t.get("title", "Unknown"),
             "agent": "implement",
@@ -80,7 +92,9 @@ for t in tasks:
             "partial_notes": notes_head(t),
             "files_modified_this_session": [],
             "ready_for_verify": False
-        })
+        }
+        active_work.append(entry)
+        noted.append((entry, t))
     elif status == "Awaiting Verification":
         active_work.append({
             "task_id": t.get("id", "?"),
@@ -138,9 +152,73 @@ handoff = {
     "recovery_action": ""
 }
 
+# Total check: the file is at most MAX_BYTES. Nothing here can be moved to an
+# overflow file, and everything cut is still whole in the task files, so the
+# hook cuts. The order and the floor are specified in context-transitions.md,
+# "Path B" step 3; an active_work entry is never dropped.
+def serialize():
+    return json.dumps(handoff, indent=2)
+
+def size():
+    return len(serialize().encode("utf-8"))
+
+if size() > MAX_BYTES:
+    handoff["truncated"] = True
+
+    def fit(low, high, apply):
+        """Apply the largest value in [low, high] that fits (else `low`); True when the handoff fits."""
+        while low < high:
+            mid = (low + high + 1) // 2
+            apply(mid)
+            if size() <= MAX_BYTES:
+                low = mid
+            else:
+                high = mid - 1
+        apply(low)
+        return size() <= MAX_BYTES
+
+    # One ceiling over all values of a kind: the longest are cut first, and a
+    # value shorter than the ceiling is left alone.
+    def set_notes(limit):
+        for entry, task in noted:
+            entry["partial_notes"] = notes_head(task, limit)
+
+    titles = [(entry, entry["task_title"]) for entry in active_work
+              if isinstance(entry["task_title"], str)]
+    longest_title = max([len(title) for _, title in titles] or [0])
+
+    def set_titles(limit):
+        for entry, title in titles:
+            entry["task_title"] = head(title, limit)
+
+    def set_recent(count):
+        handoff["position"]["recently_completed"] = recently_completed[:count]
+
+    if not (fit(0, NOTES_LIMIT, set_notes)                # 1. notes heads
+            or fit(TITLE_KEEP, longest_title, set_titles)  # 2. overlong titles,
+            or fit(0, len(recently_completed), set_recent) #    recently_completed,
+            or fit(0, TITLE_KEEP, set_titles)):            #    the rest of the titles
+        # 3. Every entry down to its id and flag, then titles (at most
+        #    TITLE_KEEP characters) put back for as many entries as fit,
+        #    counted from the front of active_work. Still over with no title
+        #    back (dozens of tasks in flight): written as it is, `truncated`
+        #    already set.
+        def set_titled(count):
+            reduced = []
+            for i, entry in enumerate(active_work):
+                slim = {"task_id": entry["task_id"]}
+                if i < count and isinstance(entry["task_title"], str):
+                    slim["task_title"] = entry["task_title"]
+                slim["ready_for_verify"] = entry["ready_for_verify"]
+                reduced.append(slim)
+            handoff["active_work"] = reduced
+
+        set_titles(TITLE_KEEP)
+        fit(0, len(active_work), set_titled)
+
 # Write handoff
 with open(handoff_path, "w") as f:
-    json.dump(handoff, f, indent=2)
+    f.write(serialize())
 
 # --- Cross-project interaction log export (Track 1 only) ---
 # Compile friction markers into a markers-only session export.
