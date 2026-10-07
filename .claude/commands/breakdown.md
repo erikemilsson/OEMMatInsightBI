@@ -35,7 +35,7 @@ Split a complex task into smaller subtasks.
    }
    ```
 
-   **Important:** Copy all spec provenance fields from the parent task. This ensures subtasks are tracked for spec drift detection.
+   **Important:** Copy all spec provenance fields from the parent task. This ensures subtasks are tracked for spec drift detection. A parent with `spec_unmapped: true` has no section fields to copy: each subtask gets `spec_unmapped: true` (and the parent's `spec_version`) instead. Creation contract: `task-schema.md § "Drift Prevention Fields"`.
 
    **Also copy eligibility flags from parent:**
    - If parent has `cross_phase: true`, each subtask inherits `cross_phase: true`. User can remove it from individual subtasks manually if needed.

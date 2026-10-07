@@ -42,6 +42,7 @@
   "spec_section": "## Authentication",
   "section_fingerprint": "sha256:e5f6g7h8...",
   "section_snapshot_ref": "spec_v1_decomposed.md",
+  "spec_unmapped": false,
   "verification_attempts": 1,
   "task_verification": {
     "result": "pass",
@@ -117,6 +118,7 @@
 | section_snapshot_ref | String | Reference to snapshot file for generating diffs (e.g., "spec_v1_decomposed.md") |
 | spec_subsection | String (optional) | `### ` subsection heading a task maps to, when its work is scoped to one subsection of a large `spec_section`. Enables subsection-level drift narrowing (DEC-021). Absent → drift uses `## `-level only (default). |
 | subsection_fingerprint | String (optional) | SHA-256 of the `### ` subsection (from `fingerprint.py --sections --depth 3`) at decomposition. Paired with `spec_subsection`. |
+| spec_unmapped | Boolean (optional) | `true` = in-spec work that belongs to no single spec section (cross-cutting infrastructure, a repo-wide sweep), so there is no section to drift from. Set instead of `spec_section` + `section_fingerprint`. Not the same as `out_of_spec` (work beyond the spec, which needs approval). See Drift Prevention Fields below |
 | out_of_spec | Boolean | Task not aligned with spec (user chose "proceed anyway") |
 | out_of_spec_rejected | Boolean | Task rejected during out-of-spec review (archived, preserved for audit) |
 | rejection_reason | String | User's reason for rejecting an out-of-spec task (optional) |
@@ -180,15 +182,31 @@ Only critical and high show emoji prefixes in the dashboard to reduce visual noi
 
 ## Drift Prevention Fields
 
-These fields track spec-to-task alignment. All are set during decomposition (see `decomposition.md`) and used by `/work` for drift detection (see `drift-reconciliation.md`).
+These fields track spec-to-task alignment. They are set when a task is created (the creation contract below) and used by `/work` for drift detection (see `drift-reconciliation.md`).
+
+### Creation contract
+
+Every new task file carries one of these three from the moment it is written, whoever creates it and by whatever path (decomposition, `/breakdown`, a phase-level fix task, a follow-up from an agent report, a user request, a reconsidered decision, a friction fix, or any other):
+
+- **Section provenance** (the task implements part of one spec section): `spec_section` + `section_fingerprint`, with `spec_version` and `spec_fingerprint`. Get all four from `python3 .claude/scripts/fingerprint.py --provenance .claude --section "<heading>"` (read-only), which prints
+  ```json
+  {"spec_version": "spec_v3", "spec_fingerprint": "sha256:…", "spec_section": "## Authentication", "section_fingerprint": "sha256:…"}
+  ```
+  and merge them into the task. `spec_section` comes back as the real current heading, so write that, not the value you passed. A `### ` heading that occurs once in the spec gives that subsection's hash. Exit 1 (`error: no current spec heading matches '<value>'`) means the value is not a real heading: pick a real one (the spec index lists them) and run it again. Never write a free-form value such as `§ 4.2 + § 4.6`; the drift check can't match it. Exit 2 is a usage error or a missing current spec. Without the script, copy the heading line from the spec and hash the section per `drift-reconciliation.md § "Spec Drift Detection"` (hash computation).
+- **`spec_unmapped: true`** (in-spec work that belongs to no single section): no `spec_section` and no `section_fingerprint`. Set `spec_version` to the current spec's stem by hand.
+- **`out_of_spec: true`** (work beyond the spec): `workflow.md § "Out-of-Spec Task Handling"`.
+
+`section_snapshot_ref` is set by decomposition and copied by `/breakdown`; other paths leave it out, and reconciliation then has no snapshot to diff against (`drift-reconciliation.md` "Diff baseline" says what it shows). Each creation path names this contract and adds only what is specific to it (where the heading comes from).
+
+### How the drift check uses the fields
 
 The fields `spec_fingerprint`, `spec_version`, `spec_section`, `section_fingerprint`, and `section_snapshot_ref` are defined in the Field Definitions table above. Together they enable granular per-section drift detection. On every run, `/work` Step 1b runs `fingerprint.py --drift .claude`, which compares each task's `section_fingerprint` with the current hash of the section its `spec_section` names, and flags only tasks whose section changed. How the check uses each field:
 
 - **`spec_section`** is matched against the current `## ` headings, ignoring surrounding whitespace and a missing `## ` prefix. A value starting with `### ` (subsection-level provenance) matches only a `### ` heading that occurs exactly once in the spec, and is compared with that subsection's hash. If nothing matches, an unfinished task is reported as `missing` (usually a renamed or deleted section) and goes through the `[D]` Delete / `[O]` Keep as out-of-spec / `[R]` Reassign prompt. A Finished task only adds to an `unmatched` count, because its work shipped and its provenance is historical or free-form.
-- **No provenance:** a task without `spec_section` or `section_fingerprint` is counted (`no_provenance`) and never flagged, so no edit to its section can be detected. Tasks created outside decomposition often lack these fields; FB-135 tracks that coverage gap.
+- **Missing vs unmapped:** a task without `spec_section` or `section_fingerprint` is never flagged. With `spec_unmapped: true` it is counted in `unmapped`: it says it has no section, and nothing is owed. Without that flag it is counted in `no_provenance`: the provenance is missing, so no edit to its section can be detected. Tasks created before the creation contract (v5.13.0) are the usual case. `validate-tasks.py` lists them (`provenance_warnings`), and `/health-check` Part 1 check 11 offers a one-time baseline that stamps them from the spec's git history (`fingerprint.py --baseline`). `spec_unmapped: true` on a task that has both fields changes nothing: the task is checked like any other, and `validate-tasks.py` warns about the contradiction.
 - **`spec_version`** naming an older spec makes a Finished task historical: it was verified against that version, Task Migration leaves its provenance unchanged by design, and the check skips it. A task in any other status on an older version is reported as `unmigrated` and goes through Task Migration. A missing `spec_version` counts as current, and so do the bare number and `v{N}` forms (`3` or `v3` for `spec_v3`).
 - **`spec_fingerprint`** (whole spec) plays no part in the check. Reconciliation refreshes it along with the section fingerprints.
-- **`section_snapshot_ref`** only feeds the diff shown at reconciliation. A missing snapshot doesn't affect detection; the prompt shows the current section text instead.
+- **`section_snapshot_ref`** only feeds the diff shown at reconciliation. A missing snapshot doesn't affect detection; the prompt then diffs against the commit a `[BASELINE]` note names, or shows the current section text.
 
 Absorbed, Broken Down and out-of-spec (`out_of_spec: true`) tasks are skipped and counted nowhere: a Broken Down task's subtasks carry the provenance (`/breakdown` copies it), and an out-of-spec task has no spec section to drift from. Marking a task out-of-spec (`[O]` at reconciliation) only sets that flag; its provenance fields stay. Full rules and output: `drift-reconciliation.md`.
 
@@ -284,6 +302,11 @@ When the user reconciles a changed spec section (`drift-reconciliation.md § "Gr
 - `[DRIFT RE-VERIFY {YYYY-MM-DD}] {section} changed; re-verifying against the current text` (`[V]` Re-verify), on the section's Finished tasks. A Finished task not owned by `human` goes back to Awaiting Verification with `task_verification` cleared and `verification_attempts` reset to 0 (`verification_history` keeps the earlier attempts), and is re-verified without a rebuild. `[V]` also sets `drift_reverify` on it, which tells verify-agent the implementation is unchanged and is removed once the re-verification result is written. A Finished `owner: human` task stays Finished with `user_review_pending: true`.
 - `[DRIFT UPDATED {YYYY-MM-DD}] {section} changed; {what changed in the task, or "no task change needed"}` (`[A]` Apply and `[V]` Re-verify), on the section's open tasks. Claude updates the task's description or acceptance criteria where the new section text changes them; status doesn't change.
 - `[DRIFT KEPT {YYYY-MM-DD}] {section} changed; user kept verification: {one-line reason}` (`[K]` Keep), on every task in the section. Status and `task_verification` don't change. For a Finished task, this note is the record that its verification predates the current section text.
+
+The provenance baseline (`fingerprint.py --baseline --write`, `/health-check` Part 1 check 11) prepends one of:
+
+- `[BASELINE] section_fingerprint stamped from the spec at {sha} ({commit date}); the task records no hash of its own.` Reconciliation diffs a snapshot-less task against `{sha}`.
+- `[BASELINE] section_fingerprint set to the current section text on {YYYY-MM-DD}, confirmed by the user as what the task was built against.` or `…, accepted by the user as the task's baseline.` (the task is older than the spec's history for its section).
 
 ### Verification History
 

@@ -114,6 +114,7 @@ Canonical definitions for terms used across the environment. Terms already defin
 |------|------------|
 | **Subtask** | Child task from breakdown. ID `N_M` = sequential (do in order), `N_Ma` = parallel (do simultaneously). Parent auto-completes when all subtasks finish. |
 | **Out-of-Spec Task** | Task not aligned with spec, created when user proceeds despite misalignment or verify-agent suggests improvements beyond acceptance criteria. Marked `out_of_spec: true`. Excluded from phase routing and completion conditions. |
+| **Unmapped Task** | In-spec task that belongs to no single spec section (cross-cutting infrastructure, a repo-wide sweep). Marked `spec_unmapped: true` in place of `spec_section` + `section_fingerprint`; the drift check counts it and never flags it. Unlike an out-of-spec task it needs no approval. |
 | **Parallel-Safe Task** | Task with `parallel_safe: true`, eligible for parallel execution even with empty `files_affected`. Used for research/analysis with no file side effects. |
 
 ### Decision Concepts
@@ -132,7 +133,7 @@ Canonical definitions for terms used across the environment. Terms already defin
 
 | Term | Definition |
 |------|------------|
-| **Spec Drift** | When spec changes after tasks were decomposed from it. Detected on every `/work` by comparing each task's `section_fingerprint` with the current hash of its section (`fingerprint.py --drift`). |
+| **Spec Drift** | When spec changes after tasks were decomposed from it. Detected on every `/work` by comparing each task's `section_fingerprint` with the current hash of its section (`fingerprint.py --drift`). Every task records that fingerprint when it is created (`task-schema.md § "Drift Prevention Fields"`). |
 | **Drift Deferral** | When the user picks `[S]` Skip during reconciliation. Recorded in `.claude/drift-deferrals.json` with timestamp. |
 | **Drift Budget** | Limit on unreconciled drift. Configured via `drift_policy` in spec frontmatter: `max_deferred_sections` (default: 3), `max_deferral_age_days` (default: 14). Enforced by `/work`. |
 | **Reconciliation** | Updating tasks to match a changed spec. Options per section: apply (reset Finished tasks to Pending), re-verify (check shipped work against the new text, no rebuild), keep (refresh fingerprints, keep verification), review individually, skip (creates deferral); per task, also edit or mark out-of-spec. Apply and re-verify also update open tasks to the new text. |

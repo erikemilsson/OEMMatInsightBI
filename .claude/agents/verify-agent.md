@@ -78,7 +78,7 @@ When spawned, your dispatch prompt states a turn budget. Plan your work accordin
 
 **Per-task mode (default: 30 turns):** If you reach turn 25 without completing all checks, return your partial report with `result: "fail"` and `notes: "Verification incomplete — N of 7 checks completed before turn limit"`. Checks not yet completed get value `"skipped"`. The orchestrator handles the retry flow.
 
-**Phase-level mode (default: 50 turns):** If you reach turn 43 without completing all criteria, return your partial report with `result: "fail"` and `notes: "Verification incomplete — evaluated N of M criteria"` and a single fix task in `fix_tasks_to_create[]`: "Complete phase-level verification". The orchestrator writes verification-result.json and creates the fix task.
+**Phase-level mode (default: 50 turns):** If you reach turn 43 without completing all criteria, return your partial report with `result: "fail"` and `notes: "Verification incomplete — evaluated N of M criteria"` and a single fix task in `fix_tasks_to_create[]`: "Complete phase-level verification" (with `spec_unmapped: true`; Step 6). The orchestrator writes verification-result.json and creates the fix task.
 
 The `/work` coordinator handles timeout detection, retry logic, and all persistence. Your job is to prioritize returning a valid report before running out of turns.
 
@@ -632,6 +632,7 @@ For each major/critical issue found, construct a fix-task entry in the `fix_task
     "owner": "claude",
     "source": "verify-agent",
     "status": "Pending",
+    "spec_section": "## Authentication",
     "files_affected": ["..."],
     "dependencies": []
   },
@@ -645,6 +646,8 @@ For each major/critical issue found, construct a fix-task entry in the `fix_task
 - **Recommendations** (improvements beyond spec acceptance criteria): `out_of_spec: true`. The orchestrator queues these for user approval before execution.
 
 In both cases, set `"source": "verify-agent"` and `"status": "Pending"` in the `task_json` payload.
+
+**Spec section:** an in-spec fix task's `task_json` names the section whose requirement the fix serves: `spec_section`, the `## ` heading line copied exactly from the spec you just verified against. A fix that belongs to no single section (cross-cutting, such as the Turn Budget Protocol's "Complete phase-level verification" task) carries `"spec_unmapped": true` instead. Don't write a free-form value (`§ 4.2 + § 4.6`) and don't compute hashes: the orchestrator adds the fingerprints (`task-schema.md § "Drift Prevention Fields"`). Recommendations (`out_of_spec: true`) need neither.
 
 **Live state in fix-task descriptions:** when a fix task's description rests on external or live state (a deployed model, a live table, an API's behaviour), re-measure it before writing it in. Don't copy it from an earlier task record. If you can't re-measure it, say so in the description ("per task-NNN, not re-measured"). See `rules/agents.md § "Orchestrator-Authored State Claims"`.
 
@@ -678,7 +681,7 @@ Do NOT write `.claude/verification-result.json`. Include the full verification r
   },
   "fix_tasks_to_create": [
     {
-      "task_json": { "...task shape per task-schema.md..." },
+      "task_json": { "...task shape per task-schema.md, with spec_section or spec_unmapped (Step 6)..." },
       "out_of_spec": false,
       "reason": "why this fix is needed"
     }

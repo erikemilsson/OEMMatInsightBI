@@ -21,7 +21,7 @@ Parts 1–7 NEVER prompt inline during the run. Every fixable issue becomes a **
 **Queue item shape:** `id` (sequential number in queue order) · `part` · `file` · one-line proposed fix (with diff stats where applicable) · `risk` flag.
 
 **Risk flags:**
-- `—` — safe to bundle: concrete fix, nothing locally-authored is lost (regen, add missing field, move entries between files, update a sync file that is an unchanged template copy).
+- `—` — safe to bundle: concrete fix, nothing locally-authored is lost (regen, add missing field, move entries between files, update a sync file that is an unchanged template copy, stamp section provenance from the spec's history).
 - `⚠ overwrites local` — applying replaces locally-modified content: Part 5 "Locally modified" sync files (content that matches no template version of the path), `.claude/CLAUDE.md` revert (Part 2a). Excluded from bare `[A]`; explicit inclusion required.
 - `⚠ deletes` — removes a file: Part 5 retired-template-file rows. Excluded from bare `[A]`; explicit inclusion required. The row says whether the file is an unchanged template copy (nothing local is lost) or locally modified (`[D]` shows the diff against the template's last version).
 - `⚠ edits decision record` — changes the body of a decision record (Part 3 `## Selected` heading rename). Excluded from bare `[A]`; explicit inclusion required.
@@ -47,7 +47,7 @@ Detects and fixes drift from task management standards.
 
 #### 1. Task JSON Schema Validation
 
-Validates required fields (id, title, status, difficulty) and optional fields per `.claude/support/reference/task-schema.md`. Boolean fields (`parallel_safe`, `out_of_spec`, `out_of_spec_rejected`, `cross_phase`, `user_review_pending`) must be booleans when present — flag non-boolean values as schema violations.
+Validates required fields (id, title, status, difficulty) and optional fields per `.claude/support/reference/task-schema.md`. Boolean fields (`parallel_safe`, `out_of_spec`, `out_of_spec_rejected`, `spec_unmapped`, `cross_phase`, `user_review_pending`) must be booleans when present — flag non-boolean values as schema violations.
 
 **Migration detection:** When non-conforming schemas are found (missing required fields, unknown status values, unexpected fields), provide migration guidance:
 - Suggest field mappings (e.g., `"done"` → `"Finished"`, `"assignee"` → `"owner"`)
@@ -152,7 +152,7 @@ verification_debt = count of tasks where:
 
 **Acceptance-status authority (DEC-022):** `.claude/verification-result.json`'s `criteria[]` (rendered as the dashboard's Acceptance-criteria section) is the authoritative surface for "phase acceptance criteria met." If a project also renders acceptance criteria as inline `- [ ]` boxes in the spec, those are authored input, not live status — do not treat unticked spec boxes as a completion failure. `/audit-coherence`'s `acceptance-reconciliation` lens surfaces box-vs-`criteria[]` divergence advisorily.
 
-**Script alternative:** `.claude/scripts/validate-tasks.py .claude/tasks` runs schema + verification-debt checks deterministically and prints a combined report. `--json` flag emits structured output for downstream consumption.
+**Script alternative:** `.claude/scripts/validate-tasks.py .claude/tasks` runs schema + verification-debt checks deterministically and prints a combined report. `--json` flag emits structured output for downstream consumption. It also lists tasks without section provenance (`provenance_warnings`, never an error; check 11 acts on them).
 
 #### 8. Workspace Staleness
 
@@ -194,6 +194,29 @@ A dashboard can be content-stale (task hash or spec hash mismatch), format-stale
 - For each task with `decision_dependencies`, verify each entry matches pattern `DEC-\d+`
 - Invalid format: ERROR — "Task {id} has malformed decision dependency `{value}`"
 
+**Section provenance baseline (FB-135):**
+
+Tasks created before v5.13.0 outside decomposition often carry no `section_fingerprint`, so the drift check counts them in `no_provenance` and can't see an edit to their section. Run `python3 .claude/scripts/fingerprint.py --baseline .claude` (read-only). It proposes one `action` per such task (`tasks[]`) and totals them in `counts`; tasks with `spec_unmapped: true` are not listed. Report the four counts, taken from this output and not from `validate-tasks.py`'s `provenance_warnings` (that list also holds tasks of an older spec version, which the drift check treats as historical). All zero: `✓`, nothing queued. Only `report_only` above zero: `✓` with the `ℹ️` line below, nothing queued. `spec: null` (no current spec): skip this sub-check.
+
+The script stamps from the spec's git history, not from the current text: each task gets the hash its section had at the last spec commit dated on or before the task's reference date (for a Finished task `completion_date`, else `task_verification.timestamp`, else `created_date`; `created_date` for any other status; never `updated_date`). When the section was edited on that very date (`same_day_edit`), git evidence about the task's own file decides: a spec commit of that day that also touches the task file, on a task whose `files_affected` names the spec, is the task's own edit and is the one stamped (`reason: own spec edit`; with several, the oldest); a task file that first enters git, not yet Finished, in or after a spec commit of that day is stamped from that commit (`task filed after the edit`); with neither, the commit before the edit. For an open task (b) assumes the file was committed soon after it was written: one committed in a later bulk commit can be dated after an edit it preceded. History-dated hashes assume the spec was edited on the line the task was built on (a side-branch edit is dated by its merge, a fast-forwarded branch can't be told apart, and a commit's date is in the committer's own timezone). A task finished before a later spec edit therefore gets the old hash, the next `/work` reports that section as changed, and the user absorbs it with `[K]` or acts on it. That is the truth the missing fingerprint was hiding.
+
+| `action` | Meaning | Queued as |
+|---|---|---|
+| `stamp_history` | The section resolves and the spec's history dates it | **One** row for all of them, file `.claude/tasks/ ({N} files)`, risk `—`, included in bare `[A]`: `Stamp section provenance on {N} tasks from the spec's history ({M} will then show as drift: their section changed after the task)`. `{M}` counts `changed_since: true`; drop the parenthesis when it is 0 |
+| `confirm_current` | The section resolves, but nothing dates the task against the spec; each task's `reason` says why | Up to **two** `needs-input` rows, split by `reason`; `{reason summary}` groups the row's `reason` values with their counts. Reasons `the spec has no git history`, `the task has no usable date` (and `the spec can't be read at the commit for the task's date`): `{N} tasks name a section but the spec has no history to date them ({reason summary}). Stamp the current section text as what they were built against? (yes / no / list of ids)`. Reasons `no spec commit on or before the task's date`, `the section is not in the spec at the commit for the task's date`, `the task may predate this spec version` (no `spec_version`, dated on or before the spec file's first commit): `{N} tasks are older than the spec's history for their section ({reason summary}). The current text is not what they were built against; accept it as their baseline anyway? (yes / no / list of ids)` |
+| `needs_section` | An open task whose `spec_section` is blank or names no current heading | One `needs-input` row **per task**: `Task {id} "{title}" names no resolvable spec section: which section, or unmapped?` |
+| `report_only` | The same, on a Finished task | No row. Report line: `ℹ️ {N} finished tasks name no resolvable spec section; drift can't be checked for them` |
+
+Applying:
+- **`stamp_history` row:** `python3 .claude/scripts/fingerprint.py --baseline .claude --write --ids <ids>`. It writes `spec_section` (the real heading), `section_fingerprint`, a missing `spec_version` and a `[BASELINE]` note, and nothing else: `updated_date` stays, so a phase-level verification result remains valid. Exit 2 comes before the first write (the proposals changed since the scan, or a task file can't be rewritten safely; run `--baseline` again), except an I/O error during writing, which names the ids already written; a rerun finishes. A re-listed id that is already stamped is reported `unchanged`, not an error. When `{M}` > 0, tell the user what follows: the next `/work` lists those tasks' sections under Drift Reconciliation, where `[K]` keeps verified work, unless the section already has a deferral, which then covers these tasks too.
+- **`confirm_current` rows:** `{id}: yes` → the same command with all of the row's ids plus `--confirm-current`; a list of ids → only those; `no` → nothing is written. On the first row a yes is the user's assertion that the current text is what the tasks were built against, the same one as Drift Reconciliation's `[K]`; on the "older than the spec's history" row it accepts the current text as the baseline knowing it is not. The `[BASELINE]` note the script writes says which. Neither is ever a default.
+- **`needs_section` row:** a heading → `python3 .claude/scripts/fingerprint.py --provenance .claude --section "<answer>"` and write its four fields to the task (exit 1: the row stays open; list the real headings). `unmapped` → set `spec_unmapped: true`. Either way leave `updated_date` alone.
+- A baseline write counts as a dashboard regen trigger in this batch: the Spec Drift rows come from fingerprints, which `task_hash` doesn't cover.
+
+Never stamp by hand what the script declined: an unconfirmed `confirm_current` task, a `report_only` task, or a hash other than the proposed one. A current hash on a task whose section changed after it records a false "built against this text".
+
+**`spec_unmapped` contradiction:** for each `validate-tasks.py` `provenance_warnings` entry with reason `spec_unmapped set on a task with section provenance`: WARNING — "Task {id} has `spec_unmapped: true` and a `section_fingerprint`. The drift check treats it as mapped; remove whichever is wrong."
+
 ### Task Auto-Fixes
 
 Per the Fix Queue Protocol: each detected issue queues one fix item; "Ask user: …" entries become `needs-input` rows with the question inline. Nothing here prompts mid-run.
@@ -217,6 +240,10 @@ Per the Fix Queue Protocol: each detected issue queues one fix item; "Ask user: 
 | Absorbed referencing another Absorbed task (chain) | Suggest the non-Absorbed end of the chain; ask user to confirm or change |
 | Missing snapshot file | Informational only — drift detection is unaffected; reconciliation shows the current section text instead of a diff |
 | Malformed decision dependency format | Ask user: correct or remove the entry |
+| Tasks without section provenance, `stamp_history` (check 11) | One row for all: stamp from the spec's history via `fingerprint.py --baseline .claude --write --ids …` |
+| Tasks without section provenance, `confirm_current` (check 11) | One row per reason group (undated / older than the spec's history). Ask user: stamp the current section text (yes / no / list of ids) |
+| Task without section provenance, `needs_section` (check 11) | Ask user, per task: which spec section, or unmapped |
+| Finished tasks naming no resolvable section, `report_only` (check 11) | Informational only: drift can't be checked for them |
 | Stale workspace files (> 30 days) | List files, ask user: graduate to final location, or delete |
 | Dashboard state sidecar missing | Create with defaults (custom_views off, other toggles on, empty notes) |
 | Stale "Awaiting Verification" (> 1 hour) | Auto-recovered by `/work` Step 0 on next run. If running standalone: trigger verify-agent immediately for task |
@@ -1148,6 +1175,7 @@ READ .claude/sync-manifest.json (file categories)
 SCAN .claude/support/previous_specifications/ for archived specs
 SCAN .claude/support/workspace/ for stale files
 SCAN for misplaced spec files in non-canonical locations
+RUN fingerprint.py --baseline .claude (Part 1 check 11; read-only)
 FETCH template remote (non-git project: temporary clone), RUN sync-check.py (skip if offline)
 ```
 
@@ -1213,6 +1241,7 @@ One response resolves the queue:
 
 - Apply included fixes in part order (1 → 7). Dashboard regeneration runs at most once, last — dedupe Part 1 regen rows with sync-triggered regens.
 - A fix that fails to apply does not abort the batch: report it in the post-apply summary and continue.
+- Part 1 baseline rows (check 11) are applied by `fingerprint.py --baseline … --write`, one call for the `stamp_history` row and one, with `--confirm-current`, for each confirmed `confirm_current` row. Never write those fingerprints by hand.
 - `needs-input` rows without an answer in the response stay open — list them back ("Still open: 7 — stale In Progress task-12") so nothing silently drops.
 - Interactive sub-flows of included rows (Part 2d `[V]`, Part 2a `merge`) run after the batch applies, one at a time.
 - Post-apply summary: what was applied, what failed, what remains open.

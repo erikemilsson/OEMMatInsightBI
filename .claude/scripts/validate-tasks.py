@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Task JSON schema validation + verification debt count.
+"""Task JSON schema validation + verification debt count + section-provenance warnings.
 
 Mirrors the field list in .claude/support/reference/task-schema.md.
 Any schema change there MUST be mirrored here (flagged for follow-up: task-schema.json
@@ -29,8 +29,10 @@ VALID_OWNERS = {"claude", "human", "both"}
 
 BOOLEAN_FIELDS = {
     "cross_phase", "parallel_safe", "out_of_spec", "out_of_spec_rejected",
-    "user_review_pending",
+    "user_review_pending", "spec_unmapped",
 }
+
+PROVENANCE_SKIPPED = ("Absorbed", "Broken Down")  # as fingerprint.py's DRIFT_SKIPPED
 
 
 def validate_task(data: dict, path: Path) -> list[str]:
@@ -79,6 +81,25 @@ def check_verification_debt(data: dict) -> str | None:
     return None
 
 
+def _blank(value) -> bool:
+    return not (isinstance(value, str) and value.strip())
+
+
+def check_provenance(data: dict) -> str | None:
+    """Return a reason when the task's section provenance is missing or contradictory
+    (FB-135). Every task has section provenance (spec_section + section_fingerprint),
+    or spec_unmapped true, or out_of_spec true; Absorbed and Broken Down tasks are
+    not checked. A warning only: it never changes the exit code."""
+    if data.get("status") in PROVENANCE_SKIPPED or data.get("out_of_spec") is True:
+        return None
+    no_fingerprint = _blank(data.get("section_fingerprint"))
+    if data.get("spec_unmapped") is True:
+        return None if no_fingerprint else "spec_unmapped set on a task with section provenance"
+    missing = [name for name, absent in (("spec_section", _blank(data.get("spec_section"))),
+                                         ("section_fingerprint", no_fingerprint)) if absent]
+    return "no " + ", no ".join(missing) if missing else None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Validate task JSON files and count verification debt."
@@ -100,6 +121,7 @@ def main() -> int:
     files = sorted(args.task_dir.glob("task-*.json"))
     validation_errors: dict[str, list[str]] = {}
     debt: list[dict] = []
+    provenance: list[dict] = []
 
     for f in files:
         try:
@@ -113,11 +135,15 @@ def main() -> int:
         d = check_verification_debt(data)
         if d:
             debt.append({"file": f.name, "task_id": data.get("id"), "reason": d})
+        p = check_provenance(data)
+        if p:
+            provenance.append({"file": f.name, "task_id": data.get("id"), "reason": p})
 
     summary = {
         "task_count": len(files),
         "validation_errors": validation_errors,
         "verification_debt": debt,
+        "provenance_warnings": provenance,
     }
 
     if args.json:
@@ -138,6 +164,16 @@ def main() -> int:
                 print(f"  - {d['task_id']} ({d['file']}): {d['reason']}")
         else:
             print("Verification debt: none")
+        # one line, a warning only: the exit code below ignores it
+        without = sum(1 for w in provenance if w["reason"].startswith("no "))
+        parts = []
+        if without:
+            parts.append(f"{without} task(s) without section provenance "
+                         "(see /health-check Part 1 check 11)")
+        if len(provenance) > without:
+            parts.append(f"{len(provenance) - without} task(s) with spec_unmapped set "
+                         "despite section provenance")
+        print("Provenance: " + ("; ".join(parts) if parts else "OK"))
 
     return 0 if not validation_errors and not debt else 1
 

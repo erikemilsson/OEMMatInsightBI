@@ -242,6 +242,7 @@ Run `python3 .claude/scripts/fingerprint.py --drift .claude` (read-only; JSON on
 - `unreconciled_sections` > 0 → Drift Reconciliation (after Step 1c). Tasks marked `subsection_unchanged` are shown as "likely unaffected", never dropped (DEC-021; `drift-reconciliation.md § "Subsection-level drift narrowing"`).
 - `unmigrated` non-empty → Task Migration (Drift Reconciliation step 2).
 - `unreadable` → report each file per the malformed-file rule above.
+- A non-zero `no_provenance` for a task created this session → that task was written without provenance: add it now per the creation contract (`task-schema.md § "Drift Prevention Fields"`). Older ones are `/health-check` Part 1 check 11's.
 - No script → apply the prose rules in `drift-reconciliation.md § "Spec Drift Detection"` (this reads every task JSON).
 
 **Spec index refresh (DEC-021):** if `.claude/spec_v{N}.index.json` is missing or its `spec_fingerprint` ≠ the drift JSON's `spec_fingerprint` (the current full-spec hash), regenerate it: `python3 .claude/scripts/fingerprint.py --index .claude/spec_v{N}.md > .claude/spec_v{N}.index.json`. The index powers section-scoped spec reads (`rules/spec-workflow.md § "Section-scoped spec reading"`); it carries no task provenance, so this never affects drift reconciliation. Full rule: `drift-reconciliation.md § "Spec Index Freshness"`.
@@ -354,7 +355,7 @@ Check request against spec:
 **Skip formal planning for trivial requests:** If the diff for the request fits in one sentence (typo fix, log line addition, variable rename, single import update), dispatch implement-agent directly — do not route through `/research`, decision records, or task decomposition. The "Minor/trivial addition" branch above is the entry point. The principle: planning overhead should be proportional to scope.
 
 **If user selects "Proceed anyway":**
-- Create task with `"out_of_spec": true`
+- Create task with `"out_of_spec": true` (it needs no section provenance; creation contract: `task-schema.md § "Drift Prevention Fields"`)
 - Dashboard shows ⚠️ prefix for these tasks
 - Health check reports out-of-spec tasks separately
 
@@ -418,7 +419,7 @@ After phase and decision checks, assess whether multiple tasks can be dispatched
 ### Step 3: Determine Action
 
 **If a specific request was provided** (and passed spec check):
-1. Create a task for the request (or find existing matching task)
+1. Create a task for the request (or find existing matching task). A new task gets provenance as it is written (creation contract: `task-schema.md § "Drift Prevention Fields"`): the fields from `python3 .claude/scripts/fingerprint.py --provenance .claude --section "<heading>"` for the spec section the request falls under, or `spec_unmapped: true` when it belongs to no single section
 2. Route to the "If Executing" section in Step 4
 3. Continue to Step 5 (validation)
 

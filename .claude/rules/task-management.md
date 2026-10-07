@@ -22,6 +22,10 @@ Always use the project's task system (`.claude/tasks/task-*.json` files) for all
 
 3 owner values: `claude` (autonomous), `human` (requires user action), `both` (collaborative — user reviews after Claude implements).
 
+## Creating Tasks
+
+Every new task file is written with section provenance, whoever creates it and by whatever path (a mid-session request included): the four fields from `python3 .claude/scripts/fingerprint.py --provenance .claude --section "<heading>"`, or `spec_unmapped: true`, or `out_of_spec: true`. Contract: `.claude/support/reference/task-schema.md § "Drift Prevention Fields"`.
+
 ## Parallel Execution
 
 Multiple tasks "In Progress" allowed when parallel-eligible:

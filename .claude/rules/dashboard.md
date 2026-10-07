@@ -15,7 +15,7 @@ The dashboard remains the default read surface. Because it is read-only, every a
 ## Regeneration Strategy
 
 The dashboard is regenerated whole by the script (`dashboard-render.py --html`) — there is no in-file targeted-edit path (the HTML is not hand-edited). Two tiers:
-- **Tier 1 (Strategic Regen):** Decomposition complete, parallel batch end, session boundaries, `/work complete`, phase gates, decision resolution (incl. ratified or reconsidered), drift reconciliation applied (a choice wrote a task file or `drift-deferrals.json`), Step 1a freshness mismatch, format staleness
+- **Tier 1 (Strategic Regen):** Decomposition complete, parallel batch end, session boundaries, `/work complete`, phase gates, decision resolution (incl. ratified or reconsidered), drift reconciliation applied (a choice wrote a task file or `drift-deferrals.json`), provenance baseline written (`/health-check` check 11), Step 1a freshness mismatch, format staleness
 - **Tier 2 (Inline CLI Messages):** Brief contextual updates for routine changes — task starts, verification passes/fails — no regen
 
 A full regen is cheap (a single script call), so any Tier-1 trigger runs a full regen.

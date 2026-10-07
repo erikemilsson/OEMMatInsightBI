@@ -140,7 +140,8 @@ After Step 5, construct and return the structured implementation report per the 
     {
       "type": "blocker | non_blocking | scope_creep | spec_drift | spec_misalignment",
       "description": "one-sentence description",
-      "suggested_action": "create new task | flag for human | proceed | stop and report"
+      "suggested_action": "create new task | flag for human | proceed | stop and report",
+      "spec_section": "optional, with 'create new task': the ## heading (copied from the spec) the follow-up belongs to, when you know it"
     }
   ],
   "decisions_to_record": [
@@ -231,7 +232,7 @@ If you discover problems that don't block the current task:
 1. Complete current task (`implementation_status: "completed"`)
 2. Add an `issues_discovered` entry with type: `non_blocking` and suggested_action: `create new task`
 3. Reference the discovery in `notes` (e.g., "Discovered: [issue], see issues_discovered")
-4. The orchestrator creates follow-up task files from these entries
+4. The orchestrator creates follow-up task files from these entries. Name the entry's `spec_section` when you know which spec section the follow-up belongs to (often your own task's); leave it out when you don't, or when it belongs to no single section
 
 ### Scope Creep
 
