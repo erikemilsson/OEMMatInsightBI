@@ -199,6 +199,7 @@ draft → proposed → approved → implemented
 - **approved**: Decision finalized by the user (selected, or ratified). May await implementation.
 - **implemented**: Decision reflected in project. Common end state.
 - **superseded**: Replaced by a newer decision. Link to replacement in Impact section.
+- **partially_superseded**: Part of the decision was replaced by a newer one; the rest still stands. The dashboard handles it like `superseded`: it counts as resolved for `decision_dependencies`, and is listed under the "superseded" filter and count with the badge "Partially Superseded". `/audit-coherence`'s `superseded-decisions` lens checks it too. Only the dashboard META counts it apart (`decisions_partially_superseded`).
 
 ### Revisiting Decisions
 
@@ -231,7 +232,7 @@ Sections, in order: `## Background`, `## Options Comparison`, `## Decision` (for
 **Ratifying or reconsidering.** The dashboard's Needs-you card lists all `recorded` records in one row. The user then runs one of:
 
 - `/work ratify all` or `/work ratify DEC-NNN …` → `status: approved` and a new key `ratified: YYYY-MM-DD`. Frontmatter only.
-- `/work reconsider DEC-NNN` → `status: proposed`; the record is now an unresolved decision like any other, and `/research DEC-NNN` adds the sections a user selection needs (`## Select an Option` and the rest) and investigates. Frontmatter only, except on an older record whose `## Select an Option` box the agent ticked: that box is unticked in the same edit, or the next `/work` or `/iterate` would approve the record. When the user later ticks a box, the record becomes `approved` with `ratified` added (`decided_by` stays). The task stays Finished; any follow-up work is a new task after the user selects.
+- `/work reconsider DEC-NNN` → `status: proposed`; the record is now an unresolved decision like any other, and `/research DEC-NNN` adds the sections a user selection needs (`## Select an Option` and the rest) and investigates. Frontmatter only, except on an older record whose `## Select an Option` box the agent ticked: that box is unticked in the same edit, or the next `/work` or `/iterate` would approve the record. When the user later ticks a box, the record becomes `approved` with `decided` reset to that day and `ratified` added (`decided_by` stays). The task stays Finished; any follow-up work is a new task after the user selects, and its id is appended to the record's `related.tasks` (`phase-decision-gates.md` § "Post-Decision Check").
 
 `/research DEC-NNN` on a `recorded` record confirms, then does the same as reconsider.
 

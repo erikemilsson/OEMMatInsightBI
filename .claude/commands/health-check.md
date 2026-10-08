@@ -404,7 +404,7 @@ Each `decision-*.md` file must have valid frontmatter:
 - `created` - Valid date in YYYY-MM-DD format
 
 **Optional fields:**
-- `decided` - Date when decision was finalized (for an agent-recorded decision, the date of the verify pass)
+- `decided` - Date when decision was finalized (for an agent-recorded decision, the date of the verify pass; after a reconsider, the date the user selected)
 - `decided_by` - `implement-agent` or `orchestrator` on an agent-recorded decision (`decisions.md § "Agent-recorded decisions"`)
 - `ratified` - Date the user ratified an agent-recorded decision
 - `related.tasks` - Array of task IDs

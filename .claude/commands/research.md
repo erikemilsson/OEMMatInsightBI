@@ -42,7 +42,7 @@ Investigate options for decisions, technology choices, or architectural question
 2. If not found: say so and offer to create the record under that ID, taking the topic from the blocked task's context (or asking the user for one line). On yes, create it as the topic branch's item 3 does, then go to Step 2; on no, stop
 3. Read frontmatter: check `status`
 4. If status is `approved` or `implemented`: report that the decision is already resolved. Offer to research validation of the chosen option instead.
-5. If status is `superseded`: report and stop
+5. If status is `superseded` or `partially_superseded`: report and stop
 6. If status is `recorded` (`decisions.md § "Agent-recorded decisions"`): tell the user and confirm — "DEC-{NNN} is an agent-recorded decision: it is already built and verified (task {related.tasks}). Researching it reopens it. [Y] Reconsider and research | [N] Leave as recorded". On `[N]`, stop. On `[Y]`, reconsider it as `/work reconsider DEC-NNN` does (`status: proposed`; if an older record has a `## Select an Option` box the agent ticked, untick it in the same edit and say so, or the next `/work` or `/iterate` approves it; the task stays Finished), then continue
 7. If the record has no `## Select an Option` section (a reconsidered agent-recorded decision): insert the template sections it lacks, so the agent's edits and the user's selection have a place to land — `## Select an Option` directly under the title with one unchecked box per option the record already names, and empty `## Option Details` and `## Your Notes & Constraints` after `## Options Comparison`. Leave `## Decision` as it is (it records what was built) until the user selects
 

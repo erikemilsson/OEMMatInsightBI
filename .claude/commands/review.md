@@ -82,7 +82,8 @@ Quickly assess all areas with a checkmark/warning/cross indicator (shown in the 
 #### Focus Area: Decision Implementation Audit
 
 - For decisions with `status: implemented` and `implementation_anchors`: verify anchors are still valid (files exist, content matches)
-- For decisions with `status: approved` but no anchors yet: flag that implementation may be drifting from the decision
+- For decisions with `status: approved` but no anchors yet: flag that implementation may be drifting from the decision. Agent-decided records (`decided_by: implement-agent` or `orchestrator`) follow the next bullet instead
+- Agent-decided records with `status: approved` and no anchors: skip them, ratified or not. The choice was built and verified before its record was written (`.claude/support/reference/decisions.md` § "Agent-recorded decisions"). The one exception is a record the user reconsidered, whose new selection may not be built (`.claude/support/reference/phase-decision-gates.md` § "Post-Decision Check"). A reconsidered record has both a ticked box under `## Select an Option` and `ratified` equal to `decided`; skip a record that lacks either, however many ids its `related.tasks` holds. For a reconsidered record: if `related.tasks` has more than one id, the last is the follow-up task, so flag the record until that task is Finished (if its file is not among the active tasks, read it in `.claude/tasks/archive/`; if it is in neither, flag the record and say the task is missing); otherwise flag it, and say in the finding that marking the record `implemented` with `implementation_anchors` clears it if the selected option is the one already built
 - Check if implementation choices made during tasks align with resolved decisions
 
 ### Step 3: Present Findings

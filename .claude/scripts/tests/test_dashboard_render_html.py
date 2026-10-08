@@ -147,7 +147,8 @@ class TestPlaceholders(HtmlBase):
                              sidecar={"section_toggles": {"custom_views": True},
                                       "custom_views_instructions": "**By owner:** group tasks"})
         out = self.render(root)
-        self.assertIn("<!-- CUSTOM VIEWS INSTRUCTIONS -->", out)
+        self.assertIn("<!-- CUSTOM VIEWS INSTRUCTIONS -->\n**By owner:** group tasks\n"
+                      "<!-- END CUSTOM VIEWS INSTRUCTIONS -->", out)
         self.assertEqual(out.count("<!-- CLAUDE: fill"), 1)  # custom-views only
 
 
@@ -883,6 +884,476 @@ class TestRecordedDecisions(NeedsYouBase):
             decisions=[decision_md(1, "Pick", "approved", "A")]))
         self.assertIn("1 decided · 0 superseded", out)
         self.assertNotIn('data-f="recorded"', out)
+
+
+NON_OBJECTS = ("x", 5, 1.5, True, [], [1], ["a"], [{"a": 1}])
+
+
+class TestNonObjectInputs(HtmlBase):
+    """A state file or sidecar field of the wrong JSON shape reads as absent, with a
+    one-line warning where a whole file or sidecar object is replaced. Each of these
+    used to exit 1 on an AttributeError or TypeError."""
+
+    def render_err(self, root):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            out = self.render(root)
+        return out, err.getvalue()
+
+    def two_phase(self, **kw):
+        # phase 1 complete, phase 2 open: the Phase Transitions row is reachable
+        return self.make_env(active=[task(1, "Finished", "1", task_verification={"result": "pass"}),
+                                     task(2, "Pending", "2", owner="human")], **kw)
+
+    def assert_like_baseline(self, baseline, variants, write, warning=None):
+        for value in variants:
+            with self.subTest(value=value):
+                out, err = self.render_err(write(value))
+                self.assertEqual(out, baseline)
+                if warning:
+                    self.assertIn(warning, err)
+                    self.assertEqual(err.count("\n"), 1)
+                else:
+                    self.assertEqual(err, "")  # "skipped without a warning"
+
+    def test_non_object_verification_result_renders_like_missing(self):
+        baseline = self.render(self.two_phase())
+        self.assertNotIn("Acceptance criteria", baseline)
+        with_result = self.render(self.two_phase(verification={"criteria_passed": 1, "criteria_failed": 0}))
+        self.assertIn("Acceptance criteria", with_result)  # positive control: the file is read
+        self.assert_like_baseline(baseline, NON_OBJECTS, lambda v: self.two_phase(verification=v),
+                                  "verification-result.json is not a JSON object")
+
+    def test_non_object_section_toggles_render_like_defaults(self):
+        notes = {"user_notes": "a note"}
+        baseline = self.render(self.two_phase(sidecar=notes))
+        off = self.render(self.two_phase(sidecar={**notes, "section_toggles": {"notes": False}}))
+        self.assertNotEqual(off, baseline)  # positive control: an object is honoured
+        self.assert_like_baseline(
+            baseline, NON_OBJECTS, lambda v: self.two_phase(sidecar={**notes, "section_toggles": v}),
+            "dashboard-state.json section_toggles is not a JSON object")
+        out, err = self.render_err(self.two_phase(sidecar={**notes, "section_toggles": None}))
+        self.assertEqual((out, err), (baseline, ""))  # null reads as absent, no warning
+
+    def test_non_object_audit_digest_renders_like_missing(self):
+        baseline = self.render(self.two_phase(sidecar={}))
+        self.assertNotIn("Audit Findings", baseline)
+        digest = {"items": [{"id": "A1", "status": "pending", "description": "finding"}]}
+        self.assertIn("Audit Findings", self.render(self.two_phase(sidecar={"audit_digest": digest})))
+        self.assert_like_baseline(
+            baseline, NON_OBJECTS, lambda v: self.two_phase(sidecar={"audit_digest": v}),
+            "dashboard-state.json audit_digest is not a JSON object")
+
+    def test_malformed_audit_digest_fields_are_skipped(self):
+        good = {"id": "A1", "status": "pending", "description": "finding"}
+        for digest in ({"items": "x"}, {"items": 5}, {"items": {"a": 1}}):
+            with self.subTest(digest=digest):
+                self.assertNotIn("Audit Findings", self.render(self.two_phase(sidecar={"audit_digest": digest})))
+        for digest in ({"items": [good, "x", 5, None, [1]]},
+                       {"items": [good, {"id": ["A2"], "status": "pending", "description": "odd id"}],
+                        "dismissed_ids": [["A2"], {"a": 1}]},
+                       {"items": [good], "dismissed_ids": 5}, {"items": [good], "dismissed_ids": "A1"}):
+            with self.subTest(digest=digest):
+                self.assertIn("finding", self.render(self.two_phase(sidecar={"audit_digest": digest})))
+        dismissed = self.render(self.two_phase(sidecar={"audit_digest": {"items": [good], "dismissed_ids": ["A1"]}}))
+        self.assertNotIn("finding", dismissed)  # a well-formed dismissal still applies
+
+    def test_non_object_phase_gates_read_as_not_approved(self):
+        baseline = self.render(self.two_phase(sidecar={}))
+        self.assertIn("approve the gate", baseline)
+        approved = self.render(self.two_phase(sidecar={"phase_gates": {"1→2": {"status": "approved"}}}))
+        self.assertNotIn("approve the gate", approved)  # positive control
+        self.assert_like_baseline(
+            baseline, NON_OBJECTS, lambda v: self.two_phase(sidecar={"phase_gates": v}),
+            "dashboard-state.json phase_gates is not a JSON object")
+        # a gate object counts as approved only with status "approved"
+        for gate in ({"status": "active"}, {"status": "pending"}, {}, {"status": None}):
+            with self.subTest(gate=gate):
+                out, err = self.render_err(self.two_phase(sidecar={"phase_gates": {"1→2": gate}}))
+                self.assertEqual((out, err), (baseline, ""))
+        # one gate entry of the wrong shape: not approved, no warning
+        self.assert_like_baseline(baseline, NON_OBJECTS + (None,),
+                                  lambda v: self.two_phase(sidecar={"phase_gates": {"1→2": v}}))
+
+    def test_non_object_version_json_renders_like_missing(self):
+        root = self.two_phase()
+        (root / "version.json").unlink()
+        baseline = self.render(root)
+        self.assertIn("template_version: —", baseline)
+
+        def write(value):
+            (root / "version.json").write_text(json.dumps(value), encoding="utf-8")
+            return root
+        self.assert_like_baseline(baseline, NON_OBJECTS, write, "version.json is not a JSON object")
+
+    def test_malformed_criteria_entries_are_skipped(self):
+        good = {"criterion": "Loads", "status": "pass", "notes": "ok"}
+        out = self.render(self.two_phase(verification={"criteria": [good, "x", 5, None, [1]]}))
+        self.assertIn("Acceptance criteria · 1/1 passed", out)
+        # nothing usable in criteria[]: the summary counts, when they are numbers
+        out = self.render(self.two_phase(verification={"criteria": ["x"], "criteria_passed": 2,
+                                                       "criteria_failed": 1}))
+        self.assertIn("<b>2/3</b> criteria passed", out)
+        # whole floats are counts too (the schema says "Number"), printed as ints
+        out = self.render(self.two_phase(verification={"criteria_passed": 2.0, "criteria_failed": 1.0}))
+        self.assertIn("<b>2/3</b> criteria passed", out)
+        for passed, failed in (("2", 1), (2, "x"), ([2], 1), (2, {}), (True, 1), (2, None),
+                               (2.5, 1), (2, 0.5), (2, False), (float("inf"), 1), (2, float("nan"))):
+            with self.subTest(passed=passed, failed=failed):
+                out = self.render(self.two_phase(verification={"criteria_passed": passed,
+                                                               "criteria_failed": failed}))
+                self.assertNotIn("Acceptance criteria", out)
+
+    def test_malformed_spec_index_falls_back_to_link_only(self):
+        baseline = self.render(self.two_phase())
+        self.assertIn("Open the spec file to browse its sections.", baseline)
+        self.assert_like_baseline(baseline, NON_OBJECTS, lambda v: self.two_phase(spec_index=v),
+                                  "spec_v1.index.json is not a JSON object")
+        out = self.render(self.two_phase(spec_index={"sections": [{"heading": "## Overview"}, "x", 5, None]}))
+        self.assertIn("1 sections", out)
+        self.assertIn("<li>Overview</li>", out)
+
+    def test_malformed_archive_index_reads_as_no_archive(self):
+        root = self.two_phase()
+        (root / "tasks" / "archive").mkdir()
+        index = root / "tasks" / "archive" / "archive-index.json"
+        index.write_text(json.dumps({"tasks": []}), encoding="utf-8")
+        baseline = self.render(root)
+        index.write_text(json.dumps({"tasks": [{"id": "90"}]}), encoding="utf-8")
+        self.assertNotEqual(self.render(root), baseline)  # positive control: entries count
+
+        def write(value):
+            index.write_text(json.dumps(value), encoding="utf-8")
+            return root
+        self.assert_like_baseline(baseline, NON_OBJECTS + ({"tasks": 5}, {"tasks": None}, {"tasks": "x"}),
+                                  write, "archive-index.json has no tasks list")
+
+    def test_non_string_custom_views_instructions_read_as_empty(self):
+        on = {"section_toggles": {"custom_views": True}}
+        baseline = self.render(self.two_phase(sidecar=on))
+        self.assertIn("<!-- CUSTOM VIEWS INSTRUCTIONS -->\n\n<!-- END", baseline)
+        self.assert_like_baseline(
+            baseline, (5, 1.5, True, [1], {"a": 1}),
+            lambda v: self.two_phase(sidecar={**on, "custom_views_instructions": v}))
+
+    def test_malformed_archive_index_entry_fields_do_not_crash(self):
+        # R1: an index entry is state-file content; a phase_name that isn't a string
+        # is not counted as a name (it used to raise in build_phases)
+        root = self.make_env(active=[task(1, "Pending", "1", phase_name="One")])
+        (root / "tasks" / "archive").mkdir()
+        index = root / "tasks" / "archive" / "archive-index.json"
+        entry = {"id": "90", "status": "Finished", "phase": "1"}
+        index.write_text(json.dumps({"tasks": [entry]}), encoding="utf-8")
+        baseline = self.render(root)
+        self.assertIn("2 tasks", baseline)  # positive control: the entry is counted
+        self.assertIn("One", baseline)
+
+        def write(value):
+            index.write_text(json.dumps({"tasks": [{**entry, "phase_name": value}]}), encoding="utf-8")
+            return root
+        self.assert_like_baseline(baseline, (["x"], 5, 1.5, True, {"a": 1}, [], None, ""), write)
+        # a string name still counts: two votes for "Two" outrank the active task's "One"
+        index.write_text(json.dumps({"tasks": [{**entry, "phase_name": "Two"},
+                                               {**entry, "id": "91", "phase_name": "Two"}]}),
+                         encoding="utf-8")
+        self.assertIn("Two", self.render(root))
+
+    def test_non_string_task_phase_name_is_not_a_name(self):
+        named = self.render(self.make_env(active=[task(1, "Pending", "1"),
+                                                  task(2, "Pending", "1", phase_name="One")]))
+        self.assertIn("One", named)
+        for value in (["x"], 5, {"a": 1}, True):
+            with self.subTest(value=value):
+                out = self.render(self.make_env(active=[task(1, "Pending", "1", phase_name=value),
+                                                        task(2, "Pending", "1", phase_name="One")]))
+                self.assertEqual(out, named)
+
+    def test_non_string_user_notes_read_as_empty(self):
+        # R5: null used to render a Notes card holding <p>None</p>
+        baseline = self.render(self.two_phase(sidecar={}))
+        self.assertNotIn("notescard\">", baseline)
+        self.assertIn("notescard\">", self.render(self.two_phase(sidecar={"user_notes": "a note"})))
+        self.assert_like_baseline(baseline, (None,), lambda v: self.two_phase(sidecar={"user_notes": v}))
+        self.assert_like_baseline(
+            baseline, (False, True, 5, 0, [], ["a"], {}, {"a": 1}),
+            lambda v: self.two_phase(sidecar={"user_notes": v}),
+            "dashboard-state.json user_notes is not a string")
+        # notes toggled off: the field is not read, so nothing is printed
+        off = {"section_toggles": {"notes": False}}
+        self.assert_like_baseline(self.render(self.two_phase(sidecar=off)), (5, ["a"]),
+                                  lambda v: self.two_phase(sidecar={**off, "user_notes": v}))
+
+    def test_object_fields_are_not_read_with_action_required_off(self):
+        off = {"section_toggles": {"action_required": False}}
+        baseline = self.render(self.two_phase(sidecar=off))
+        for field in ("phase_gates", "audit_digest"):
+            self.assert_like_baseline(baseline, ("x", [1]),
+                                      lambda v: self.two_phase(sidecar={**off, field: v}))
+
+    def test_cli_exits_zero_with_a_warning_on_a_wrong_shaped_file(self):
+        root = self.two_phase(verification=["not", "an", "object"])
+        proc = subprocess.run([sys.executable, str(SCRIPT), "--html", "--claude-dir", str(root),
+                               "--now", "2026-06-24T00:00:00Z"], capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0)
+        self.assertEqual(proc.stderr.strip(),
+                         "warning: verification-result.json is not a JSON object; rendering as if absent")
+        self.assertTrue(proc.stdout.startswith("<!doctype html>"))
+        self.assertEqual(proc.stdout, self.render(self.two_phase()) + "\n")
+
+    def test_null_dependency_lists_in_a_phase_that_cannot_start(self):
+        # R2: phase 1 still open, so phase_status() goes on to its dependency checks
+        def env(extra=(), **kw):
+            return self.make_env(
+                active=[task(0, "Finished", "1", task_verification={"result": "pass"}),
+                        task(1, "Pending", "1"), task(2, "Pending", "2", **kw), *extra],
+                decisions=[decision_md(1, "Pick", "proposed")])
+        # eligible early: explicit dependencies met, decision list null
+        eligible = self.render(env(dependencies=["0"]))
+        self.assertIn("Partially Actionable (1 eligible: 2)", eligible)
+        self.assertEqual(self.render(env(dependencies=["0"], decision_dependencies=None)), eligible)
+        # not eligible, nothing gated: the blockers scan reads the null list
+        waiting = self.render(env())
+        self.assertIn("Blocked (awaiting prior phase)", waiting)
+        for value in (None, 0, False, ""):
+            with self.subTest(value=value):
+                self.assertEqual(self.render(env(decision_dependencies=value)), waiting)
+                self.assertEqual(self.render(env(dependencies=value)), waiting)
+        # one task gated by a real unresolved decision, the other with a null list
+        gated = [task(3, "Pending", "2", decision_dependencies=["DEC-001"])]
+        mixed = self.render(env(extra=gated))
+        self.assertIn("Blocked (DEC-001 gates 1 of 2; rest awaiting prior phase)", mixed)
+        self.assertEqual(self.render(env(extra=gated, decision_dependencies=None)), mixed)
+
+    def test_null_dependency_lists_read_as_empty(self):
+        # null (and other falsy values) for either list; a truthy non-list still raises
+        def env(**kw):
+            return self.make_env(active=[task(1, "Finished", "1", task_verification={"result": "pass"})]
+                                 + [task(i, "Pending", "2", **kw) for i in (2, 3)])
+        baseline = self.render(env())
+        for field in ("dependencies", "decision_dependencies"):
+            for value in (None, 0, False, ""):
+                with self.subTest(field=field, value=value):
+                    self.assertEqual(self.render(env(**{field: value})), baseline)
+
+
+class TestNotesHeadings(HtmlBase):
+    """ATX headings in sidecar user_notes render as <h3>..<h6> inside the Notes card."""
+
+    def notes(self, text):
+        return dr._html_notes(text)
+
+    def test_levels_map_below_the_page_headings(self):
+        for hashes, tag, size in (("#", "h3", 17), ("##", "h4", 16), ("###", "h5", 15),
+                                  ("####", "h6", 14), ("#####", "h6", 14), ("######", "h6", 14)):
+            with self.subTest(hashes=hashes):
+                out = self.notes(f"{hashes} Quick links")
+                self.assertRegex(out, rf'^<{tag} style="[^"]*font-size:{size}px[^"]*">Quick links</{tag}>$')
+                self.assertNotIn("#", out)
+        for out in (self.notes("# Top"), self.notes("###### Deep")):
+            self.assertNotRegex(out, r"<h[12][ >]")
+
+    def test_heading_overrides_the_uppercase_card_label_rule(self):
+        # .mini h3 (the card-label rule) would upper-case a command in a heading
+        self.assertIn("text-transform:uppercase", re.search(r"\.mini h3\{[^}]*\}", dr.CSS_HTML).group(0))
+        self.assertIn("text-transform:none", self.notes("# Run /model opus"))
+
+    def test_heading_text_is_escaped(self):
+        out = self.notes('### <script>alert(1)</script> & "more"')
+        self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;more&quot;</h5>", out)
+        self.assertNotIn("<script>", out)
+
+    def test_inline_formatting_inside_a_heading(self):
+        out = self.notes("## **Bold** `code` [docs](docs/x.md)")
+        self.assertIn('<strong>Bold</strong> <code>code</code> <a href="docs/x.md">docs</a></h4>', out)
+
+    def test_hash_without_a_space_is_not_a_heading(self):
+        for line in ("#hashtag", "#1 priority", "#", "###", "####### seven hashes", "see issue # 4",
+                     "`# in code`"):
+            with self.subTest(line=line):
+                self.assertEqual(self.notes(line), f"<p>{dr._mdi(line)}</p>")
+
+    def test_closing_hashes_are_dropped(self):
+        self.assertIn(">Title</h4>", self.notes("## Title ##"))
+        self.assertIn(">C#</h3>", self.notes("# C#"))
+        # only a run at the END of the line is a closing run
+        self.assertIn(">a # b</h3>", self.notes("# a # b"))
+        self.assertIn(">Issue #4 and #5</h4>", self.notes("## Issue #4 and #5 ##"))
+
+    def test_heading_with_no_text_stays_a_paragraph(self):
+        for line in ("## ##", "# #", "### ######", "#  ##"):
+            with self.subTest(line=line):
+                self.assertEqual(self.notes(line), f"<p>{line}</p>")
+
+    def test_headings_are_larger_than_the_card_body_text(self):
+        # body text in the card: paragraphs inherit body's 14.5px, list items are 13px
+        self.assertRegex(dr.CSS_HTML, r"(?m)^body\{[^}]*font-size:14\.5px")
+        self.assertIn(".notescard li{margin:3px 0;font-size:13px}", dr.CSS_HTML)
+        self.assertNotRegex(dr.CSS_HTML, r"\.(mini|notescard)( p)?\{[^}]*font-size")
+        sizes = [int(re.search(r"font-size:(\d+)px", self.notes(f"{'#' * n} x")).group(1))
+                 for n in range(1, 7)]
+        self.assertEqual(sizes, [17, 16, 15, 14, 14, 14])
+        self.assertGreater(sizes[2], 14.5)   # h3..h5 above paragraph text
+        self.assertGreater(min(sizes), 13)   # every level above list-item text
+
+    def test_full_heading_style(self):
+        self.assertEqual(
+            self.notes("### Quick links"),
+            '<h5 style="margin:12px 0 4px;font-size:15px;font-weight:600;line-height:1.3;'
+            'text-transform:none;letter-spacing:0;color:var(--ink)">Quick links</h5>')
+
+    def headings(self, text):
+        return re.findall(r"<h\d[^>]*>(.*?)</h\d>", self.notes(text))
+
+    def test_fence_closes_only_on_its_own_marker(self):
+        ticks, tildes = "`" * 3, "~" * 3
+        text = "\n".join([ticks, "# a", tildes, "# b", ticks, "# c", tildes, "# d", tildes, "# e"])
+        self.assertEqual(self.headings(text), ["c", "e"])
+        # an info string opens a fence but does not close one
+        self.assertEqual(self.headings("\n".join([ticks + "python", "# a", ticks + "python", "# b",
+                                                   ticks, "# c"])), ["c"])
+        self.assertEqual(self.headings("\n".join([ticks * 2, "# a", ticks, "# b"])), ["b"])
+        # a run shorter than three does not close
+        self.assertEqual(self.headings("\n".join([ticks, "`" * 2, "# a", ticks, "# b"])), ["b"])
+
+    def test_inline_triple_backtick_span_does_not_open_a_fence(self):
+        ticks = "`" * 3
+        self.assertEqual(self.headings(f"{ticks}code{ticks} then text\n# Still a heading"),
+                         ["Still a heading"])
+        # a marker later in a line is not a fence either
+        self.assertEqual(self.headings(f"see {ticks} here\n# One\ntext ~~~\n# Two"), ["One", "Two"])
+
+    def test_heading_closes_an_open_list_and_blocks_keep_order(self):
+        out = self.notes("### One\n- a\n- b\n### Two\ntext\n\n- c")
+        tags = re.sub(r' style="[^"]*"', "", out)
+        self.assertEqual(tags, "<h5>One</h5><ul><li>a</li><li>b</li></ul><h5>Two</h5><p>text</p>"
+                               "<ul><li>c</li></ul>")
+
+    def test_hash_line_inside_a_fence_is_not_a_heading(self):
+        out = self.notes("```\n# a shell comment\n```\n# Real heading\n~~~\n## also not\n~~~")
+        self.assertIn("<p># a shell comment</p>", out)
+        self.assertIn("<p>## also not</p>", out)
+        self.assertIn(">Real heading</h3>", out)
+        self.assertEqual(len(re.findall(r"<h\d", out)), 1)
+
+    def test_notes_without_headings_render_as_before(self):
+        text = "**Quick Links:**\n- [a](b)\n* `c`\n\nplain #tag line"
+        self.assertEqual(self.notes(text),
+                         '<p><strong>Quick Links:</strong></p><ul><li><a href="b">a</a></li>'
+                         "<li><code>c</code></li></ul><p>plain #tag line</p>")
+
+    def test_heading_renders_inside_the_notes_card(self):
+        out = self.render(self.make_env(active=[task(1, "Pending", "1")],
+                                        sidecar={"user_notes": "### Retired Features\n- none"}))
+        card = out[out.index('<div class="mini notescard">'):]
+        self.assertRegex(card, r"<h5 style=[^>]*>Retired Features</h5><ul><li>none</li></ul>")
+        self.assertNotIn("### Retired", out)
+
+
+BAD_BYTES = b"caf\xe9"  # Latin-1, not valid UTF-8
+CODEC = "'utf-8' codec can't decode byte 0xe9"
+
+
+class TestNonUtf8Files(HtmlBase):
+    """A file that isn't valid UTF-8 is unreadable: one warning, and the render goes on
+    as it does for any other unreadable file of that kind. Each used to exit 1 on a
+    UnicodeDecodeError."""
+
+    def env(self, **kw):
+        kw.setdefault("active", [task(1, "Finished", "1", task_verification={"result": "pass"}),
+                                 task(2, "Pending", "2", owner="human")])
+        return self.make_env(**kw)
+
+    def render_err(self, root):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            out = self.render(root)
+        return out, err.getvalue()
+
+    def assert_unreadable(self, root, baseline, warning):
+        out, err = self.render_err(root)
+        self.assertEqual(out, baseline)
+        self.assertEqual(err.count("\n"), 1, err)
+        self.assertTrue(err.startswith(f"warning: {warning}: {CODEC}"), err)
+
+    def test_state_json_reads_as_absent(self):
+        baseline = self.render(self.env())
+        for name in ("verification-result.json", "dashboard-state.json", "drift-deferrals.json",
+                     "spec_v1.index.json"):
+            with self.subTest(name=name):
+                root = self.env()
+                (root / name).write_bytes(BAD_BYTES)
+                self.assert_unreadable(root, baseline, f"unreadable {name}")
+        root = self.env()
+        (root / "version.json").unlink()
+        no_version = self.render(root)
+        (root / "version.json").write_bytes(BAD_BYTES)
+        self.assert_unreadable(root, no_version, "unreadable version.json")
+        # through the CLI: exit 0
+        proc = subprocess.run([sys.executable, str(SCRIPT), "--html", "--claude-dir", str(root),
+                               "--now", "2026-06-24T00:00:00Z"], capture_output=True, text=True)
+        self.assertEqual((proc.returncode, proc.stdout), (0, no_version + "\n"))
+        self.assertIn("warning: unreadable version.json", proc.stderr)
+
+    def test_task_file_is_skipped(self):
+        root = self.env()
+        baseline = self.render(root)
+        (root / "tasks" / "task-3.json").write_bytes(BAD_BYTES)
+        self.assert_unreadable(root, baseline, "skipping unreadable task-3.json")
+        out, err = io.StringIO(), io.StringIO()  # --task-hash reads the same files
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = dr.main(["--task-hash", "--tasks-dir", str(root / "tasks")])
+        self.assertEqual(code, 0)
+        self.assertIn(out.getvalue().strip(), baseline)
+        self.assertIn("warning: skipping unreadable task-3.json", err.getvalue())
+
+    def test_archived_task_file_is_skipped_and_archive_index_ignored(self):
+        root = self.env(archived=[task(90, "Finished", "1")])
+        baseline = self.render(root)
+        self.assertIn("3 tasks", baseline)  # positive control: the archive is read
+        (root / "tasks" / "archive" / "task-91.json").write_bytes(BAD_BYTES)
+        self.assert_unreadable(root, baseline, "skipping unreadable task-91.json")
+        root = self.env()
+        (root / "tasks" / "archive").mkdir()
+        baseline = self.render(root)
+        (root / "tasks" / "archive" / "archive-index.json").write_bytes(BAD_BYTES)
+        self.assert_unreadable(root, baseline, "unreadable archive-index.json")
+
+    def test_decision_record_is_skipped(self):
+        root = self.env(decisions=[decision_md(1, "Pick", "approved", "A")])
+        baseline = self.render(root)
+        self.assertIn("DEC-001", baseline)
+        (root / "support" / "decisions" / "decision-002-latin1.md").write_bytes(
+            b"---\nid: DEC-002\ntitle: caf\xe9\nstatus: proposed\n---\n")
+        self.assert_unreadable(root, baseline, "skipping unreadable decision-002-latin1.md")
+
+    def test_spec_reads_as_unreadable(self):
+        # the existing unreadable-spec result: the version is kept, the rest is unknown.
+        # Baseline: a spec path that can't be read (a directory), with drift unchecked,
+        # because fingerprint.py can't read the bytes either.
+        root = self.env()
+        (root / "spec_v1.md").unlink()
+        (root / "spec_v1.md").mkdir()
+        with mock.patch.object(dr, "load_drift_check", return_value=None), \
+                contextlib.redirect_stderr(io.StringIO()):
+            baseline = self.render(root)
+        self.assertIn("spec_version: spec_v1\nspec_status: —\nspec_fingerprint: —\n", baseline)
+        (root / "spec_v1.md").rmdir()
+        (root / "spec_v1.md").write_bytes(b"---\ntitle: caf\xe9\n---\n\n## Overview\n")
+        out, err = self.render_err(root)
+        self.assertEqual(out, baseline)
+        self.assertIn(f"warning: unreadable spec_v1.md: {CODEC}", err)
+        self.assertIn("warning: drift unchecked: compute_drift failed", err)
+        self.assertEqual(err.count("\n"), 2, err)
+
+    def test_feedback_file_reads_as_absent(self):
+        root = self.env()
+        baseline = self.render(root)
+        (root / "support" / "feedback").mkdir()
+        fb = root / "support" / "feedback" / "feedback.md"
+        fb.write_text("## FB-001\n**Status:** new\n", encoding="utf-8")
+        self.assertIn("1 feedback items", self.render(root))  # positive control
+        fb.write_bytes(b"## FB-001\n**Status:** new\ncaf\xe9\n")
+        self.assert_unreadable(root, baseline, "unreadable feedback.md")
 
 
 if __name__ == "__main__":

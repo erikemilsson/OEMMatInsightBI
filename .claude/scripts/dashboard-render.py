@@ -99,7 +99,7 @@ def load_tasks(tasks_dir: Path):
     for path in sorted(tasks_dir.glob("task-*.json")):
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError) as exc:
+        except (json.JSONDecodeError, UnicodeDecodeError, OSError) as exc:  # incl. not UTF-8
             print(f"warning: skipping unreadable {path.name}: {exc}", file=sys.stderr)
             continue
         if isinstance(data, dict) and data.get("id") is not None:
@@ -122,8 +122,12 @@ def load_archived(tasks_dir: Path):
     if index.is_file():
         try:
             data = json.loads(index.read_text(encoding="utf-8"))
-            return [t for t in data.get("tasks", []) if isinstance(t, dict) and t.get("id") is not None]
-        except (json.JSONDecodeError, OSError) as exc:
+            entries = data.get("tasks", []) if isinstance(data, dict) else None
+            if not isinstance(entries, list):
+                print("warning: archive-index.json has no tasks list; ignoring it", file=sys.stderr)
+                return []
+            return [t for t in entries if isinstance(t, dict) and t.get("id") is not None]
+        except (json.JSONDecodeError, UnicodeDecodeError, OSError) as exc:
             print(f"warning: unreadable archive-index.json: {exc}", file=sys.stderr)
     return []
 
@@ -149,7 +153,7 @@ def load_decisions(decisions_dir: Path):
     for path in sorted(decisions_dir.glob("decision-*.md")):
         try:
             text = path.read_text(encoding="utf-8")
-        except OSError as exc:
+        except (UnicodeDecodeError, OSError) as exc:
             print(f"warning: skipping unreadable {path.name}: {exc}", file=sys.stderr)
             continue
         fm = parse_frontmatter(text)
@@ -174,9 +178,42 @@ def load_json_file(path: Path):
         return None
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError) as exc:
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError) as exc:
         print(f"warning: unreadable {path.name}: {exc}", file=sys.stderr)
         return None
+
+
+def load_json_object(path: Path):
+    """load_json_file() for a state file that must be a JSON object. Any other JSON
+    value (list, string, number, bool) reads as absent, with a one-line warning."""
+    data = load_json_file(path)
+    if data is not None and not isinstance(data, dict):
+        print(f"warning: {path.name} is not a JSON object; rendering as if absent",
+              file=sys.stderr)
+        return None
+    return data
+
+
+def _sidecar_object(sidecar, key):
+    """A sidecar field that must be an object. Absent or null reads as {}; any other
+    non-object reads as {} with a one-line warning."""
+    value = sidecar.get(key)
+    if value is None or isinstance(value, dict):
+        return value or {}
+    print(f"warning: dashboard-state.json {key} is not a JSON object; using the default",
+          file=sys.stderr)
+    return {}
+
+
+def _sidecar_notes(sidecar):
+    """Sidecar user_notes, which must be a string. Absent or null reads as ""; any
+    other non-string reads as "" with a one-line warning."""
+    value = sidecar.get("user_notes")
+    if value is None or isinstance(value, str):
+        return value or ""
+    print("warning: dashboard-state.json user_notes is not a string; using the default",
+          file=sys.stderr)
+    return ""
 
 
 def load_spec(claude_dir: Path):
@@ -190,7 +227,8 @@ def load_spec(claude_dir: Path):
         # bytes, not decoded text (A7): the same hash as fingerprint.py --spec and
         # compute_drift, so a CRLF spec doesn't read as changed on every /work
         fingerprint = "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
-    except OSError:
+    except (UnicodeDecodeError, OSError) as exc:
+        print(f"warning: unreadable {path.name}: {exc}", file=sys.stderr)
         return {"version": path.stem, "status": "—", "fingerprint": "—", "title": None}
     fm = parse_frontmatter(text)
     title = fm.get("title")
@@ -278,10 +316,10 @@ def build_phases(active, archived):
             entry["arch_finished"] += 1
         elif status != "Absorbed":
             entry["arch_other"] += 1
-        if task.get("phase_name"):
+        if task.get("phase_name") and isinstance(task["phase_name"], str):
             entry["names"][task["phase_name"]] += 1
     for task in active:
-        if task.get("phase_name"):
+        if task.get("phase_name") and isinstance(task["phase_name"], str):  # a name is a string
             phases[phase_key_of(task)]["names"][task["phase_name"]] += 1
     for entry in phases.values():
         if entry["names"]:
@@ -321,15 +359,15 @@ def phase_status(key, entry, all_complete_before, decisions):
     eligible = [t for t in open_tasks if t.get("status") == "Pending"
                 and t.get("dependencies")
                 and all(str(d) in _GLOBAL_FINISHED for d in t.get("dependencies", []))
-                and all(str(d) in resolved for d in t.get("decision_dependencies", []))]
+                and all(str(d) in resolved for d in t.get("decision_dependencies") or [])]
     if eligible:
         ids = ", ".join(str(t.get("id")) for t in sorted(eligible, key=lambda t: numeric_key(t.get("id")))[:3])
         return f"Partially Actionable ({len(eligible)} eligible: {ids})"
-    blockers = sorted({str(d) for t in open_tasks for d in t.get("decision_dependencies", [])
+    blockers = sorted({str(d) for t in open_tasks for d in t.get("decision_dependencies") or []
                        if str(d) not in resolved}, key=numeric_key)
     if blockers:
         gated = [t for t in open_tasks
-                 if any(str(d) not in resolved for d in t.get("decision_dependencies", []))]
+                 if any(str(d) not in resolved for d in t.get("decision_dependencies") or [])]
         if len(gated) < len(open_tasks):
             # Only some tasks are decision-gated — a whole-phase "Blocked" label
             # would misread as "nothing here can start"
@@ -354,12 +392,12 @@ def build_graph(active, decisions):
     for tid, t in incomplete.items():
         nodes[f"T{tid}"] = {"kind": "task", "task": t}
     for tid, t in incomplete.items():
-        for d in t.get("decision_dependencies", []):
+        for d in t.get("decision_dependencies") or []:
             d = str(d)
             if d not in resolved:
                 nodes.setdefault(f"D{d}", {"kind": "decision", "id": d})
                 edges.setdefault(f"D{d}", set()).add(f"T{tid}")
-        for dep in t.get("dependencies", []):
+        for dep in t.get("dependencies") or []:
             dep = str(dep)
             if dep in incomplete:
                 edges.setdefault(f"T{dep}", set()).add(f"T{tid}")
@@ -844,6 +882,8 @@ def _html_acceptance(verification_result):
     if not verification_result:
         return ""
     criteria = verification_result.get("criteria")
+    if isinstance(criteria, list):
+        criteria = [c for c in criteria if isinstance(c, dict)]  # skip malformed entries
     if isinstance(criteria, list) and criteria:
         rows = []
         for c in criteria:
@@ -868,7 +908,10 @@ def _html_acceptance(verification_result):
         return (f'<section><h2 class="st">Acceptance criteria · {passed}/{len(criteria)} passed</h2>'
                 f'<div class="accard"><ul class="aclist">{"".join(rows)}</ul></div></section>')
     passed, failed = verification_result.get("criteria_passed"), verification_result.get("criteria_failed")
-    if passed is not None and failed is not None:
+    # counts: ints, or whole floats (the schema says "Number"), printed as ints
+    if all((isinstance(n, int) and not isinstance(n, bool))
+           or (isinstance(n, float) and n.is_integer()) for n in (passed, failed)):
+        passed, failed = int(passed), int(failed)
         return (f'<section><h2 class="st">Acceptance criteria</h2>'
                 f'<div class="accard"><b>{passed}/{passed + failed}</b> criteria passed</div></section>')
     return ""
@@ -879,9 +922,10 @@ def _html_spec_card(claude_dir, spec):
     if not version or version == "—":
         return ""
     headings = []
-    index = load_json_file(claude_dir / f"{version}.index.json")
+    index = load_json_object(claude_dir / f"{version}.index.json")
     if index and isinstance(index.get("sections"), list):
-        headings = [str(s.get("heading", "")).lstrip("# ").strip() for s in index["sections"]]
+        headings = [str(s.get("heading", "")).lstrip("# ").strip() for s in index["sections"]
+                    if isinstance(s, dict)]
         headings = [h for h in headings if h]
     title = spec.get("title") or version
     if headings:
@@ -895,13 +939,33 @@ def _html_spec_card(claude_dir, spec):
         f'<div class="specin"><a class="speclink" href="{_esc(version)}.md">open {_esc(version)}.md →</a>{body}</div></details>')
 
 
+# Notes-card headings (FB-127 n): ATX level -> (tag, font-size). The card sits under
+# the page <h1> and the section <h2>s, so a notes "#" starts at <h3>. Styled inline:
+# the only stylesheet rule that reaches them (.mini h3, an uppercase label) would
+# upper-case commands and paths in a heading.
+# Sizes sit above the card's body text (paragraphs 14.5px from body, list items 13px).
+_NOTE_HEADINGS = {1: ("h3", 17), 2: ("h4", 16), 3: ("h5", 15), 4: ("h6", 14), 5: ("h6", 14),
+                  6: ("h6", 14)}
+_NOTE_HEADING_STYLE = ("margin:12px 0 4px;font-size:{size}px;font-weight:600;line-height:1.3;"
+                       "text-transform:none;letter-spacing:0;color:var(--ink)")
+_NOTE_HEADING_RE = re.compile(r"(#{1,6})\s+(.*)$")
+
+
 def _html_notes(user_notes, spec=None):
     """Render sidecar user_notes (Quick Links etc.) as read-only HTML — minimal
-    block markdown (headers, bullets, links, bold). A live spec quick-link is
-    auto-prepended from the current spec version so it can never go stale; the
-    seeded user notes must NOT hand-author one (see dashboard-regeneration.md
-    § "Notes first-regeneration seeding")."""
-    out, in_list = [], False
+    block markdown, one block per line: ATX headings (`#` to `######` plus a
+    space; `#` -> <h3>, `##` -> <h4>, `###` -> <h5>, deeper -> <h6>; an optional
+    closing ` ##` is dropped), `- ` / `* ` bullets, and paragraphs, each with
+    _mdi inline markup (links, bold, code) over escaped text. Not supported:
+    nested or numbered lists, tables, code blocks. A fenced block's lines still
+    render as paragraphs, but a `#` line between the fences is not a heading
+    (a fence opens on a line starting with three or more backticks or tildes,
+    with no later backtick on a backtick line, and closes on a line of only the
+    same character). A heading with no text (`## ##`) stays a paragraph.
+    A live spec quick-link is auto-prepended from the current spec version so it
+    can never go stale; the seeded user notes must NOT hand-author one (see
+    dashboard-regeneration.md § "Notes first-regeneration seeding")."""
+    out, in_list, fence = [], False, None  # fence: the open fence's character
     version = (spec or {}).get("version")
     if version and version != "—":
         out.append(f'<p class="qlinks">📄 <strong>Spec:</strong> '
@@ -914,6 +978,16 @@ def _html_notes(user_notes, spec=None):
                 out.append("</ul>")
                 in_list = False
             continue
+        heading = None
+        if fence:
+            if len(line) >= 3 and not line.strip(fence):  # only the opening character
+                fence = None
+        elif line.startswith("~~~") or (line.startswith("```") and "`" not in line.lstrip("`")):
+            fence = line[0]
+        else:
+            heading = _NOTE_HEADING_RE.match(line)
+        # an optional closing run of hashes is dropped; nothing left = not a heading
+        text = re.sub(r"(^|\s+)#+$", "", heading.group(2)) if heading else ""
         if line.startswith(("- ", "* ")):
             if not in_list:
                 out.append("<ul>")
@@ -923,7 +997,12 @@ def _html_notes(user_notes, spec=None):
             if in_list:
                 out.append("</ul>")
                 in_list = False
-            out.append(f"<p>{_mdi(line)}</p>")
+            if text:
+                tag, size = _NOTE_HEADINGS[len(heading.group(1))]
+                out.append(f'<{tag} style="{_NOTE_HEADING_STYLE.format(size=size)}">'
+                           f'{_mdi(text)}</{tag}>')
+            else:
+                out.append(f"<p>{_mdi(line)}</p>")
     if in_list:
         out.append("</ul>")
     return "".join(out)
@@ -1038,7 +1117,7 @@ def _load_feedback_counts(claude_dir: Path):
         return (0, 0, 0)
     try:
         text = path.read_text(encoding="utf-8")
-    except OSError as exc:
+    except (UnicodeDecodeError, OSError) as exc:
         print(f"warning: unreadable feedback.md: {exc}", file=sys.stderr)
         return (0, 0, 0)
     counts = {"new": 0, "refined": 0, "ready": 0}
@@ -1122,13 +1201,14 @@ def _html_needs_you(active, decisions, phases_model, status_map, sidecar,
     resolved = resolved_decision_ids(decisions)
 
     # Phase Transitions — boundary reached, gate not yet approved
-    gates = (sidecar.get("phase_gates") or {})
+    gates = _sidecar_object(sidecar, "phase_gates")
     keys = sorted(phases_model.keys(), key=numeric_key)
     rows = []
     for i, key in enumerate(keys[:-1]):
         nxt = keys[i + 1]
         if status_map.get(key) == "Complete" and status_map.get(nxt) != "Complete":
-            if (gates.get(f"{key}→{nxt}") or {}).get("status") != "approved":
+            gate = gates.get(f"{key}→{nxt}")
+            if not (isinstance(gate, dict) and gate.get("status") == "approved"):
                 rows.append(row(f'Phase {_esc(key)} complete — approve the gate to start '
                                 f'phase {_esc(nxt)} → run <code>/work</code>'))
     sub("Phase Transitions", rows)
@@ -1168,10 +1248,12 @@ def _html_needs_you(active, decisions, phases_model, status_map, sidecar,
     sub("Spec Drift", rows)
 
     # Audit Findings
-    digest = sidecar.get("audit_digest") or {}
-    dismissed = set(digest.get("dismissed_ids") or [])
-    pending = [i for i in (digest.get("items") or [])
-               if i.get("status") == "pending" and i.get("id") not in dismissed]
+    digest = _sidecar_object(sidecar, "audit_digest")
+    # lists, not sets: a malformed (unhashable) id must not crash the render
+    dismissed = digest.get("dismissed_ids") if isinstance(digest.get("dismissed_ids"), list) else []
+    items = digest.get("items") if isinstance(digest.get("items"), list) else []
+    pending = [i for i in items if isinstance(i, dict)
+               and i.get("status") == "pending" and i.get("id") not in dismissed]
     if pending:
         sub("Audit Findings", [row(
             f'<span class="tid">{_esc(i.get("id"))}</span>'
@@ -1269,21 +1351,17 @@ def render_full_html(claude_dir: Path, now: datetime):
     active = load_tasks(tasks_dir) if tasks_dir.is_dir() else []
     archived = load_archived(tasks_dir) if tasks_dir.is_dir() else []
     decisions = load_decisions(claude_dir / "support" / "decisions")
-    sidecar = load_json_file(claude_dir / "dashboard-state.json")
-    if not isinstance(sidecar, dict):  # missing, unreadable, or valid JSON that isn't an object
-        if sidecar is not None:
-            print("warning: dashboard-state.json is not a JSON object; rendering as if absent",
-                  file=sys.stderr)
-        sidecar = {}
-    version = load_json_file(claude_dir / "version.json") or {}
-    verification_result = load_json_file(claude_dir / "verification-result.json")
+    # missing, unreadable, or valid JSON that isn't an object: all read as absent
+    sidecar = load_json_object(claude_dir / "dashboard-state.json") or {}
+    version = load_json_object(claude_dir / "version.json") or {}
+    verification_result = load_json_object(claude_dir / "verification-result.json")
     drift = load_json_file(claude_dir / "drift-deferrals.json")
     drift_check = load_drift_check(claude_dir)  # None = drift unchecked (FB-128)
     spec = load_spec(claude_dir)
     _GLOBAL_FINISHED = {str(t.get("id")) for t in active if t.get("status") == "Finished"} | \
                        {str(t.get("id")) for t in archived if t.get("status", "Finished") == "Finished"}
     phases_model = build_phases(active, archived)
-    toggles = sidecar.get("section_toggles", {})
+    toggles = _sidecar_object(sidecar, "section_toggles")
     status_map = _phase_status_map(phases_model, decisions)
     title = spec.get("title") or "Project"
 
@@ -1359,7 +1437,8 @@ def render_full_html(claude_dir: Path, now: datetime):
 
     custom = ""
     if toggles.get("custom_views", False):
-        instr = sidecar.get("custom_views_instructions", "") or ""
+        instr = sidecar.get("custom_views_instructions")
+        instr = instr if isinstance(instr, str) else ""
         custom = (
             f'<section><h2 class="st">Custom Views</h2>'
             f'<!-- CUSTOM VIEWS INSTRUCTIONS -->\n{html.escape(instr)}\n<!-- END CUSTOM VIEWS INSTRUCTIONS -->'
@@ -1367,8 +1446,8 @@ def render_full_html(claude_dir: Path, now: datetime):
             f'</section>')
 
     notes_card = ""
-    user_notes = sidecar.get("user_notes", "")
-    if toggles.get("notes", True) and str(user_notes).strip():
+    user_notes = _sidecar_notes(sidecar) if toggles.get("notes", True) else ""
+    if user_notes.strip():
         # Collapsible + height-capped so the (often long, append-only) notes stop
         # dominating the page; open by default so quick-links stay visible.
         notes_card = (f'<section><details class="notesblock" open>'
