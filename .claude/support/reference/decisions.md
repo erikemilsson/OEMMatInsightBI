@@ -198,14 +198,14 @@ draft → proposed → approved → implemented
 - **recorded**: An agent made the choice during implementation and the work is verified; the user has not ratified it. Resolved for `decision_dependencies` (never blocks), but not "Decided". Exits: ratified → `approved` plus `ratified: YYYY-MM-DD`; reconsidered → `proposed`. See § "Agent-recorded decisions".
 - **approved**: Decision finalized by the user (selected, or ratified). May await implementation.
 - **implemented**: Decision reflected in project. Common end state.
-- **superseded**: Replaced by a newer decision. Link to replacement in Impact section.
-- **partially_superseded**: Part of the decision was replaced by a newer one; the rest still stands. The dashboard handles it like `superseded`: it counts as resolved for `decision_dependencies`, and is listed under the "superseded" filter and count with the badge "Partially Superseded". `/audit-coherence`'s `superseded-decisions` lens checks it too. Only the dashboard META counts it apart (`decisions_partially_superseded`).
+- **superseded**: Replaced by a newer decision. Link to replacement in Impact section. Optional frontmatter on the old record: `superseded_by: DEC-NNN` (the replacing record) and `superseded_date: YYYY-MM-DD`. A task that depends on a superseded decision is not blocked by it; `/work` names the replacing record when `superseded_by` is set (`phase-decision-gates.md` § "Decision Dependency Check").
+- **partially_superseded**: Part of the decision was replaced by a newer one; the rest still stands (same optional `superseded_by` / `superseded_date` fields). The dashboard handles it like `superseded`: it counts as resolved for `decision_dependencies`, and is listed under the "superseded" filter and count with the badge "Partially Superseded". `/audit-coherence`'s `superseded-decisions` lens checks it too. Only the dashboard META counts it apart (`decisions_partially_superseded`).
 
 ### Revisiting Decisions
 
 Decisions aren't permanent. Revisit when circumstances change, trade-offs prove worse than expected, or better options become available.
 
-When superseding: create a new record, reference the old one, mark old as `superseded`, note the replacement in the old record's Impact section.
+When superseding: create a new record, reference the old one, mark old as `superseded` (or `partially_superseded`), note the replacement in the old record's Impact section, and add `superseded_by` and `superseded_date` to the old record's frontmatter. For `partially_superseded`, the Impact note says which part was replaced.
 
 ---
 

@@ -209,6 +209,7 @@ What does NOT count:
 - Decision is correctly marked superseded AND spec was updated to reflect the new direction → no finding (working as intended).
 - Spec mentions the OLD decision in a clearly historical / dated context (e.g., "Originally per DEC-010 (2026-04-10); see DEC-050 for current treatment") → no finding.
 - Decision has status `superseded` but the spec was already updated and the old prose is gone → no finding.
+- Decision has status `partially_superseded` and the spec text describes the part that still stands → no finding. Check only the replaced part, as the record's Impact section (or supersession note) describes it. If the record doesn't say which part was replaced, emit no spec finding for it. "What counts" item 3 does not apply to a `partially_superseded` record unless the record names that anchor as part of what was replaced: anchors of the part that still stands are expected to exist.
 
 For each finding, set:
 - **Source anchor:** the spec section that needs updating (or the decision file if the spec is OK and the decision needs an implementation-anchor cleanup)

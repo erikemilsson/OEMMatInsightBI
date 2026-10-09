@@ -407,6 +407,8 @@ Each `decision-*.md` file must have valid frontmatter:
 - `decided` - Date when decision was finalized (for an agent-recorded decision, the date of the verify pass; after a reconsider, the date the user selected)
 - `decided_by` - `implement-agent` or `orchestrator` on an agent-recorded decision (`decisions.md § "Agent-recorded decisions"`)
 - `ratified` - Date the user ratified an agent-recorded decision
+- `superseded_by` - `DEC-NNN` of the replacing record, on a `superseded` or `partially_superseded` record
+- `superseded_date` - Date the record was superseded (YYYY-MM-DD)
 - `related.tasks` - Array of task IDs
 - `related.decisions` - Array of decision IDs
 - `spec_revised` - Boolean, set after `/iterate` processes an inflection point
@@ -448,6 +450,7 @@ Reports mismatches between decision `related.tasks` and task `decision_dependenc
 
 **Decision → Task direction:**
 - For each decision, check if referenced tasks have the decision ID in their `decision_dependencies`
+- Skip agent-decided records (`decided_by: implement-agent` or `orchestrator`). Their `related.tasks` lists the tasks that produced the choice (and any follow-up task after a reconsider). None of them should carry the decision in `decision_dependencies`
 - Report mismatches grouped by task status (Finished = most concerning). Report only: `related.tasks` doesn't say whether a task depends on the decision or produced it, so adding the dependency could block a task on its own output
 
 **Task → Decision direction:**
@@ -458,7 +461,7 @@ This is a reporting check. The primary enforcement and interactive resolution ha
 
 #### 7. Legacy Agent-Approved Decisions
 
-Before v5.11.0, a choice an agent made during implementation was written straight to `approved`, which the user never gave. Find records with status `approved` or `implemented`, `decided_by: implement-agent`, and no `ratified` key. If any exist, queue **one** row for the project with the count and ids. The dashboard never surfaces these, so this row is their only route to the user.
+Before v5.11.0, a choice an agent made during implementation was written straight to `approved`, which the user never gave. Find records with status `approved` or `implemented`, `decided_by: implement-agent` or `orchestrator`, and no `ratified` key. If any exist, queue **one** row for the project with the count and ids. The dashboard never surfaces these, so this row is their only route to the user.
 
 Records with status `recorded` are not an issue here: the dashboard's ratify row covers them.
 
