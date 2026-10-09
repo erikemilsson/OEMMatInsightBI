@@ -484,6 +484,18 @@ def canonical_task_hash(active):
     return "sha256:" + hashlib.sha256(("\n".join(rows) + "\n").encode("utf-8")).hexdigest()
 
 
+_META_BREAKS = re.compile("[\x00-\x1f\x7f\x85\u2028\u2029]+")
+
+
+def _meta_value(value):
+    """One META line's value, safe inside the HTML comment: line breaks and
+    control characters become a space (a value can't add a META line), and
+    & < > are written as entities (a comment only ends at ">"). Ordinary
+    values pass through unchanged."""
+    s = _META_BREAKS.sub(" ", str(value))
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def render_meta(active, decisions, spec, version, drift, verification_result, now,
                 drift_check=None):
     debt = sum(1 for t in active if t.get("status") == "Finished"
@@ -499,10 +511,10 @@ def render_meta(active, decisions, spec, version, drift, verification_result, no
         f"generated: {now.strftime('%Y-%m-%dT%H:%M:%SZ')}",
         f"task_count: {len(active)}",
         f"task_hash: {canonical_task_hash(active)}",
-        f"spec_version: {spec['version']}",
-        f"spec_status: {spec['status']}",
-        f"spec_fingerprint: {spec['fingerprint']}",
-        f"template_version: {version.get('template_version', '—')}",
+        f"spec_version: {_meta_value(spec['version'])}",
+        f"spec_status: {_meta_value(spec['status'])}",
+        f"spec_fingerprint: {_meta_value(spec['fingerprint'])}",
+        f"template_version: {_meta_value(version.get('template_version', '—'))}",
         f"verification_debt: {debt}",
         f"drift_deferrals: {drift_count}",
         f"drift_sections: {drift_sections}",
@@ -557,11 +569,31 @@ def _clip(text, limit, word=True):
     return cut.rstrip(" ,;:.—-–") + "…", text
 
 
+_LINK_SCHEMES = {"http", "https", "mailto"}
+_LINK_IGNORED = re.compile("[\x00-\x20\x7f]")
+
+
+def _md_link(match):
+    """A markdown link becomes <a> only when its target is a path, an anchor,
+    or http/https/mailto. Any other scheme (javascript:, data:, file: ...) and
+    a target that starts with two slashes or backslashes (a network host)
+    render as plain "label (target)". The scheme is read the way a browser
+    reads it: whitespace and control characters don't count."""
+    label, target = match.group(1), match.group(2)
+    probe = _LINK_IGNORED.sub("", html.unescape(target))
+    scheme = re.match(r"([^/?#:]*):", probe)
+    if scheme and scheme.group(1).lower() not in _LINK_SCHEMES:
+        return f"{label} ({target})"
+    if re.match(r"[/\\]{2}", probe):  # //host or \\host: another machine, from a file:// page
+        return f"{label} ({target})"
+    return f'<a href="{target}">{label}</a>'
+
+
 def _mdi(text):
     """Minimal inline markdown → HTML: escape + links + bold + code. The curated
     overview needs almost no markdown (DEC-024 research: 3 regexes suffice)."""
     s = html.escape(str(text))
-    s = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', s)
+    s = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", _md_link, s)
     s = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", s)
     s = re.sub(r"`([^`]+)`", r"<code>\1</code>", s)
     return s

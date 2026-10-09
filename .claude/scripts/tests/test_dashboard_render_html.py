@@ -1356,5 +1356,106 @@ class TestNonUtf8Files(HtmlBase):
         self.assert_unreadable(root, baseline, "unreadable feedback.md")
 
 
+class TestStateCannotInjectMarkup(HtmlBase):
+    """FB-127 (ai): values the project owns can't leave the META comment or
+    become a script link."""
+
+    def head(self, out):
+        return out[:out.index("</head>")]
+
+    def with_version(self, value, **kw):
+        root = self.make_env(active=[task(1, "Pending", "1")], **kw)
+        (root / "version.json").write_text(json.dumps({"template_version": value}), encoding="utf-8")
+        return self.render(root)
+
+    def meta(self, out):
+        return out[out.index("<!-- DASHBOARD META"):out.index("-->") + 3]
+
+    def test_ordinary_meta_values_are_unchanged(self):
+        out = self.with_version("5.14.3", spec_text="---\nstatus: active\n---\n\n## Overview\n")
+        self.assertIn("spec_version: spec_v1\nspec_status: active\n", self.meta(out))
+        self.assertIn("\ntemplate_version: 5.14.3\n", self.meta(out))
+
+    def test_template_version_cannot_close_the_comment(self):
+        for closer in ("-->", "--!>"):
+            with self.subTest(closer=closer):
+                out = self.with_version(f"5 {closer}<script>alert(1)</script><!--")
+                self.assertNotIn("<script>alert(1)</script>", out)
+                self.assertIn("decisions_partially_superseded:", self.meta(out))  # block is whole
+                self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", self.meta(out))
+
+    def test_spec_status_cannot_close_the_comment(self):
+        out = self.with_version("5", spec_text="---\nstatus: active --><img src=x onerror=alert(2)><!--\n"
+                                               "---\n\n## Overview\n")
+        self.assertNotIn("<img src=x", out)
+        self.assertIn("spec_status: active --&gt;&lt;img src=x onerror=alert(2)&gt;&lt;!--\n", self.meta(out))
+
+    def test_spec_file_name_cannot_close_the_comment(self):
+        root = self.make_env(active=[task(1, "Pending", "1")])
+        (root / "spec_v1.md").rename(root / "spec_v1 --><img src=x onerror=alert(9)>.md")
+        out = self.render(root)
+        self.assertNotIn("<img src=x", out)
+        self.assertIn("spec_version: spec_v1 --&gt;&lt;img src=x onerror=alert(9)&gt;\n", self.meta(out))
+
+    def test_meta_value_cannot_add_a_line(self):
+        for brk in ("\n", "\r\n", "\x85", "\u2028", "\u2029", "\x0b", "\x0c"):
+            with self.subTest(brk=repr(brk)):
+                out = self.with_version(f"5{brk}task_hash: sha256:spoof")
+                lines = self.meta(out).splitlines()
+                self.assertEqual(len([l for l in lines if l.startswith("task_hash:")]), 1)
+                self.assertIn("template_version: 5 task_hash: sha256:spoof", lines)
+
+    def test_meta_value_helper(self):
+        self.assertEqual(dr._meta_value("5.14.3"), "5.14.3")
+        self.assertEqual(dr._meta_value("\u2014"), "\u2014")
+        self.assertEqual(dr._meta_value("a & b -->"), "a &amp; b --&gt;")
+        self.assertEqual(dr._meta_value(7), "7")
+        self.assertEqual(dr._meta_value("a\x7fb\x00\x1fc"), "a b c")
+
+    def test_allowed_link_targets_stay_links(self):
+        for target in ("spec_v1.md", "../docs/guide.md#setup", "#notes", "docs/a:b.md",
+                       "https://example.com/a?b=1", "HTTP://example.com", "mailto:a@example.com",
+                       "/abs/path.md", "?q=a:b"):
+            with self.subTest(target=target):
+                self.assertEqual(dr._mdi(f"[label]({target})"),
+                                 f'<a href="{dr._esc(target)}">label</a>')
+
+    def test_script_schemes_render_as_text(self):
+        for target in ("javascript:alert(1)", "JavaScript:alert(1)", " javascript:alert(1)",
+                       "java\tscript:alert(1)", "\x01javascript:alert(1)", "data:text/html,x",
+                       "vbscript:x", "file:///etc/passwd"):
+            with self.subTest(target=target):
+                out = dr._mdi(f"[label]({target})")
+                self.assertNotIn("<a ", out)
+                self.assertNotIn("href", out)
+                self.assertTrue(out.startswith("label ("), out)
+
+    def test_network_host_targets_render_as_text(self):
+        for target in ("//example.com/x", "\\\\host\\share", "/\\host/x", "\\/host/x",
+                       " //host/x", "/\t/host/x"):
+            with self.subTest(target=target):
+                out = dr._mdi(f"[label]({target})")
+                self.assertNotIn("href", out)
+                self.assertTrue(out.startswith("label ("), out)
+
+    def test_entity_spelled_colon_is_not_a_scheme(self):
+        # the text is escaped before the link is built, so the browser reads a
+        # literal "&#58;", never a colon: a relative link, not a script one
+        self.assertEqual(dr._mdi("[label](javascript&#58;x)"),
+                         '<a href="javascript&amp;#58;x">label</a>')
+        self.assertEqual(dr._mdi("[label](javascript&colon;x)"),
+                         '<a href="javascript&amp;colon;x">label</a>')
+
+    def test_script_link_in_notes_and_augment_rows(self):
+        out = self.render(self.make_env(
+            active=[task(1, "Pending", "1")],
+            sidecar={"user_notes": "- [run](javascript:alert(3))\n- [ok](spec_v1.md)",
+                     "augment_rows": [{"text": "[go](javascript:alert(4))"}]}))
+        self.assertNotIn('href="javascript', out)
+        self.assertIn("run (javascript:alert(3)", out)
+        self.assertIn("go (javascript:alert(4)", out)
+        self.assertIn('<a href="spec_v1.md">ok</a>', out)  # positive control
+
+
 if __name__ == "__main__":
     unittest.main()
