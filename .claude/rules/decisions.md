@@ -19,7 +19,7 @@ A non-trivial choice an agent makes while implementing is held on the task until
 
 - Records: `.claude/support/decisions/decision-*.md`
 - Research archives: `.claude/support/decisions/.archive/`
-- Dashboard tracks all decisions with status, pending items, and timeline
+- The dashboard lists all decisions with their status (collapsed Decisions card); unresolved and unratified ones appear on its "Needs you" card
 
 ## References
 

@@ -129,7 +129,7 @@
 | decisions_pending | Array (optional) | **Transient.** Significant choices implement-agent (or the orchestrator, for inline work) made on this task, held until verification passes. Each element has the shape of an implement-agent `decisions_to_record[]` entry (`title`, `summary`, `options_considered`, `selected_option`, `rationale`, `related_task_ids`; inline work adds `decided_by: "orchestrator"`). Set by `/work` after each implement return, replacing any earlier value (removed when the set is empty); removed when `/work` writes the task's `recorded` decision record as the task becomes Finished. See `work-procedures.md § "State Persistence Protocol"` ("Hold decisions", "Persist decisions"). |
 | parallel_safe | Boolean | When true, task is eligible for parallel execution even with empty `files_affected`. Use for research/analysis tasks with no file side effects. |
 | cross_phase | Boolean | When true, task is exempt from the phase gate — eligible when its `dependencies`/`decision_dependencies` are met, regardless of prior phase completion. Phase membership is unchanged (task still belongs to its declared phase for verification and dashboard rendering). Use for long-lead work (procurement, recruitment, approvals) that must start before prior phase is fully done. Default: false. |
-| conflict_note | String | **Transient.** Set during parallel dispatch when a task is held back due to file conflicts (e.g., `"Held: file conflict with Task 3 on src/models.py"`). Cleared when the task is dispatched or during post-parallel cleanup. Surfaced in the dashboard Status column. |
+| conflict_note | String | **Transient.** Set during parallel dispatch when a task is held back due to file conflicts (e.g., `"Held: file conflict with Task 3 on src/models.py"`). Cleared when the task is dispatched or during post-parallel cleanup. Not rendered on the dashboard. |
 | recovery_state | String | **Transient.** Set by `/work` Step 0 when auto-recovering a stuck task. Values: `"verification_retry"` (respawning verify-agent), `"agent_retry"` (user chose to retry after timeout). Cleared after recovery completes. Prevents double-recovery if `/work` runs again before recovery finishes. |
 | user_review_pending | Boolean | Set to `true` by `/work` (from verify-agent's report) when a `both`-owned task passes verification, OR when any task has a `test_protocol` (runtime validation was partial, human testing needed). Keeps the task visible for user action until the user runs `/work complete {id}` or completes guided testing. Cleared by `/work complete`. |
 | verification_attempts | Number | Count of per-task verification attempts (incremented by the `/work` orchestrator when a dispatched verify-agent returns, per DEC-004; a delta re-check by a resumed verifier is recorded in `verification_history` but not counted here and never escalates). Escalates to human review at >= 3 (initial + 2 retries). Default: 0 (omit until first verification). Reset to 0, in the write that reopens it, whenever a task that had passed is sent back: by drift reconciliation's `[A]` and `[V]`, by a change after the pass or a post-verify delta (`work-procedures.md § "State Persistence Protocol"`, "Post-verify delta", "Reopening resets the counter"), and by a failed guided test (`work-user-flows.md`, "After guided testing"). A delta re-check that passes sets it back to the attempt number of the pass it follows. `verification_history` keeps the earlier record. |
@@ -146,9 +146,9 @@ The `owner` field determines who is responsible and where tasks appear in the da
 
 | Value | Emoji | Dashboard Location | When to Use |
 |-------|-------|-------------------|-------------|
-| `claude` | 🤖 | Tasks section | Tasks Claude can do autonomously (default) |
-| `human` | ❗ | Action Required → Your Tasks | Requires human action (config, decisions, external) |
-| `both` | 👥 | Action Required + Tasks | Collaborative work (appears in both sections) |
+| `claude` | 🤖 | Counted in Pulse and the Phase map, a node in the Flow graph, and listed in Timeline or Recent when dated or just finished; an Action Required → Your Tasks row only when On Hold, awaiting your review, or Blocked after 3 verification attempts | Tasks Claude can do autonomously (default) |
+| `human` | ❗ | Action Required → Your Tasks (once dependencies are met) | Requires human action (config, decisions, external) |
+| `both` | 👥 | Action Required → Your Tasks when your review is pending, or when Blocked or On Hold | Collaborative work (user reviews after Claude implements) |
 
 ### Examples by Owner
 
@@ -177,8 +177,8 @@ The `owner` field determines who is responsible and where tasks appear in the da
 | medium | (none) | Normal priority (default when omitted) |
 | low | (none) | Nice to have, do when time permits |
 
-Priority affects display order in Ready sections - critical tasks appear first.
-Only critical and high show emoji prefixes in the dashboard to reduce visual noise.
+Priority affects dispatch order: eligible tasks are sorted by priority, then ID (`parallel-execution.md`).
+The dashboard does not show priority.
 
 ## Drift Prevention Fields
 
@@ -559,7 +559,7 @@ Tasks placed on hold are excluded from all routing. Only a user can resume them.
 ```
 
 - `/work` skips On Hold tasks entirely (not counted as pending, blocked, or actionable)
-- On Hold tasks still appear in the dashboard Tasks section with ⏸️ prefix
+- On Hold tasks still appear on the dashboard: an Action Required → Your Tasks row ("On Hold; only you can resume it") and the status counts beside the completion ring
 - Health check warns if On Hold > 30 days (may be forgotten)
 - To resume: user sets status back to "Pending" (or "In Progress" if partially done)
 
@@ -580,7 +580,7 @@ When a task's scope is folded into another task (discovered during breakdown, ov
 - Absorbed tasks are excluded from routing, completion checks, and phase progress
 - Absorbed subtasks don't block parent auto-completion
 - Preserves audit trail (vs deletion, which loses history)
-- Dashboard shows absorbed tasks in a collapsed/dimmed style or omits them from active counts
+- The dashboard leaves absorbed tasks out of phase progress and the completion ring
 
 ### Verification Requirement for Finished Status
 

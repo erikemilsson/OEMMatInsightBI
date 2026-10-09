@@ -142,7 +142,7 @@ Digest: .claude/support/audits/coherence-{ts}/digest.json
 Promote findings to feedback: /audit-coherence promote {ts}
 ```
 
-(Stage 6 has shipped — `bundle-eligible` items render on the dashboard's `🔍 Audit Findings` section with the inline `[Fix it]` token; other kinds render with an italicized kind annotation. Promote/Dismiss actions are available via tick + `/audit-coherence promote {audit-ts}` and natural-language-to-Claude respectively — not rendered per-item; see `dashboard-regeneration.md` § "Audit Findings sub-section". The inline summary + manual review of `findings.md` remains a complementary surface for context beyond what the dashboard digest shows.)
+(Stage 6 has shipped — pending findings appear as Audit Findings rows on the dashboard's "Needs you" card (id + description; the read-only HTML has no `[Fix it]` token, kind annotation or checkbox). Act on them via the CLI: `/audit-coherence triage`, `/audit-coherence fix {audit-ts} {C-ID}` (bundle-eligible only), `/audit-coherence promote {audit-ts}` (boxes ticked in `findings.md`, or `--all` / ids), or a natural-language dismiss. The inline summary + manual review of `findings.md` remains a complementary surface for context beyond what the dashboard digest shows.)
 
 ---
 
@@ -385,7 +385,7 @@ Read:
 
 **This lens only applies when the project renders acceptance criteria as inline `- [ ]` / `- [x]` checkboxes in the spec.** If the spec has no inline acceptance checkboxes, return `Findings: 0` — there is nothing to reconcile (inline boxes are an optional project convention).
 
-Background (DEC-022): the AUTHORITATIVE acceptance-*status* surface is `verification-result.json` `criteria[]` (rendered as the dashboard's `### Acceptance Criteria`). Inline spec `- [ ]` boxes are authored input and are NOT auto-ticked on phase PASS — so they can read stale. This lens surfaces that staleness ADVISORILY across ALL completed phases; it never edits the spec.
+Background (DEC-022): the AUTHORITATIVE acceptance-*status* surface is `verification-result.json` `criteria[]` (rendered as the dashboard's Acceptance-criteria section). Inline spec `- [ ]` boxes are authored input and are NOT auto-ticked on phase PASS — so they can read stale. This lens surfaces that staleness ADVISORILY across ALL completed phases; it never edits the spec.
 
 **Two evidence tiers (DEC-022 v4.27.0 — full historical reconciliation).** `verification-result.json` is overwritten each phase, so it only holds the latest phase's `criteria[]`. To reconcile earlier phases too:
 - **Authoritative (the latest phase):** use `verification-result.json`'s real `criteria[]` PASS/FAIL.
@@ -410,7 +410,7 @@ For each finding, set:
 - **Source anchor:** the spec phase / section whose boxes diverge (e.g., "spec_v2.md § Phase 2 — Acceptance Criteria")
 - **Files to touch (potential fix):** spec_v*.md — synthesizer will classify as `kind: decision` (reconciliation routes via /iterate; boxes are spec body)
 - **Evidence:** state the tier (authoritative / proxy) and the numbers (boxes ticked vs phase status).
-- **Suggested fix:** "Reconcile via /iterate: spec § {phase} acceptance boxes are stale vs verified status (DEC-022 — boxes are authored input; the dashboard `### Acceptance Criteria` is the live status). Tick to match, or drop the inline boxes and rely on the dashboard."
+- **Suggested fix:** "Reconcile via /iterate: spec § {phase} acceptance boxes are stale vs verified status (DEC-022 — boxes are authored input; the dashboard's Acceptance-criteria section is the live status). Tick to match, or drop the inline boxes and rely on the dashboard."
 
 Cluster per phase: one finding per phase (listing its unticked boxes), never one per box. If several completed phases are stale with the same root, you may emit a single clustered finding ("Phases 1–3 acceptance boxes never ticked despite completion"). The match is advisory — never edit the spec; only surface.
 ```
@@ -446,7 +446,7 @@ Your job: dedupe, cluster, classify by `kind`, dedupe against in-flight task wor
    - Drop the original IDs; assign a fresh `C-NN` sequence in cluster order
    - **Write `description`** — per § "Write `description`" in the spliced shared contract below. Example: title `"Spec § 5.2 still describes per-user generation; DEC-050 selected maintainer-curated"`, description `"Spec §§ 5.2, 5.3, 5.5 still describe per-user generation, but DEC-050 selected maintainer-curated — 3 unfixed references in the active spec."`
 
-5. **Classify `kind` per cluster** — apply § "Classify `kind` per cluster" from the spliced shared contract below (DEC-013 Option C; HARD RULE FIRST; bundle-eligible only when ALL criteria hold; when in doubt → fix-eligible). Promote/Dismiss actions for `fix-eligible` items are available via tick + bulk CLI / natural-language to Claude; not rendered per-item — see `dashboard-regeneration.md` § "Audit Findings sub-section".
+5. **Classify `kind` per cluster** — apply § "Classify `kind` per cluster" from the spliced shared contract below (DEC-013 Option C; HARD RULE FIRST; bundle-eligible only when ALL criteria hold; when in doubt → fix-eligible). Promote/Dismiss for `fix-eligible` items run through the CLI (`triage`, `promote`, natural-language dismiss) — see `audit-family-core.md`.
 
 6. **Pending-work dedupe.** For each clustered finding, scan `.claude/tasks/task-*.json` for tasks with `status` in `{Pending, In Progress, Awaiting Verification}`. Match if:
    - The task's `files_affected` overlaps with the finding's `files_to_touch`, OR
@@ -571,7 +571,7 @@ Both files MUST be returned. The orchestrator writes both to disk.
 
 ## Triage mode
 
-`/audit-coherence triage [audit-ts]` — interactive walker through the audit's pending findings; the preferred entry point when an audit has multiple pending findings. Closes the dashboard-tick → CLI re-specification courier pattern and the audit-name memory burden (FB-006 sub-issues 1+2).
+`/audit-coherence triage [audit-ts]` — interactive walker through the audit's pending findings; the preferred entry point when an audit has multiple pending findings. Removes the need to re-specify finding ids and the audit name in the CLI (FB-006 sub-issues 1+2).
 
 **Canonical algorithm, per-kind action gates, state mutations, and edge cases:** `.claude/support/reference/audit-family-core.md § "Triage mode (canonical)"` — execute with this command's substitution row (`{AUDIT}: coherence` · `{P}: C` · `{DIR-GLOB}: coherence-*` · `{CMD}: /audit-coherence`). `latest` (or no arg) resolves to the newest `coherence-*` audit dir by `ran_at`; the user never types the audit name unless they want an older audit explicitly.
 

@@ -233,5 +233,98 @@ class ValidateTasksCLITests(unittest.TestCase):
         self.assertEqual(len(json.loads(result.stdout)["provenance_warnings"]), 1)
 
 
+DEEP_JSON = "[" * 100000 + "]" * 100000  # json.loads raises RecursionError
+HUGE_INT_JSON = '{"id": "9", "difficulty": ' + "9" * 5000 + "}"  # a ValueError, not a JSONDecodeError
+
+
+class FieldTypeTests(unittest.TestCase):
+    """The field types dashboard-render.py reads tasks by, and JSON that json.loads
+    refuses for its depth or an integer's length. Several of these used to end the
+    run with a traceback."""
+
+    def _run(self, tasks, raw=None):
+        with tempfile.TemporaryDirectory() as task_dir:
+            for stem, task in tasks.items():
+                with open(os.path.join(task_dir, f"{stem}.json"), "w") as f:
+                    json.dump(task, f)
+            for stem, text in (raw or {}).items():
+                with open(os.path.join(task_dir, f"{stem}.json"), "w") as f:
+                    f.write(text)
+            return subprocess.run([sys.executable, str(SCRIPT), task_dir, "--json"],
+                                  capture_output=True, text=True, timeout=30)
+
+    def _errors(self, **fields):
+        result = self._run({"task-1": dict(_conformant_task(), **fields)})
+        self.assertEqual(result.returncode, 1, result.stderr[-300:])
+        self.assertEqual(result.stderr, "")
+        return json.loads(result.stdout)["validation_errors"]["task-1.json"]
+
+    def test_non_string_status_and_owner_report_error(self):
+        for value in (5, True, [], ["Pending"], {}, {"a": 1}):
+            with self.subTest(value=value):
+                self.assertEqual(self._errors(status=value), [f"invalid status: {value!r}"])
+                self.assertEqual(self._errors(owner=value), [f"invalid owner: {value!r}"])
+
+    def test_non_array_dependencies_report_error(self):
+        for value in (0, 5, 1.5, True, "1", {}, {"1": 1}):
+            with self.subTest(value=value):
+                self.assertEqual(self._errors(dependencies=value), ["dependencies must be an array"])
+        for value in (0, 5, 1.5, True, "DEC-001", {}):
+            with self.subTest(value=value):
+                self.assertEqual(self._errors(decision_dependencies=value),
+                                 ["decision_dependencies must be an array"])
+
+    def test_non_object_task_verification_reports_error_and_debt(self):
+        for value in (5, 1.5, True, "pass", "", [], ["pass"]):
+            with self.subTest(value=value):
+                self.assertEqual(self._errors(task_verification=value),
+                                 ["task_verification must be an object"])
+                task = dict(_conformant_task(status="Finished"), task_verification=value)
+                result = self._run({"task-1": task})
+                self.assertEqual((result.returncode, result.stderr), (1, ""))
+                summary = json.loads(result.stdout)
+                self.assertEqual(summary["validation_errors"],
+                                 {"task-1.json": ["task_verification must be an object"]})
+                self.assertEqual([d["reason"] for d in summary["verification_debt"]],
+                                 ["Finished but task_verification is missing"])
+
+    def test_non_string_dates_report_error(self):
+        for value in (0, 20260215, 1.5, True, [], ["2026-02-15"], {}):
+            with self.subTest(value=value):
+                self.assertEqual(self._errors(due_date=value), ["due_date must be a string"])
+                self.assertEqual(self._errors(external_dependency={"name": "x", "expected_date": value}),
+                                 ["external_dependency.expected_date must be a string"])
+
+    def test_right_types_and_optional_nulls_pass(self):
+        full = dict(_conformant_task(status="Finished"), dependencies=["2"],
+                    decision_dependencies=["DEC-001"], task_verification={"result": "pass"},
+                    due_date="2026-02-15", external_dependency={"name": "x", "expected_date": "2026-01-28"})
+        nulls = dict(_conformant_task(), dependencies=None, decision_dependencies=None, task_verification=None,
+                     due_date=None, external_dependency=None)
+        no_date = dict(_conformant_task(), external_dependency={"name": "x", "expected_date": None})
+        result = self._run({"task-1": full, "task-2": nulls, "task-3": no_date})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(json.loads(result.stdout)["validation_errors"], {})
+
+    def test_deep_json_is_invalid_json(self):
+        result = self._run({"task-1": _conformant_task()}, raw={"task-9": DEEP_JSON})
+        self.assertEqual((result.returncode, result.stderr), (1, ""))
+        summary = json.loads(result.stdout)
+        self.assertEqual(summary["task_count"], 2)
+        self.assertEqual(list(summary["validation_errors"]), ["task-9.json"])
+        self.assertTrue(summary["validation_errors"]["task-9.json"][0].startswith(
+            "invalid JSON: maximum recursion depth exceeded"))
+
+    def test_huge_integer_is_invalid_json(self):
+        if not 0 < getattr(sys, "get_int_max_str_digits", lambda: 0)() < 5000:
+            self.skipTest("no integer digit limit below 5000")
+        result = self._run({"task-1": _conformant_task()}, raw={"task-9": HUGE_INT_JSON})
+        self.assertEqual((result.returncode, result.stderr), (1, ""))
+        summary = json.loads(result.stdout)
+        self.assertEqual(list(summary["validation_errors"]), ["task-9.json"])
+        self.assertTrue(summary["validation_errors"]["task-9.json"][0].startswith(
+            "invalid JSON: Exceeds the limit"))
+
+
 if __name__ == "__main__":
     unittest.main()

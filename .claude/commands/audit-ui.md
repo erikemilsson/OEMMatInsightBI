@@ -239,7 +239,7 @@ Top 5:
 Promote with: /audit-ui promote {ts}
 ```
 
-(Stage 6 has shipped — `bundle-eligible` findings surface on the dashboard's `🔍 Audit Findings` section with the inline `[Fix it]` token; other kinds render with an italicized kind annotation. Stage 7 batch UX remains deferred per DEC-013 Q4. Promote/Dismiss are available via tick + `/audit-ui promote {audit-ts}` and natural-language-to-Claude respectively — not rendered per-item; see `dashboard-regeneration.md` § "Audit Findings sub-section". The inline summary + manual review remains a complementary surface.)
+(Stage 6 has shipped — pending findings appear as Audit Findings rows on the dashboard's "Needs you" card (id + description; the read-only HTML has no `[Fix it]` token, kind annotation or checkbox). Stage 7 batch UX remains deferred per DEC-013 Q4. Act on them via the CLI: `/audit-ui triage`, `/audit-ui fix {audit-ts} {F-ID}` (bundle-eligible only), `/audit-ui promote {audit-ts}` (boxes ticked in `findings.md`, or `--all` / ids), or a natural-language dismiss. The inline summary + manual review remains a complementary surface.)
 
 ### Promote mode
 
@@ -257,7 +257,7 @@ For UI audits, bundle-eligible findings are rare — most UI fixes need copy/IA 
 
 ### Triage mode
 
-`/audit-ui triage [audit-ts]` — interactive walker through the audit's pending findings; the preferred entry point when a UI audit has multiple pending findings. Closes the dashboard-tick → CLI re-specification courier pattern and the audit-name memory burden (FB-006 sub-issues 1+2).
+`/audit-ui triage [audit-ts]` — interactive walker through the audit's pending findings; the preferred entry point when a UI audit has multiple pending findings. Removes the need to re-specify finding ids and the audit name in the CLI (FB-006 sub-issues 1+2).
 
 **Canonical algorithm, per-kind action gates, state mutations, and edge cases:** `.claude/support/reference/audit-family-core.md § "Triage mode (canonical)"` — execute with this command's substitution row (`{AUDIT}: ui` · `{P}: F` · `{DIR-GLOB}: ui-*` · `{CMD}: /audit-ui`). `latest` (or no arg) resolves to the newest `ui-*` audit dir by `ran_at`. For UI audits, most findings are `decision` or `design` kind (copy/IA changes) — the kind-conditional gate presents `[F]ix it` only for the rare `bundle-eligible` items.
 

@@ -32,6 +32,13 @@ BOOLEAN_FIELDS = {
     "user_review_pending", "spec_unmapped",
 }
 
+FIELD_TYPES = (
+    ("dependencies", list, "an array"),
+    ("decision_dependencies", list, "an array"),
+    ("task_verification", dict, "an object"),
+    ("due_date", str, "a string"),
+)
+
 PROVENANCE_SKIPPED = ("Absorbed", "Broken Down")  # as fingerprint.py's DRIFT_SKIPPED
 
 
@@ -42,9 +49,10 @@ def validate_task(data: dict, path: Path) -> list[str]:
         if field not in data:
             errors.append(f"missing required field: {field}")
 
-    if "status" in data and data["status"] not in VALID_STATUSES:
+    # isinstance first: a list or object is unhashable, and `in` on a set would raise
+    if "status" in data and not (isinstance(data["status"], str) and data["status"] in VALID_STATUSES):
         errors.append(f"invalid status: {data['status']!r}")
-    if "owner" in data and data["owner"] not in VALID_OWNERS:
+    if "owner" in data and not (isinstance(data["owner"], str) and data["owner"] in VALID_OWNERS):
         errors.append(f"invalid owner: {data['owner']!r}")
     if "difficulty" in data:
         d = data["difficulty"]
@@ -61,6 +69,14 @@ def validate_task(data: dict, path: Path) -> list[str]:
         if not isinstance(dp, list) or not all(isinstance(e, dict) for e in dp):
             errors.append("decisions_pending must be an array of objects")
 
+    # the types dashboard-render.py reads these fields by; null reads as absent there
+    for field, kind, label in FIELD_TYPES:
+        if data.get(field) is not None and not isinstance(data[field], kind):
+            errors.append(f"{field} must be {label}")
+    ext = data.get("external_dependency")
+    if isinstance(ext, dict) and not isinstance(ext.get("expected_date"), (str, type(None))):
+        errors.append("external_dependency.expected_date must be a string")
+
     if data.get("status") == "Absorbed" and not data.get("absorbed_into"):
         errors.append("status Absorbed requires non-empty absorbed_into")
     if data.get("status") == "Broken Down" and not data.get("subtasks"):
@@ -74,7 +90,7 @@ def check_verification_debt(data: dict) -> str | None:
     if data.get("status") != "Finished":
         return None
     tv = data.get("task_verification")
-    if not tv:
+    if not tv or not isinstance(tv, dict):  # a non-object is a schema error too
         return "Finished but task_verification is missing"
     if tv.get("result") != "pass":
         return f"Finished but task_verification.result == {tv.get('result')!r}"
@@ -126,7 +142,7 @@ def main() -> int:
     for f in files:
         try:
             data = json.loads(f.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as e:
+        except (ValueError, RecursionError) as e:  # also a huge integer, nesting too deep
             validation_errors[f.name] = [f"invalid JSON: {e}"]
             continue
         errs = validate_task(data, f)

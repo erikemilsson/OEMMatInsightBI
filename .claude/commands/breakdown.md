@@ -50,7 +50,7 @@ Split a complex task into smaller subtasks.
    ```
    Prepend `Broken down into N subtasks.` to the parent's `notes` (just that text when they're empty); never replace them.
 4. **Regenerate dashboard** - Follow `.claude/support/reference/dashboard-regeneration.md`
-   - This ensures metadata block, footer, user section backup, and section toggles are handled consistently
+   - This ensures metadata block, footer, sidecar content, and section toggles are handled consistently
 
 ## Examples
 

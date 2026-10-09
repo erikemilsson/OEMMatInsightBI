@@ -206,7 +206,7 @@ def hash_dashboard_rollup(task_dir: Path) -> str:
         try:
             data = json.loads(task_file.read_text(encoding="utf-8"))
             entries.append(f"{data['id']}:{data['status']}")
-        except (json.JSONDecodeError, KeyError) as e:
+        except (ValueError, RecursionError, KeyError) as e:  # as bad JSON: a huge integer, nesting too deep
             print(f"warning: skipping {task_file.name} ({e})", file=sys.stderr)
     entries.sort()
     joined = "\n".join(entries)
@@ -294,7 +294,7 @@ def load_drift_deferrals(claude_dir: Path) -> list[dict]:
     a string `section` are ignored."""
     try:
         data = json.loads((claude_dir / "drift-deferrals.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):  # RecursionError: nesting too deep
         return []
     items = data.get("deferrals") if isinstance(data, dict) else data
     if not isinstance(items, list):
@@ -361,7 +361,7 @@ def compute_drift(claude_dir: Path) -> dict:
     for path in task_files:  # non-recursive: archive/ is never a candidate
         try:
             task = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+        except (OSError, ValueError, RecursionError):
             task = None
         if not isinstance(task, dict):
             result["unreadable"].append(path.name)
@@ -551,7 +551,7 @@ class _SpecHistory:
             return False
         try:
             task = json.loads(show.stdout.decode("utf-8"))
-        except (UnicodeDecodeError, ValueError):
+        except (UnicodeDecodeError, ValueError, RecursionError):
             return False
         return isinstance(task, dict) and task.get("status") != "Finished"
 
@@ -708,7 +708,7 @@ def _baseline(claude_dir: Path, also: frozenset = frozenset()) -> tuple[dict, di
     for path in task_files:
         try:
             task = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+        except (OSError, ValueError, RecursionError):
             continue
         if not isinstance(task, dict):
             continue
@@ -927,7 +927,7 @@ def write_baseline(claude_dir: Path, ids: list[str], confirm_current: bool = Fal
             if not isinstance(task, dict):
                 raise ValueError("not a JSON object")
             data = _serialize_like(original, _stamped_task(task, entry, result["spec"], note)).encode("utf-8")
-        except (OSError, ValueError, BaselineError) as e:  # ValueError: bad JSON, a lone surrogate
+        except (OSError, ValueError, RecursionError, BaselineError) as e:  # ValueError: bad JSON, a lone surrogate
             refused.setdefault(f"task file can't be rewritten ({e})", []).append(task_id)
             continue
         plan.append((entry, path, data))

@@ -364,7 +364,7 @@ Check request against spec:
 
 **If user selects "Proceed anyway":**
 - Create task with `"out_of_spec": true` (it needs no section provenance; creation contract: `task-schema.md § "Drift Prevention Fields"`)
-- Dashboard shows ⚠️ prefix for these tasks
+- While it is open and unapproved, the dashboard's "Needs you" card lists it under Reviews
 - Health check reports out-of-spec tasks separately
 
 **Scope significance:** New features, architecture changes, new integrations, acceptance criteria changes = significant. Bug fixes, cleanup, small improvements = minor/trivial.
@@ -499,7 +499,7 @@ When Step 3 reaches a stopping point (no agent dispatch), append 1-3 relevant co
 | Mixed non-actionable (human + blocked + on hold) | "Run `/work complete {id}` for human tasks, resolve blockers, or resume held tasks." |
 | No eligible tasks (deps unmet) | "Waiting on dependencies. Check blocked/human tasks that other tasks depend on." |
 | Phase gate pending approval | "Review the phase gate in the dashboard, then run `/work` to continue." |
-| Unresolved decision blocks work | "Run `/research {DEC-ID}` to investigate, or resolve it in the dashboard." |
+| Unresolved decision blocks work | "Run `/research {DEC-ID}` to investigate, or tick your option in the decision record." |
 | Spec incomplete | "Run `/iterate` to refine the specification." |
 | No spec exists | "Create a vision document in `.claude/vision/` and run `/iterate distill`." |
 | Decisions with status `recorded` exist | "{N} agent decision(s) await ratification. Run `/work ratify all`, or `/work reconsider {DEC-ID}` to reopen one." |
@@ -668,7 +668,7 @@ When all tasks are finished and verification conditions are met:
 **Once both gates pass:**
 
 1. **Update spec status** to `complete` (set `status: complete`, `updated: YYYY-MM-DD` in frontmatter)
-2. **Regenerate dashboard** to reflect completion state (Action Required clears; Progress shows final phase complete; Tasks section collapses fully-finished phases)
+2. **Regenerate dashboard** to reflect completion state
 3. **Present final checkpoint** — report completion with verification summary, plus the count and ids of any decisions still `recorded` (`/work ratify all`); they don't block completion
 4. **Learning capture prompt** — "Project complete. Any patterns or learnings to capture? [L] Share  [S] Skip". If [L]: append to `.claude/support/learnings/project-learnings.md`. If [S]: continue silently.
 5. **Stop** — do not route to any agent. The project is done.

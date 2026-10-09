@@ -539,6 +539,19 @@ class TestSections(HtmlBase):
         self.assertIn("1/2 passed", out)
         self.assertIn("User can log in", out)
 
+    def test_acceptance_criterion_text_comes_from_name(self):
+        # verify-agent.md writes {"name", "status", "notes"}; "criterion" is the older key
+        out = self.render(self.make_env(active=[task(1, "Pending", "1")],
+            verification={"criteria": [
+                {"name": "User can log in", "status": "pass", "notes": "Tested with valid credentials"},
+                {"criterion": "Session expires", "status": "fail"},
+                {"name": "Rate limit", "criterion": "Old key text", "status": "fail"}]}))
+        self.assertIn('<span class="actext">User can log in <span class="acnote">'
+                      '— Tested with valid credentials</span></span>', out)
+        self.assertIn('<span class="actext">Session expires</span>', out)
+        self.assertIn('<span class="actext">Rate limit</span>', out)  # name wins when both are set
+        self.assertNotIn("Old key text", out)
+
     def test_timeline_renders_with_due_dates(self):
         out = self.render(self.make_env(active=[
             task(1, "Pending", "1", due_date="2026-01-01", owner="human"),
@@ -1455,6 +1468,210 @@ class TestStateCannotInjectMarkup(HtmlBase):
         self.assertIn("run (javascript:alert(3)", out)
         self.assertIn("go (javascript:alert(4)", out)
         self.assertIn('<a href="spec_v1.md">ok</a>', out)  # positive control
+
+
+WRONG_TYPES = {  # field → (label in the warning, values of the wrong type)
+    "status": ("a string", (5, 1.5, True, [], ["Pending"], {}, {"a": 1})),
+    "owner": ("a string", (5, 1.5, True, [], ["human"], {}, {"a": 1})),
+    "dependencies": ("a list", (0, 5, 1.5, True, "1", {}, {"1": 1})),
+    "decision_dependencies": ("a list", (0, 5, 1.5, True, "DEC-001", {}, {"a": 1})),
+    "task_verification": ("a JSON object", (5, 1.5, True, "pass", "", [], ["pass"], [{"result": "pass"}])),
+    "due_date": ("a string", (0, 5, 1.5, True, [], ["2026-06-30"], {}, {"a": 1})),
+}
+DEEP_JSON = "[" * 100000 + "]" * 100000  # json.loads raises RecursionError
+HUGE_INT_JSON = '{"id": "9", "difficulty": ' + "9" * 5000 + "}"  # a ValueError, not a JSONDecodeError
+UNPARSEABLE = (("deep", DEEP_JSON, "maximum recursion depth exceeded"),
+               ("huge integer", HUGE_INT_JSON, "Exceeds the limit"))
+
+
+class TestWrongTypedTaskFields(HtmlBase):
+    """A task field of the wrong JSON type reads as absent, with one warning line per
+    task file. A non-string status or owner, a non-list dependencies or
+    decision_dependencies, a non-object task_verification and a non-string due_date or
+    external_dependency.expected_date each used to exit 1 for some values."""
+
+    def victim(self, status="Pending", **kw):
+        return task(2, status, "1", owner="human", dependencies=["1", "3"],
+                    decision_dependencies=["DEC-001"], due_date="2026-06-30",
+                    external_dependency={"name": "Vendor", "expected_date": "2026-07-15"}, **kw)
+
+    def env(self, victim, **kw):
+        others = [task(1, "Finished", "1", task_verification=PASS)]
+        others += [task(i, "Pending", "1", dependencies=[str(max(i - 1, 2) - 1)]) for i in range(3, 7)]
+        return self.make_env(active=others + [victim],
+                             decisions=[decision_md(1, "Pick", "proposed")], **kw)
+
+    def render_err(self, root):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            out = self.render(root)
+        return out, err.getvalue()
+
+    def without(self, victim, field):
+        return {k: v for k, v in victim.items() if k != field}
+
+    def test_each_field_reads_as_absent_with_one_warning(self):
+        for field, (label, values) in WRONG_TYPES.items():
+            # a Finished task for task_verification: that is where the render reads it
+            victim = self.victim("Finished", task_verification=PASS) \
+                if field == "task_verification" else self.victim()
+            baseline = self.render(self.env(self.without(victim, field)))
+            self.assertNotEqual(self.render(self.env(victim)), baseline, field)  # positive control
+            for value in values:
+                with self.subTest(field=field, value=value):
+                    out, err = self.render_err(self.env({**victim, field: value}))
+                    self.assertEqual(out, baseline)
+                    self.assertEqual(err, f"warning: task-2.json: {field} is not {label}; "
+                                          "reading as absent\n")
+
+    def test_expected_date_reads_as_absent_with_one_warning(self):
+        ext = {"name": "Vendor", "contact": "ops"}
+        baseline = self.render(self.env({**self.victim(), "external_dependency": ext}))
+        self.assertNotEqual(self.render(self.env(self.victim())), baseline)  # positive control
+        for value in (0, 5, 1.5, True, [], ["2026-07-15"], {}, {"a": 1}):
+            with self.subTest(value=value):
+                victim = {**self.victim(), "external_dependency": {**ext, "expected_date": value}}
+                out, err = self.render_err(self.env(victim))
+                self.assertEqual(out, baseline)
+                self.assertEqual(err, "warning: task-2.json: external_dependency.expected_date "
+                                      "is not a string; reading as absent\n")
+
+    def test_several_fields_in_one_file_give_one_line(self):
+        victim = {**self.victim(), "status": ["Pending"], "owner": {"a": 1}, "dependencies": 5,
+                  "due_date": 20260630, "external_dependency": {"expected_date": 7}}
+        out, err = self.render_err(self.env(victim))
+        self.assertIn("<!-- DASHBOARD META", out)
+        self.assertEqual(err, "warning: task-2.json: status is not a string, owner is not a string, "
+                              "dependencies is not a list, due_date is not a string, "
+                              "external_dependency.expected_date is not a string; reading as absent\n")
+        # a second file gets its own line; through the CLI: exit 0
+        root = self.env(victim)
+        (root / "tasks" / "task-7.json").write_text(json.dumps(task(7, owner=["x"])), encoding="utf-8")
+        proc = subprocess.run([sys.executable, str(SCRIPT), "--html", "--claude-dir", str(root),
+                               "--now", "2026-06-24T00:00:00Z"], capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(proc.stderr.count("\n"), 2, proc.stderr)
+        self.assertIn("warning: task-7.json: owner is not a string; reading as absent\n", proc.stderr)
+
+    def test_null_and_right_typed_values_stay_silent(self):
+        for field in list(WRONG_TYPES) + ["external_dependency"]:
+            with self.subTest(field=field):
+                out, err = self.render_err(self.env({**self.victim(), field: None}))
+                self.assertEqual(err, "")
+        victim = {**self.victim(), "external_dependency": {"name": "Vendor", "expected_date": None}}
+        self.assertEqual(self.render_err(self.env(victim))[1], "")
+        # strings that aren't dates, and empty values of the right type
+        victim = {**self.victim(), "due_date": "soon", "dependencies": [], "decision_dependencies": [],
+                  "task_verification": {}, "external_dependency": {"expected_date": ""}}
+        self.assertEqual(self.render_err(self.env(victim))[1], "")
+
+    def test_odd_dependency_ids_and_non_object_external_dependency_render(self):
+        # not normalised: an id that is a list or an object is a dependency that never
+        # resolves, and a non-object external_dependency was already skipped
+        victim = {**self.victim(), "dependencies": ["1", ["1"], {"a": 1}, 5, None],
+                  "decision_dependencies": [["DEC-001"], {"a": 1}, 5]}
+        self.assertEqual(self.render_err(self.env(victim))[1], "")
+        baseline = self.render(self.env(self.without(self.victim(), "external_dependency")))
+        for value in NON_OBJECTS:
+            with self.subTest(value=value):
+                out, err = self.render_err(self.env({**self.victim(), "external_dependency": value}))
+                self.assertEqual((out, err), (baseline, ""))
+
+    def test_archived_task_file_and_archive_index_entry(self):
+        # an archived task without a status counts as Finished
+        absent = self.render(self.env(self.victim(), archived=[self.without(task(90), "status")]))
+        self.assertIn("7 tasks", absent)  # positive control: the archive is read
+        out, err = self.render_err(self.env(self.victim(), archived=[task(90, status=["Blocked"],
+                                                                          due_date=5)]))
+        self.assertEqual(out, absent)
+        self.assertEqual(err, "warning: task-90.json: status is not a string, due_date is not a "
+                              "string; reading as absent\n")
+        root = self.env(self.victim())
+        (root / "tasks" / "archive").mkdir()
+        index = root / "tasks" / "archive" / "archive-index.json"
+        index.write_text(json.dumps({"tasks": [{"id": "90", "phase": "1"}]}), encoding="utf-8")
+        absent = self.render(root)
+        index.write_text(json.dumps({"tasks": [{"id": "90", "phase": "1", "status": {"a": 1}}]}),
+                         encoding="utf-8")
+        out, err = self.render_err(root)
+        self.assertEqual(out, absent)
+        self.assertEqual(err, "warning: archive-index.json task '90': status is not a string; "
+                              "reading as absent\n")
+
+    def test_task_hash_reads_the_same_tasks(self):
+        root = self.env({**self.victim(), "status": ["Pending"]})
+        expected = dr.canonical_task_hash(dr.load_tasks(self.env(self.without(self.victim(), "status"))
+                                                        / "tasks"))
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = dr.main(["--task-hash", "--tasks-dir", str(root / "tasks")])
+        self.assertEqual((code, out.getvalue().strip()), (0, expected))
+        self.assertEqual(err.getvalue(), "warning: task-2.json: status is not a string; reading as absent\n")
+
+
+class TestUnparseableJson(HtmlBase):
+    """JSON nested too deep to parse (RecursionError) and an integer literal past the
+    digit limit (a ValueError that isn't a JSONDecodeError) are unreadable files like
+    any other bad JSON: one warning, and the render goes on. Each used to exit 1."""
+
+    def setUp(self):
+        limit = getattr(sys, "get_int_max_str_digits", lambda: 0)()
+        self.cases = [c for c in UNPARSEABLE if c[0] == "deep" or 0 < limit < 5000]
+
+    def env(self, **kw):
+        kw.setdefault("active", [task(1, "Finished", "1", task_verification=PASS),
+                                 task(2, "Pending", "2", owner="human")])
+        return self.make_env(**kw)
+
+    def assert_unreadable(self, root, baseline, warning, text):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            out = self.render(root)
+        self.assertEqual(out, baseline)
+        self.assertEqual(err.getvalue().count("\n"), 1, err.getvalue()[:300])
+        self.assertTrue(err.getvalue().startswith(f"warning: {warning}: {text}"), err.getvalue()[:300])
+
+    def test_state_json_reads_as_absent(self):
+        baseline = self.render(self.env())
+        for label, body, text in self.cases:
+            for name in ("verification-result.json", "dashboard-state.json", "drift-deferrals.json",
+                         "spec_v1.index.json"):
+                with self.subTest(label=label, name=name):
+                    root = self.env()
+                    (root / name).write_text(body, encoding="utf-8")
+                    self.assert_unreadable(root, baseline, f"unreadable {name}", text)
+            with self.subTest(label=label, name="version.json"):
+                root = self.env()
+                (root / "version.json").unlink()
+                no_version = self.render(root)
+                (root / "version.json").write_text(body, encoding="utf-8")
+                self.assert_unreadable(root, no_version, "unreadable version.json", text)
+
+    def test_task_file_is_skipped(self):
+        for label, body, text in self.cases:
+            with self.subTest(label=label):
+                root = self.env()
+                baseline = self.render(root)
+                (root / "tasks" / "task-9.json").write_text(body, encoding="utf-8")
+                self.assert_unreadable(root, baseline, "skipping unreadable task-9.json", text)
+                proc = subprocess.run([sys.executable, str(SCRIPT), "--task-hash", "--tasks-dir",
+                                       str(root / "tasks")], capture_output=True, text=True)
+                self.assertEqual(proc.returncode, 0, proc.stderr[-300:])
+                self.assertIn(proc.stdout.strip(), baseline)
+                self.assertTrue(proc.stderr.startswith("warning: skipping unreadable task-9.json"))
+
+    def test_archived_task_file_is_skipped_and_archive_index_ignored(self):
+        for label, body, text in self.cases:
+            with self.subTest(label=label):
+                root = self.env(archived=[task(90, "Finished", "1")])
+                baseline = self.render(root)
+                (root / "tasks" / "archive" / "task-9.json").write_text(body, encoding="utf-8")
+                self.assert_unreadable(root, baseline, "skipping unreadable task-9.json", text)
+                root = self.env()
+                (root / "tasks" / "archive").mkdir()
+                baseline = self.render(root)
+                (root / "tasks" / "archive" / "archive-index.json").write_text(body, encoding="utf-8")
+                self.assert_unreadable(root, baseline, "unreadable archive-index.json", text)
 
 
 if __name__ == "__main__":

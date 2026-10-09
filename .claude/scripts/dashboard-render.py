@@ -94,16 +94,45 @@ def numeric_key(value):
 
 # ---------------------------------------------------------------- loaders
 
+# What json.loads() raises on a file it can't use: bad JSON and bytes that aren't UTF-8
+# (both ValueError), an integer literal past the digit limit (a plain ValueError), and
+# nesting too deep to parse (RecursionError).
+JSON_UNREADABLE = (ValueError, RecursionError, OSError)
+
+# Task fields the render reads by type, with the type's name in the warning.
+TASK_FIELD_TYPES = (("status", str, "a string"), ("owner", str, "a string"),
+                    ("dependencies", list, "a list"), ("decision_dependencies", list, "a list"),
+                    ("task_verification", dict, "a JSON object"), ("due_date", str, "a string"))
+
+
+def _typed_task(task, name):
+    """The task with each wrong-typed field in TASK_FIELD_TYPES, and a non-string
+    external_dependency.expected_date, removed: it reads as absent, with one warning
+    line per task. Null is absent already and stays silent."""
+    bad = []
+    for field, kind, label in TASK_FIELD_TYPES:
+        if task.get(field) is not None and not isinstance(task[field], kind):
+            del task[field]
+            bad.append(f"{field} is not {label}")
+    ext = task.get("external_dependency")
+    if isinstance(ext, dict) and not isinstance(ext.get("expected_date"), (str, type(None))):
+        del ext["expected_date"]
+        bad.append("external_dependency.expected_date is not a string")
+    if bad:
+        print(f"warning: {name}: {', '.join(bad)}; reading as absent", file=sys.stderr)
+    return task
+
+
 def load_tasks(tasks_dir: Path):
     tasks = []
     for path in sorted(tasks_dir.glob("task-*.json")):
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, UnicodeDecodeError, OSError) as exc:  # incl. not UTF-8
+        except JSON_UNREADABLE as exc:  # incl. not UTF-8
             print(f"warning: skipping unreadable {path.name}: {exc}", file=sys.stderr)
             continue
         if isinstance(data, dict) and data.get("id") is not None:
-            tasks.append(data)
+            tasks.append(_typed_task(data, path.name))
         else:
             print(f"warning: skipping {path.name}: no id field", file=sys.stderr)
     return tasks
@@ -126,8 +155,9 @@ def load_archived(tasks_dir: Path):
             if not isinstance(entries, list):
                 print("warning: archive-index.json has no tasks list; ignoring it", file=sys.stderr)
                 return []
-            return [t for t in entries if isinstance(t, dict) and t.get("id") is not None]
-        except (json.JSONDecodeError, UnicodeDecodeError, OSError) as exc:
+            return [_typed_task(t, f"archive-index.json task {t['id']!r}")
+                    for t in entries if isinstance(t, dict) and t.get("id") is not None]
+        except JSON_UNREADABLE as exc:
             print(f"warning: unreadable archive-index.json: {exc}", file=sys.stderr)
     return []
 
@@ -178,7 +208,7 @@ def load_json_file(path: Path):
         return None
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, UnicodeDecodeError, OSError) as exc:
+    except JSON_UNREADABLE as exc:
         print(f"warning: unreadable {path.name}: {exc}", file=sys.stderr)
         return None
 
@@ -920,7 +950,8 @@ def _html_acceptance(verification_result):
         rows = []
         for c in criteria:
             ok = c.get("status") == "pass"
-            criterion = str(c.get("criterion", "")).strip()
+            # verify-agent.md writes the text under "name"; "criterion" is the older key
+            criterion = str(c.get("name") or c.get("criterion") or "").strip()
             note = str(c.get("notes", "")).strip()
             if criterion:
                 disp, full = _clip(note, 240)

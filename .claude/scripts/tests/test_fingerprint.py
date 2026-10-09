@@ -24,6 +24,10 @@ fp = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(fp)
 
 
+DEEP_JSON = "[" * 100000 + "]" * 100000  # json.loads raises RecursionError
+HUGE_INT_JSON = '{"id": "9", "difficulty": ' + "9" * 5000 + "}"  # a ValueError, not a JSONDecodeError
+
+
 class FingerprintCLITests(unittest.TestCase):
     def test_help_flag_exits_zero(self):
         result = subprocess.run(
@@ -104,6 +108,29 @@ class FingerprintCLITests(unittest.TestCase):
                                 capture_output=True, text=True, timeout=10)
             self.assertEqual(r2.returncode, 0)
             self.assertNotEqual(r1.stdout.strip(), r2.stdout.strip())
+
+    def test_dashboard_rollup_skips_deep_and_huge_integer_json(self):
+        """A task file json.loads refuses for its nesting depth (RecursionError) or an
+        integer's length (a ValueError that isn't a JSONDecodeError) is skipped with
+        the warning bad JSON gets. Each used to end the run with a traceback."""
+        cases = [("deep", DEEP_JSON, "maximum recursion depth exceeded")]
+        if 0 < getattr(sys, "get_int_max_str_digits", lambda: 0)() < 5000:
+            cases.append(("huge integer", HUGE_INT_JSON, "Exceeds the limit"))
+        for label, body, text in cases:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as task_dir:
+                with open(os.path.join(task_dir, "task-1.json"), "w") as f:
+                    json.dump({"id": "1", "status": "Pending"}, f)
+                run = lambda: subprocess.run(
+                    [sys.executable, str(SCRIPT), "--dashboard-rollup", task_dir],
+                    capture_output=True, text=True, timeout=30)
+                alone = run()
+                with open(os.path.join(task_dir, "task-9.json"), "w") as f:
+                    f.write(body)
+                both = run()
+                self.assertEqual((both.returncode, both.stdout), (0, alone.stdout), both.stderr[-300:])
+                self.assertTrue(both.stderr.startswith(f"warning: skipping task-9.json ({text}"),
+                                both.stderr[:300])
+                self.assertEqual(both.stderr.count("\n"), 1)
 
     # --- DEC-021: --index + --depth 3 (section index + finer ### fingerprinting) ---
 
@@ -471,6 +498,19 @@ class DriftTests(unittest.TestCase):
         self.assertEqual(d["unreadable"], ["task-9.json", "task-10.json"])
         self.assertEqual(d["checked"], 1)
 
+    def test_deep_json_task_file_and_deferrals_are_unreadable(self):
+        # nesting too deep for json.loads (RecursionError): as any other bad JSON
+        self.task(1, "Pending", "## Auth", self.old["## Auth"])
+        before = self.drift()
+        self.assertEqual(before["unreconciled_sections"], 1)
+        (self.root / "tasks" / "task-9.json").write_text(DEEP_JSON, encoding="utf-8")
+        d = self.drift()
+        self.assertEqual(d["unreadable"], ["task-9.json"])
+        self.assertEqual(d["checked"], 1)
+        (self.root / "tasks" / "task-9.json").unlink()
+        (self.root / "drift-deferrals.json").write_text(DEEP_JSON, encoding="utf-8")
+        self.assertEqual(self.drift(), before)  # no usable deferrals
+
     def test_archive_is_not_a_candidate(self):
         archive = self.root / "tasks" / "archive"
         archive.mkdir()
@@ -616,6 +656,14 @@ class BaselineTests(unittest.TestCase):
         self.a = self.commit(SPEC_A, "2026-03-01")
         self.b = self.commit(SPEC_B, "2026-03-10")
         self.c = self.commit(SPEC_C, "2026-03-20")
+
+    def test_deep_json_task_file_is_not_a_candidate(self):
+        # nesting too deep for json.loads (RecursionError): skipped like other bad JSON
+        self.three_commits()
+        self.task(1, completion_date="2026-03-05")
+        before = self.baseline()
+        (self.root / "tasks" / "task-9.json").write_text(DEEP_JSON, encoding="utf-8")
+        self.assertEqual(self.baseline(), before)
 
     # -- shape, selection of tasks
 
@@ -1417,6 +1465,18 @@ class BaselineTests(unittest.TestCase):
             self.assertEqual((r.returncode, r.stdout), (2, ""), args)
         self.assertEqual(self.snapshot(), before)
         self.assertEqual(self.git("status", "--porcelain", "--", str(self.root / "spec_v1.md")), "")
+
+    def test_deeply_nested_task_in_history_reads_as_unreadable(self):
+        # _open_at: a committed version of the task file too deep to parse must not
+        # stop the baseline; without it the task has no earlier version on record
+        self.commit(SPEC_A, "2026-03-01")
+        self.commit(SPEC_B, "2026-03-10", hour=18)
+        path = self.root / "tasks" / "task-2.json"
+        path.write_text('{"id":"2","status":"Pending","x":' + "[" * 100000 + "]" * 100000 + "}",
+                        encoding="utf-8")
+        self.commit_all("2026-03-20")
+        self.task(2, "Pending", created_date="2026-03-10")
+        self.assertNotEqual(self.one("2").get("reason"), "task filed after the edit")
 
 
 class NestedProjectBaselineTests(BaselineTests):

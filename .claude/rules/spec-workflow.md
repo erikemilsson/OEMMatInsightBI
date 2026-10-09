@@ -6,7 +6,7 @@ The spec is the living source of truth. All work aligns with it, or the spec is 
 
 ## Acceptance-criteria authority (DEC-022)
 
-The spec defines *what* the acceptance criteria are. Whether they're met *now* is owned by verify-agent's `criteria[]` in `.claude/verification-result.json`, rendered as the dashboard's `### Acceptance Criteria` checklist. Inline `- [ ]` boxes in a spec are authored input, not live status: nothing ticks them on phase PASS (auto-ticking was declined in DEC-022 — the mapping is unsafe and would trip drift detection and DEC-016), so they may read stale. `/audit-coherence`'s `acceptance-reconciliation` lens surfaces divergence advisorily; reconciling the boxes routes through `/iterate`.
+The spec defines *what* the acceptance criteria are. Whether they're met *now* is owned by verify-agent's `criteria[]` in `.claude/verification-result.json`, rendered as the dashboard's Acceptance-criteria section. Inline `- [ ]` boxes in a spec are authored input, not live status: nothing ticks them on phase PASS (auto-ticking was declined in DEC-022 — the mapping is unsafe and would trip drift detection and DEC-016), so they may read stale. `/audit-coherence`'s `acceptance-reconciliation` lens surfaces divergence advisorily; reconciling the boxes routes through `/iterate`.
 
 ## Spec Location
 
