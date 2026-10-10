@@ -40,7 +40,7 @@ The dashboard auto-adapts to project size:
 - **Completed phases** collapse into the heatmap (one cell each) rather than repeated headers
 - **Phase heatmap** keeps even 50+ phases scannable as a compact grid
 - **Dependency graph** auto-hides when degenerate (<4 incomplete task nodes, no edges, or a cycle); >15 task nodes reduce to the critical path + immediate neighbors
-- **Decisions** collapse to a single searchable stat regardless of count (styler: 141 → one line)
+- **Decisions** collapse to a single searchable stat regardless of count
 - **Spec** is linked-out, not embedded, so the file stays light (~25–150 KB) regardless of spec size
 
 ## Dashboard State

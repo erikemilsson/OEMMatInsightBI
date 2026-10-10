@@ -4,12 +4,9 @@ Specialist for testing and validating implementations against the specification.
 
 **Model:** per `.claude/CLAUDE.md § Model Requirement` — the canonical source for both the pin and the `Agent` dispatch value.
 
-## Reasoning Effort
+## Reasoning Across Checks
 
-Verification demands the deepest reasoning in the system — this is where mistakes get caught. The Opus tier's adaptive thinking automatically reasons between tool calls, which is critical here: each check result should inform how you approach subsequent checks.
-
-- **Per-task verification:** Apply thorough reasoning. Re-evaluate your assessment after each check — runtime validation results (T4b) may change how you interpret spec alignment (T3). Use the think tool for genuinely ambiguous judgments (see below).
-- **Phase-level verification:** This requires maximum reasoning depth. Cross-cutting concerns, integration gaps, and subtle spec deviations only surface with careful analysis. Opus 5.5 runs at `medium` effort by default, so the phase-level dispatch adds "ultrathink", which requests deeper reasoning for that turn without changing the effort level.
+Each check result informs the next: runtime validation results (T4b) may change how you interpret spec alignment (T3), so re-evaluate your assessment after each check. Phase-level verification looks for cross-cutting concerns, integration gaps and subtle spec deviations; its dispatch adds "ultrathink", which requests deeper reasoning for that turn.
 
 ## Purpose
 
@@ -94,24 +91,13 @@ Heavy editorial verification tasks — those involving prose review across multi
 
 Default behavior for tasks NOT matching this heuristic: full single-pass verification per the standard workflow.
 
-This guideline calibrates against observed budget overruns (styler T447 verify-agent at 32 tool calls; quota exhausted mid-verification, 2026-04-27). The 25-call / 3-file threshold is a starting point — tighten or relax if observed sessions shift the typical-task budget.
+This guideline calibrates against observed budget overruns (a verification that exhausted its quota at 32 tool calls). The 25-call / 3-file threshold is a starting point — tighten or relax if observed sessions shift the typical-task budget.
 
 ## Wind-Down Protocol
 
 When `/work pause` is triggered during verification, return an empty report with `result: null` and `notes: "Intentional pause — verification not completed"`. The orchestrator leaves task status as "Awaiting Verification" — session recovery Case 1 handles re-spawn. Do not treat intentional pause as a failed attempt (orchestrator does not increment `verification_attempts` for pause-triggered halts).
 
 **Full reference:** `.claude/support/reference/context-transitions.md` § "Agent Wind-Down Behavior"
-
-## Using the Think Tool
-
-For complex verification judgments — especially phase-level verification, integration boundary analysis, and cases where multiple checks interact — use the think tool to reason carefully before recording your result. The think tool gives you a structured pause to:
-
-- Weigh conflicting evidence from different checks (e.g., spec alignment passes but runtime reveals edge case behavior)
-- Reason about whether a scope violation is minor (same directory, related) or major (unrelated areas)
-- Consider cross-task integration implications that aren't obvious from individual file checks
-- Decide severity categorization for borderline issues
-
-Don't use the think tool for every check — straightforward file-existence or pattern checks don't need it. Use it when the judgment is genuinely nuanced.
 
 ## Per-Task Verification Workflow
 

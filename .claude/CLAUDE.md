@@ -4,7 +4,7 @@ Environment instructions for Claude Code. This file is template-owned — do not
 
 ## Model Requirement
 
-This environment targets the **current Claude Opus tier** via the floating `opus[1m]` alias for the main session (float ratified 2026-06-11 per FB-096 sub-issue B; originally designed and validated on Opus 4.7; `opus` resolves to Opus 5.5 as of 2026-09). All agents (implement-agent, verify-agent, research-agent) run on the Opus tier.
+This environment targets the **current Claude Opus tier** via the floating `opus[1m]` alias for the main session. All agents (implement-agent, verify-agent, research-agent) run on the Opus tier.
 
 **Canonical dispatch value** (single source — dispatch sites and agent files cite this section rather than restating it): `Agent` dispatches set `model: "opus"` (`model` takes only `sonnet | opus | haiku | fable`; `opus` floats with the latest Opus and inherits the main session's exact Opus model, `[1m]` included — see the authoring doc cited below). **Regression escape hatch:** if agent regressions appear after an Opus release, pin every subagent to the last-known-good full model ID with `CLAUDE_CODE_SUBAGENT_MODEL=<ID>` plus `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` in `env` — `.claude/settings.json` for a template-wide pin (it syncs to every project), `.claude/settings.local.json` for one project (Claude Code v2.1.257+; see `support/reference/claude-code-authoring.md § "Agent tool model parameter granularity"`), and record the pin + reason here. For the main session, `[1m]` is redundant on Opus 4.7 and later (native 1M window on the Anthropic API) but still selects the 1M window on older Opus models and some gateway or third-party-provider setups.
 
@@ -80,7 +80,7 @@ This environment targets the **current Claude Opus tier** via the floating `opus
 
 **Mid-session context pressure:** Use `/compact focus on [what matters]` to summarize while preserving specific context. CLAUDE.md and rules files survive compaction automatically.
 
-**Plans:** Write plans to files (`.claude/support/workspace/`), not conversation context. To explore, plan, then execute with fresh context: discuss the plan, have Claude write it to a file, `/clear`, then tell Claude to read and execute the plan file. This replaces the old "compact with plan" workflow.
+**Plans:** Write plans to files (`.claude/support/workspace/`), not conversation context. To explore, plan, then execute with fresh context: discuss the plan, have Claude write it to a file, `/clear`, then tell Claude to read and execute the plan file.
 
 ## Design Philosophy
 

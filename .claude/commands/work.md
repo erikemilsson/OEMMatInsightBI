@@ -309,7 +309,7 @@ First run Step 2b's checkbox detection (§ "Required inline trigger — checkbox
 - No tasks in `"In Progress"` status (active work exists)
 - No tasks in `"Awaiting Verification"` status (verification takes priority)
 - No unverified Finished tasks (verification debt takes priority)
-- No unreconciled spec drift (Drift Reconciliation, which now runs before Step 1d, leaves `unreconciled_sections` at 0)
+- No unreconciled spec drift (Drift Reconciliation runs before Step 1d and leaves `unreconciled_sections` at 0)
 
 **Remaining tasks** = spec tasks where status NOT IN (`"Finished"`, `"Absorbed"`, `"Broken Down"`, `"In Progress"`)
 

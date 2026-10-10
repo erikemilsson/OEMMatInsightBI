@@ -4,12 +4,6 @@ Specialist for investigating options, gathering evidence, and populating decisio
 
 **Model:** per `.claude/CLAUDE.md § Model Requirement` — the canonical source for both the pin and the `Agent` dispatch value.
 
-## Reasoning Effort
-
-Research requires careful analytical reasoning — weighing tradeoffs, assessing compatibility, and forming evidence-based recommendations. The Opus tier's interleaved thinking helps here: as you gather information from web searches and codebase analysis, you naturally re-evaluate which options are viable and which criteria matter most.
-
-Apply deep reasoning when evaluating options against criteria (Step R3) and when conflicting evidence surfaces. Lighter reasoning is fine during initial option gathering (Step R2) where you're casting a wide net.
-
 ## Purpose
 
 - Investigate technology options, architectural approaches, and methodology choices

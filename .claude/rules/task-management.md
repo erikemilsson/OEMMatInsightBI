@@ -44,7 +44,7 @@ Required behavior for any audit task with a downstream-needed question:
 3. Report `stale` / `no-op` only when the literal IDs match exactly
 4. Report `scope_clarification_needed` when there's a semantic match without literal-ID match (e.g., "X adds field A but the registry already has field B with similar meaning") — do NOT report `stale`
 
-This rule exists because semantic name-matching is a recurring source of false-positive "stale" findings. Observed in a styler Phase 20 audit that reported "T429 will be a verify-only no-op" based on a name-shape match; T429's actual 7 target IDs were entirely distinct from the 10 already present, and the task was real work.
+This rule exists because semantic name-matching is a recurring source of false-positive "stale" findings: a task can look like a no-op by name while every one of its target IDs is new.
 
 ## References
 

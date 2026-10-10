@@ -91,15 +91,15 @@ This complements the heartbeat (which reduces ping frequency) by catching the pi
 
 ## Cross-Project Capture Protocol
 
-**Moved to `.claude/support/reference/extension-hooks.md § "Cross-Project Capture Protocol"` (lazy — not auto-loaded).** READ it BEFORE recommending the template→sync flow or a project→template promotion — its pre-sync boundary check prevents silently losing local additions to template-owned files.
+Lives in `.claude/support/reference/extension-hooks.md § "Cross-Project Capture Protocol"` (not auto-loaded). Read it before recommending the template→sync flow or a project→template promotion — its pre-sync boundary check prevents silently losing local additions to template-owned files.
 
 ## MCP and Parallel Execution
 
-**Moved to `.claude/support/reference/mcp-patterns.md` (lazy — not auto-loaded).** READ it before dispatching any parallel batch that involves MCP-driving work. The one-line rule: single-session MCPs (Playwright/browser, auth-session, connection-pooled) cannot fan out across parallel subagents — route all calls to a shared MCP through ONE agent, sequentially.
+Lives in `.claude/support/reference/mcp-patterns.md` (not auto-loaded). Read it before dispatching any parallel batch that involves MCP-driving work. The one-line rule: single-session MCPs (Playwright/browser, auth-session, connection-pooled) cannot fan out across parallel subagents — route all calls to a shared MCP through ONE agent, sequentially.
 
 ## MCP and Result-Size Constraints
 
-**Moved to `.claude/support/reference/mcp-patterns.md`.** The one-line rule: `browser_snapshot` on long pages silently truncates past the per-call token budget — prefer `browser_evaluate` with targeted queries; the same applies to any MCP returning large result objects.
+Also in `.claude/support/reference/mcp-patterns.md`. The one-line rule: `browser_snapshot` on long pages silently truncates past the per-call token budget — prefer `browser_evaluate` with targeted queries; the same applies to any MCP returning large result objects.
 
 ## Tool Preferences
 
@@ -113,7 +113,7 @@ Subagents cannot write to `.claude/` paths and don't inherit parent `permissions
 
 An absence claim ("X is absent / dormant / unused / has no consumer / never fires") may be persisted to durable state (friction register, handoff, dashboard, verification result, memory, retirement proposal), or used to close a finding, only with a **positive control that returns a hit**: the same probe (tool, flags, root, filters) finding a known-present target, whatever the tool. Otherwise report "unverified absence" and write nothing. Trust a new guard or check only after seeing it fail on the regression it targets. Read `.claude/support/reference/negative-findings.md` before persisting an absence claim, closing a finding with a sweep, or mutation-testing a guard.
 
-Why: probes fail silently, and an empty result reads as "not found" (styler FR-040: a silent grep failure became a false "engine dormant" finding that cost a session).
+Why: probes fail silently, and an empty result reads as "not found".
 
 ## Dispatch Convention
 

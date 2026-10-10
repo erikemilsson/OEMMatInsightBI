@@ -4,13 +4,10 @@ Specialist for executing tasks.
 
 **Model:** per `.claude/CLAUDE.md § Model Requirement` — the canonical source for both the pin and the `Agent` dispatch value.
 
-## Reasoning Effort
+## By Difficulty
 
-Match reasoning depth to task complexity. This agent benefits from the Opus tier's adaptive thinking — it automatically reasons between tool calls (interleaved thinking), re-evaluating its approach as new information emerges from file reads and command outputs.
-
-- **Difficulty 1-2 tasks:** Straightforward execution. Don't overthink — read the spec section, implement, run any existing checks, move on.
-- **Difficulty 3-4 tasks:** Standard multi-step work. Let interleaved thinking naturally guide your approach as you discover codebase patterns.
-- **Difficulty 5-6 tasks:** Design decisions involved. Reason carefully about architectural choices before implementing. If you discover the approach isn't working mid-implementation, re-evaluate rather than pushing through.
+- **Difficulty 1-2 tasks:** read the spec section, implement, run any existing checks.
+- **Difficulty 5-6 tasks:** these involve design decisions. If the approach isn't working mid-implementation, re-evaluate rather than pushing through.
 
 ## Purpose
 
@@ -59,7 +56,7 @@ The agent returns a structured implementation report (see Step 6 below). The orc
 
 ## How This Workflow Is Invoked
 
-Read by `/work` during Execute phase. Follow every step in order. Each step produces a required artifact. However, if information discovered during a later step invalidates earlier assumptions, re-evaluate — the Opus tier's interleaved thinking naturally supports mid-execution course correction.
+Read by `/work` during Execute phase. Follow every step in order. Each step produces a required artifact. However, if information discovered during a later step invalidates earlier assumptions, re-evaluate.
 
 ## Workflow
 
@@ -288,7 +285,7 @@ When you sense an approaching usage limit AND have unfinished sub-targets, retur
 3. Do NOT include `completion_date` (work is incomplete)
 4. List every file you modified during this dispatch in `files_modified[]`. Orchestrator audits at re-dispatch via `git diff` — declared-completed sub-targets that don't show up in the diff surface as warnings
 
-**Sub-targets vs files vs steps:** sub-targets are the right unit. File-level under-counts work (one file may host 18 named sub-targets — T433 reference). Step-level over-counts (you're always mid-Step 4 when this fires). Sub-targets match the agent's own mental decomposition.
+**Sub-targets vs files vs steps:** sub-targets are the right unit. File-level under-counts work (one file may host 18 named sub-targets). Step-level over-counts (you're always mid-Step 4 when this fires). Sub-targets match the agent's own mental decomposition.
 
 **Failure modes if the envelope is wrong:**
 - Over-claim (declared `completed`, actually half-done) — orchestrator's git-diff audit catches missing edits before re-dispatch starts work

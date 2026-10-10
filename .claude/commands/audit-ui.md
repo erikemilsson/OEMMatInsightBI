@@ -183,7 +183,7 @@ For each reachable page (200 status):
    }
    ```
 
-   The scoping prevents three first-run bugs: `h1` previously matched sidebar headings; `fileRefs` matched framework JS in `<script>` tags; `placeholders` missed bracketed type names.
+   The scoping keeps `h1` off sidebar headings, `fileRefs` off framework JS in `<script>` tags, and lets `placeholders` catch bracketed type names.
 
 For each tab/sub-tab found in step 6:
 1. Click tab.
