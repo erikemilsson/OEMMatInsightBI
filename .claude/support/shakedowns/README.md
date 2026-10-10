@@ -1,6 +1,6 @@
 # Shakedowns
 
-Capability-boundary maps produced by `/shakedown` (DEC-019). Each file is one *acceptance-by-example* session: real and edge-case usage thrown at the built/envisioned system, each example grounded against what the system actually does and verdicted, accumulated into a snapshot-anchored corpus.
+Capability-boundary maps produced by `/shakedown`. Each file is one *acceptance-by-example* session: real and edge-case usage thrown at the built/envisioned system, each example grounded against what the system actually does and verdicted, accumulated into a snapshot-anchored corpus.
 
 ## What lives here
 

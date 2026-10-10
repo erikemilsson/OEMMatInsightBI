@@ -2,9 +2,9 @@
 
 A discipline for working hard bugs and performance regressions. Six phases: feedback loop → reproduce → hypothesise → instrument → fix → cleanup + post-mortem. **Skip phases only when explicitly justified.**
 
-Adapted from `mattpocock/skills/engineering/diagnose`. CCE adaptations: domain-genericized (methodology applies to any "something is wrong, I don't know why" task — software, research, procurement, renovation), consumes `./CONTEXT.md` and decision records when present, routes architectural recommendations through `/research` rather than a direct write, and hands Phase-6 architectural friction to CCE's friction register (no `/improve-codebase-architecture` exists yet — that's FB-067 Wave 2).
+Adapted from `mattpocock/skills/engineering/diagnose`. CCE adaptations: domain-genericized (methodology applies to any "something is wrong, I don't know why" task — software, research, procurement, renovation), consumes `./CONTEXT.md` and decision records when present, routes architectural recommendations through `/research` rather than a direct write, and hands Phase-6 architectural friction to CCE's friction register (no `/improve-codebase-architecture` exists yet).
 
-`/diagnose` does **not** carry `disable-model-invocation: true`. Per the FB-071 selection criteria, autonomous-fire-when-stuck is a feature here, not a foot-gun: when implement-agent hits a hard bug mid-`/work`, sweeping into structured methodology is exactly the value. If this proves wrong in practice (the model fires `/diagnose` on simple "why doesn't this work?" questions), flip to gated (FB-071's medium-candidates re-evaluation pattern).
+`/diagnose` does **not** carry `disable-model-invocation: true`. Per the `disable-model-invocation` selection criteria, autonomous-fire-when-stuck is a feature here, not a foot-gun: when implement-agent hits a hard bug mid-`/work`, sweeping into structured methodology is exactly the value. If this proves wrong in practice (the model fires `/diagnose` on simple "why doesn't this work?" questions), flip to gated.
 
 ## Usage
 
@@ -142,11 +142,11 @@ If the answer involves an architectural change (no good test seam, tangled calle
 
 Make the recommendation **after** the fix is in, not before — you have more information now than when you started.
 
-(FB-067 Wave 2 includes `/improve-codebase-architecture` as a future complement to this phase. Until that ships, the friction-register / `/research` path above is the canonical route.)
+(`/improve-codebase-architecture` is a planned future complement to this phase. Until that ships, the friction-register / `/research` path above is the canonical route.)
 
 ## Visual / browser-rendering bugs
 
-For layout, geometry, scroll, computed-style, and rendering bugs — the class where a load-bearing browser-behavior assumption can be confirmed wrongly by code-reading alone (writer and reviewer share the same docs-derived model, and both are wrong; FB-085). The six phases apply unchanged; this recipe pins the visual-specific choices so they aren't re-derived per bug:
+For layout, geometry, scroll, computed-style, and rendering bugs — the class where a load-bearing browser-behavior assumption can be confirmed wrongly by code-reading alone (writer and reviewer share the same docs-derived model, and both are wrong). The six phases apply unchanged; this recipe pins the visual-specific choices so they aren't re-derived per bug:
 
 - **Run at orchestrator level** (main conversation), not in a dispatched subagent — browser MCP access is not reliably inherited by `Agent` subagents, and a single browser session cannot fan out (`.claude/support/reference/mcp-patterns.md § "MCP and Parallel Execution"`). If Playwright tools aren't in the loaded toolset, load them via ToolSearch first. Starting a dev server for the loop is sanctioned; respect-prior-kills applies.
 - **Contract (Phases 1–2):** the feedback loop is a set of falsifiable assertions on *measured values* — geometry (bounding rects, scroll positions) and computed style (`getComputedStyle`), including sampled interaction states (hover, mid-scroll). **No pixel-diffs or golden-image comparisons:** they need a baseline the broken state can't provide, carry rendering noise, and "looks different" isn't falsifiable.
@@ -158,7 +158,7 @@ For layout, geometry, scroll, computed-style, and rendering bugs — the class w
 ## Out of scope
 
 - **Symptom-suppression fixes.** Don't. The existing `.claude/rules/agents.md § Root Cause Over Symptom` rule applies — verify-agent rejects implementations that make errors disappear without understanding why. `/diagnose` is the structured way to *not* suppress.
-- **Spec / decision / vision edits.** DEC-016 guardrail applies. If a diagnosis reveals the spec is wrong, route to `/iterate`. If it reveals a decision needs to change, route to `/research`. `/diagnose` does not edit these surfaces directly.
+- **Spec / decision / vision edits.** The spec-edit guardrail applies. If a diagnosis reveals the spec is wrong, route to `/iterate`. If it reveals a decision needs to change, route to `/research`. `/diagnose` does not edit these surfaces directly.
 
 ## References
 

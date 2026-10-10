@@ -4,7 +4,7 @@ Interview-style interrogation. The model asks questions one at a time, walks bra
 
 Auto-detects `./CONTEXT.md` (project-owned domain glossary, if present) and runs the with-docs flow: challenges fuzzy language against the glossary, cross-references with code, updates `./CONTEXT.md` inline as terms resolve, and offers to route precedent-setting decisions through `/research`.
 
-Adapted from `mattpocock/skills/engineering/grill-with-docs` — preserved the interrogation discipline + CONTEXT.md format; integrated with CCE's `/iterate` + `/research` routing and the DEC-016 spec/decision/vision guardrail.
+Adapted from `mattpocock/skills/engineering/grill-with-docs` — preserved the interrogation discipline + CONTEXT.md format; integrated with CCE's `/iterate` + `/research` routing and the spec-edit guardrail.
 
 ## Usage
 
@@ -30,7 +30,7 @@ This command has two invocation shapes. The no-args triage flow surfaces candida
 
 Interview relentlessly about every aspect until reaching a shared understanding. Walk down each branch of the design tree, resolving dependencies between decisions one-by-one. For each question, provide a recommended answer.
 
-**Work general-first** (DEC-023). Open at the conceptual level — establish the shape of the thing and confirm the frame — *then* descend into specifics. Don't lead with repo internals (file/field-level detail) before the general picture is shared; the deep dive lands better once the frame is agreed.
+**Work general-first**. Open at the conceptual level — establish the shape of the thing and confirm the frame — *then* descend into specifics. Don't lead with repo internals (file/field-level detail) before the general picture is shared; the deep dive lands better once the frame is agreed.
 
 **Ask questions one at a time.** Wait for the answer before moving on. If a question can be resolved by reading the codebase or other project state (`.claude/spec_v*.md`, decisions, vision docs), explore those instead of asking.
 
@@ -77,15 +77,15 @@ Interview relentlessly about every aspect until reaching a shared understanding.
 
 If any of the three is missing, skip the suggestion. When all three hold, route to `/research` (CCE's decision records go through research-agent → option matrix → user selection — see `.claude/rules/decisions.md`). `/grill` does **not** write to `.claude/support/decisions/` directly.
 
-### Routing findings to the merge queue (DEC-023)
+### Routing findings to the merge queue
 
 When grilling surfaces a finding that belongs in a vision or the spec — a sharpened term, a resolved fork, a needed change — route it so it isn't stranded when the conversation ends:
 
-- **Developing a vision in-session** → fold the finding straight into that vision's Open-forks tracker / sections (in-place; a vision is editable during development per the DEC-016 carve-out). No queue entry needed.
+- **Developing a vision in-session** → fold the finding straight into that vision's Open-forks tracker / sections (in-place; a vision is editable during development per the spec-edit guardrail's vision carve-out). No queue entry needed.
 - **Otherwise** (the target vision/spec isn't open here, or you're grilling a spec section directly) → append a `.claude/support/.spec-merge-queue.jsonl` entry (`source: grill`, `target: vision|spec`, `kind: term|decision|delta`, with `origin_ref` / `target_ref` / `summary`) so `/iterate` surfaces it on return. See `.claude/support/reference/merge-queue.md`.
 - **Decision-class findings** (the three-criteria test above) still route to `/research`; record them `kind: decision` in the queue too if they must also be remembered against a vision/spec.
 
-`/grill` proposes and records; it never writes spec/decision text directly (DEC-016).
+`/grill` proposes and records; it never writes spec/decision text directly (the spec-edit guardrail).
 
 ## `./CONTEXT.md` format
 
@@ -139,7 +139,7 @@ _Avoid_: Client, buyer, account
 
 ## Out of scope
 
-- **`/grill` does not write to `.claude/spec_v*.md`, `.claude/support/decisions/decision-*.md`, or `.claude/vision/**/*.md` directly.** The DEC-016 guardrail applies — substantive text changes to those files route through `/iterate`, `/research`, or user-paste-from-outside. `/grill` may *suggest* those routes when the conversation calls for them.
+- **`/grill` does not write to `.claude/spec_v*.md`, `.claude/support/decisions/decision-*.md`, or `.claude/vision/**/*.md` directly.** The spec-edit guardrail applies — substantive text changes to those files route through `/iterate`, `/research`, or user-paste-from-outside. `/grill` may *suggest* those routes when the conversation calls for them.
 - **`/grill` does not batch-extract terms from existing spec or code.** Per Pocock's deprecation lesson (`/ubiquitous-language` was deprecated for exactly this reason): pre-populated glossaries don't get maintained, organically-grown ones do. `/grill` populates `./CONTEXT.md` as terms resolve during conversation, never via batch scan.
 - **Multi-context monorepos (`CONTEXT-MAP.md`)** are deferred. CCE's single-spec model assumes one domain per project; revisit if a real multi-context project emerges.
 
@@ -158,7 +158,7 @@ They coexist. Don't collapse them.
 - **Before `/iterate distill`** — grill a vision doc to surface and resolve ambiguity, then distill the enriched doc into a spec.
 - **Before `/research`** — grill the design until you know which decision needs formal investigation, then route through `/research`.
 - **Mid-project** — when fuzzy language is creeping into the spec or code, run `/grill` to sharpen vocabulary and update `./CONTEXT.md`.
-- **Inverse sibling — `/shakedown`** — where `/grill` drills *down* to sharpen what you *mean*, `/shakedown` sweeps *across* to test the built system against real-use examples (acceptance-by-example). `/shakedown`'s Phase 0 reuses this command's interrogation discipline to build its lens, then runs the examples against it. See `.claude/commands/shakedown.md` (DEC-019).
+- **Inverse sibling — `/shakedown`** — where `/grill` drills *down* to sharpen what you *mean*, `/shakedown` sweeps *across* to test the built system against real-use examples (acceptance-by-example). `/shakedown`'s Phase 0 reuses this command's interrogation discipline to build its lens, then runs the examples against it. See `.claude/commands/shakedown.md`.
 
 ## References
 

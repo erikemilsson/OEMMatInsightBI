@@ -78,11 +78,11 @@ When breaking down tasks, IDs must not collide:
 
 #### 4. Dashboard Presence and META
 
-The dashboard is derived and gitignored (DEC-024): `dashboard-render.py --html` renders it whole from task JSON, decision records and the sidecar, so there are no rows or sections to reconcile.
+The dashboard is derived and gitignored: `dashboard-render.py --html` renders it whole from task JSON, decision records and the sidecar, so there are no rows or sections to reconcile.
 
 - **Presence:** with no `task-*.json` yet, `.claude/dashboard.html` may be absent (the first `/work` after decomposition generates it). Tasks exist but no file (e.g. a fresh clone): ⚠️.
 - **META parses:** the `<!-- DASHBOARD META` … `-->` comment holds one `key: value` per line, with the same keys as the META of a fresh `dashboard-render.py --html` run (currently the 15 in `dashboard-regeneration.md § "4. Compute and Add Metadata Block"`). Missing or extra keys (e.g. `session_*`): ⚠️. If regenerating doesn't clear a mismatch, that list is stale. Check 10 compares the values; Part 6 check 1 covers placement in `<head>` and the offline invariant.
-- **Legacy `.claude/dashboard.md`:** present → the pre-DEC-024 dashboard was never migrated: ⚠️. Regenerating migrates it first (`dashboard-regeneration.md` Step 2c), as `/work` Step 1a does.
+- **Legacy `.claude/dashboard.md`:** present → the pre-HTML Markdown dashboard was never migrated: ⚠️. Regenerating migrates it first (`dashboard-regeneration.md` Step 2c), as `/work` Step 1a does.
 
 For any of these, the fix is always: regenerate.
 
@@ -91,10 +91,10 @@ For any of these, the fix is always: regenerate.
 - `.claude/dashboard-state.json` should exist if dashboard.html exists
 - If missing: WARNING — "Dashboard state sidecar missing. Next dashboard regeneration will create it."
 - If present: validate JSON structure (required keys: user_notes, section_toggles, phase_gates, inline_feedback, custom_views_instructions, updated)
-- The sidecar is the **single source** for user content (DEC-024) — the read-only HTML has no in-file markers to cross-reference. Validate the sidecar's own consistency only (e.g., `phase_gates` statuses are `active`/`approved`)
+- The sidecar is the **single source** for user content — the read-only HTML has no in-file markers to cross-reference. Validate the sidecar's own consistency only (e.g., `phase_gates` statuses are `active`/`approved`)
 - `section_toggles` keys are among the four the renderer reads: `action_required`, `decisions`, `notes`, `custom_views`. It silently ignores any other key (e.g. `progress`, `tasks` from older first-regeneration defaults): ℹ️
 - `decisions: false` while decision records exist (likely the pre-v5.7.5 first-regen default): ℹ️ — the Decisions card stays hidden until the user sets it `true`
-- `augment_rows` (optional, FB-118) is a list of objects, each with a non-blank string `text` (schema: `dashboard-regeneration.md § "Dashboard State Sidecar"`). A non-list value (ignored), or an item that isn't an object or lacks such a `text` (skipped): ℹ️. A `kind` that isn't `action` or `fyi` (any case): ℹ️ — it renders as an action row
+- `augment_rows` (optional) is a list of objects, each with a non-blank string `text` (schema: `dashboard-regeneration.md § "Dashboard State Sidecar"`). A non-list value (ignored), or an item that isn't an object or lacks such a `text` (skipped): ℹ️. A `kind` that isn't `action` or `fyi` (any case): ℹ️ — it renders as an action row
 - These are report-only, with no fix row: the toggles are the user's to change, and judgment rows are the orchestrator's to rewrite
 
 #### 5. Status Rules
@@ -122,7 +122,7 @@ Detects tasks that may have bypassed the implement-agent or verify-agent workflo
 
 **Verification debt (ERRORS):**
 - Finished tasks MUST have a `task_verification` field with `result` of `"pass"`
-- `task_verification.checks` should have all 7 keys (`files_exist`, `consistency_check`, `spec_alignment`, `output_quality`, `runtime_validation`, `integration_ready`, `scope_validation`) with pass/fail values (or `"skipped"` only when result is `"fail"` due to timeout). Note: `runtime_validation` additionally allows `"not_applicable"` and `"partial"` as valid non-error values. **Exceptions:** (a) tasks with `owner: "human"` that have `checks.self_attested: "pass"` are exempt — human tasks use self-attestation instead of the standard checks. (b) Parent tasks (status `"Broken Down"` with non-empty `subtasks`, OR `"Finished"` with non-empty `subtasks` where every subtask is itself `"Finished"` with passing per-task verification) that have `checks.aggregate_subtask_verification: "pass"` are exempt — verification aggregates from subtasks (per FB-074).
+- `task_verification.checks` should have all 7 keys (`files_exist`, `consistency_check`, `spec_alignment`, `output_quality`, `runtime_validation`, `integration_ready`, `scope_validation`) with pass/fail values (or `"skipped"` only when result is `"fail"` due to timeout). Note: `runtime_validation` additionally allows `"not_applicable"` and `"partial"` as valid non-error values. **Exceptions:** (a) tasks with `owner: "human"` that have `checks.self_attested: "pass"` are exempt — human tasks use self-attestation instead of the standard checks. (b) Parent tasks (status `"Broken Down"` with non-empty `subtasks`, OR `"Finished"` with non-empty `subtasks` where every subtask is itself `"Finished"` with passing per-task verification) that have `checks.aggregate_subtask_verification: "pass"` are exempt — verification aggregates from subtasks.
 - If any check is `"fail"`, the overall `result` must also be `"fail"` — a check-level fail with a result-level pass is invalid
 - If any finished task lacks `task_verification`: **ERROR** — "Verification debt: N finished tasks missing verification"
 - If any finished task has `task_verification.result == "fail"`: **ERROR**
@@ -150,7 +150,7 @@ verification_debt = count of tasks where:
 
 **Note:** Workflow bypass warnings are informational. Some tasks may legitimately have brief notes. The intent is to surface patterns, not block individual tasks.
 
-**Acceptance-status authority (DEC-022):** `.claude/verification-result.json`'s `criteria[]` (rendered as the dashboard's Acceptance-criteria section) is the authoritative surface for "phase acceptance criteria met." If a project also renders acceptance criteria as inline `- [ ]` boxes in the spec, those are authored input, not live status — do not treat unticked spec boxes as a completion failure. `/audit-coherence`'s `acceptance-reconciliation` lens surfaces box-vs-`criteria[]` divergence advisorily.
+**Acceptance-status authority:** `.claude/verification-result.json`'s `criteria[]` (rendered as the dashboard's Acceptance-criteria section) is the authoritative surface for "phase acceptance criteria met." If a project also renders acceptance criteria as inline `- [ ]` boxes in the spec, those are authored input, not live status — do not treat unticked spec boxes as a completion failure. `/audit-coherence`'s `acceptance-reconciliation` lens surfaces box-vs-`criteria[]` divergence advisorily.
 
 **Script alternative:** `.claude/scripts/validate-tasks.py .claude/tasks` runs schema + verification-debt checks deterministically and prints a combined report. `--json` flag emits structured output for downstream consumption. It also lists tasks without section provenance (`provenance_warnings`, never an error; check 11 acts on them).
 
@@ -167,7 +167,7 @@ Reports tasks with `"out_of_spec": true` in a separate section of the report. In
 #### 10. Dashboard Staleness
 
 **Task state hash check:**
-1. Compute: `python3 .claude/scripts/dashboard-render.py --task-hash` — the canonical convention (sha256 over sorted `id:status:difficulty:owner:review` rows, `review` = `1` when `user_review_pending` is true else `0`, newline-joined + trailing newline). Hand-compute only when the script is unavailable. Do NOT use `fingerprint.py --dashboard-rollup` (different algorithm). A dashboard rendered before the `review` field (FB-118) reads stale once; regenerating clears it.
+1. Compute: `python3 .claude/scripts/dashboard-render.py --task-hash` — the canonical convention (sha256 over sorted `id:status:difficulty:owner:review` rows, `review` = `1` when `user_review_pending` is true else `0`, newline-joined + trailing newline). Hand-compute only when the script is unavailable. Do NOT use `fingerprint.py --dashboard-rollup` (different algorithm). A dashboard rendered before the `review` field reads stale once; regenerating clears it.
 2. Read dashboard metadata block (if exists)
 3. Compare hashes — if different, dashboard is stale
 4. Compare META `spec_fingerprint` with the current spec hash (`python3 .claude/scripts/fingerprint.py --spec .claude/spec_v{N}.md`, which hashes the file's bytes) — if different, dashboard is stale (the same check as `/work` Step 1a)
@@ -194,7 +194,7 @@ A dashboard can be content-stale (task hash or spec hash mismatch), format-stale
 - For each task with `decision_dependencies`, verify each entry matches pattern `DEC-\d+`
 - Invalid format: ERROR — "Task {id} has malformed decision dependency `{value}`"
 
-**Section provenance baseline (FB-135):**
+**Section provenance baseline:**
 
 Tasks created before v5.13.0 outside decomposition often carry no `section_fingerprint`, so the drift check counts them in `no_provenance` and can't see an edit to their section. Run `python3 .claude/scripts/fingerprint.py --baseline .claude` (read-only). It proposes one `action` per such task (`tasks[]`) and totals them in `counts`; tasks with `spec_unmapped: true` are not listed. Report the four counts, taken from this output and not from `validate-tasks.py`'s `provenance_warnings` (that list also holds tasks of an older spec version, which the drift check treats as historical). All zero: `✓`, nothing queued. Only `report_only` above zero: `✓` with the `ℹ️` line below, nothing queued. `spec: null` (no current spec): skip this sub-check.
 
@@ -343,12 +343,12 @@ Validates that the expected template rule files exist in `.claude/rules/`.
 
 **Checks:**
 - Each expected file exists
-- No expected file exceeds 220 lines (raised from 200 per FB-074 — accommodates genuinely rich procedures such as `feature-retirement.md`)
+- No expected file exceeds 220 lines (raised from 200 — accommodates genuinely rich procedures such as `feature-retirement.md`)
 - User-created rule files (`project-*.md`) are noted as informational
 
 ---
 
-### Part 2d: Capability Doc Freshness (DEC-017)
+### Part 2d: Capability Doc Freshness
 
 Validates that `.claude/support/reference/claude-code-authoring.md` has been verified against Claude Code docs within the staleness threshold.
 
@@ -373,12 +373,12 @@ Validates that `.claude/support/reference/claude-code-authoring.md` has been ver
    - WebFetch the docs URL from the footer
    - Diff the fetched content against the current doc body section by section
    - Present each diff as `[A] Accept change | [R] Reject (keep current) | [S] Skip section`
-   - On any accept, update the doc body for that section, then Grep the other `.claude/` files for the old claim and list any restatements for the same fix (facts get restated outside the capability doc: `rules/agents.md` kept "no nested `Task` calls" after the doc was corrected, FB-121)
+   - On any accept, update the doc body for that section, then Grep the other `.claude/` files for the old claim and list any restatements for the same fix (facts get restated outside the capability doc: `rules/agents.md` kept "no nested `Task` calls" after the doc was corrected)
    - After all sections processed, update the footer date to today + `template_version` from `.claude/version.json`
 8. If the row is excluded: leave doc unchanged, leave footer unchanged (the warning resurfaces next run).
 9. If the user replies `{id}: defer`: write a sentinel in `.claude/dashboard-state.json` (`capability_doc_defer_until: YYYY-MM-DD`, 30 days from today) to suppress the Part 2d warning until that date. Next `/health-check` after the defer-until date will surface the warning again.
 
-**Why this matters:** the capability doc encodes load-bearing facts about Claude Code (turn-scoped `model:` / `effort:`, subagent isolation, MCP constraints, Agent tool model granularity, skill content lifecycle). These facts evolve as Claude Code ships features. The footer + lens combination keeps the reference doc honest without silent auto-sync (which would risk silent contradiction with current spec) and without requiring maintainer-driven version pinning (which decouples from Claude Code's release cadence). See DEC-017 for full rationale.
+**Why this matters:** the capability doc encodes load-bearing facts about Claude Code (turn-scoped `model:` / `effort:`, subagent isolation, MCP constraints, Agent tool model granularity, skill content lifecycle). These facts evolve as Claude Code ships features. The footer + lens combination keeps the reference doc honest without silent auto-sync (which would risk silent contradiction with current spec) and without requiring maintainer-driven version pinning (which decouples from Claude Code's release cadence).
 
 ---
 
@@ -400,7 +400,7 @@ Each `decision-*.md` file must have valid frontmatter:
 - `id` - Format: `DEC-NNN` (e.g., DEC-001, DEC-042). Must match `\d+` pattern after `DEC-`. The numeric portion must match the filename: `decision-{NNN}-*.md` → frontmatter `id: DEC-{NNN}`. Mismatch is an ERROR.
 - `title` - Non-empty string
 - `status` - One of: `draft`, `proposed`, `recorded`, `approved`, `implemented`, `superseded`, `partially_superseded`
-- `category` - One of: `architecture`, `technology`, `process`, `scope`, `methodology`, `vendor`, `ux`, `design`, `ui-ia`, `ui-content` (UI-side categories added per FB-074 — see `.claude/support/reference/decisions.md § Categories` for definitions)
+- `category` - One of: `architecture`, `technology`, `process`, `scope`, `methodology`, `vendor`, `ux`, `design`, `ui-ia`, `ui-content` (see `.claude/support/reference/decisions.md § Categories` for definitions)
 - `created` - Valid date in YYYY-MM-DD format
 
 **Optional fields:**
@@ -483,7 +483,7 @@ Per the Fix Queue Protocol: each detected issue queues one fix item; "Ask user: 
 | `## Selected` heading, no `## Decision` (check 4) | Rename the heading line to `## Decision`, body untouched. One row per record, `⚠ edits decision record` |
 | Task references non-existent decision | Ask user: remove dependency or create the decision record |
 
-The legacy and `## Selected` rows, like every fix here that edits a decision record, trigger DEC-016's `permissions.ask` prompt when applied (once per session with "Yes, don't ask again"). That's expected: check 7's fix is frontmatter-only, and the rename changes a heading label, not the decision's text.
+The legacy and `## Selected` rows, like every fix here that edits a decision record, trigger the spec-edit guardrail's `permissions.ask` prompt when applied (once per session with "Yes, don't ask again"). That's expected: check 7's fix is frontmatter-only, and the rename changes a heading label, not the decision's text.
 
 ### Non-Fixable Issues (Manual Required)
 
@@ -527,7 +527,7 @@ Scan non-canonical locations for `spec_v*.md` files:
 
 For archived specs where tasks reference that version, check if `spec_v{i}_decomposed.md` exists. Warning-level only.
 
-#### 5. Untracked Source-of-Truth (informational, FB-099)
+#### 5. Untracked Source-of-Truth (informational)
 
 The project's authored memory under `.claude/` — the spec (`.claude/spec_v*.md`), task files (`.claude/tasks/`), and decision records (`.claude/support/decisions/`) — is the source of truth. When a project gitignores these paths (a deliberate fork convention in some projects), they are never committed: invisible to git history, `git diff`, and recovery. This check surfaces that once per run so the choice is conscious, not accidental. It never blocks and never auto-fixes.
 
@@ -542,7 +542,7 @@ IF any are ignored → Info (not a warning), once per run:
    If not, removing the ignore rule restores git's safety net."
 ```
 
-Use `git check-ignore` (reliable exit-code semantics), not a grep against `.gitignore` text — a path can be ignored by a parent-directory or negated rule that a literal grep misses. Informational only; respects deliberate conventions. Distinct from FB-063 (worktree reads of gitignored state) and `/work` Step 0e (uncommitted *tracked* work — the inverse: tracked `.claude/` files that git *does* see).
+Use `git check-ignore` (reliable exit-code semantics), not a grep against `.gitignore` text — a path can be ignored by a parent-directory or negated rule that a literal grep misses. Informational only; respects deliberate conventions. Distinct from worktree reads of gitignored state and `/work` Step 0e (uncommitted *tracked* work — the inverse: tracked `.claude/` files that git *does* see).
 
 ### Archive Auto-Fixes
 
@@ -814,7 +814,7 @@ Never delete or rename custom commands without user consent.
 
 ## Part 5c: Settings Boundary Validation
 
-Validates the layered-settings contract: `.claude/settings.json` is template-owned (base `permissions.allow` + base `permissions.ask` per DEC-016); `.claude/settings.local.json` is user-owned (all user additions, hooks, env vars, theme). Enforcing the boundary prevents template sync from silently clobbering user edits.
+Validates the layered-settings contract: `.claude/settings.json` is template-owned (base `permissions.allow` + base `permissions.ask`); `.claude/settings.local.json` is user-owned (all user additions, hooks, env vars, theme). Enforcing the boundary prevents template sync from silently clobbering user edits.
 
 ### Process
 
@@ -848,7 +848,7 @@ Validates the layered-settings contract: `.claude/settings.json` is template-own
 
 ### Rationale
 
-Claude Code's runtime concatenates `permissions.allow[]` and `permissions.ask[]` across all settings layers, so the user's additions in `settings.local.json` combine automatically with the template's base in `settings.json`. The template-owned file exists for two jobs: shipping a conservative base allow-set (read-only git/filesystem commands) AND a base ask-set (template-wide guardrails for spec/decision/vision file edits per DEC-016). Everything else (project-specific permissions, hooks, env vars, theme) belongs in the user-owned file.
+Claude Code's runtime concatenates `permissions.allow[]` and `permissions.ask[]` across all settings layers, so the user's additions in `settings.local.json` combine automatically with the template's base in `settings.json`. The template-owned file exists for two jobs: shipping a conservative base allow-set (read-only git/filesystem commands) AND a base ask-set (template-wide guardrails for spec/decision/vision file edits). Everything else (project-specific permissions, hooks, env vars, theme) belongs in the user-owned file.
 
 ---
 
@@ -920,7 +920,7 @@ The check catalog starts minimal and grows based on real usage feedback. Initial
 
 #### 1. Dashboard HTML Integrity (H3 — Visualization Integrity)
 
-The dashboard is generated HTML (DEC-024); the script owns all rendering deterministically (graph scaling, heatmap, collapsing), so readability is script-guaranteed. This check instead guards the `file://` offline invariant: scan `dashboard.html`.
+The dashboard is generated HTML; the script owns all rendering deterministically (graph scaling, heatmap, collapsing), so readability is script-guaranteed. This check instead guards the `file://` offline invariant: scan `dashboard.html`.
 
 | Condition | Result | Severity |
 |-----------|--------|----------|
@@ -957,7 +957,7 @@ Script-owned rows are exempt from 4a and 4b: the renderer emits them (with their
 | Every action row has a command or link (or there are none) | Pass | — |
 | Action row with neither | Error per row: "Augment row '{text}' has no command or link — add one to its `augment_rows` entry, or set `kind: \"fyi\"` if it asks nothing of the user." | 3 |
 
-**4b. Summary-shape content (FB-015 / FB-038).** Scan the "Also Needs You" rows (both kinds) for retrospective content that violates the rule in `support/reference/dashboard-regeneration.md` § Action Item Contract ("must NOT include work summaries, completion reports, or recent-activity recaps").
+**4b. Summary-shape content.** Scan the "Also Needs You" rows (both kinds) for retrospective content that violates the rule in `support/reference/dashboard-regeneration.md` § Action Item Contract ("must NOT include work summaries, completion reports, or recent-activity recaps").
 
 Detection heuristics — flag if ANY match:
 
@@ -990,7 +990,7 @@ New checks should be added when:
 - The check has a clear structural signal (can be verified from file content, not rendering)
 - The threshold has low false-positive risk
 
-Add new checks to the appropriate heuristic category (H1-H6) with a severity rating. DEC-001 interaction logs will be a source of new check candidates once implemented.
+Add new checks to the appropriate heuristic category (H1-H6) with a severity rating. Cross-project interaction logs will be a source of new check candidates once implemented.
 
 ---
 

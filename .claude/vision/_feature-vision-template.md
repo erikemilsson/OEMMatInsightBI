@@ -2,7 +2,7 @@
 # FEATURE VISION SCAFFOLD — copy to `.claude/vision/<feature-slug>.md`, fill in, delete these comment lines.
 # `_`-prefixed files are scaffolds, not visions: `/iterate distill` and other consumers skip them.
 # A vision is the development HUB for a larger feature: develop it broadly here (repeated /grill + /shakedown
-# passes) until tight, then graduate to the spec via /iterate. See DEC-023 + .claude/rules/spec-workflow.md.
+# passes) until tight, then graduate to the spec via /iterate. See .claude/rules/spec-workflow.md.
 status: vision            # lifecycle: vision → distilled-to-spec → historical
 captured: YYYY-MM-DD
 author:                   # you (+ "(dictated)" if relevant)
@@ -74,6 +74,6 @@ scope_out:                # one line: what it deliberately is NOT (the boundary)
 
 ---
 
-<!-- IMMUTABILITY (DEC-016 as amended by DEC-023): a vision is EDITABLE while developing (maturity 🟡/🔵).
+<!-- IMMUTABILITY: a vision is EDITABLE while developing (maturity 🟡/🔵).
      Once a thread graduates to spec (maturity 🟢), it is READ-ONLY here — further changes route through /iterate
      against the spec, not by editing this vision. Set `status: distilled-to-spec` when fully graduated. -->

@@ -19,7 +19,7 @@ When a `/work` session reaches a natural stopping point (blocking issue, end of 
 
 ## Concurrent Sessions (conventions only — no structural model)
 
-The template assumes one session per repo; there is no structural concurrency model (FB-104). When two sessions knowingly run on one repo:
+The template assumes one session per repo; there is no structural concurrency model. When two sessions knowingly run on one repo:
 
 - **Single committer:** designate one session as the committer; the other leaves its files uncommitted and reports them at pause. Two sessions poised to commit produce git-index races and provenance-entangled commits (for example, one session's `git add` sweeping the other's tracked edits).
 - Handoffs that belong to a concurrent session are **preserved, not consumed** (`work.md` Step 0a exception).

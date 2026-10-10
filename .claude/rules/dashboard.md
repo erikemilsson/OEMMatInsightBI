@@ -2,7 +2,7 @@
 
 ## Navigation Hub
 
-The dashboard at `.claude/dashboard.html` is the primary navigation hub during the build phase — a **single read-only, offline, `file://`-openable HTML page** (DEC-024). It surfaces what needs attention with links to specific files (spec, decisions, tasks). The user reads it for overview and acts via the CLI; it is not edited in-place.
+The dashboard at `.claude/dashboard.html` is the primary navigation hub during the build phase — a **single read-only, offline, `file://`-openable HTML page**. It surfaces what needs attention with links to specific files (spec, decisions, tasks). The user reads it for overview and acts via the CLI; it is not edited in-place.
 
 ## Interaction Modes
 
@@ -20,12 +20,12 @@ The dashboard is regenerated whole by the script (`dashboard-render.py --html`) 
 
 A full regen is cheap (a single script call), so any Tier-1 trigger runs a full regen.
 
-**Script-first (DEC-024):** full regens render the entire HTML — structural sections + inline-SVG visualizations — via `python3 .claude/scripts/dashboard-render.py --html > .claude/dashboard.html` (the script writes to **stdout**; the redirect lands the on-disk file — omitting it silently leaves `dashboard.html` stale with no error). The orchestrator then fills Custom Views content when that section is on. See `dashboard-regeneration.md § "Script-First Rendering — HTML target"` for the division of labor and the canonical `task_hash` mode.
+**Script-first:** full regens render the entire HTML — structural sections + inline-SVG visualizations — via `python3 .claude/scripts/dashboard-render.py --html > .claude/dashboard.html` (the script writes to **stdout**; the redirect lands the on-disk file — omitting it silently leaves `dashboard.html` stale with no error). The orchestrator then fills Custom Views content when that section is on. See `dashboard-regeneration.md § "Script-First Rendering — HTML target"` for the division of labor and the canonical `task_hash` mode.
 
 ## Sections
 
 Sections render from data; only four have a switch in sidecar `section_toggles` (`.claude/dashboard-state.json`; edit it or ask Claude): `action_required`, `decisions`, `notes` (default on), `custom_views` (off). Other keys are ignored. Sections:
-- 🚨 Action Required ("Needs you" card) — decisions, tasks, reviews needing user input. **Script-rendered** (FB-105, FB-118): the script derives every mechanical row (task rows, unresolved decisions, the agent-decision ratify row, verification debt, changed spec sections and drift deferrals, audit findings, feedback counts, out-of-spec reviews) from state; judgment rows go in sidecar `augment_rows[]`, then regenerate (never edit the HTML). **Human-gated coverage invariant:** every item blocked on the user must appear here with the concrete question/action inline; handoff prose must never be a blocking item's only home. The script covers `owner: human` tasks with satisfied dependencies, tasks awaiting review (any owner), Blocked tasks owned by human/both or escalated (≥3 attempts), On Hold tasks and unresolved decisions; the rest (unanswered questions from a paused session, any Blocked task's open choice) needs an `augment_rows[]` entry. `/work` prints this queue at session start (Step 0g) and sweeps it at pause.
+- 🚨 Action Required ("Needs you" card) — decisions, tasks, reviews needing user input. **Script-rendered**: the script derives every mechanical row (task rows, unresolved decisions, the agent-decision ratify row, verification debt, changed spec sections and drift deferrals, audit findings, feedback counts, out-of-spec reviews) from state; judgment rows go in sidecar `augment_rows[]`, then regenerate (never edit the HTML). **Human-gated coverage invariant:** every item blocked on the user must appear here with the concrete question/action inline; handoff prose must never be a blocking item's only home. The script covers `owner: human` tasks with satisfied dependencies, tasks awaiting review (any owner), Blocked tasks owned by human/both or escalated (≥3 attempts), On Hold tasks and unresolved decisions; the rest (unanswered questions from a paused session, any Blocked task's open choice) needs an `augment_rows[]` entry. `/work` prints this queue at session start (Step 0g) and sweeps it at pause.
 - 📊 Pulse + Phase map — completion ring with status segments, count chips, phase heatmap, active-front cards
 - 🔀 Flow — inline-SVG dependency graph + critical path (auto-hidden when degenerate)
 - 🗓️ Timeline — due dates / external dependencies (when present)

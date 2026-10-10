@@ -91,7 +91,7 @@ The slug must match the manifest's `feature_slug` field and the directory name e
 
 ### Step 4 — Spec Annotation (do NOT excise)
 
-At the spec section originally describing the retired feature, **add a marker line** at the top of the section, through `/iterate` like any spec edit (DEC-016). Do **not** delete the section content.
+At the spec section originally describing the retired feature, **add a marker line** at the top of the section, through `/iterate` like any spec edit. Do **not** delete the section content.
 
 **Pattern:**
 
@@ -151,7 +151,7 @@ git rev-parse "$RETIRE^"                                        # pin check: sho
 
 Every route ends the same way:
 - The snapshot directory is gone: `git rm -rq .claude/support/retired/$SLUG` if it is still there (this also settles a revert conflict on a manifest edited after the retirement).
-- Git has changed no spec file or decision record (both DEC-016-gated): if the revert or apply touched one, put it back with `git checkout HEAD -- <path>`: `.claude/spec_v*.md`, an archived copy under `.claude/support/previous_specifications/`, or `.claude/support/decisions/decision-*.md`. The marker comes out through `/iterate` (gotchas below); a decision change goes through `/research`.
+- Git has changed no spec file or decision record (both gated against direct edits): if the revert or apply touched one, put it back with `git checkout HEAD -- <path>`: `.claude/spec_v*.md`, an archived copy under `.claude/support/previous_specifications/`, or `.claude/support/decisions/decision-*.md`. The marker comes out through `/iterate` (gotchas below); a decision change goes through `/research`.
 
 Then check the gotchas and run the tests and build.
 

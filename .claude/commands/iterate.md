@@ -68,7 +68,7 @@ IF `new` or `refined` count > 0 (but no `ready` items):
 
 IF no feedback items exist or file doesn't exist: continue silently.
 
-### Step 1c: Drain the Merge Queue (DEC-023)
+### Step 1c: Drain the Merge Queue
 
 Read `.claude/support/.spec-merge-queue.jsonl` if it exists (see `.claude/support/reference/merge-queue.md`). This is the **re-entry transport**: findings that `/grill`, `/shakedown`, or `/feedback` surfaced in *other* conversations, waiting to be folded into a vision or the spec. Draining it here is what turns an excursion's output back into the flow without the user re-stating it from memory.
 
@@ -82,11 +82,11 @@ IF open count > 0:
   — 1 sharpened term from grill (target: spec § 12.4)
   ```
   Options:
-  - `[Y]` Fold all in — apply each by `target`: `spec` items become Step 4 change-declaration inputs (normal propose-approve-apply); `vision` items fold into the named vision doc in-place (allowed during development per the DEC-016 vision carve-out). On apply, set the item's `status: merged`.
+  - `[Y]` Fold all in — apply each by `target`: `spec` items become Step 4 change-declaration inputs (normal propose-approve-apply); `vision` items fold into the named vision doc in-place (allowed during development per the spec-edit guardrail's vision carve-out). On apply, set the item's `status: merged`.
   - `[R]` Review each — walk items one at a time; fold or `dismiss` individually.
   - `[S]` Skip — leave items `open` for a later session.
 
-  **`needs_impact_assessment: true` items are held back** — do not apply them here; route them to `/feedback` for impact assessment first (DEC-023 G2), then they return as ordinary items.
+  **`needs_impact_assessment: true` items are held back** — do not apply them here; route them to `/feedback` for impact assessment first, then they return as ordinary items.
 
 IF no open items or file doesn't exist: continue silently.
 
@@ -326,7 +326,7 @@ Generate focused questions for the target area. Questions should:
 
 ### Step 4: Propose Changes (Change Declaration)
 
-**Capability-claim cross-check (DEC-017):** before proposing spec text that references Claude Code primitives (skill `model:`/`effort:` frontmatter, subagent dispatch, MCP fan-out, `Agent` tool model granularity, `Skill` tool invocation, parallel execution boundaries, slash-command invocation gates), confirm the claims against `.claude/support/reference/claude-code-authoring.md`. The most common drift class: spec text describes runtime model-switching as a feature of multi-turn skills, but `model:` frontmatter is turn-scoped, not session-scoped. The reference doc is the canonical home for these load-bearing platform facts.
+**Capability-claim cross-check:** before proposing spec text that references Claude Code primitives (skill `model:`/`effort:` frontmatter, subagent dispatch, MCP fan-out, `Agent` tool model granularity, `Skill` tool invocation, parallel execution boundaries, slash-command invocation gates), confirm the claims against `.claude/support/reference/claude-code-authoring.md`. The most common drift class: spec text describes runtime model-switching as a feature of multi-turn skills, but `model:` frontmatter is turn-scoped, not session-scoped. The reference doc is the canonical home for these load-bearing platform facts.
 
 Based on answers, present an explicit change declaration — not copy-pasteable blocks, but a structured proposal the user can review and approve:
 
@@ -397,7 +397,7 @@ Mark each change with its origin: `[requested]`, `[proposed]`, or `[assumption]`
 - `[M]` walks the unchecked items one at a time (per-item resolution, preserved for when the user wants the guided pass), then applies.
 - If any item remains unresolved after the response (e.g., an override referenced a nonexistent `N{n}`), block apply and ask about the unresolved items only.
 
-**Visibility is non-negotiable (FB-032):** batch resolution compresses *responses*, never *information* — the full enumeration with origin tags and proposed text always precedes the single response. Never trim the table to make batching feel lighter. DEC-016 compliance is unchanged: the declaration remains the audit trail of intent, and the `permissions.ask` gate still fires on the spec write — DEC-016 requires routing through `/iterate`, never N serial prompts.
+**Visibility is non-negotiable:** batch resolution compresses *responses*, never *information* — the full enumeration with origin tags and proposed text always precedes the single response. Never trim the table to make batching feel lighter. Spec-edit guardrail compliance is unchanged: the declaration remains the audit trail of intent, and the `permissions.ask` gate still fires on the spec write — the guardrail requires routing through `/iterate`, never N serial prompts.
 
 Based on user response:
 
@@ -407,13 +407,13 @@ Based on user response:
 - **[P] Postpone (or [N]):** No changes applied. The proposal can be revisited on the next `/iterate` run.
 - **Free text:** Treat as modification instructions — revise the declaration and re-present (the previous `[M] Modify` semantics).
 
-**Dated anchors (FB-115):** if a change moves a "measured / as of YYYY-MM-DD" anchor, re-measure every figure that anchor governs before applying, or keep the old date. Moving the date alone re-certifies figures nobody checked.
+**Dated anchors:** if a change moves a "measured / as of YYYY-MM-DD" anchor, re-measure every figure that anchor governs before applying, or keep the old date. Moving the date alone re-certifies figures nobody checked.
 
-**Post-apply spec-index refresh (DEC-021):** after any apply that edited the spec, regenerate the section index so the next section-scoped read isn't stale: `python3 .claude/scripts/fingerprint.py --index .claude/spec_v{N}.md > .claude/spec_v{N}.index.json` (the script prints to stdout — the redirect writes the file). Make any frontmatter edit (`updated:`, version) BEFORE this step: frontmatter changes the file hash, and regenerating first then editing frontmatter leaves the index stale again (observed downstream, regenerated twice).
+**Post-apply spec-index refresh:** after any apply that edited the spec, regenerate the section index so the next section-scoped read isn't stale: `python3 .claude/scripts/fingerprint.py --index .claude/spec_v{N}.md > .claude/spec_v{N}.index.json` (the script prints to stdout — the redirect writes the file). Make any frontmatter edit (`updated:`, version) BEFORE this step: frontmatter changes the file hash, and regenerating first then editing frontmatter leaves the index stale again (observed downstream, regenerated twice).
 
-**Post-apply new-section marker (FB-106):** if the apply added one or more NEW `## ` sections, append their headings to `pending_decomposition[]` in `.claude/dashboard-state.json` (create the array if absent; de-duplicate). `/work` Step 1a consumes it and offers decomposition. Without this marker the new section is silently never decomposed: the drift check only compares existing tasks with their sections, and a new section has no tasks. Only genuinely new sections go in the array.
+**Post-apply new-section marker:** if the apply added one or more NEW `## ` sections, append their headings to `pending_decomposition[]` in `.claude/dashboard-state.json` (create the array if absent; de-duplicate). `/work` Step 1a consumes it and offers decomposition. Without this marker the new section is silently never decomposed: the drift check only compares existing tasks with their sections, and a new section has no tasks. Only genuinely new sections go in the array.
 
-**Edited existing sections need no marker (FB-128):** `/work`'s drift check (`fingerprint.py --drift`) compares every task's section fingerprint with the current spec on each run, so an edit to a section that already has tasks surfaces at the next `/work` whatever dashboard regens happen in between.
+**Edited existing sections need no marker:** `/work`'s drift check (`fingerprint.py --drift`) compares every task's section fingerprint with the current spec on each run, so an edit to a section that already has tasks surfaces at the next `/work` whatever dashboard regens happen in between.
 
 After applying (or skipping):
 

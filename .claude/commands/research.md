@@ -27,7 +27,7 @@ Investigate options for decisions, technology choices, or architectural question
 
 **Authority boundary:** The research agent populates options and evidence. It does NOT make decisions. The user selects the option via the decision record's checkbox mechanism.
 
-**Research agent CAN:** populate comparison matrices, draft the research archive, propose `status: proposed`, add questions, state recommendations — all returned in its report. Subagents can't write `.claude/` paths (DEC-004, `rules/agents.md § State Ownership`); this command writes them in Step 4.
+**Research agent CAN:** populate comparison matrices, draft the research archive, propose `status: proposed`, add questions, state recommendations — all returned in its report. Subagents can't write `.claude/` paths (`rules/agents.md § State Ownership`); this command writes them in Step 4.
 
 **Research agent CANNOT:** write files, check selection checkboxes, approve decisions, touch spec or task files.
 
@@ -101,12 +101,12 @@ Agent tool call:
 
 After the research agent returns its report:
 
-1. **Persist the returned artifacts** (the agent can't write `.claude/` paths — DEC-004):
+1. **Persist the returned artifacts** (the agent can't write `.claude/` paths):
    - Write the research archive to the path the report gives (`.claude/support/decisions/.archive/YYYY-MM-DD_{decision-slug}.md`).
    - Apply each anchored edit to the decision record: find the anchor verbatim and replace what it covers with the replacement — for a line anchor, that line. For a heading anchor, the replacement is the body beneath it, up to the next heading of the same or higher level; the heading line itself stays. An anchor that doesn't match exactly once is not applied — don't guess; tell the user and show the edit.
    - Apply the frontmatter change, if any (`status: proposed` replaces `draft` only).
    - Skip any edit that checks a selection box or rewrites user text in `## Your Notes & Constraints` (authority boundary, § Rules).
-   - The record edits trigger DEC-016's `permissions.ask` prompt. That's expected: this is the sanctioned route for decision-record edits (`rules/spec-workflow.md § "Direct edits to spec, decision, and vision files (DEC-016)"`).
+   - The record edits trigger the spec-edit guardrail's `permissions.ask` prompt. That's expected: this is the sanctioned route for decision-record edits (`rules/spec-workflow.md § "Direct edits to spec, decision, and vision files"`).
    - If no record existed, the report carries suggested record content instead of edits: write the archive and present the suggestion to the user.
 
 2. **Read the updated decision record** (or suggested content if no record existed)

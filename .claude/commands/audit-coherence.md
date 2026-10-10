@@ -46,7 +46,7 @@ Seven lenses, each running as a fresh-context sub-agent in parallel:
 | `feedback-decay` | `FB-*` entries open >30 days with no status change | Parse feedback.md status fields |
 | `retired-features` | Manifests in `.claude/support/retired/` without a corresponding retirement marker in spec | Filesystem + spec scan |
 | `friction-register` | Cluster open `friction.jsonl` entries by `kind` and `source_anchor`, surface high-frequency themes | Read register + thematic grouping |
-| `acceptance-reconciliation` | Spec inline `- [ ]` acceptance boxes unticked despite a verified phase PASS, across **all completed phases** — DEC-022 | Spec box scan + verification-result (latest, authoritative) + per-phase task-verification rollup (history, proxy); advisory |
+| `acceptance-reconciliation` | Spec inline `- [ ]` acceptance boxes unticked despite a verified phase PASS, across **all completed phases** | Spec box scan + verification-result (latest, authoritative) + per-phase task-verification rollup (history, proxy); advisory |
 
 Bias preservation: each lens runs with no knowledge of other lenses' output, mirroring `audit-ui`'s context-separation pattern.
 
@@ -63,7 +63,7 @@ Bias preservation: each lens runs with no knowledge of other lenses' output, mir
 │   ├── feedback-status.json     # parsed FB-* entries with status + age
 │   ├── retired-manifests.json   # contents of all .claude/support/retired/*/manifest.json
 │   ├── verification-result.json # copy of .claude/verification-result.json (LATEST phase criteria[]) if present
-│   ├── phase-verification.json  # per-phase task-verification rollup (historical proxy — DEC-022 v4.27.0)
+│   ├── phase-verification.json  # per-phase task-verification rollup (historical proxy — v4.27.0)
 │   └── meta.json                # audit run config: timestamp, lenses requested, --since filter
 ├── lenses/
 │   ├── superseded-decisions.md
@@ -78,7 +78,7 @@ Bias preservation: each lens runs with no knowledge of other lenses' output, mir
 └── synth-input.md               # concatenated lens output passed to synthesizer (audit trail)
 ```
 
-Project rule (DEC-004): sub-agents cannot write to `.claude/`. The orchestrator (this command, running in the main conversation) handles all writes. Sub-agents return their report as text; the orchestrator saves it.
+Project rule: sub-agents cannot write to `.claude/`. The orchestrator (this command, running in the main conversation) handles all writes. Sub-agents return their report as text; the orchestrator saves it.
 
 ---
 
@@ -376,7 +376,7 @@ If the register is empty or has <3 open entries, return `Findings: 0` — no pre
 ### Lens 7 — `acceptance-reconciliation`
 
 ```
-You are auditing a project for the ACCEPTANCE-RECONCILIATION lens only (DEC-022).
+You are auditing a project for the ACCEPTANCE-RECONCILIATION lens only.
 
 Read:
 - {AUDIT_DIR}/inputs/verification-result.json — the LATEST phase-level verification result (`criteria[]` of `{name, status, notes}`; may be `{}` if absent). AUTHORITATIVE for the phase it covers.
@@ -385,9 +385,9 @@ Read:
 
 **This lens only applies when the project renders acceptance criteria as inline `- [ ]` / `- [x]` checkboxes in the spec.** If the spec has no inline acceptance checkboxes, return `Findings: 0` — there is nothing to reconcile (inline boxes are an optional project convention).
 
-Background (DEC-022): the AUTHORITATIVE acceptance-*status* surface is `verification-result.json` `criteria[]` (rendered as the dashboard's Acceptance-criteria section). Inline spec `- [ ]` boxes are authored input and are NOT auto-ticked on phase PASS — so they can read stale. This lens surfaces that staleness ADVISORILY across ALL completed phases; it never edits the spec.
+Background: the AUTHORITATIVE acceptance-*status* surface is `verification-result.json` `criteria[]` (rendered as the dashboard's Acceptance-criteria section). Inline spec `- [ ]` boxes are authored input and are NOT auto-ticked on phase PASS — so they can read stale. This lens surfaces that staleness ADVISORILY across ALL completed phases; it never edits the spec.
 
-**Two evidence tiers (DEC-022 v4.27.0 — full historical reconciliation).** `verification-result.json` is overwritten each phase, so it only holds the latest phase's `criteria[]`. To reconcile earlier phases too:
+**Two evidence tiers (v4.27.0 — full historical reconciliation).** `verification-result.json` is overwritten each phase, so it only holds the latest phase's `criteria[]`. To reconcile earlier phases too:
 - **Authoritative (the latest phase):** use `verification-result.json`'s real `criteria[]` PASS/FAIL.
 - **Proxy (earlier completed phases):** use `phase-verification.json` — a phase with `phase_complete: true` is done, so its unticked acceptance boxes are stale. There is no persisted `criteria[]` for these phases, so label the finding as a per-task proxy.
 
@@ -398,7 +398,7 @@ What counts:
 Your method:
 1. Scan the active spec for inline acceptance checkboxes (`- [ ]` / `- [x]`), grouping by the phase / section they sit under. If none, return Findings: 0.
 2. For each phase that renders boxes, determine its verified status: the latest phase → `verification-result.json` (`result` + `criteria[]`); any other phase → look up `phase_complete` in `phase-verification.json` by `phase`.
-3. For the latest phase, match boxes to `criteria[]` entries ADVISORILY by fuzzy text similarity (free-text names, re-segmented, no ID link — DEC-022 Q2). Treat a match as a *suspected* correspondence; when you cannot confidently match a box to a criterion, say so rather than guessing. For proxy phases there is no `criteria[]` to match — flag at phase granularity ("all N boxes unticked for a completed phase").
+3. For the latest phase, match boxes to `criteria[]` entries ADVISORILY by fuzzy text similarity (free-text names, re-segmented, no ID link). Treat a match as a *suspected* correspondence; when you cannot confidently match a box to a criterion, say so rather than guessing. For proxy phases there is no `criteria[]` to match — flag at phase granularity ("all N boxes unticked for a completed phase").
 4. Flag divergence per phase, naming the tier: e.g. "Phase 2 (authoritative): 0/4 boxes ticked but verification-result.json records result=pass (7/7)." or "Phase 1 (proxy): 0/3 boxes ticked but all 6 tasks Finished+verified (phase_complete)."
 
 What does NOT count:
@@ -410,7 +410,7 @@ For each finding, set:
 - **Source anchor:** the spec phase / section whose boxes diverge (e.g., "spec_v2.md § Phase 2 — Acceptance Criteria")
 - **Files to touch (potential fix):** spec_v*.md — synthesizer will classify as `kind: decision` (reconciliation routes via /iterate; boxes are spec body)
 - **Evidence:** state the tier (authoritative / proxy) and the numbers (boxes ticked vs phase status).
-- **Suggested fix:** "Reconcile via /iterate: spec § {phase} acceptance boxes are stale vs verified status (DEC-022 — boxes are authored input; the dashboard's Acceptance-criteria section is the live status). Tick to match, or drop the inline boxes and rely on the dashboard."
+- **Suggested fix:** "Reconcile via /iterate: spec § {phase} acceptance boxes are stale vs verified status (boxes are authored input; the dashboard's Acceptance-criteria section is the live status). Tick to match, or drop the inline boxes and rely on the dashboard."
 
 Cluster per phase: one finding per phase (listing its unticked boxes), never one per box. If several completed phases are stale with the same root, you may emit a single clustered finding ("Phases 1–3 acceptance boxes never ticked despite completion"). The match is advisory — never edit the spec; only surface.
 ```
@@ -446,7 +446,7 @@ Your job: dedupe, cluster, classify by `kind`, dedupe against in-flight task wor
    - Drop the original IDs; assign a fresh `C-NN` sequence in cluster order
    - **Write `description`** — per § "Write `description`" in the spliced shared contract below. Example: title `"Spec § 5.2 still describes per-user generation; DEC-050 selected maintainer-curated"`, description `"Spec §§ 5.2, 5.3, 5.5 still describe per-user generation, but DEC-050 selected maintainer-curated — 3 unfixed references in the active spec."`
 
-5. **Classify `kind` per cluster** — apply § "Classify `kind` per cluster" from the spliced shared contract below (DEC-013 Option C; HARD RULE FIRST; bundle-eligible only when ALL criteria hold; when in doubt → fix-eligible). Promote/Dismiss for `fix-eligible` items run through the CLI (`triage`, `promote`, natural-language dismiss) — see `audit-family-core.md`.
+5. **Classify `kind` per cluster** — apply § "Classify `kind` per cluster" from the spliced shared contract below (HARD RULE FIRST; bundle-eligible only when ALL criteria hold; when in doubt → fix-eligible). Promote/Dismiss for `fix-eligible` items run through the CLI (`triage`, `promote`, natural-language dismiss) — see `audit-family-core.md`.
 
 6. **Pending-work dedupe.** For each clustered finding, scan `.claude/tasks/task-*.json` for tasks with `status` in `{Pending, In Progress, Awaiting Verification}`. Match if:
    - The task's `files_affected` overlaps with the finding's `files_to_touch`, OR
@@ -561,7 +561,7 @@ Both files MUST be returned. The orchestrator writes both to disk.
 
 ---
 
-## Fix mode (bundle-eligible only — DEC-013 Option C)
+## Fix mode (bundle-eligible only)
 
 `/audit-coherence fix {audit-ts} {C-ID}` · `/audit-coherence fix latest {C-ID}` — apply a single bundle-eligible finding inline.
 
@@ -571,7 +571,7 @@ Both files MUST be returned. The orchestrator writes both to disk.
 
 ## Triage mode
 
-`/audit-coherence triage [audit-ts]` — interactive walker through the audit's pending findings; the preferred entry point when an audit has multiple pending findings. Removes the need to re-specify finding ids and the audit name in the CLI (FB-006 sub-issues 1+2).
+`/audit-coherence triage [audit-ts]` — interactive walker through the audit's pending findings; the preferred entry point when an audit has multiple pending findings. Removes the need to re-specify finding ids and the audit name in the CLI.
 
 **Canonical algorithm, per-kind action gates, state mutations, and edge cases:** `.claude/support/reference/audit-family-core.md § "Triage mode (canonical)"` — execute with this command's substitution row (`{AUDIT}: coherence` · `{P}: C` · `{DIR-GLOB}: coherence-*` · `{CMD}: /audit-coherence`). `latest` (or no arg) resolves to the newest `coherence-*` audit dir by `ran_at`; the user never types the audit name unless they want an older audit explicitly.
 

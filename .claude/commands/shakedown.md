@@ -6,7 +6,7 @@ The auto-verdict on clear cases (below) exists to **clear the deck** so the dial
 
 `/shakedown` is the mirror of `/grill`: grill drills *down* to sharpen what you *mean* (you have the meaning, it's just fuzzy); shakedown sweeps *across* to surface what you *know about reality* that the system doesn't account for. Grill asks you questions; shakedown has you assert examples and adjudicates each.
 
-**Target-aware** (DEC-023): point it at a **vision** (probe a feature you're developing), the **spec** (probe committed scope, pre-build), or the **running build** (probe real behavior). *The target sets the altitude* — grounding shifts to match (against the spec's described model, or against actual code). Domain-agnostic — software, research, procurement, renovation, any spec-driven build; the *lens* is derived per-project at Phase 0, nothing here is baked to a domain.
+**Target-aware**: point it at a **vision** (probe a feature you're developing), the **spec** (probe committed scope, pre-build), or the **running build** (probe real behavior). *The target sets the altitude* — grounding shifts to match (against the spec's described model, or against actual code). Domain-agnostic — software, research, procurement, renovation, any spec-driven build; the *lens* is derived per-project at Phase 0, nothing here is baked to a domain.
 
 ## Usage
 
@@ -35,9 +35,9 @@ The shakedown runs in two parts: **Phase 0** calibrates the lens (a directed gri
 
 Before any example, run a *directed grill* — the interrogation discipline of `/grill` (`commands/grill.md § Process`: one question at a time, recommend an answer to each, resolve dependencies, ground in the system rather than asking what you can read) — scoped to establishing **the lens**. **Work general-first:** establish the purpose and the conceptual frame, confirm it, *then* descend into specifics — don't open by enumerating repo internals.
 
-0. **Identify the target** (DEC-023). Are you probing a **vision** (a feature in development), the **spec** (committed scope, pre-build), or the **running build**? This sets where you *ground*: a vision/spec target grounds each example against *what the doc says the system will do* (✓ covered / ⚠ gap / ❓ ambiguous); a build target grounds against *what the code actually does*. Default: build if one exists for the purpose; else the spec/vision.
+0. **Identify the target**. Are you probing a **vision** (a feature in development), the **spec** (committed scope, pre-build), or the **running build**? This sets where you *ground*: a vision/spec target grounds each example against *what the doc says the system will do* (✓ covered / ⚠ gap / ❓ ambiguous); a build target grounds against *what the code actually does*. Default: build if one exists for the purpose; else the spec/vision.
 1. **What is this session testing for?** Pin the purpose at the conceptual level first (e.g. "can the rule engine express my real personal-style rules?"). The purpose scopes everything downstream.
-2. **Which parts matter?** Read the relevant parts of the target — spec section(s) via the index (DEC-021) for a spec/vision target, or the relevant code for a build target. Confirm you're looking at the parts that *matter* for the purpose, not just the parts that are easy to read. This is the step that prevents a thin or misdirected lens — but state the conceptual model back before drilling into field-level detail.
+2. **Which parts matter?** Read the relevant parts of the target — spec section(s) via the index for a spec/vision target, or the relevant code for a build target. Confirm you're looking at the parts that *matter* for the purpose, not just the parts that are easy to read. This is the step that prevents a thin or misdirected lens — but state the conceptual model back before drilling into field-level detail.
 3. **Derive and state the lens back, for confirmation, before any example:**
    - the **dimensions** each example will be decomposed against — read off the target's *actual* structure (the spec's described model, or the engine's real fields);
    - the **verdict legend** (base set below, plus any project-specific verdicts; for a spec/vision target the verdicts read against the doc);
@@ -60,7 +60,7 @@ For each example you brain-dump, produce — and **write into the corpus doc imm
 4. **Generalize** — name the *family* the example represents ("this is the class of rules relating two items"), so one example hardens a whole dimension, not just itself.
 5. **Verdict.** For a clear **✓** (expressible) or **✗** (out of scope), verdict and move on. **Stop and involve the user when:**
    - **it flattens** (`expressible-but-flattening`) — the approximation is a *value* call only you can make: *"the spec can approximate this as X but loses Y — acceptable, or is Y essential?"*
-   - **it's a gap** (`⚠`) — co-draft the spec/vision *delta* the example implies (a proposal, never written directly — DEC-016), and ask where it ranks against the gaps so far (priority feeds `/iterate`'s fold-order).
+   - **it's a gap** (`⚠`) — co-draft the spec/vision *delta* the example implies (a proposal, never written directly — the spec-edit guardrail), and ask where it ranks against the gaps so far (priority feeds `/iterate`'s fold-order).
    - **it's ambiguous** (`❓`) — resolve or split *with* the user before verdicting.
    - otherwise, propose your read of the verdict and let the user override — their model stays authoritative.
 6. **Capture.** Write the entry (breakdown + family + grounding + verdict + any drafted delta). For a confirmed ✓, seed an acceptance probe so it can't silently regress. Emit gaps/deltas to the merge queue per "Routing onward".
@@ -79,14 +79,14 @@ Stop at **saturation, not exhaustion** — when new examples stop revealing new 
 
 ### Routing onward (suggested, not automatic)
 
-As verdicts accrue (and at the end), name the exit per verdict — but **propose, don't execute**. The user fires the command; `/shakedown` never writes spec/decision/vision text itself (DEC-016):
+As verdicts accrue (and at the end), name the exit per verdict — but **propose, don't execute**. The user fires the command; `/shakedown` never writes spec/decision/vision text itself (the spec-edit guardrail):
 
 - **⚠ needs new capability** → `/iterate` (if spec-expressible) or `/research` (if it's a genuine design fork).
 - **✗ out of scope** → an out-of-scope note, or a setting/toggle if it's a correctness-layer concern rather than the feature under test.
 - **✓ expressible** → optionally seed a `test_protocol` acceptance step so the confirmed behaviour can't regress.
 - **Parked** → the forward-direction backlog the next shakedown or `/iterate` consumes.
 
-**Emit to the merge queue (DEC-023).** Rather than relying on the user to remember these routes, persist them: for each `⚠` (gap) and any drafted spec/vision delta, append a `.claude/support/.spec-merge-queue.jsonl` entry (`source: shakedown`, `target: vision|spec` per what this shakedown is probing, `kind: gap|delta`, `origin_ref` = the corpus entry, plus `target_ref` / `summary`). `/iterate` (or your next vision session) then surfaces them on return — the corpus stays the full record; the queue is the *notification* that a finding hasn't been folded in yet. Exception: if you're developing a vision *in this same conversation*, fold straight into its Open-forks tracker (no queue entry). See `.claude/support/reference/merge-queue.md`.
+**Emit to the merge queue.** Rather than relying on the user to remember these routes, persist them: for each `⚠` (gap) and any drafted spec/vision delta, append a `.claude/support/.spec-merge-queue.jsonl` entry (`source: shakedown`, `target: vision|spec` per what this shakedown is probing, `kind: gap|delta`, `origin_ref` = the corpus entry, plus `target_ref` / `summary`). `/iterate` (or your next vision session) then surfaces them on return — the corpus stays the full record; the queue is the *notification* that a finding hasn't been folded in yet. Exception: if you're developing a vision *in this same conversation*, fold straight into its Open-forks tracker (no queue entry). See `.claude/support/reference/merge-queue.md`.
 
 ## Verdict legend
 
@@ -106,7 +106,7 @@ Structure: the confirmed **lens** (dimensions + legend + cleave) at the top; the
 ## Out of scope
 
 - **Does not invent examples.** The user brings the real / edge-case examples; `/shakedown` adjudicates them. (Mirrors `/grill`, which doesn't invent your domain for you.) This is the corollary of the purpose: the value is *your* knowledge — Claude can't manufacture it.
-- **Does not write spec, decision, or vision files** (DEC-016). It *drafts* deltas and proposes routes (`/iterate`, `/research`, the merge queue); the user drives those.
+- **Does not write spec, decision, or vision files** (the spec-edit guardrail). It *drafts* deltas and proposes routes (`/iterate`, `/research`, the merge queue); the user drives those.
 - **Not a bug hunt** (`/diagnose`), **not vocabulary-sharpening** (`/grill`), **not code review** (`/review`). It maps the *capability boundary* of a system against real use.
 
 ## Relationship to `/grill`
@@ -125,7 +125,6 @@ Inverses that compose:
 
 - `.claude/commands/grill.md` — the interrogation discipline Phase 0 draws on; the inverse-flow sibling.
 - `.claude/support/shakedowns/README.md` — corpus convention + doc structure.
-- `.claude/support/reference/merge-queue.md` — the re-entry transport ⚠/deltas emit to (DEC-023).
+- `.claude/support/reference/merge-queue.md` — the re-entry transport ⚠/deltas emit to.
 - `.claude/rules/spec-workflow.md` — where the shakedown fits (target-aware probing; findings route via the merge queue → `/iterate`).
 - `.claude/commands/diagnose.md`, `.claude/commands/review.md` — adjacent capabilities (bug methodology; code-quality review).
-- `decisions/decision-019-shakedown-command.md` (establishing) + `decisions/decision-023-vision-hub-and-spec-shaping-workflow.md` (purpose reframe + target-awareness + emit).

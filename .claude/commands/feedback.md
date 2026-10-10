@@ -4,7 +4,7 @@ disable-model-invocation: true
 
 # Feedback Command
 
-Quick capture and triage of project improvement ideas — and the **dispatcher** for the capture/develop/route family (DEC-023). Provides a structured path from fleeting thoughts to spec integration, with mandatory impact assessment before anything reaches the spec. When an idea needs more than a light clarify, `/feedback` escalates it to `/grill` (sharpen meaning) or `/shakedown` (capture edge-cases / world-knowledge); it is also the **impact-assessment home** for deltas those commands route back (DEC-023 G2).
+Quick capture and triage of project improvement ideas — and the **dispatcher** for the capture/develop/route family. Provides a structured path from fleeting thoughts to spec integration, with mandatory impact assessment before anything reaches the spec. When an idea needs more than a light clarify, `/feedback` escalates it to `/grill` (sharpen meaning) or `/shakedown` (capture edge-cases / world-knowledge); it is also the **impact-assessment home** for deltas those commands route back.
 
 ## Usage
 
@@ -259,7 +259,7 @@ Options:
 
 ##### Action: Develop [G]
 
-Use this when an item needs **more than a light clarify** — the *light-clarify-to-route vs deep-develop boundary* (DEC-023 G1/G3):
+Use this when an item needs **more than a light clarify** — the *light-clarify-to-route vs deep-develop boundary*:
 
 - **Light clarify** (stays here, the `[R] Refine` path) — a question or two distils the idea enough to assess and route. This is `/feedback`'s job.
 - **Deep develop** (escalate) — the idea is fuzzy in *meaning*, or it hinges on *edge-cases / real-world knowledge* that needs structured probing. That's a `/grill` or `/shakedown` excursion, not a triage clarify.
@@ -308,7 +308,7 @@ Use `[C] Close` when the idea was investigated or discussed but deliberately dec
 
 #### Phase 3: Impact Assessment
 
-**Also the impact-assessment home for returning deltas (DEC-023 G2).** Before listing refined items, read `.claude/support/.spec-merge-queue.jsonl` (if present) for entries with `needs_impact_assessment: true` AND `status: open` — these are `/shakedown` (or `/grill`) deltas for a mature project that `/iterate` held back for assessment. Include them in the assessment list alongside `refined` feedback items (label them e.g. `MQ-003 (shakedown delta)`). On **approve**, set the merge-queue item's `needs_impact_assessment: false` so `/iterate`'s drain will fold it; on **close / not-relevant**, set its `status: dismissed`. Feedback items follow their normal outcomes below. This closes the loop `/iterate` Step 1c opens when it routes a flagged delta here.
+**Also the impact-assessment home for returning deltas.** Before listing refined items, read `.claude/support/.spec-merge-queue.jsonl` (if present) for entries with `needs_impact_assessment: true` AND `status: open` — these are `/shakedown` (or `/grill`) deltas for a mature project that `/iterate` held back for assessment. Include them in the assessment list alongside `refined` feedback items (label them e.g. `MQ-003 (shakedown delta)`). On **approve**, set the merge-queue item's `needs_impact_assessment: false` so `/iterate`'s drain will fold it; on **close / not-relevant**, set its `status: dismissed`. Feedback items follow their normal outcomes below. This closes the loop `/iterate` Step 1c opens when it routes a flagged delta here.
 
 1. After Phase 2 completes, list all `refined` items:
 

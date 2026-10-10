@@ -17,7 +17,7 @@ Go up a layer of abstraction. Surface a map of the area's relevant components an
 
 When you say "I don't know this area well" — the model should produce a high-level map rather than diving into a single component.
 
-Adapted from `mattpocock/skills/engineering/zoom-out` (Pocock's 7-line skill). CCE adaptation: domain-genericized (works for software, research, procurement, renovation — any spec-driven project, per CCE's domain-agnostic design), and consumes `./CONTEXT.md` vocabulary when present (FB-068 integration).
+Adapted from `mattpocock/skills/engineering/zoom-out` (Pocock's 7-line skill). CCE adaptation: domain-genericized (works for software, research, procurement, renovation — any spec-driven project, per CCE's domain-agnostic design), and consumes `./CONTEXT.md` vocabulary when present.
 
 ## Process
 
@@ -37,7 +37,7 @@ Adapted from `mattpocock/skills/engineering/zoom-out` (Pocock's 7-line skill). C
 
 ## Frontmatter rationale
 
-`/zoom-out` carries `disable-model-invocation: true` (per FB-071 convention; see `.claude/rules/agents.md § "Command Invocation Gates"`). Rationale: `/zoom-out` is specifically a user-asks-for-help signal — the model autonomously invoking it would be circular (the model would be invoking it for its own benefit, which doesn't match the help-the-user trigger). Pocock's `/zoom-out` carries the same frontmatter for the same reason.
+`/zoom-out` carries `disable-model-invocation: true` (see `.claude/rules/agents.md § "Command Invocation Gates"`). Rationale: `/zoom-out` is specifically a user-asks-for-help signal — the model autonomously invoking it would be circular (the model would be invoking it for its own benefit, which doesn't match the help-the-user trigger). Pocock's `/zoom-out` carries the same frontmatter for the same reason.
 
 ## References
 

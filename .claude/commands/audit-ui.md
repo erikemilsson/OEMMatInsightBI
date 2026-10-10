@@ -111,7 +111,7 @@ If the file is absent, the audit falls back to all defaults.
 └── digest.json                # machine-readable digest (per audit family schema)
 ```
 
-Project rule (DEC-004): sub-agents cannot write to `.claude/`. The orchestrator (this command, running in the main conversation) handles all writes. Sub-agents return their report as text; the orchestrator saves it.
+Project rule: sub-agents cannot write to `.claude/`. The orchestrator (this command, running in the main conversation) handles all writes. Sub-agents return their report as text; the orchestrator saves it.
 
 ---
 
@@ -239,7 +239,7 @@ Top 5:
 Promote with: /audit-ui promote {ts}
 ```
 
-(Stage 6 has shipped — pending findings appear as Audit Findings rows on the dashboard's "Needs you" card (id + description; the read-only HTML has no `[Fix it]` token, kind annotation or checkbox). Stage 7 batch UX remains deferred per DEC-013 Q4. Act on them via the CLI: `/audit-ui triage`, `/audit-ui fix {audit-ts} {F-ID}` (bundle-eligible only), `/audit-ui promote {audit-ts}` (boxes ticked in `findings.md`, or `--all` / ids), or a natural-language dismiss. The inline summary + manual review remains a complementary surface.)
+(Stage 6 has shipped — pending findings appear as Audit Findings rows on the dashboard's "Needs you" card (id + description; the read-only HTML has no `[Fix it]` token, kind annotation or checkbox). Stage 7 batch UX remains deferred. Act on them via the CLI: `/audit-ui triage`, `/audit-ui fix {audit-ts} {F-ID}` (bundle-eligible only), `/audit-ui promote {audit-ts}` (boxes ticked in `findings.md`, or `--all` / ids), or a natural-language dismiss. The inline summary + manual review remains a complementary surface.)
 
 ### Promote mode
 
@@ -247,7 +247,7 @@ Promote with: /audit-ui promote {ts}
 
 **Canonical algorithm:** `.claude/support/reference/audit-family-core.md § "Promote mode (canonical)"` — execute it with this command's substitution row (`{AUDIT}: ui` · `{P}: F` · `{DIR-GLOB}: ui-*` · `{CMD}: /audit-ui`). The FB-entry template (UI items include the `**Effort:** · **Impact:**` line), dedupe options, and `digest.json` / `friction.jsonl` / `findings.md` cascades are all defined there; no divergence.
 
-### Fix mode (bundle-eligible only — DEC-013 Option C)
+### Fix mode (bundle-eligible only)
 
 `/audit-ui fix {audit-ts} {F-ID}` · `/audit-ui fix latest {F-ID}` — apply a single bundle-eligible finding inline.
 
@@ -257,7 +257,7 @@ For UI audits, bundle-eligible findings are rare — most UI fixes need copy/IA 
 
 ### Triage mode
 
-`/audit-ui triage [audit-ts]` — interactive walker through the audit's pending findings; the preferred entry point when a UI audit has multiple pending findings. Removes the need to re-specify finding ids and the audit name in the CLI (FB-006 sub-issues 1+2).
+`/audit-ui triage [audit-ts]` — interactive walker through the audit's pending findings; the preferred entry point when a UI audit has multiple pending findings. Removes the need to re-specify finding ids and the audit name in the CLI.
 
 **Canonical algorithm, per-kind action gates, state mutations, and edge cases:** `.claude/support/reference/audit-family-core.md § "Triage mode (canonical)"` — execute with this command's substitution row (`{AUDIT}: ui` · `{P}: F` · `{DIR-GLOB}: ui-*` · `{CMD}: /audit-ui`). `latest` (or no arg) resolves to the newest `ui-*` audit dir by `ran_at`. For UI audits, most findings are `decision` or `design` kind (copy/IA changes) — the kind-conditional gate presents `[F]ix it` only for the rare `bundle-eligible` items.
 
@@ -616,14 +616,14 @@ task work, write findings.md AND digest.json.
      from the post-submit error, breaking the affordance loop."`
 
 5. **Classify `kind` per cluster** — apply § "Classify `kind` per cluster" from
-   the spliced shared contract below (DEC-013 Option C; HARD RULE FIRST;
+   the spliced shared contract below (HARD RULE FIRST;
    bundle-eligible only when ALL criteria hold; when in doubt → fix-eligible).
 
    Note: most UI audit findings will be `decision` kind because UI fixes
    typically require copy/IA decisions that should route through `/iterate`.
    Bundle-eligible UI findings are rare but real (orphan dead-link removal,
    stale CTA pointing at a 404 the spec also dropped, deletion of a clearly-unused
-   component file). Don't force findings into bundle-eligible — DEC-013 Option C's
+   component file). Don't force findings into bundle-eligible — the
    inline-apply path is opt-in by classification confidence, not by hopeful inference.
 
 6. Score each canonical:

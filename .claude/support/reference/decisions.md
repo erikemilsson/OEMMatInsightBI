@@ -158,7 +158,7 @@ Include enough context for someone unfamiliar to understand.]
 
 **"Your Notes & Constraints" section:** This section in the template is user-owned. Claude reads it when processing the decision but never overwrites it. Use it to record constraints, preferences, or questions that should inform the choice. Content here persists across decision doc updates and dashboard regenerations.
 
-**Numbering namespace:** project decision records number independently (`DEC-001`, `DEC-002`, …) from the *template's* decision records that the shipped rules and reference docs cite (e.g., DEC-004, DEC-016, DEC-021, DEC-024). A template citation in synced files is not a project record — when picking the next project number, count only the files in `.claude/support/decisions/`. In project files (task notes, decision records, handoffs, code comments), a bare `DEC-NNN` means the project's record; cite a template record as `template DEC-NNN`.
+**Numbering namespace:** a new record takes the next number after the project's own highest existing record, counting only the files in `.claude/support/decisions/`.
 
 ---
 
@@ -225,7 +225,7 @@ related:
   tasks: [<task id>]
 ```
 
-`decided` is the date of the verify pass. `decided_by` is `implement-agent`, or `orchestrator` for inline work, and never changes afterwards (provenance). The id is the next free project number (§ "Numbering namespace") and is never added to any task's `decision_dependencies`.
+`decided` is the date of the verify pass. `decided_by` is `implement-agent`, or `orchestrator` for inline work, and never changes afterwards (provenance). The id is the next project number (§ "Numbering namespace") and is never added to any task's `decision_dependencies`.
 
 Sections, in order: `## Background`, `## Options Comparison`, `## Decision` (for each choice, a `**Selected:**` line and its rationale), `## Trade-offs`, `## Impact`. No `## Select an Option` section: the user selected nothing, and a ticked box would say they had.
 

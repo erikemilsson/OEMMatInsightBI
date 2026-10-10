@@ -39,7 +39,7 @@ The `/research` command or `/work` or `/iterate` directs you to follow this work
 
 ## Outputs
 
-All in your report to the caller — you write no files. Subagents can't write `.claude/` paths (DEC-004, `rules/agents.md § State Ownership`); `/research` Step 4 persists what you return.
+All in your report to the caller — you write no files. Subagents can't write `.claude/` paths (`rules/agents.md § State Ownership`); `/research` Step 4 persists what you return.
 
 - Decision-record edits populating the comparison matrix and option details
 - Research archive document for `.claude/support/decisions/.archive/` (target path + full body)
@@ -139,7 +139,7 @@ For each viable option:
 
 ### Step R4: Produce Artifacts
 
-Don't write files: every artifact goes into your R5 report, and `/research` Step 4 writes it (DEC-004).
+Don't write files: every artifact goes into your R5 report, and `/research` Step 4 writes it.
 
 **Output size awareness:** your report is a single response, and output per response is capped (model-dependent; see `.claude/CLAUDE.md § Model Requirement`), with thinking sharing the cap. Keep the archive to what the decision needs. The decision-record edits come first in the report, so if space is tight it's the archive that gets cut.
 

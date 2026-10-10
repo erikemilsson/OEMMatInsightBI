@@ -28,7 +28,7 @@ Examples:
 
 **Start new feature visions from the scaffold** `_feature-vision-template.md` (copy it to `<feature-slug>.md`). `_`-prefixed files are scaffolds, not visions — consumers (`/iterate distill`, etc.) skip them.
 
-## Relationship to Specs — vision as a development hub (DEC-023)
+## Relationship to Specs — vision as a development hub
 
 A vision is the **development hub for a larger feature**, not a one-time pre-spec brainstorm. Start from the scaffold `_feature-vision-template.md`. Develop the feature broadly in the vision — repeated `/grill` (sharpen meaning) and `/shakedown` (capture edge-cases / world-knowledge) passes fold findings *into* the structured vision — until a section is tight, then graduate it to the spec.
 
@@ -37,7 +37,7 @@ A vision is the **development hub for a larger feature**, not a one-time pre-spe
 2. 🔵 RESEARCHED — grilled / shaken-down, scope settled, evidence cited; not yet specced.
 3. 🟢 SHIPPED — graduated to the spec via `/iterate distill` (initial spec) or `/iterate` (amend an existing spec), then built.
 
-**Editability (DEC-023, amending DEC-016):** a vision is **editable in-place while developing** (🟡/🔵) — co-refinement is the whole point. Once a section graduates (🟢) it is **frozen**: the spec is the source of truth for it, and further changes route through `/iterate`, not vision edits. Specs link their source vision in frontmatter (`vision_source: vision/<slug>.md`).
+**Editability:** a vision is **editable in-place while developing** (🟡/🔵) — co-refinement is the whole point. Once a section graduates (🟢) it is **frozen**: the spec is the source of truth for it, and further changes route through `/iterate`, not vision edits. Specs link their source vision in frontmatter (`vision_source: vision/<slug>.md`).
 
 **During implementation, Claude works off the spec, not the vision** — don't pull features from the vision that aren't in the spec. The vision is where you *develop* what will become spec; the spec is what gets *built*.
 

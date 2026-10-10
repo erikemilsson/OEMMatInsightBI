@@ -26,7 +26,7 @@ See `.claude/rules/agents.md § Tool Preferences` for the canonical tool/operati
 - **Surgical single-point change** → use `Edit` tool (targeted replacement)
 - **Changes touching multiple sections or more than a third of the file** → use `Write` tool (full rewrite) — this avoids leftover content and corruption from piecemeal edits
 - **Never use shell text manipulation** (`sed`, `awk`) for document editing — these are error-prone for structured content
-- **YAML frontmatter — colon-space hazard** (DEC-017): in `description:` (or any other) field values, avoid unquoted `: ` (colon-space) — strict YAML 1.2 / PyYAML rejects it as an ambiguous mapping-value token. Use em-dashes (` — `) or quote the entire value. See `.claude/support/reference/claude-code-authoring.md § "YAML Frontmatter Hazards"` for the full convention.
+- **YAML frontmatter — colon-space hazard**: in `description:` (or any other) field values, avoid unquoted `: ` (colon-space) — strict YAML 1.2 / PyYAML rejects it as an ambiguous mapping-value token. Use em-dashes (` — `) or quote the entire value. See `.claude/support/reference/claude-code-authoring.md § "YAML Frontmatter Hazards"` for the full convention.
 
 **Large-file strategy:**
 
@@ -52,7 +52,7 @@ The `/work` command directs you to follow this workflow when:
 
 ## Outputs
 
-The agent returns a structured implementation report (see Step 6 below). The orchestrator consumes this report and performs all task-JSON state transitions, friction-marker persistence, and dashboard regeneration. Agents never write to `.claude/` paths — that write class is owned by `/work` (see DEC-004).
+The agent returns a structured implementation report (see Step 6 below). The orchestrator consumes this report and performs all task-JSON state transitions, friction-marker persistence, and dashboard regeneration. Agents never write to `.claude/` paths — that write class is owned by `/work`.
 
 ## How This Workflow Is Invoked
 
@@ -166,7 +166,7 @@ After Step 5, construct and return the structured implementation report per the 
 
 **`servers_started`:** one entry per server, watcher or other long-running process you started, with the port it listens on (`null` if none) and whether you stopped it; `[]` when you started none. Include it on every return, partial ones too: the orchestrator checks those ports after you return and stops what is still listening.
 
-**`partial_completion` is only set when `implementation_status == "partial_resume_pending"`.** Omit the field entirely for other status values. See "Approaching Usage Limits" under Handling Issues for detection triggers and field semantics (per DEC-010 Option C).
+**`partial_completion` is only set when `implementation_status == "partial_resume_pending"`.** Omit the field entirely for other status values. See "Approaching Usage Limits" under Handling Issues for detection triggers and field semantics.
 
 **Completion status values:**
 - `completed` — all work done per spec, ready for verification
@@ -252,7 +252,7 @@ If you make a significant choice during implementation:
 2. Put the rest in `decisions_to_record` (see Return schema above): **one entry per coupled set of choices, normally one per task**. Choices that only make sense together share an entry, with every option you weighed in `options_considered` and the reasoning in `rationale`.
 3. **Restate the full current set on every return**, fix rounds after a failed verification and partial returns included. On those rounds the dispatch gives you the set held so far. The orchestrator replaces what it held with what you send; it does not merge, so an entry you leave out is dropped.
 4. **Your choice is not an approval.** The orchestrator holds the entries until verification passes, then writes one decision record for the task with status `recorded`, which goes to the user to ratify or reconsider. Never describe a choice as approved, decided by the user, or final, in the entry, your notes, code comments or deliverables.
-5. **Never write `decision-*.md` files yourself.** Subagents are sandboxed from `.claude/` writes (DEC-004; `rules/agents.md § State Ownership`). The orchestrator owns this write. Follows the same report-pattern as research-agent (see `research-agent.md` § "If no decision record exists").
+5. **Never write `decision-*.md` files yourself.** Subagents are sandboxed from `.claude/` writes (`rules/agents.md § State Ownership`). The orchestrator owns this write. Follows the same report-pattern as research-agent (see `research-agent.md` § "If no decision record exists").
 
 ### Spec Misalignment Discovered
 
@@ -264,7 +264,7 @@ If during implementation you realize something doesn't align with spec:
 
 ### Approaching Usage Limits
 
-When you sense an approaching usage limit AND have unfinished sub-targets, return a structured `partial_completion` envelope instead of pushing through. The envelope lets the next dispatch resume cleanly without re-deriving context from git diff + task notes. See DEC-010 for the design rationale.
+When you sense an approaching usage limit AND have unfinished sub-targets, return a structured `partial_completion` envelope instead of pushing through. The envelope lets the next dispatch resume cleanly without re-deriving context from git diff + task notes.
 
 **Detection signals (either triggers the envelope):**
 

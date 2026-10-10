@@ -91,7 +91,7 @@ Check for a context transition handoff from a previous session before anything e
    (Available for routing and implement-agent enrichment. NOT passed to verify-agent.)
 
 6. Delete .handoff.json and its overflow file (rule below the block)
-   EXCEPTION — concurrent session (FB-104): if the handoff's active task(s)
+   EXCEPTION — concurrent session: if the handoff's active task(s)
    have CHANGED STATUS since the handoff timestamp (another session is
    progressing them), do NOT consume-and-delete. Preserve the file and its
    overflow file, use it read-only for orientation, flag "Handoff appears to belong to a concurrent
@@ -160,9 +160,9 @@ When Step 0a found no handoff and Step 0b found no recovery issues (clean start)
 
 #### Step 0d: Friction-Marker Catchup
 
-If `.claude/support/workspace/.pending-markers.jsonl` exists and is non-empty, read `.claude/support/reference/work-recovery.md § "Friction-Marker Catchup"` and follow it before any agent dispatch (reconciles markers a prior session buffered but never wrote to the canonical log, DEC-011). Otherwise skip.
+If `.claude/support/workspace/.pending-markers.jsonl` exists and is non-empty, read `.claude/support/reference/work-recovery.md § "Friction-Marker Catchup"` and follow it before any agent dispatch (reconciles markers a prior session buffered but never wrote to the canonical log). Otherwise skip.
 
-#### Step 0e: Uncommitted-Work Check (FB-088)
+#### Step 0e: Uncommitted-Work Check
 
 Detect silent drift between "tasks marked Finished" and "code committed". Runs once per `/work` invocation, before any agent dispatch.
 
@@ -183,7 +183,7 @@ Detect silent drift between "tasks marked Finished" and "code committed". Runs o
 
 The file match is needed because `completion_date` is only a date: tasks finished and committed earlier the same day have clean files, so they no longer count.
 
-Rely on git's own gitignore handling for `.claude/` — don't add a blanket `.claude/` filter (projects that track `.claude/` files should see them counted; FB-099).
+Rely on git's own gitignore handling for `.claude/` — don't add a blanket `.claude/` filter (projects that track `.claude/` files should see them counted).
 
 #### Step 0f: Track 2 Stale-File Recovery
 
@@ -219,7 +219,7 @@ Read and analyze:
 - `.claude/spec_v{N}.md` - The specification (source of truth)
 - `.claude/dashboard.html` - Task status and progress (read the `<!-- DASHBOARD META -->` comment in the `<head>`)
 
-**Steps 1a and 1b run on every `/work`;** each is one script call, and nothing skips them (FB-128). Always check `drift-deferrals.json` too: an over-budget or expired deferral triggers Drift Reconciliation even when Step 1b finds no new drift.
+**Steps 1a and 1b run on every `/work`;** each is one script call, and nothing skips them. Always check `drift-deferrals.json` too: an over-budget or expired deferral triggers Drift Reconciliation even when Step 1b finds no new drift.
 
 **Malformed task file handling:** When reading task JSON files, if any file fails to parse:
 1. Skip the file — do not abort the entire scan
@@ -229,7 +229,7 @@ Read and analyze:
 
 ### Step 1a: Dashboard Freshness Check
 
-**Pending-decomposition check first (FB-106).** Before the freshness checks, read `pending_decomposition[]` from `.claude/dashboard-state.json`. For each listed `## ` heading, check whether any task references it (`spec_section`). If a section has **zero** referencing tasks, surface it and offer decomposition:
+**Pending-decomposition check first.** Before the freshness checks, read `pending_decomposition[]` from `.claude/dashboard-state.json`. For each listed `## ` heading, check whether any task references it (`spec_section`). If a section has **zero** referencing tasks, surface it and offer decomposition:
 
 ```
 Spec section "{heading}" was added by /iterate and has no tasks yet.
@@ -240,20 +240,20 @@ Remove a heading from the array once it has referencing tasks or the user picks 
 
 Verify the dashboard is current before using its data. Compute the canonical `task_hash` (`python3 .claude/scripts/dashboard-render.py --task-hash`; its rows include each task's review flag) and compare against the dashboard's `<!-- DASHBOARD META -->` block. Regenerate the dashboard from task JSON files before continuing if the hash differs, if META `spec_fingerprint` ≠ the current spec hash (`python3 .claude/scripts/fingerprint.py --spec .claude/spec_v{N}.md`), or if no metadata exists. META `spec_fingerprint` records the spec the dashboard was rendered from; it is not evidence that drift was checked.
 
-Also compare `template_version` in the META block against `template_version` in `.claude/version.json`. If they differ or the META field is absent, the dashboard was generated with older format rules and should be regenerated (see dashboard-regeneration.md § "Format Staleness"). **Migration (DEC-024):** if a legacy Markdown `.claude/dashboard.md` is present, migrate its `<!-- USER SECTION -->` / `<!-- SECTION TOGGLES -->` / `<!-- CUSTOM VIEWS INSTRUCTIONS -->` content into the sidecar, delete it, and regenerate `dashboard.html`. Likewise, before regenerating over hand-inserted rows at an old `<!-- CLAUDE: augment -->` comment (pre-FB-118), move the still-relevant ones into sidecar `augment_rows[]`.
+Also compare `template_version` in the META block against `template_version` in `.claude/version.json`. If they differ or the META field is absent, the dashboard was generated with older format rules and should be regenerated (see dashboard-regeneration.md § "Format Staleness"). **Migration:** if a legacy Markdown `.claude/dashboard.md` is present, migrate its `<!-- USER SECTION -->` / `<!-- SECTION TOGGLES -->` / `<!-- CUSTOM VIEWS INSTRUCTIONS -->` content into the sidecar, delete it, and regenerate `dashboard.html`. Likewise, before regenerating over hand-inserted rows at an old `<!-- CLAUDE: augment -->` comment, move the still-relevant ones into sidecar `augment_rows[]`.
 
 **Full procedure:** `.claude/support/reference/drift-reconciliation.md` § "Dashboard Freshness Check"
 
 ### Step 1b: Spec Drift Detection
 
 Run `python3 .claude/scripts/fingerprint.py --drift .claude` (read-only; JSON on stdout). It compares each task's `section_fingerprint` with the current hash of the section it names:
-- `unreconciled_sections` > 0 → Drift Reconciliation (after Step 1c). Tasks marked `subsection_unchanged` are shown as "likely unaffected", never dropped (DEC-021; `drift-reconciliation.md § "Subsection-level drift narrowing"`).
+- `unreconciled_sections` > 0 → Drift Reconciliation (after Step 1c). Tasks marked `subsection_unchanged` are shown as "likely unaffected", never dropped (`drift-reconciliation.md § "Subsection-level drift narrowing"`).
 - `unmigrated` non-empty → Task Migration (Drift Reconciliation step 2).
 - `unreadable` → report each file per the malformed-file rule above.
 - A non-zero `no_provenance` for a task created this session → that task was written without provenance: add it now per the creation contract (`task-schema.md § "Drift Prevention Fields"`). Older ones are `/health-check` Part 1 check 11's.
 - No script → apply the prose rules in `drift-reconciliation.md § "Spec Drift Detection"` (this reads every task JSON).
 
-**Spec index refresh (DEC-021):** if `.claude/spec_v{N}.index.json` is missing or its `spec_fingerprint` ≠ the drift JSON's `spec_fingerprint` (the current full-spec hash), regenerate it: `python3 .claude/scripts/fingerprint.py --index .claude/spec_v{N}.md > .claude/spec_v{N}.index.json`. The index powers section-scoped spec reads (`rules/spec-workflow.md § "Section-scoped spec reading"`); it carries no task provenance, so this never affects drift reconciliation. Full rule: `drift-reconciliation.md § "Spec Index Freshness"`.
+**Spec index refresh:** if `.claude/spec_v{N}.index.json` is missing or its `spec_fingerprint` ≠ the drift JSON's `spec_fingerprint` (the current full-spec hash), regenerate it: `python3 .claude/scripts/fingerprint.py --index .claude/spec_v{N}.md > .claude/spec_v{N}.index.json`. The index powers section-scoped spec reads (`rules/spec-workflow.md § "Section-scoped spec reading"`); it carries no task provenance, so this never affects drift reconciliation. Full rule: `drift-reconciliation.md § "Spec Index Freshness"`.
 
 **Full procedure:** `.claude/support/reference/drift-reconciliation.md` § "Spec Drift Detection"
 
@@ -325,7 +325,7 @@ IF remaining_tasks is NOT empty
    → FAST EXIT
 ```
 
-A both-owned task counts as non-actionable only when Blocked, On Hold or waiting on a decision: once Claude's half is delivered it is Finished with `user_review_pending` and out of `remaining_tasks` (a stale flag on unfinished work doesn't count). One waiting on a physical-world prerequisite should be `Blocked` or `On Hold`, not `Pending` (FB-100).
+A both-owned task counts as non-actionable only when Blocked, On Hold or waiting on a decision: once Claude's half is delivered it is Finished with `user_review_pending` and out of `remaining_tasks` (a stale flag on unfinished work doesn't count). One waiting on a physical-world prerequisite should be `Blocked` or `On Hold`, not `Pending`.
 
 **Before presenting fast-exit output:** Verify dashboard freshness (same check as Step 5 item 4). If stale, regenerate first — the user may check the dashboard after seeing this message.
 
@@ -480,7 +480,7 @@ Otherwise route with the algorithm below. Per-task verification always outranks 
 
 **Auto-continuation within phases:** After a task finishes (passes per-task verification), `/work` loops back to Step 3 to determine the next action — no user prompt, no pause. Each iteration starts with an inline announcement: `Moving to task {id}: "{title}"`. Before dispatching the next task, check if any human-owned or both-owned tasks just became unblocked — if so, mention them inline: `Note: Task {id} ("{title}") is now available for you — {brief description}`. This continues automatically until a natural stopping point: phase boundary (gate approval needed), blocking decision, verification failure requiring human escalation, or all remaining tasks non-actionable (human-owned, blocked, on hold, or waiting on a decision — see Step 1d). The value of front-loaded decomposition and structured verification is that work flows autonomously between these stops.
 
-**Autonomous batch heartbeat (FB-081):** keep an in-memory `autonomous_batch_position`, +1 per sequential auto-continuation (parallel dispatches don't count); reset to 0 at any natural stopping point, any user message, or `/work` exit. At `>= 3`, replace the `Moving to task` line with `[Auto-batch: task {position} of {batch_total} — {task_id}: "{title}"]` (`batch_total` = sequential tasks projected for this batch). Heartbeats are inline only, never dashboard entries. For user messages mid-batch see `rules/agents.md § "Behavioral Rules"`.
+**Autonomous batch heartbeat:** keep an in-memory `autonomous_batch_position`, +1 per sequential auto-continuation (parallel dispatches don't count); reset to 0 at any natural stopping point, any user message, or `/work` exit. At `>= 3`, replace the `Moving to task` line with `[Auto-batch: task {position} of {batch_total} — {task_id}: "{title}"]` (`batch_total` = sequential tasks projected for this batch). Heartbeats are inline only, never dashboard entries. For user messages mid-batch see `rules/agents.md § "Behavioral Rules"`.
 
 **Important — spec tasks vs out-of-spec tasks:** Phase routing is based on spec tasks only (excluding `out_of_spec: true`). Out-of-spec tasks are excluded from **phase detection** (determining whether a phase is complete, triggering phase-level verification, or reaching project completion) to prevent a verify → execute → verify infinite loop. However, out-of-spec tasks still run the **full implement → verify cycle** — they are not exempt from per-task verification. The structural invariant applies universally: no task (spec or out-of-spec) can reach "Finished" without `task_verification.result == "pass"`.
 
@@ -544,19 +544,19 @@ Three things hold for every implement-agent and verify-agent dispatch, sequentia
 
 Read `.claude/support/reference/decomposition.md` and follow its 10-step procedure to break the spec into granular tasks with full provenance fields. (First decomposition legitimately reads the whole spec — the "whole when warranted" case in `rules/spec-workflow.md § "Section-scoped spec reading"`. Afterward, generate the section index so downstream per-task agents scope-read: `python3 .claude/scripts/fingerprint.py --index .claude/spec_v{N}.md > .claude/spec_v{N}.index.json`.)
 
-**Capability-claim cross-check (DEC-017):** when decomposing spec sections that reference Claude Code primitives (skill `model:`/`effort:` frontmatter, subagent dispatch, MCP fan-out, `Agent` tool model granularity, parallel execution boundaries), cross-reference `.claude/support/reference/claude-code-authoring.md` before generating task JSON. The reference doc surfaces load-bearing platform facts that aren't obvious from spec text alone (e.g., `model:` is turn-scoped, not session-scoped — multi-turn chat skills cannot use it for cross-turn model continuity). Task descriptions that depend on unsupported platform behavior produce wasted-iteration cycles at implementation time.
+**Capability-claim cross-check:** when decomposing spec sections that reference Claude Code primitives (skill `model:`/`effort:` frontmatter, subagent dispatch, MCP fan-out, `Agent` tool model granularity, parallel execution boundaries), cross-reference `.claude/support/reference/claude-code-authoring.md` before generating task JSON. The reference doc surfaces load-bearing platform facts that aren't obvious from spec text alone (e.g., `model:` is turn-scoped, not session-scoped — multi-turn chat skills cannot use it for cross-turn model continuity). Task descriptions that depend on unsupported platform behavior produce wasted-iteration cycles at implementation time.
 
 #### State Persistence Protocol
 
-**STOP — read `.claude/support/reference/work-procedures.md § "State Persistence Protocol"` NOW (once per session, before processing any agent return).** It is the canonical body for the "Residue check" that opens every agent return (and follows a cutoff), the "Post-verify delta" path for a small change after a pass, and the three after-return protocols this file references by name: **"After implement-agent returns"** (status transitions for completed/partial/partial_resume_pending/blocked/misaligned; DEC-011 dual-write friction-marker append — immediate, never deferred — plus audit-register projection; holding the agent's decisions in the task's `decisions_pending` — no decision file before verification; dashboard regen; verify dispatch on `completed`), **"After verify-agent returns (per-task mode)"** (attempts + history; `task_verification` write incl. `evidence[]` from the Empirical Evidence Gate; pass/fail/escalate transitions; on pass, one `status: recorded` decision record from `decisions_pending`; timeout detection; parent auto-completion; FB-086 `files_affected` drift update), and **"After verify-agent returns (phase-level mode)"** (`verification-result.json`; fix-task creation; loop-or-complete).
+**STOP — read `.claude/support/reference/work-procedures.md § "State Persistence Protocol"` NOW (once per session, before processing any agent return).** It is the canonical body for the "Residue check" that opens every agent return (and follows a cutoff), the "Post-verify delta" path for a small change after a pass, and the three after-return protocols this file references by name: **"After implement-agent returns"** (status transitions for completed/partial/partial_resume_pending/blocked/misaligned; dual-write friction-marker append — immediate, never deferred — plus audit-register projection; holding the agent's decisions in the task's `decisions_pending` — no decision file before verification; dashboard regen; verify dispatch on `completed`), **"After verify-agent returns (per-task mode)"** (attempts + history; `task_verification` write incl. `evidence[]` from the Empirical Evidence Gate; pass/fail/escalate transitions; on pass, one `status: recorded` decision record from `decisions_pending`; timeout detection; parent auto-completion; `files_affected` drift update), and **"After verify-agent returns (phase-level mode)"** (`verification-result.json`; fix-task creation; loop-or-complete).
 
-The orchestrator owns ALL `.claude/` state transitions — agents cannot write there (DEC-004). Do not improvise any after-return step from this summary; the procedure file is the contract.
+The orchestrator owns ALL `.claude/` state transitions — agents cannot write there. Do not improvise any after-return step from this summary; the procedure file is the contract.
 
 #### If Executing
 
 **Before dispatch:** orchestrator sets task JSON to `{"status": "In Progress", "updated_date": today}`. For a task routed by Step 3's "Continued from recovery", the same write prepends `[RE-DISPATCHED {YYYY-MM-DD}]` to its `notes`.
 
-**Resume-pending check (DEC-010):** if the task JSON has a `partial_completion` field, read `.claude/support/reference/work-recovery.md § "Resume-Pending Dispatch"` and follow it (git-diff audit, envelope injection, clearing the field afterwards) as part of this dispatch.
+**Resume-pending check:** if the task JSON has a `partial_completion` field, read `.claude/support/reference/work-recovery.md § "Resume-Pending Dispatch"` and follow it (git-diff audit, envelope injection, clearing the field afterwards) as part of this dispatch.
 
 Dispatch implement-agent (Agent tool; set `model` per `.claude/CLAUDE.md § Model Requirement`) instructing it to read `.claude/agents/implement-agent.md` and follow Steps 1-6. Agent returns a structured report. **The dispatch prompt must state the envelope contract explicitly** — include: *"Return ONLY the structured JSON report envelope from `implement-agent.md § Step 6` — raw JSON, no prose summary, no markdown fences."* (Persona-via-prompt alone does not reliably transmit the output contract; a prose return was observed downstream.) The prompt also carries the evidence-directory and brief-claims lines from "Before Any Dispatch".
 
@@ -564,7 +564,7 @@ Dispatch implement-agent (Agent tool; set `model` per `.claude/CLAUDE.md § Mode
 
 **Inline implementation (small tasks):** for a task you can finish in a handful of tool calls, you may implement it yourself instead of dispatching implement-agent, following the inline contract in `.claude/rules/agents.md § "Dispatch Invariants vs Efficiency Defaults"` (the search for what the change invalidates, `[INLINE]` notes, existing checks, before/after behaviour for behaviour-changing edits; that section also covers `.claude/` deliverables and the size bound after a limit cutoff). Hold your own significant choices in `decisions_pending` exactly as for an agent return ("After implement-agent returns" step 3, with `decided_by: "orchestrator"`); they become a record only when verification passes. Verify-agent dispatch is **not** optional for inline work — set Awaiting Verification and continue with "If Verifying (Per-Task)".
 
-**Context to provide:** Current task, relevant spec sections, constraints/notes, and an explicit instruction that the agent must not attempt writes to `.claude/` — return the structured report only. If the task's notes contain a scope note newer than its `files_affected`, pass the scope note as the authority and say so. If the task has `decisions_pending` (a fix round or resume), pass the entries: the agent restates the set, amended as needed, in its report. Present `files_affected` as the expected scope, not a write limit: the agent searches for what the change invalidates and may edit other files it requires, reporting them (FB-113; `implement-agent.md` Step 2).
+**Context to provide:** Current task, relevant spec sections, constraints/notes, and an explicit instruction that the agent must not attempt writes to `.claude/` — return the structured report only. If the task's notes contain a scope note newer than its `files_affected`, pass the scope note as the authority and say so. If the task has `decisions_pending` (a fix round or resume), pass the entries: the agent restates the set, amended as needed, in its report. Present `files_affected` as the expected scope, not a write limit: the agent searches for what the change invalidates and may edit other files it requires, reporting them (`implement-agent.md` Step 2).
 
 **Inline status update (tier 2):** announce `Starting task {id}: "{title}"` when dispatching and a pass/fail summary after verify-agent completes. Dashboard regen deferred to next strategic moment (session boundary, parallel batch end, or async routing to dashboard).
 
@@ -608,7 +608,7 @@ Agent tool call:
     per-task report schema) — raw JSON, no prose summary, no markdown fences.
 ```
 
-**Timeout handling:** If verify-agent returns without a valid report (prose instead of the report schema, malformed JSON, or nothing usable), ask it once for the report — resume it with SendMessage, or re-dispatch — without incrementing `verification_attempts`. Only a second invalid return is a timeout: treat as verification failure — per State Persistence Protocol, increment `verification_attempts`, set task to "Blocked" with `[VERIFICATION TIMEOUT]` note, report to user. **Infrastructure terminations are interruptions, not timeouts (FB-120):** after a zero-token return, a usage-limit/HTTP 429 kill, an API or harness error, or a stop the user asked for, do NOT increment `verification_attempts` (same rule as an interrupted verifier at `/work pause`); the task stays Awaiting Verification. Per `work-procedures.md § "State Persistence Protocol"` → "After implement-agent returns" step 1, "Zero-token return — platform limit cutoff (FB-103)", report the interruption to the user and apply its post-limit dispatch rule before re-dispatching a fresh verify-agent.
+**Timeout handling:** If verify-agent returns without a valid report (prose instead of the report schema, malformed JSON, or nothing usable), ask it once for the report — resume it with SendMessage, or re-dispatch — without incrementing `verification_attempts`. Only a second invalid return is a timeout: treat as verification failure — per State Persistence Protocol, increment `verification_attempts`, set task to "Blocked" with `[VERIFICATION TIMEOUT]` note, report to user. **Infrastructure terminations are interruptions, not timeouts:** after a zero-token return, a usage-limit/HTTP 429 kill, an API or harness error, or a stop the user asked for, do NOT increment `verification_attempts` (same rule as an interrupted verifier at `/work pause`); the task stays Awaiting Verification. Per `work-procedures.md § "State Persistence Protocol"` → "After implement-agent returns" step 1, "Zero-token return — platform limit cutoff", report the interruption to the user and apply its post-limit dispatch rule before re-dispatching a fresh verify-agent.
 
 **Empirical Evidence Gate:** if `report.result == "pass"` and the task's output is a web-UI route/component in a web-framework project, and `checks.runtime_validation` is `"partial"` (or `"pass"` without browser measurement), read `.claude/support/reference/work-web-evidence.md § "Empirical Evidence Gate"` and run it **before** persisting the pass. In parallel mode it takes a turn in the exclusive-verify queue (`parallel-execution.md § "Single-Instance Resources"`). Non-web tasks skip it.
 
@@ -712,7 +712,7 @@ Manual task completion outside implement-agent's workflow — human-owned tasks,
 
 Agent-recorded decisions (status `recorded`: an agent chose during implementation, the work passed verification, you haven't confirmed the choice) never block tasks or phase gates. These two sub-modes are how the user closes them. Shape and lifecycle: `.claude/support/reference/decisions.md`.
 
-Both edit **frontmatter only**, with one exception: reconsider unticks a box the agent ticked on an older record (its step 2). They are infrastructure operations under DEC-016 (`rules/spec-workflow.md § "Direct edits to spec, decision, and vision files (DEC-016)"`), so they don't route through `/iterate` or `/research`. The `permissions.ask` prompt on decision files still fires (once per session with "Yes, don't ask again"). Otherwise never touch the record body here.
+Both edit **frontmatter only**, with one exception: reconsider unticks a box the agent ticked on an older record (its step 2). They are infrastructure operations under the spec-edit guardrail (`rules/spec-workflow.md § "Direct edits to spec, decision, and vision files"`), so they don't route through `/iterate` or `/research`. The `permissions.ask` prompt on decision files still fires (once per session with "Yes, don't ask again"). Otherwise never touch the record body here.
 
 ### `/work ratify [all | DEC-NNN …]`
 
@@ -758,8 +758,8 @@ Read `.claude/support/reference/context-transitions.md` and follow the Path A (U
 - Do NOT skip the handoff file — that's the whole point
 - `session_knowledge` captures what would otherwise be lost: user preferences, informal decisions, discovered patterns
 - **Open-question sweep (human-gated coverage):** before writing the handoff, enumerate every question asked of the user this session that went unanswered, plus any newly user-gated items (tasks put On Hold, Blocked on the user or flagged for review, unblocked `owner: "human"` tasks, unresolved decisions). Each MUST land in the dashboard's 🚨 Action Required ("Needs you") card with the concrete question inline: the script derives task and decision rows; write each unanswered question (and any Blocked task's open choice) to sidecar `augment_rows[]`, prune answered ones, then regenerate `dashboard.html` — never edit the HTML (`dashboard-regeneration.md § "Augment Rows"`). The handoff may point at those items; it must never be a blocking question's only home. (Counterpart: Step 0g prints this queue at the next session start.)
-- **New spec sections (FB-106):** if `/iterate` added a new `## ` section this session that no task references, confirm its heading is in `pending_decomposition[]` in `.claude/dashboard-state.json` (`/iterate`'s post-apply step writes it). Regenerating at pause is then safe: Step 1a reads the marker before anything else, so the decomposition offer survives the regen. If the marker is somehow absent and you cannot add it, fall back to the pre-v5.4.0 rule: skip the regen, print blocking items inline, and flag the undecomposed section in the handoff.
+- **New spec sections:** if `/iterate` added a new `## ` section this session that no task references, confirm its heading is in `pending_decomposition[]` in `.claude/dashboard-state.json` (`/iterate`'s post-apply step writes it). Regenerating at pause is then safe: Step 1a reads the marker before anything else, so the decomposition offer survives the regen. If the marker is somehow absent and you cannot add it, fall back to the pre-v5.4.0 rule: skip the regen, print blocking items inline, and flag the undecomposed section in the handoff.
 
 ### Interaction Assessment + Session Export (Track 2 — Cross-Project Logging)
 
-After the handoff file is written, complete the pause: generate the interaction assessment (`.interaction-assessment.json`), compile the session export (`.session-export-YYYY-MM-DD-HHMM.json`; copy to `template_inbox_path` when configured), then clean up the working files. **Procedure + schemas: `context-transitions.md § "Pause Follow-Through (Track 2 — Cross-Project Logging)"`** — the same file the pause procedure above already directs you to read; do not improvise the export shape from memory. **The inbox copy (Session Export step 6) is mechanized (FB-109): invoke `python3 .claude/scripts/persist-session-export.py --source <export-path>` — never `cp` the dot-prefixed working filename to the inbox verbatim; the script enforces the never-dot-prefixed rename structurally.** Interrupted-pause recovery is Step 0f's job (FB-089); if the PreCompact hook fires instead of `/work pause`, it compiles a markers-only export on its own.
+After the handoff file is written, complete the pause: generate the interaction assessment (`.interaction-assessment.json`), compile the session export (`.session-export-YYYY-MM-DD-HHMM.json`; copy to `template_inbox_path` when configured), then clean up the working files. **Procedure + schemas: `context-transitions.md § "Pause Follow-Through (Track 2 — Cross-Project Logging)"`** — the same file the pause procedure above already directs you to read; do not improvise the export shape from memory. **The inbox copy (Session Export step 6) is mechanized: invoke `python3 .claude/scripts/persist-session-export.py --source <export-path>` — never `cp` the dot-prefixed working filename to the inbox verbatim; the script enforces the never-dot-prefixed rename structurally.** Interrupted-pause recovery is Step 0f's job; if the PreCompact hook fires instead of `/work pause`, it compiles a markers-only export on its own.

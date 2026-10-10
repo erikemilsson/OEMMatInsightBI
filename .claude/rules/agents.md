@@ -9,16 +9,16 @@ Three specialist agents with distinct roles:
 
 ## Context Separation
 
-verify-agent always runs as a separate subagent (`Agent` tool), dispatched by the `/work` orchestrator — never inline in the implementation conversation. This applies to both sequential and parallel execution modes. "Fresh eyes" is preserved because the verifier evaluates in its own context with no implementation memory; the fact that the orchestrator (not the verify-agent itself) writes the verification result to the task JSON does not affect verification independence. See DEC-004.
+verify-agent always runs as a separate subagent (`Agent` tool), dispatched by the `/work` orchestrator — never inline in the implementation conversation. This applies to both sequential and parallel execution modes. "Fresh eyes" is preserved because the verifier evaluates in its own context with no implementation memory; the fact that the orchestrator (not the verify-agent itself) writes the verification result to the task JSON does not affect verification independence.
 
-## Dispatch Invariants vs Efficiency Defaults (FB-119)
+## Dispatch Invariants vs Efficiency Defaults
 
 The orchestrator's own work gets the same independent check as a subagent's. Two kinds of dispatch rule, and they are not interchangeable:
 
 - **Invariant — verify-agent dispatch.** Every task reaches Finished only through a separate verify-agent, **whoever implemented it**, orchestrator included. The orchestrator never verifies its own work, writes a "rollup" pass, or skips verification because a change was small (a small change after a pass goes back to the verifier that passed it: `work-procedures.md` "Post-verify delta"). If the harness can't dispatch a subagent (the Agent tool is unavailable or restricted), the task stays in Awaiting Verification and goes on the Needs-you card; it does not become Finished.
 - **Efficiency default — implement-agent dispatch.** For a task you can finish in a handful of tool calls (typically difficulty ≤ 2, touching one or two files), the orchestrator may implement inline instead of dispatching implement-agent. A task whose deliverable is a `.claude/` path is inline at any difficulty, since subagents can't write there. Inline work follows the same contract implement-agent would: set In Progress first; before editing, search for what the change invalidates, by its subject and not only the old literal (`implement-agent.md` Step 2); run the project's existing checks; for a behaviour-changing edit, record what the behaviour was before and after (e.g. the outputs the change affects), because a regression can't be seen from the diff alone; prepend an `[INLINE]` note to `notes`, naming files touched and checks run; record any friction markers you'd expect implement-agent to emit; hold any non-trivial choice in the task's `decisions_pending` (`work-procedures.md` "Hold decisions"); then set Awaiting Verification and dispatch verify-agent. Anything larger goes to implement-agent. A limit cutoff or zero-token return doesn't widen the bound: a larger task that can't be re-dispatched yet goes on the Needs-you card, not inline.
 
-## Orchestrator-Authored State Claims (FB-119)
+## Orchestrator-Authored State Claims
 
 When the orchestrator writes a claim *about* state into `.claude/` — "the build did not change since verification", a hash, a count, a timestamp, a supersession annotation in `verification-result.json` — the claim must come from a measurement made in the same step, and it names the measurement: the command and its range (e.g. `git log <verified_at>..HEAD -- <paths>`: 0 commits). A claim you can't back with a measurement is written as unverified, or not written.
 
@@ -28,9 +28,9 @@ Claims in a dispatch brief get the same treatment (`work.md § "Before Any Dispa
 
 ## State Ownership
 
-All `.claude/` state transitions (task JSON writes, dashboard regeneration, verification-result.json, session-log.jsonl) are owned by the orchestrator (the main session running `/work`, or `/research` for decision records). Subagents (implement-agent, verify-agent, research-agent) return structured reports; they do not write to `.claude/` paths. This is a hard constraint of the Claude Code harness (subagents are sandboxed from `.claude/` writes per Anthropic issue #38806) and is not expected to change. See DEC-004 for the full rationale.
+All `.claude/` state transitions (task JSON writes, dashboard regeneration, verification-result.json, session-log.jsonl) are owned by the orchestrator (the main session running `/work`, or `/research` for decision records). Subagents (implement-agent, verify-agent, research-agent) return structured reports; they do not write to `.claude/` paths. This is a hard constraint of the Claude Code harness (subagents are sandboxed from `.claude/` writes per Anthropic issue #38806) and is not expected to change.
 
-**Capability grounding:** the subagent boundaries above (no `.claude/` writes, no `permissions.allow` inheritance, Explore/Plan agents skip CLAUDE.md + git status; nested dispatch is platform-supported but not used by the template) are documented in `.claude/support/reference/claude-code-authoring.md § "Subagent Boundaries"` as load-bearing constraints for spec/skill/agent authors who would otherwise design workflows that violate them. The reference doc is the canonical home for "facts about Claude Code that authors trip over" (DEC-017).
+**Capability grounding:** the subagent boundaries above (no `.claude/` writes, no `permissions.allow` inheritance, Explore/Plan agents skip CLAUDE.md + git status; nested dispatch is platform-supported but not used by the template) are documented in `.claude/support/reference/claude-code-authoring.md § "Subagent Boundaries"` as load-bearing constraints for spec/skill/agent authors who would otherwise design workflows that violate them. The reference doc is the canonical home for "facts about Claude Code that authors trip over".
 
 ## Root Cause Over Symptom
 
@@ -75,7 +75,7 @@ Projects may keep `./CONTEXT.md` at the project root — a project-owned domain 
 
 The rule applies to the killed process AND to semantically equivalent replacements (killing `npm run dev` then starting `pnpm dev` on the same port IS a restart). Before re-initiating any halted long-running process, confirm with the user.
 
-This complements DEC-005's permission-layer gate (which stops unauthorized tool calls): that gate catches unapproved starts; this rule catches authorized-but-destructive re-starts after an explicit halt. Behavioral rule, not a permission — auto mode (which approves tool calls by classifier) does not absorb it.
+This complements the permission-layer gate (which stops unauthorized tool calls): that gate catches unapproved starts; this rule catches authorized-but-destructive re-starts after an explicit halt. Behavioral rule, not a permission — auto mode (which approves tool calls by classifier) does not absorb it.
 
 Note: starting a dev server for UI verification is a feature (per root `CLAUDE.md` guidance on UI testing), not a violation. The rule applies to *restarting after a kill*, not to initial starts.
 
