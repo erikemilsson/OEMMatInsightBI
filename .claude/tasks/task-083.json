@@ -1,0 +1,27 @@
+{
+  "id": "task-083",
+  "title": "Diagnose why the DirectLake model stopped reframing after 2026-09-20",
+  "description": "Measured 2026-10-16 (read-only): live DAX MAX(gold_quality_history[refresh_timestamp]) = 2026-09-20T04:25:39, but the OneLake _delta_log add-stats hold rows stamped 2026-09-21T04:16:38Z (commit 287) and 2026-09-22T04:27:18Z (commit 290), with commits continuing to 2026-09-24T04:18:24Z. So the model missed 4 runs (09-21 to 09-24) that succeeded on all 10 activities. Power BI refresh history: last entry 2026-08-19 (ViaEnhancedApi). Both fabric-cicd republishes of the SemanticModel happened on 2026-09-19 (18:43Z and about 19:48Z); the model still picked up the 09-20 rows after them. This contradicts spec L742 ('Automatic refresh when lakehouse tables update') and L1537/L1547, as well as task-010's AC5 decision to rely on DirectLake auto-update. Do: have Erik check the model's 'Keep your Direct Lake data up to date' setting in the Fabric UI; establish the cause. If auto-update cannot be relied on, an explicit refresh activity would reverse task-010's AC5 decision, so hold that as a decision and route the spec change through /iterate. After task-082 restores a successful run, confirm the model advances on its own.",
+  "difficulty": 3,
+  "owner": "both",
+  "source": "verify-agent",
+  "status": "Blocked",
+  "phase": "5",
+  "dependencies": [],
+  "decision_dependencies": [],
+  "files_affected": [],
+  "acceptanceCriteria": [
+    "The cause of the model missing the 2026-09-21..09-24 lakehouse updates is established on live evidence.",
+    "Either DirectLake auto-update is shown working (the model advances on its own after a successful run) or a refresh mechanism is decided by Erik and implemented, with spec L742/L1537/L1547 updated via /iterate if the mechanism changes."
+  ],
+  "out_of_spec": false,
+  "created_date": "2026-10-16",
+  "updated_date": "2026-10-16",
+  "verification_attempts": 0,
+  "notes": "[BLOCKED 2026-10-16] Waiting on Erik (his choice in /work: 'Block until I check'): open OEMInsightBI's settings in the Fabric UI and report whether 'Keep your Direct Lake data up to date' is on. Claude's diagnosis starts from that answer. Then set Pending and run /work. [CREATED 2026-10-16] Fix task from phase-level verification (FAIL 12/14). Erik's half comes first: check 'Keep your Direct Lake data up to date' on OEMInsightBI in the Fabric UI. Note for task-076: until this is resolved, a live reading of gold_quality_history through the model shows data only up to 2026-09-20.",
+  "spec_version": "spec_v1",
+  "spec_fingerprint": "sha256:f831cb4e02d600ca5029c6e61095d220a9ea72ca5dca1ffc2fca2bf2f0212b80",
+  "spec_section": "## Semantic Model & Reporting",
+  "section_fingerprint": "sha256:3566c8a4faf7c85dfec47ec2c0407556fc07c88798061a9e6d449fca4741a3f2",
+  "user_feedback": "[2026-10-16] Erik chose 'Block until I check (Recommended)': he checks the Direct Lake auto-update setting before any dispatch."
+}

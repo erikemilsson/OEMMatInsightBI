@@ -1,112 +1,103 @@
 {
-  "result": "pass",
-  "timestamp": "2026-08-21T14:21:14Z",
+  "result": "fail",
+  "timestamp": "2026-10-16T20:39:51Z",
   "spec_version": "spec_v1",
-  "spec_fingerprint": "sha256:0662c9e198c2f7b5cb4fa50d1b1f0bf9e2cce901454ffbf9c046285a645fc18a",
-  "verified_against_commit": "2873cc1",
-  "summary": "Full re-derivation against fingerprint 0662c9e1. The prior 13/13 was treated as prior claims to re-test, and its retracted 'the BUILD did not change' annotation was inherited in NEITHER direction. 13/13 PASS.\n\nTHE DEPLOY-FIDELITY GAP IS CLOSED, ON FIRST-HAND EVIDENCE RATHER THAN A TASK RECORD: GitHub Actions run 32427236326 for ba0cd91 ran in real PUBLISH mode ('Event=push dry_run=false', 'MODE: PUBLISH') and logged 'Published Notebook silver_to_gold' 23:06:56Z and 'Published Notebook bronze_ingest_wgi' 23:06:57Z, concluding success — so both artifacts ba0cd91 changed ARE live. At verification time HEAD (2873cc1) was 1 commit ahead of origin/main and unpushed, but touches ZERO fabric/ files (probed with two positive controls), so repo fabric/ at HEAD was identical to what was published.\n\nThe prior run's major finding — task-074's grain guard unreachable — is FIXED and re-derived locally, not accepted: ba0cd91 restructures it into guard (A) counting the PRE-dedup frame plus guard (B) on the dedup key, and tests/test_data_quality.py::TestDataGapsGrainGuard drives the NOTEBOOK'S OWN create_data_gaps_table via load_notebook_functions over a fixture with a duplicated country_key, asserting the ValueError fires with '5 rows for 4 distinct countries' AND that nothing was written. Suite: 349 passed / 0 failed / 0 skipped in 60.08s (conftest sets spark.sql.ansi.enabled=false, matching Fabric).\n\nEvery one of task-076's spec corrections was re-measured against reality, not accepted: bronze_wgi retry is 0 and pipeline_error_handler is 0 in pipeline-content.json (range 0-3 confirmed across all 10 activities); test_data_quality.py collects exactly 54; the suite is exactly 349; docs/data_quality_framework.md § 7 now reads 'Two', agreeing with spec L1122 and data_quality_architecture.md — the prior run's self-contradiction is resolved.\n\nNEW FINDING THE RECORD DID NOT HOLD: the live workspace contains two items absent from source control — Notebook/Notebook_1 and DataPipeline/tmp_task064_seed — enumerated by the same deploy run at 23:07:16Z (12 repo items vs 15 deployed; the third, SQLEndpoint/oem_lh, is Fabric-generated and benign). docs/architecture/fabric-artifacts-inventory.md L51 asserts Notebook_1 was 'Removed 2026-08-10', which the 2026-08-20 enumeration falsifies; tmp_task064_seed appears nowhere in that inventory, and task-069's own record says it held rollback DDL that 'would have silently undone the fix while reporting success'. *** THAT PREMISE WAS FALSIFIED BY THE ORCHESTRATOR AFTER THIS RUN: the LIVE pipeline definition was fetched 2026-08-21 and its CREATE TABLE reads DECIMAL(18,2) on both columns, matching azure/procurement.sql. SMALLINT/FLOAT survive only in a stale comment header. The pipeline is still destructive (DROP + reseed) and still undocumented, but it does NOT revert the schema fix. See task-079, whose description carries the measured correction. *** So 'repo equals live workspace' holds in the repo-to-workspace direction and is freshly proven, but NOT in the workspace-to-repo direction. Raised as task-079.\n\nSCOPE LIMIT, STATED PLAINLY: verify-agent holds no Fabric credentials. It could not query the lakehouse, the semantic model, or the pipeline run history. Criteria 1, 2, 4, 8 rest on live evidence recorded by others in task JSONs plus repo-internal corroboration — and critically, NO scheduled or manual pipeline run against the post-ba0cd91 silver_to_gold has been observed. The deploy is proven; the subsequent execution of the new code is not.",
-  "criteria_passed": 13,
-  "criteria_failed": 0,
+  "spec_fingerprint": "sha256:f831cb4e02d600ca5029c6e61095d220a9ea72ca5dca1ffc2fca2bf2f0212b80",
+  "verified_against_commit": "6573879 (+ uncommitted task-079 inventory edit)",
+  "summary": "FAIL, 12/14 (the 13 criteria from the prior run plus a new cross-cutting criterion on model currency). The repo build is sound and task-080/081's changes check out against measurements. The LIVE system is not healthy. CRITICAL: every scheduled orchestrator run FAILED from 2026-09-25 to 2026-10-16 (22 runs; 09-15..09-24 Completed), at bronze_epi with 'ParserError: Error tokenizing data. C error: Expected 1 fields in line 15, saw 2'. Root cause: https://epi.yale.edu/downloads/epi2024results.csv and epi2024weights.csv return HTTP 200 text/html (a 30,621-byte page), and bronze_ingest_epi passes response.text to pd.read_csv (L133) with no content-type check, so its 404 branch never fires. Downstream bronze_to_silver_cleaning, silver_to_gold and data_quality_checks have been Skipped since then; gold is frozen at the 2026-09-24 run. Error handling observed working live (3 attempts, handler wrote 8 rows, re-raised). MAJOR: the DirectLake model is not tracking the lakehouse, contrary to spec L742/L1537/L1547. Live DAX MAX(gold_quality_history[refresh_timestamp]) = 2026-09-20T04:25:39 while the Delta log holds rows from 09-21/09-22 and commits through 09-24T04:18Z; the last refresh-history entry is 2026-08-19. VERIFIED: 10 relationships match task-081's corrected spec; 14 directLake tables and 45 measures; the retry map matches the spec; Bottleneck Detail is a hidden drillthrough target, and the live page.json equals the repo; the 0e60755 deploy ran in PUBLISH mode; 349 tests passed; ledger 99 Finished+pass and 3 Absorbed. The prior run's open loop is closed: 09-23/09-24 runs succeeded on all 10 activities. All live calls were read-only. Orchestrator spot-check 2026-10-16 ~20:41Z: curl confirms both Yale URLs return 200 text/html 30621B with no redirects; https://epi.yale.edu/2026/downloads now lists EPI 2026 files (XLSX/ZIP, dated 2026-09).",
+  "criteria_passed": 12,
+  "criteria_failed": 2,
   "criteria": [
     {
       "name": "Phase 1 — Gold tables populated",
       "status": "pass",
-      "notes": "Not measurable without Fabric creds; rests on task-074's recorded run 32f23f12 (fact_procurement EUR 3,273,776.03, gold_data_gaps 12 rows/12 countries) plus my own local execution of the notebook's create_data_gaps_table over fixtures — but no live run of the post-ba0cd91 code is confirmed."
+      "notes": "Live DAX: fact_procurement 132 rows, Total Spend EUR 3,273,776.03; gold_supply_risk 127, gold_data_gaps 12, dim_country 193, fact_epi_score 12,196. Populated but frozen at the 2026-09-24 run."
     },
     {
       "name": "Phase 1 — Semantic model connected",
       "status": "pass",
-      "notes": "Repo TMDL measured this session: exactly 14 tables and 45 measures, DirectLake mode present; the live DirectLake refresh remains task-074's recorded 2026-08-19T21:09:12Z evidence, not my measurement."
+      "notes": "Live executeQueries returned gold data. TMDL: 14 directLake tables, 45 measures, 10 relationships matching the spec. Currency assessed separately below."
     },
     {
       "name": "Phase 1 — Power BI report built",
       "status": "pass",
-      "notes": "5 pages / 17 visual.json measured; activePageName resolves to Executive Dashboard. Minor: the 'Supply Risk Verify' drillthrough target (pageBinding.type=Drillthrough) ships with no visibility flag, so it renders as a normal tab under scratch naming."
+      "notes": "5 pages and 17 visuals; Bottleneck Detail is HiddenInViewMode with a drillthrough on gold_dim_material[material_name_std], carried by both Supply Risk bar charts; the live page.json equals the repo. Erik's task-080 click test is outstanding and was not counted."
     },
     {
       "name": "Phase 2 — Incremental load works for fact_procurement",
       "status": "pass",
-      "notes": "p_full_load (false) and p_from_date (1900-01-01) confirmed in the live 5-parameter set; tests/test_watermark.py collects exactly 27, all green. End-to-end MERGE remains task-006_3's recorded live evidence — Delta MERGE is not locally reproducible (delta-spark not installed)."
+      "notes": "p_full_load and p_from_date are live; test_watermark 27 green; 3 Delta commits per day through 2026-09-24; no incremental run since then, because of the EPI failure."
     },
     {
       "name": "Phase 2 — Data quality checks run in pipeline",
       "status": "pass",
-      "notes": "14 distinct check names via log_check_result and exactly 13 BLOCKING_CHECKS tuples, counted programmatically; data_quality_checks is terminal and pipeline_error_handler depends on it via ['Succeeded','Failed','Skipped']."
+      "notes": "14 check names, 13 BLOCKING_CHECKS; Succeeded live 09-23/09-24; Skipped since 09-25 because bronze_epi fails upstream."
     },
     {
       "name": "Phase 2 — External data ingestion scripted",
-      "status": "pass",
-      "notes": "bronze_epi and bronze_wgi are TridentNotebook activities in pipeline-content.json; HTTP_TRANSIENT_STATUSES={400,408,429} plus 5xx with API_MAX_RETRIES=8 in-notebook per DEC-018/019; tests/test_wgi_retry.py collects exactly 40, green. ba0cd91's wgi delta read in full: comment-only, confirmed."
+      "status": "fail",
+      "notes": "bronze_epi failed all 22 scheduled runs 2026-09-25..10-16 with a pandas ParserError: the Yale CSV URLs now return HTTP 200 text/html and the notebook has no content-type guard. bronze_wgi still succeeds."
     },
     {
       "name": "Phase 3 — Error handling with Try-Catch in pipeline",
       "status": "pass",
-      "notes": "FR-096 is now FIXED, and I re-measured rather than accepted it: all 10 activities enumerated — retries 3,3,2,2,1,0,2,0,3,3 — so spec's corrected '0-3' range and its bronze_wgi=0 row both hold. Minor residue: Technical Decisions #5's interval map enumerates 9 of 10 activities, omitting pipeline_error_handler (retry 0, interval 30s) — task-081."
+      "notes": "Observed live 2026-10-16: 3 attempts, then pipeline_error_handler wrote 8 log rows and re-raised, and the run reports Failed. The retry map matches the spec."
     },
     {
       "name": "Phase 3 — Pipeline scheduling configured",
       "status": "pass",
-      "notes": "Schedule id is not readable without creds and I did NOT re-observe a firing this session; rests on the spec's recorded 2026-08-06 run df0cc54f and the prior result's 2026-08-20 run c5ad962d. A 2026-08-21 04:00Z firing would be the first to exercise ba0cd91's code, and is unconfirmed."
+      "notes": "Schedule 17288b67 is enabled, daily at 06:00 W. Europe; 32 Scheduled runs 09-15..10-16 fired at about 04:00Z with no gap."
     },
     {
       "name": "Phase 3 — Basic performance review done",
       "status": "pass",
-      "notes": "docs/performance_baseline.md and docs/performance_optimized.md both read 'Status: FINAL', the latter dated to task-012_5's 2026-08-03 retest; honest null result intact."
+      "notes": "performance_baseline.md and performance_optimized.md are FINAL; the task-080 edits are page names only."
     },
     {
       "name": "Phase 4 — GitHub Actions deploys via fabric-cicd",
       "status": "pass",
-      "notes": "deploy-fabric.yml pins fabric-cicd==1.2.0 with EFFECTIVE_DRY_RUN=false on push to main and folder_exclude_regex '^/archive$'; the 6 most recent push-to-main deploys are all success, newest ba0cd91 at 2026-08-20T23:06:34Z, verified via gh run list."
+      "notes": "Runs 35462065630 (0e60755) and 35465494559 (0425ca7) succeeded; 0e60755 ran in PUBLISH mode, 'Published Report oem_report'."
     },
     {
       "name": "Cross-cutting — Deploy fidelity: repo equals live workspace",
       "status": "pass",
-      "notes": "Re-derived first-hand, NOT inherited: ba0cd91's deploy log proves real PUBLISH of both changed notebooks, and HEAD adds no fabric/ delta (two positive controls). Qualification recorded: the workspace holds 2 non-generated items the repo lacks (Notebook_1, tmp_task064_seed) — task-079, where the orchestrator's live re-enumeration on 2026-08-21 confirmed both are still present and corrected the record's claim about what tmp_task064_seed contains — so equality holds repo-to-workspace only. NOTE: at verification time HEAD was 1 commit unpushed; the orchestrator pushed it at close (see push_status below)."
+      "notes": "13 live items equal to the repo set, no orphans; the live report page equals the repo; the live pipeline activity map is identical except parameter.yml ids."
     },
     {
       "name": "Cross-cutting — Test suite green",
       "status": "pass",
-      "notes": "349 passed / 0 failed / 0 skipped in 60.08s via uv run pytest — exactly matching the spec's corrected L1319 count, and test_data_quality.py collects exactly the corrected 54. Both of task-076's numeric corrections verified by measurement."
+      "notes": "uv run pytest tests/: 349 passed in 42.38s."
     },
     {
       "name": "Cross-cutting — Task ledger integrity",
       "status": "pass",
-      "notes": "99 task files parsed (24 active + 75 archived): 96 Finished each carrying task_verification.result == 'pass', 3 Absorbed, and zero Pending/In Progress/Awaiting Verification/Blocked/On Hold. Verification debt is nil."
+      "notes": "102 task files: 99 Finished with pass, 3 Absorbed with absorbed_into; user_review_pending only on task-076/080."
+    },
+    {
+      "name": "Cross-cutting — Semantic model reflects lakehouse updates automatically (spec § Semantic Model & Reporting L742)",
+      "status": "fail",
+      "notes": "Live MAX(gold_quality_history[refresh_timestamp]) = 2026-09-20T04:25:39 while the Delta log holds rows from 09-21/09-22 and commits through 09-24T04:18Z; the model missed 4 successful runs; the last refresh-history entry is 2026-08-19."
     }
   ],
   "issues": {
-    "critical": 0,
+    "critical": 1,
     "major": 1,
-    "minor": 3
+    "minor": 1
   },
   "tasks_created": [
-    "task-079",
-    "task-080",
-    "task-081"
+    "task-082",
+    "task-083"
   ],
   "supersedes": {
-    "timestamp": "2026-08-20T11:37:34Z",
-    "spec_fingerprint": "sha256:eb7d4ec42ceefa9a3e709d879fd269fd0f6c07b4f432dc5a6a68a3f7cc1e6845",
-    "verified_against_commit": "853cf0a",
-    "note": "The 2026-08-20 13/13 was re-derived, not inherited. Two things had moved since it was stamped: the spec (task-076's corrections, now committed as 2873cc1) and the BUILD (commit ba0cd91 modified silver_to_gold and bronze_ingest_wgi AFTER that pass). That prior record carried an annotation claiming 'The BUILD did not change'; the claim was false, was caught by task-076's verification, and was retracted in place before this run.",
-    "how_the_retracted_gap_actually_resolved": "The retraction was correct — the 'build did not change' claim WAS false — but the gap it opened read wider than it was. This run established from the GitHub Actions log that ba0cd91 deployed in real PUBLISH mode about 23 minutes after it was committed, so both changed notebooks were already live in the workspace BEFORE the supersession note was written. Deploy fidelity was never actually broken; what was broken was the record's basis for asserting it. Logged as a false_positive friction marker so the supersession-annotation habit is calibrated, not abandoned."
+    "timestamp": "2026-08-21T14:21:14Z",
+    "result": "pass",
+    "spec_fingerprint": "sha256:0662c9e198c2f7b5cb4fa50d1b1f0bf9e2cce901454ffbf9c046285a645fc18a",
+    "note": "Prior 13/13 PASS (2026-08-21) superseded on spec-fingerprint change; history is in git."
   },
-  "scope_limits": {
-    "fabric_credentials": "none in the verifying session — lakehouse, semantic model and pipeline run history were not queried",
-    "criteria_resting_on_recorded_evidence": [
-      1,
-      2,
-      4,
-      8
-    ],
-    "open_loop": "No pipeline run against the post-ba0cd91 silver_to_gold has been observed. The DEPLOY is proven from the Actions log; the subsequent EXECUTION of the new code is not."
+  "cost": {
+    "total_tokens": 165669,
+    "tool_uses": 38,
+    "duration_ms": 462620
   },
-  "post_run_corrections": [
-    {
-      "date": "2026-08-21",
-      "by": "orchestrator",
-      "what": "The NEW FINDING in this run's summary inherited task-069's characterisation of DataPipeline/tmp_task064_seed as holding SMALLINT/FLOAT rollback DDL. A live getDefinition fetch showed the script's CREATE TABLE is DECIMAL(18,2) on both columns — matching the repo contract — with SMALLINT/FLOAT appearing only in a stale comment header. The finding that the item is live and undocumented STANDS; the characterisation of its danger does not.",
-      "also_confirmed": "Both orphans (Notebook_1, tmp_task064_seed) verified still present in the live workspace on 2026-08-21 via the Fabric items API — upgrading this from a deploy-log inference to a first-hand measurement. Of the inventory doc's eight 'removed 2026-08-10' rows, Notebook_1 is the only one falsified."
-    }
-  ]
+  "evidence_dir": "/private/tmp/claude-501/-Users-erikemilsson-Developer-OEMMatInsightBI/4ca271ef-1c14-4500-91f8-8d4acd2f841e/scratchpad/agent-phase-5-verify-1/"
 }
