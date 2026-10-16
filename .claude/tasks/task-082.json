@@ -1,0 +1,154 @@
+{
+  "id": "task-082",
+  "title": "Restore bronze_epi: Yale EPI CSV URLs now serve HTML, pipeline red since 2026-09-25",
+  "description": "Measured 2026-10-16 (read-only): all 22 scheduled orchestrator runs from 2026-09-25 to 2026-10-16 FAILED at bronze_epi with 'ParserError: Error tokenizing data. C error: Expected 1 fields in line 15, saw 2' (latest run 342de295, errorCode 2451). curl on https://epi.yale.edu/downloads/epi2024results.csv and .../epi2024weights.csv returns HTTP 200 text/html, a 30,621-byte page titled 'EPI Downloads | Environmental Performance Index', with no redirect and no CSV link in the static HTML. The notebook passes response.text to pd.read_csv (notebook-content.py L133; the weights file at L275) without checking the content type, and its 404 branch never fires on this soft-404. Every downstream activity (bronze_to_silver_cleaning, silver_to_gold, data_quality_checks) has been Skipped since then, so the gold layer is frozen at the 2026-09-24 run. Do: (1) find where Yale now publishes the 2024 results and weights files, or decide to pin the static 2024 vintage in a location we control. Choosing between a live URL and a pinned copy is a design choice: hold it in decisions_pending for Erik. (2) Add a guard that runs before parsing, for both files: reject a non-CSV Content-Type or an HTML body with a named error that cites the URL and the content type. (3) Add a local test of that guard (loading the notebook's own functions where possible). (4) Update spec L216/L261/L860/L1497 via /iterate if the source mechanism changes. (5) Erik confirms the next scheduled run completes and the gold tables advance past 2026-09-24.",
+  "difficulty": 4,
+  "owner": "both",
+  "source": "verify-agent",
+  "status": "Finished",
+  "phase": "5",
+  "dependencies": [],
+  "decision_dependencies": [],
+  "files_affected": [
+    "fabric/bronze_ingest_epi.Notebook/notebook-content.py",
+    "reference_data/epi/epi2024results.csv",
+    "reference_data/epi/epi2024weights.csv",
+    "reference_data/epi/README.md",
+    "tests/test_epi_source_guard.py",
+    "tests/_notebook_loader.py",
+    "docs/epi_wgi_ingestion.md",
+    "docs/architecture/data_sources.md",
+    "docs/architecture/fabric_workspace.md",
+    "docs/error_recovery_playbook.md",
+    "docs/architecture/fabric-artifacts-inventory.md"
+  ],
+  "acceptanceCriteria": [
+    "bronze_ingest_epi validates each download before parsing: a non-CSV Content-Type or an HTML body raises a named error citing the URL and content type (no pandas ParserError path).",
+    "A local test exercises the guard against an HTML soft-404 body and a valid CSV body, loading the notebook's own function where possible.",
+    "The EPI source mechanism is decided by Erik and implemented, with spec text updated via /iterate if the mechanism changes.",
+    "A scheduled (or on-demand) orchestrator run completes all 10 activities, and gold tables advance past 2026-09-24, confirmed on live evidence."
+  ],
+  "out_of_spec": false,
+  "created_date": "2026-10-16",
+  "updated_date": "2026-10-16",
+  "verification_attempts": 1,
+  "notes": "[DELTA 2026-10-16] Verifier minors #1-#3 fixed: _notebook_loader docstring now says FunctionDefs and ClassDefs are compiled; epi_wgi_ingestion.md banner now marks the later epi.yale.edu/downloads code sketches as historical, and the check_for_updates() sketch carries a soft-404 warning; reference_data/epi/README.md names the results snapshot 20260424222356. Dropped: #4 (HTML fragment without <html/<!doctype) is informational, and such a body fails the notebook's named schema check; #5 is not a defect (AC4 is pending Erik's push and run, and is the test_protocol; AC3's spec text is FR-106 for /iterate). User review still pending, not completed. [DECISION RECORDED 2026-10-16] DEC-021 (status recorded, decided_by implement-agent) written from decisions_pending after the verify pass. [ORCHESTRATOR 2026-10-16] Added inline before verification: docs/architecture/fabric-artifacts-inventory.md L48 (EPI_file2table row) said 'the notebook downloads from epi.yale.edu directly'. Reworded to the pinned copy (the agent flagged it but skipped the file because it carried task-079's uncommitted edits). That closes the agent's 'create new task' issue without a new task. Residue clean (reference_data/ is declared output; node listeners on 4521-4523 belong to another project's session). Stray U+FEFF probe: 0 in the notebook and the test (control 1). Open items for Erik: one push carrying reference_data/ + notebook + tests + docs (local main is also 12 template-sync commits ahead of origin); spec L216/L261/L860/L1497/L1501 via /iterate (proposed wording in this task's notes below, FR-106); the redistribution license of Yale data in an MIT repo; bronze_epi policy.retry=2 still retries deterministic errors (noted, out of scope). [Multi-file: 10 files modified] Pinned Yale's original EPI 2024 results and weights CSVs, byte-identical to the Wayback copies (sha256 9d0b98d9…, b4d3dee9…), at reference_data/epi/ (+ README with provenance and a CC BY-NC-SA notice). bronze_ingest_epi now fetches them via EPI_SOURCE_BASE_URL = https://raw.githubusercontent.com/erikemilsson/OEMMatInsightBI/main/reference_data/epi. Guard cell: CSV_CONTENT_TYPES {text/csv, application/csv, text/plain}, EpiSourceNotCsvError(ValueError), assert_csv_response(response, url), called after each download's retry loop and before each pd.read_csv; HTML body check regardless of header; a missing Content-Type or empty body fails closed. Both 404 messages rewritten. PARAMETERS CELL unchanged, no META keys, the EPI Percent -> epi_percent rename intact. tests/_notebook_loader.py now also extracts top-level classes (backward compatible). Docs updated: epi_wgi_ingestion.md (new 'Source pinning and the pre-parse guard' section), architecture/data_sources.md, architecture/fabric_workspace.md, error_recovery_playbook.md. Two notebook comments corrected: 3 PolicyObjectives (ECO, HLT, PCC), not 2. BEFORE/AFTER (whole notebook on local[1], ANSI off, scripted requests, saveAsTable -> temp views): HEAD fed Yale's 30,621 B page -> ParserError 'Expected 1 fields in line 15, saw 2' (reproduces live); new -> EpiSourceNotCsvError naming the URL and text/html; new fed pinned bytes -> results 180x149, weights 73 rows with epi_percent. Checks: uv run pytest tests/ -> 375 passed (349 + 26 in tests/test_epi_source_guard.py); 6 mutation tests of the guard each failed at least one test. AC1/AC2 met; AC3 implemented, but the spec text needs /iterate; AC4 needs Erik's push plus a live run (the first proof that Fabric Spark reaches raw.githubusercontent.com, unverified). Evidence: scratchpad/agent-task-082-implement-1/. [PROPOSED SPEC TEXT for /iterate, from implement-agent] L216 -> '**Ingestion Method:** `bronze_ingest_epi.Notebook` (PySpark, automated HTTPS download with retry and a pre-parse content guard; year-parameterised per task-028). Since task-082 (2026-10-16) the source is the repo-pinned copy of Yale's original 2024 files (`reference_data/epi/`, fetched from raw.githubusercontent.com), because Yale retired its 2024 CSV paths in September 2026. Supersedes the retired `EPI_file2table.Dataflow` CSV lineage.' L261 -> '**File Location:** Yale's original 2024 CSVs, pinned in the repo under `reference_data/epi/` and downloaded over HTTPS from `https://raw.githubusercontent.com/erikemilsson/OEMMatInsightBI/main/reference_data/epi/` by `bronze_ingest_epi.Notebook` (task-082; year-parameterised via `p_epi_year`, so only pinned vintages resolve). From task-028 until September 2026 the notebook downloaded from `epi.yale.edu`. Manual upload to Lakehouse `Files/` was the pre-task-035 mechanism.' L860 -> '-   [x] EPI ingestion (`bronze_ingest_epi.Notebook` — automated HTTPS download of the repo-pinned EPI 2024 CSVs with retry and a pre-parse content guard; year-parameterised per task-028; source pinned by task-082)'. L1497 -> '-   Source: Yale EPI 2024 (https://epi.yale.edu/). The original release files are pinned in the repo (`reference_data/epi/`) and downloaded over HTTPS from raw.githubusercontent.com (task-082); Yale retired its own 2024 CSV URLs in September 2026'. L1501 -> '-   File location: `reference_data/epi/` in the repo (pinned copy), fetched at runtime by `bronze_ingest_epi.Notebook`; nothing is uploaded to the lakehouse'. Optional L1499 -> '-   Update schedule: Yale publishes annually (EPI 2026 was released September 2026); the pipeline stays on the pinned 2024 vintage until a new vintage is pinned'. L586 needs no change. [DECIDED 2026-10-16] Source mechanism (step 1) decided by Erik: pin the 2024 vintage plus a guard, so it is not an agent decision. Measured same day: the Wayback Machine serves both original files as text/csv (results 123,308 B, 181 lines; weights 6,756 B, 74 lines, snapshot 20260814071704), and the GitHub repo is public (raw.githubusercontent README -> 200). [CREATED 2026-10-16] Fix task from phase-level verification (FAIL 12/14). Orchestrator spot-check same day: both URLs return 200 text/html 30621B, 0 redirects (curl). The page links /2026/welcome; https://epi.yale.edu/2026/downloads lists EPI 2026 files only (epi2026results2026-07-07.xlsx, epi2026methods.xlsx, indicator/rawdata ZIPs under /sites/default/files/2026-09/); /downloads and /2024/downloads return 404. So Yale released EPI 2026 in September and the 2024 CSV paths were retired. The repo holds no copy of the 2024 CSVs; the lakehouse bronze_epi2024results/weights tables still hold the 2024 data.",
+  "spec_version": "spec_v1",
+  "spec_fingerprint": "sha256:f831cb4e02d600ca5029c6e61095d220a9ea72ca5dca1ffc2fca2bf2f0212b80",
+  "spec_section": "## Data Architecture",
+  "section_fingerprint": "sha256:616e7cad16be3fef621d15915e60f953fb974547bac0e964594f25f5ac3113f2",
+  "user_feedback": "[2026-10-16] Erik chose 'Pin 2024 + guard (Recommended)': keep the 2024 vintage, store the original CSVs where we control them, point bronze_ingest_epi there, and add a pre-parse content guard with a test. No EPI 2026 upgrade task (he did not pick the option that files one).",
+  "completion_date": "2026-10-16",
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-10-16T21:11:00Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "partial",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "minor",
+          "description": "tests/_notebook_loader.py L37 (extra_globals docstring) still says 'Only the FunctionDefs are compiled'; since this change, ClassDefs are compiled too."
+        },
+        {
+          "severity": "minor",
+          "description": "docs/epi_wgi_ingestion.md keeps original research sketches pointing at epi.yale.edu/downloads (L81, L101-103, L600, L658, L685). The L41 banner marks only the URL tables as retired, and the check_for_updates() sketch at L685 treats requests.head(...).status_code == 200 as 'new data available', which is the soft-404 trap this task documents."
+        },
+        {
+          "severity": "minor",
+          "description": "reference_data/epi/README.md Provenance names the weights snapshot (20260814071704) but not the results snapshot the same id_ request resolves to (20260424222356)."
+        },
+        {
+          "severity": "minor",
+          "description": "The guard's HTML sniff matches only '<!doctype html' or '<html' in the first 2 KB, so an HTML fragment without either still gets through. That covers the measured failure mode, and such a body would then fail the notebook's own named schema check; informational only."
+        },
+        {
+          "severity": "minor",
+          "description": "AC4 is unverified until Erik pushes: the raw URL returns 404 today because reference_data/ is untracked. The push must carry reference_data/epi/ in the same commit as the notebook. AC3's spec text still needs /iterate (FR-106)."
+        }
+      ],
+      "notes": "Independent re-measurement. PIN: both Wayback id_ re-fetches are byte-identical to reference_data/epi/*.csv (results snapshot 20260424222356, weights 20260814071704); no .gitattributes/autocrlf, so git stores the bytes as-is (weights has CRLF). Fit: results 180x149 with code/iso/country/EPI.new; weights 8 columns, 73 rows, 58 Indicators. GUARD: own whole-notebook harness on local[1], ANSI off. HEAD reproduces the live ParserError; the new notebook raises EpiSourceNotCsvError for the HTML page under text/html, text/plain, application/csv and text/csv, and fails at the weights guard for HTML weights; the 404 gives a named ValueError; the pinned bytes succeed (results 180x149, weights 73x8 with epi_percent). Mutation probe: 5 mutants each caught; the control is clean. PARAMETERS CELL delimiter once; META keys standard; the EPI Percent rename is intact. URL matches the committed paths; reference_data not ignored (control data/x.csv ignored); the raw URL returns 404 until pushed. LOADER: only ClassDef added; no collisions. 375 passed. The held decision is sound. AC1/AC2 met; AC3 implemented (spec via /iterate, FR-106); AC4 not yet verifiable (needs push and a live run).",
+      "cost": {
+        "total_tokens": 151211,
+        "tool_uses": 25,
+        "duration_ms": 393319
+      }
+    },
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-10-16T21:14:51Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "partial",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [],
+      "notes": "Post-verify delta re-check (same verifier): independent diffs match delta.diff exactly. Loader docstring accurate for the ast filter; the epi_wgi_ingestion.md banner sentence and the soft-404 blockquote render, and assert_csv_response() exists; README names results snapshot 20260424222356 (matches measured memento headers). Notebook sha256 unchanged (guard, PARAMETERS CELL, epi_percent rename untouched); CSV hashes unchanged; 375 passed. Agrees with dropping #4 and #5. AC1/AC2 met; AC3 implemented (spec via /iterate, FR-106); AC4 is the test_protocol for Erik.",
+      "delta": true,
+      "cost": {
+        "total_tokens": 158261,
+        "tool_uses": 3,
+        "duration_ms": 74075
+      }
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-10-16T21:14:51Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "partial",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "Post-verify delta re-check (same verifier): independent diffs match delta.diff exactly. Loader docstring accurate for the ast filter; the epi_wgi_ingestion.md banner sentence and the soft-404 blockquote render, and assert_csv_response() exists; README names results snapshot 20260424222356 (matches measured memento headers). Notebook sha256 unchanged (guard, PARAMETERS CELL, epi_percent rename untouched); CSV hashes unchanged; 375 passed. Agrees with dropping #4 and #5. AC1/AC2 met; AC3 implemented (spec via /iterate, FR-106); AC4 is the test_protocol for Erik.",
+    "issues": []
+  },
+  "user_review_pending": true,
+  "interaction_hint": "cli_direct",
+  "test_protocol": {
+    "summary": "Confirm the pinned EPI source works live and the pipeline recovers (AC4).",
+    "steps": [
+      {
+        "instruction": "Commit and push to main, in ONE push: reference_data/epi/ (3 files), the bronze_ingest_epi notebook, tests/_notebook_loader.py, tests/test_epi_source_guard.py and the 5 docs",
+        "expected": "test.yml passes (375 tests) and deploy-fabric.yml publishes bronze_ingest_epi",
+        "type": "command",
+        "command": "git push origin main"
+      },
+      {
+        "instruction": "Check the pinned files are served from main",
+        "expected": "Both return 200 text/plain; charset=utf-8, and the sha256 values match reference_data/epi/README.md",
+        "type": "command",
+        "command": "for f in epi2024results.csv epi2024weights.csv; do curl -sS https://raw.githubusercontent.com/erikemilsson/OEMMatInsightBI/main/reference_data/epi/$f | shasum -a 256; done"
+      },
+      {
+        "instruction": "Trigger the orchestrator on demand (or wait for the next scheduled run) and open the bronze_epi activity output",
+        "expected": "'Content check passed (Content-Type: text/plain; charset=utf-8)' appears twice, plus 'Parsed 180 rows, 149 columns' and 'Parsed 73 rows, 8 columns'; all 10 activities Succeeded",
+        "type": "interactive"
+      },
+      {
+        "instruction": "Confirm the gold tables advanced past 2026-09-24 (e.g. DESCRIBE HISTORY on a gold table, or the load timestamp in the quality observability tables)",
+        "expected": "The latest gold write is dated after 2026-09-24",
+        "type": "visual"
+      }
+    ],
+    "automated_results": "Local whole-notebook run passed: 8 scenarios; 375/375 pytest; 6/6 mutations caught. Live fetch from Fabric Spark and the end-to-end run need Erik.",
+    "estimated_time": "20 minutes (mostly pipeline runtime)"
+  }
+}

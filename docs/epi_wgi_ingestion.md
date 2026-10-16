@@ -1,7 +1,7 @@
 # External Data Source Automation - OEMMatInsightBI
 
 **Status:** Implementation Complete
-**Last Updated:** 2026-04-05
+**Last Updated:** 2026-10-16
 **Owner:** Claude Code
 
 ## Executive Summary
@@ -15,7 +15,7 @@ This document provides comprehensive research findings on automating the ingesti
 - 🔄 **Update Frequency:** Both annual updates (sufficient for use case)
 
 **Implementation (2026-04-05):**
-- ✅ **EPI notebook:** `fabric/bronze_ingest_epi.Notebook/` — downloads CSV via `requests`, writes to `bronze_epi2024results` and `bronze_epi2024weights` (task-056: the weights file is the source for `silver_epi2024variables` → `gold_dim_indicator.weight`, which the `Weighted EPI Score` DAX measure consumes)
+- ✅ **EPI notebook:** `fabric/bronze_ingest_epi.Notebook/` — downloads CSV via `requests` (since task-082, from the repo-pinned copy of Yale's 2024 files; see § *Source pinning and the pre-parse guard*), writes to `bronze_epi2024results` and `bronze_epi2024weights` (task-056: the weights file is the source for `silver_epi2024variables` → `gold_dim_indicator.weight`, which the `Weighted EPI Score` DAX measure consumes)
 - ✅ **WGI notebook:** `fabric/bronze_ingest_wgi.Notebook/` — calls World Bank API v2 (JSON), writes to `bronze_wgi`
 - ✅ **Pipeline wiring:** done (task-035, 2026-07-26) — `bronze_EPI` and `bronze_wgi` are
   TridentNotebook activities in `orchestrator_pipeline_bronze_to_gold`
@@ -37,6 +37,12 @@ This document provides comprehensive research findings on automating the ingesti
 ### Available Data Downloads
 
 #### CSV Files (Direct HTTP Access)
+
+> **Retired, September 2026.** Yale removed these 2024 download paths when it released EPI
+> 2026. They now answer HTTP 200 with an HTML page rather than the file. The results and
+> weights files are pinned in this repo; see § *Source pinning and the pre-parse guard*. The
+> tables below record what Yale used to publish. The code sketches later in this document
+> that call `epi.yale.edu/downloads/...` are historical design notes and no longer work.
 
 | File Name | URL | Size | Purpose |
 |-----------|-----|------|---------|
@@ -158,7 +164,53 @@ epi_rank (Integer)      # Global ranking
 **Automation Trigger:**
 - Manual trigger annually (June each year)
 - Check for new version: monitor https://epi.yale.edu/ for announcements
-- URL pattern: `epi{YYYY}results.csv`
+- File pattern: `epi{YYYY}results.csv` / `epi{YYYY}weights.csv`, pinned under
+  `reference_data/epi/`. Yale's own download paths are not stable (§ *Source pinning and the
+  pre-parse guard*), so a new vintage is committed to the repo before `p_epi_year` changes.
+
+### Source pinning and the pre-parse guard (task-082, 2026-10-16)
+
+**What broke.** Yale released EPI 2026 in September 2026 and retired the 2024 CSV paths
+(`https://epi.yale.edu/downloads/epi2024results.csv` and `.../epi2024weights.csv`). They do
+not 404. They answer HTTP 200 with a 30,621-byte HTML page ("EPI Downloads | Environmental
+Performance Index"), so `raise_for_status()` passed, the notebook's 404 branch never fired,
+and `pd.read_csv` failed with `ParserError: Error tokenizing data. C error: Expected 1 fields
+in line 15, saw 2`. All 22 scheduled runs from 2026-09-25 to 2026-10-16 failed at
+`bronze_epi`, and every downstream activity was skipped. Yale's new download page
+(`https://epi.yale.edu/2026/downloads`) lists only EPI 2026 files: XLSX, ZIP and PDF, no CSV
+(checked 2026-10-16).
+
+**Decision (Erik, 2026-10-16): keep the 2024 vintage and pin it.** Yale's original 2024
+files are committed unmodified under `reference_data/epi/`, and the notebook fetches them
+over HTTPS from `https://raw.githubusercontent.com/erikemilsson/OEMMatInsightBI/main/reference_data/epi/`
+(the `EPI_SOURCE_BASE_URL` constant). Provenance (Wayback Machine snapshot URLs, byte counts,
+sha256) and the license notice are in `reference_data/epi/README.md`. Moving to EPI 2026 is a
+separate decision and has not been taken.
+
+This source comes with three constraints:
+- The repo must stay public and the files must be on `main`. Either failure is an HTTP 404,
+  which the notebook reports as "No pinned EPI {year} ... file".
+- `p_epi_year` can only name a pinned vintage. Today that is 2024 only.
+- raw.githubusercontent.com serves the files as `text/plain; charset=utf-8`, not `text/csv`.
+
+**Pre-parse guard.** `assert_csv_response(response, url)` runs after each download and
+before `pd.read_csv`, for both files. It raises `EpiSourceNotCsvError` (a `ValueError`) when:
+- the `Content-Type` media type is not `text/csv`, `application/csv` or `text/plain` (a
+  missing header counts as not CSV);
+- the start of the body is an HTML page (`<!doctype html` or `<html`), whatever the header
+  says; or
+- the body is empty.
+
+The message names the URL, the HTTP status and the `Content-Type`. `text/plain` is accepted
+because the pinned host uses it for every file, so the body check is what catches an HTML
+page served under that type. `tests/test_epi_source_guard.py` loads the notebook's own
+function and exception class, and pins the allowlist, the soft-404 case, the wiring (each
+`pd.read_csv` comes after a guard call on the same response) and the pinned files (hashes,
+columns, row counts).
+
+The notebook does not retry a failed content check. The repo's pipeline definition gives the
+`bronze_epi` activity `policy.retry=2` (30 s apart), so a soft-404 fails three times before
+the run goes red.
 
 ---
 
@@ -625,6 +677,12 @@ for year in [2020, 2022, 2024]:
 - Automatic pipeline trigger
 
 **Implementation:**
+
+> **Don't reuse this sketch as written.** A `HEAD` request that returns 200 doesn't prove the
+> file exists. Since September 2026, Yale's retired download paths answer 200 with an HTML page
+> (task-082). Check the Content-Type and the body, as `assert_csv_response()` in
+> `bronze_ingest_epi` does.
+
 ```python
 # In a scheduled notebook (monthly)
 def check_for_updates():
@@ -650,7 +708,7 @@ def check_for_updates():
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| **URL structure changes** | Medium | High | Version URLs, monitor for 404 errors, maintain historical URLs |
+| **URL structure changes** | Medium | High | Happened in September 2026 as a soft-404 (HTTP 200 + HTML), not a 404. Mitigated by task-082: the 2024 files are pinned in the repo and a pre-parse content guard names the failure (§ *Source pinning and the pre-parse guard*) |
 | **Data schema changes** | Low | Medium | Schema validation in bronze layer, fail pipeline on mismatch |
 | **Rate limiting (WGI API)** | Low | Low | Implement retry logic with exponential backoff |
 | **License violation (EPI)** | Low | High | Document non-commercial use, add license notice to reports |
@@ -753,10 +811,14 @@ https://www.worldbank.org/en/publication/worldwide-governance-indicators
 
 ✅ **Research Complete** - Data sources documented, feasibility confirmed
 ✅ **EPI Notebook Created** - `fabric/bronze_ingest_epi.Notebook/`
-  - Downloads `epi{YYYY}results.csv` from Yale via HTTP
+  - Downloads `epi{YYYY}results.csv` over HTTPS: from Yale until September 2026, and from
+    the repo-pinned copy under `reference_data/epi/` since task-082 (2026-10-16)
   - Parameterized by year (`p_epi_year`, default: 2024)
   - Schema validation (checks for `code`, `iso`, `country`, `EPI` columns)
   - Retry logic (3 attempts) with specific 404 handling
+  - **task-082 (2026-10-16):** pre-parse content guard on both downloads. A non-CSV
+    `Content-Type` or an HTML body raises `EpiSourceNotCsvError` naming the URL and the
+    content type. See § *Source pinning and the pre-parse guard*
   - Writes to `bronze_epi{YYYY}results` Delta table (overwrite)
   - **task-056 (2026-08-04):** also downloads `epi{YYYY}weights.csv` → `bronze_epi{YYYY}weights`,
     preserving the `Type`/`Abbreviation`/`Variable`/`Weight`/`NextLevel`/`IssueCategory`/
@@ -811,8 +873,10 @@ them. Snapshot: `.claude/support/retired/epi-wgi-file2table-dataflows/manifest.j
 
 ### EPI Resources
 - **Main Site:** https://epi.yale.edu/
-- **Downloads:** https://epi.yale.edu/downloads
-- **Technical Appendix:** https://epi.yale.edu/downloads/2024epitechnicalappendix20241207.pdf
+- **Downloads:** https://epi.yale.edu/2026/downloads (EPI 2026 only). The 2024 download page
+  `https://epi.yale.edu/downloads` returns 404 since September 2026
+- **Technical Appendix (2024):** `https://epi.yale.edu/downloads/2024epitechnicalappendix20241207.pdf`
+  was retired with the 2024 downloads; it returns an HTML page, not the PDF (checked 2026-10-16)
 - **License:** https://creativecommons.org/licenses/by-nc-sa/4.0/
 
 ### WGI Resources

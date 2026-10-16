@@ -113,7 +113,9 @@ All PySpark, all attached to the `oem_lh` lakehouse.
    - Superseded by `bronze_ingest_epi.Notebook` when task-035 repointed the pipeline
      (2026-07-26); orphaned for two weeks before removal
    - Read a hand-uploaded CSV from the lakehouse `Files/EPI/`; the notebook downloads
-     from `epi.yale.edu` with retry and year-parameterisation
+     Yale's CSVs over HTTPS (from `epi.yale.edu` until September 2026, from the repo-pinned
+     copy under `reference_data/epi/` since task-082) with retry, a pre-parse content check
+     and year-parameterisation
    - Snapshot: `.claude/support/retired/epi-wgi-file2table-dataflows/manifest.json`
 
 3. **WGI_file2table.Dataflow** — ❌ RETIRED 2026-08-10 (deleted from the workspace)

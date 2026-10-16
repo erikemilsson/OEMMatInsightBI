@@ -45,7 +45,7 @@ As-built inventory of Fabric artifacts in the `oem_lh` workspace. Mirrors what i
 
 | Artifact | Type | Reason | Backup |
 |---|---|---|---|
-| `EPI_file2table` | Dataflow | Orphaned by task-035 (2026-07-26) when the pipeline moved to `bronze_ingest_epi`; removed 2026-08-10. Read a hand-uploaded CSV; the notebook downloads from `epi.yale.edu` directly | `.claude/support/retired/epi-wgi-file2table-dataflows/manifest.json` |
+| `EPI_file2table` | Dataflow | Orphaned by task-035 (2026-07-26) when the pipeline moved to `bronze_ingest_epi`; removed 2026-08-10. Read a hand-uploaded CSV; the notebook downloads Yale's original CSVs over HTTPS (since task-082, from the repo-pinned copy under `reference_data/epi/`, because Yale retired its 2024 CSV paths in September 2026) | `.claude/support/retired/epi-wgi-file2table-dataflows/manifest.json` |
 | `WGI_file2table` | Dataflow | Orphaned by task-035 (2026-07-26) when the pipeline moved to `bronze_ingest_wgi`; removed 2026-08-10. Read a hand-uploaded Excel extract (2023 only); the notebook pulls all 6 indicators 1996–2023 from the World Bank API | `.claude/support/retired/epi-wgi-file2table-dataflows/manifest.json` |
 | `oem_wh` | Warehouse | Never read by anything — the semantic model is DirectLake on `oem_lh`, no pipeline activity or notebook wrote to it, and its data was a frozen 2026-01-16 snapshot. Removed 2026-08-10 | `.claude/support/retired/oem-wh-warehouse/manifest.json` |
 | `StagingLakehouseForDataflows_20250822093021` | Lakehouse + SQLEndpoint | Auto-created Dataflow Gen2 staging; held 0 tables. Removed 2026-08-10 with the dataflows | — (Fabric-generated) |

@@ -69,7 +69,10 @@ ingest. **The `DROP` in each DDL targets the live table** — see DEC-015.
 **Source:** Yale Center for Environmental Law & Policy
 **Format:** CSV downloaded over HTTPS (no manual upload)
 **Year:** Whatever `p_epi_year` names — `"2024"` today
-**URL:** `https://epi.yale.edu/downloads/epi{p_epi_year}results.csv`
+**URL:** `https://raw.githubusercontent.com/erikemilsson/OEMMatInsightBI/main/reference_data/epi/epi{p_epi_year}results.csv`
+(plus `epi{p_epi_year}weights.csv`). These are Yale's original 2024 files, pinned in this repo
+by task-082 after Yale retired `https://epi.yale.edu/downloads/epi{year}*.csv` in September
+2026. Only 2024 is pinned. Provenance: `reference_data/epi/README.md`
 **License:** CC BY-NC-SA 4.0 (non-commercial use only)
 
 ### Content
@@ -95,14 +98,17 @@ The download URL and the target table name are derived from the **same** `p_epi_
 parameter, so each vintage lands in its own table. Decoupling them was a real bug: the URL
 was parameterised while the table name was hardcoded, so a 2025 run would have written
 2025 numbers into `bronze_epi2024results`. A non-4-digit `p_epi_year` raises, and a 404
-raises with the year echoed back.
+raises with the year echoed back. Each download must also pass a content check before it is
+parsed: a non-CSV `Content-Type` or an HTML body raises `EpiSourceNotCsvError` naming the URL
+and the content type (task-082).
 
 **Transformation:**
 - Bronze: Wide format (one row per country, 30+ columns)
 - Silver: Cleaned (drop .old columns, cast types) → `silver_epi{year}results`
 - Gold: Pivoted to long format (one row per country × indicator) → `fact_epi_score`
 
-**Update Schedule:** Pass the new year as `p_epi_year` when the release lands
+**Update Schedule:** Commit the new vintage's CSVs under `reference_data/epi/` (2024 schema),
+then pass the new year as `p_epi_year`
 **Automation:** ✅ Automated (notebook in the pipeline)
 
 ## 3. World Governance Indicators (WGI)
@@ -209,7 +215,7 @@ two silver tables carry the same column contract and the gold union needs no spe
 Azure SQL ──────────────> bronze_procurement_transactional      (copy activity)
                           bronze_supplier_ref
 
-Yale EPI HTTPS ────────> bronze_epi{year}results                (notebook)
+Yale EPI (pinned) ─────> bronze_epi{year}results                (notebook)
 
 World Bank API v2 ─────> bronze_wgi                             (notebook)
 
@@ -222,7 +228,7 @@ EU CRM HTTP ───────────> bronze_global_supply_shares      
 | Source | Frequency | Last Update | Next Update |
 |--------|-----------|-------------|-------------|
 | Azure SQL | Daily — **live schedule**, 06:00 Europe/Stockholm | Automatic, each 06:00 firing | Next 06:00 Europe/Stockholm firing |
-| EPI | Annual | 2024 vintage (`p_epi_year`) | Pass the new year when Yale publishes |
+| EPI | Annual | 2024 vintage (`p_epi_year`), repo-pinned | Pin the new vintage's CSVs, then pass the year |
 | WGI | Annual | Full series from the API each run | Automatic — no vintage to bump |
 | EU CRM | On-demand — the source is a pinned 2023 vintage, not an annual feed | 2023 vintage (gold assigns `year=2023`) | None scheduled; bump when the EU publishes a new CRM study |
 
@@ -276,8 +282,12 @@ re-ingestion. Runbook: `docs/guides/pipeline_schedule.md`.
 - Test the connection from its context menu in Manage connections and gateways
 
 ### EPI download fails
-- A 404 means Yale has no file for that `p_epi_year`, or changed the URL pattern — the
-  notebook raises with the attempted URL echoed back
+- A 404 means there is no pinned file for that `p_epi_year` (only 2024 is pinned), the file
+  moved, or the repo is no longer public. The notebook raises with the attempted URL
+- `EpiSourceNotCsvError` means the URL answered HTTP 200 with something that is not a CSV (an
+  HTML page or a non-CSV `Content-Type`): a soft-404. This is how Yale's retired 2024 URLs
+  failed from 2026-09-25 (task-082). See `docs/epi_wgi_ingestion.md`, "Source pinning and the
+  pre-parse guard"
 - Other HTTP errors retry 3× before failing
 - Check `p_epi_year` is a 4-digit year (a malformed value raises before any download)
 

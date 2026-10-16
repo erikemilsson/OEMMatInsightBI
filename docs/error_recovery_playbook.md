@@ -102,8 +102,10 @@ Errors that do not match known patterns. Treated conservatively (1 retry, then f
 
 ### 3. Notebook Failure (bronze_wgi, bronze_EPI)
 
-**Symptoms:** TridentNotebook activity fails — World Bank API (WGI) or Yale EPI server
-unreachable, schema changed at source, or resource contention on the Fabric capacity.
+**Symptoms:** TridentNotebook activity fails — World Bank API (WGI) or the EPI source
+unreachable, schema changed at source, or resource contention on the Fabric capacity. Since
+task-082 the EPI source is the repo-pinned copy of Yale's 2024 files on
+raw.githubusercontent.com, not `epi.yale.edu`.
 
 **Resolution:**
 1. Open Fabric workspace > the pipeline `orchestrator_pipeline_bronze_to_gold` > check
@@ -111,7 +113,11 @@ unreachable, schema changed at source, or resource contention on the Fabric capa
    TridentNotebook activities (`bronze_ingest_wgi`, `bronze_ingest_epi`) since task-035 —
    not dataflow refreshes. The `WGI_file2table` / `EPI_file2table` dataflows were deleted
    from the workspace 2026-08-10; there are no Dataflow Gen2 items left to check.
-2. If the World Bank API (WGI) or Yale EPI server is down, wait and retry
+2. If the World Bank API (WGI) or the EPI source host is down, wait and retry. An
+   `EpiSourceNotCsvError` from the `bronze_epi` activity is not an outage: the URL answered HTTP 200 with
+   something that is not a CSV (usually an HTML page), so retrying will not help. Check the
+   URL in the error and see `docs/epi_wgi_ingestion.md`, "Source pinning and the pre-parse
+   guard"
 3. If resource contention: check Fabric capacity utilization and retry during off-peak
 4. If schema changed at source: update the ingest notebook's parsing logic (the dataflows
    no longer map source columns — they are retired from the pipeline path)

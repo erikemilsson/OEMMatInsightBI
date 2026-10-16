@@ -25,7 +25,11 @@
 # # bronze_ingest_epi
 # # Automated ingestion of Environmental Performance Index (EPI) data from Yale.
 # Replaces manual CSV upload via EPI_file2table.Dataflow.
-# # **Source:** https://epi.yale.edu/downloads/epi&lt;p_epi_year&gt;results.csv
+# # **Source:** Yale's original release files, pinned in this repo under `reference_data/epi/`
+# (`epi&lt;p_epi_year&gt;results.csv` and `epi&lt;p_epi_year&gt;weights.csv`) and fetched over HTTPS from
+# https://raw.githubusercontent.com/erikemilsson/OEMMatInsightBI/main/reference_data/epi/ (task-082).
+# Yale retired its `https://epi.yale.edu/downloads/epi2024*.csv` paths when EPI 2026 shipped
+# (September 2026); they now answer HTTP 200 with an HTML page. Only the 2024 vintage is pinned.
 # **Target:** bronze_epi&lt;p_epi_year&gt;results (Delta table, overwrite) — source URL and
 # target table are both derived from the p_epi_year parameter, so each vintage lands in
 # its own table (e.g. p_epi_year="2024" -> bronze_epi2024results).
@@ -64,9 +68,73 @@ from datetime import datetime
 
 # MARKDOWN ********************
 
-# ## Download EPI CSV from Yale
+# ## Download guard (task-082)
+# Each download is checked before it is parsed. A non-CSV `Content-Type` or an HTML body
+# raises `EpiSourceNotCsvError`, naming the URL and the content type. Without this check, a
+# soft-404 (HTTP 200 with an HTML page, which Yale's retired 2024 paths now return) reaches
+# `pd.read_csv` and fails as an opaque pandas `ParserError`.
 
 # CELL ********************
+
+# Media types accepted as CSV. text/plain is required, not lax: raw.githubusercontent.com
+# serves every text file as "text/plain; charset=utf-8" (measured 2026-10-16), and that is
+# where the pinned copy lives. The body check in assert_csv_response() is what catches an
+# HTML page served under any of these types. Pinned by tests/test_epi_source_guard.py.
+CSV_CONTENT_TYPES = {"text/csv", "application/csv", "text/plain"}
+
+
+class EpiSourceNotCsvError(ValueError):
+    """An EPI download answered with something that is not a CSV file."""
+
+
+def assert_csv_response(response, url):
+    """Raise EpiSourceNotCsvError unless `response` looks like a CSV file.
+
+    Call it after a successful download and before pd.read_csv. It checks the
+    Content-Type header against CSV_CONTENT_TYPES and sniffs the start of the body for
+    an HTML page or an empty body, so a soft-404 fails with a named error that cites the
+    URL and the content type instead of a pandas ParserError.
+    """
+    content_type = (response.headers.get("Content-Type") or "").strip()
+    media_type = content_type.split(";", 1)[0].strip().lower()
+    head = response.text[:2048].lstrip("\ufeff \t\r\n").lower()
+
+    problems = []
+    if media_type not in CSV_CONTENT_TYPES:
+        problems.append(f"the Content-Type is not one of {sorted(CSV_CONTENT_TYPES)}")
+    if head.startswith("<!doctype html") or "<html" in head:
+        problems.append("the body is an HTML page")
+    if not head:
+        problems.append("the body is empty")
+    if problems:
+        raise EpiSourceNotCsvError(
+            f"EPI download is not a CSV: {url} returned HTTP {response.status_code} with "
+            f"Content-Type {content_type or '(missing)'!r}; {' and '.join(problems)}. "
+            f"An HTTP 200 that is not a CSV is a soft-404: the file was moved or retired at "
+            f"the source. See docs/epi_wgi_ingestion.md, 'Source pinning and the pre-parse guard'."
+        )
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ## Download EPI CSV (repo-pinned copy of Yale's release)
+
+# CELL ********************
+
+# Where the CSVs come from (task-082). Yale retired https://epi.yale.edu/downloads/epi{year}*.csv
+# when EPI 2026 shipped (September 2026). Those paths do not 404: they answer HTTP 200 with a
+# 30 KB HTML page, which pd.read_csv failed on ("Expected 1 fields in line 15, saw 2") in every
+# scheduled run from 2026-09-25. The files under reference_data/epi/ are byte-identical to
+# Yale's 2024 originals (recovered from the Wayback Machine; provenance and sha256 in
+# reference_data/epi/README.md). raw.githubusercontent.com serves them only while the repo is
+# PUBLIC and the files are on main: otherwise it returns 404, which the handler below reports.
+EPI_SOURCE_BASE_URL = "https://raw.githubusercontent.com/erikemilsson/OEMMatInsightBI/main/reference_data/epi"
 
 # Build download URL AND target table name from the same year parameter (task-028).
 # These must stay coupled: the URL was already parameterised while the target table was
@@ -78,7 +146,7 @@ if not (epi_year.isdigit() and len(epi_year) == 4):
         f"p_epi_year must be a 4-digit year, got {p_epi_year!r}. "
         f"It names both the source URL and the bronze table."
     )
-epi_url = f"https://epi.yale.edu/downloads/epi{epi_year}results.csv"
+epi_url = f"{EPI_SOURCE_BASE_URL}/epi{epi_year}results.csv"
 table_name = f"bronze_epi{epi_year}results"
 
 print(f"EPI Ingestion: Downloading {epi_year} data")
@@ -102,8 +170,10 @@ for attempt in range(1, max_retries + 1):
     except requests.exceptions.HTTPError as e:
         if response is not None and response.status_code == 404:
             raise ValueError(
-                f"EPI {epi_year} data not found at {epi_url}. "
-                f"Check if the year is correct or if Yale has changed the URL pattern."
+                f"No pinned EPI {epi_year} results file at {epi_url} (HTTP 404). Only the "
+                f"2024 vintage is pinned (task-082): a new vintage needs its CSVs committed "
+                f"under reference_data/epi/ and pushed to main first. A 404 for 2024 means "
+                f"the file moved or the repo is no longer public."
             ) from e
         if attempt == max_retries:
             raise RuntimeError(f"EPI download failed after {max_retries} attempts: {e}") from e
@@ -112,6 +182,11 @@ for attempt in range(1, max_retries + 1):
         if attempt == max_retries:
             raise RuntimeError(f"EPI download failed after {max_retries} attempts: {e}") from e
         print(f"  Attempt {attempt} failed ({e}), retrying...")
+
+# Validate before parsing (task-082): an HTML page or a non-CSV Content-Type raises
+# EpiSourceNotCsvError here, instead of reaching pd.read_csv as a ParserError.
+assert_csv_response(response, epi_url)
+print(f"  Content check passed (Content-Type: {response.headers.get('Content-Type')})")
 
 # METADATA ********************
 
@@ -220,9 +295,10 @@ display(null_counts)
 # MARKDOWN ********************
 
 # ## Download EPI weights CSV (indicator hierarchy + absolute weights)
-# # Yale also publishes `epi{epi_year}weights.csv` — a small (~5 KB) metadata table with the
-# full indicator hierarchy: one row per node (EPI composite, 2 PolicyObjective, 11
-# IssueCategory, ~58 Indicator), columns `Type`, `Abbreviation`, `Variable`, `Weight`
+# # Yale's release also included `epi{epi_year}weights.csv`, pinned next to the results file
+# under `reference_data/epi/` (task-082). It is a small (~7 KB) metadata table with the
+# full indicator hierarchy: one row per node (EPI composite, 3 PolicyObjective, 11
+# IssueCategory, 58 Indicator in the 2024 file), columns `Type`, `Abbreviation`, `Variable`, `Weight`
 # (relative within parent), `NextLevel` (parent abbrev pointer), `IssueCategory`,
 # `PolicyObjective`, `EPI Percent` (absolute contribution to the EPI composite — this is
 # the value `gold_dim_indicator.weight` needs for leaf indicators).
@@ -234,10 +310,10 @@ display(null_counts)
 
 # CELL ********************
 
-# Download the weights file using the same year parameter, URL pattern, and retry/error
-# handling as the results download above. The bronze table name mirrors the results
+# Download the weights file using the same year parameter, source, retry/error handling and
+# pre-parse guard as the results download above. The bronze table name mirrors the results
 # naming: bronze_epi{epi_year}weights.
-weights_url = f"https://epi.yale.edu/downloads/epi{epi_year}weights.csv"
+weights_url = f"{EPI_SOURCE_BASE_URL}/epi{epi_year}weights.csv"
 weights_table = f"bronze_epi{epi_year}weights"
 
 print(f"\nEPI Weights Ingestion: Downloading {epi_year} weights")
@@ -258,8 +334,10 @@ for attempt in range(1, max_retries + 1):
     except requests.exceptions.HTTPError as e:
         if weights_response is not None and weights_response.status_code == 404:
             raise ValueError(
-                f"EPI {epi_year} weights file not found at {weights_url}. "
-                f"Check if the year is correct or if Yale has changed the URL pattern."
+                f"No pinned EPI {epi_year} weights file at {weights_url} (HTTP 404). Only "
+                f"the 2024 vintage is pinned (task-082): a new vintage needs its CSVs "
+                f"committed under reference_data/epi/ and pushed to main first. A 404 for "
+                f"2024 means the file moved or the repo is no longer public."
             ) from e
         if attempt == max_retries:
             raise RuntimeError(f"EPI weights download failed after {max_retries} attempts: {e}") from e
@@ -268,6 +346,10 @@ for attempt in range(1, max_retries + 1):
         if attempt == max_retries:
             raise RuntimeError(f"EPI weights download failed after {max_retries} attempts: {e}") from e
         print(f"  Attempt {attempt} failed ({e}), retrying...")
+
+# Validate before parsing (task-082), same guard as the results file.
+assert_csv_response(weights_response, weights_url)
+print(f"  Content check passed (Content-Type: {weights_response.headers.get('Content-Type')})")
 
 # Parse CSV — preserve the source columns as-is (bronze is the raw landing zone;
 # silver-to-gold2.Notebook maps them to the silver_epi{EPI_YEAR}variables shape the
@@ -290,7 +372,7 @@ if missing_weights:
         f"Available columns: {list(weights_pdf.columns)}"
     )
 
-# Validate row count: ~73 rows (1 EPI + 2 PolicyObjective + 11 IssueCategory + ~58 Indicator).
+# Validate row count: 73 rows in the 2024 file (1 EPI + 3 PolicyObjective + 11 IssueCategory + 58 Indicator).
 if len(weights_pdf) < 50:
     print(f"  WARNING: Only {len(weights_pdf)} rows — expected ~73. Data may be incomplete.")
 

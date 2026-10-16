@@ -1,8 +1,8 @@
 """Shared notebook-function extractor for the parity harness.
 
 The Fabric notebooks are valid Python (markdown cells are `# MARKDOWN` comments),
-so each can be parsed with `ast` and only the requested top-level FunctionDef nodes
-compiled into a shared namespace. This keeps the parity check bound to the *live*
+so each can be parsed with `ast` and only the requested top-level FunctionDef (or
+ClassDef) nodes compiled into a shared namespace. This keeps the parity check bound to the *live*
 notebook text — if someone edits the notebook's key logic, these tests fail on the
 next run, which is the whole point of the reference-implementation contract (root
 CLAUDE.md "Testable transforms"; task-032).
@@ -24,16 +24,19 @@ BRONZE_NOTEBOOK = REPO_ROOT / "fabric" / "bronze_to_silver.Notebook" / "notebook
 
 
 def load_notebook_functions(notebook_path, names, extra_globals=None):
-    """Extract named top-level functions from a Fabric notebook's source.
+    """Extract named top-level functions (and classes) from a Fabric notebook's source.
 
     Args:
         notebook_path: Path to the notebook's notebook-content.py.
-        names: Function names to extract, in dependency order (a function that
-            calls another must come after it).
+        names: Function or class names to extract, in dependency order (a function
+            that calls another must come after it). Classes are accepted so a test can
+            use the notebook's own exception type (e.g. bronze_ingest_epi's
+            EpiSourceNotCsvError, task-082) rather than a copy defined in the test.
         extra_globals: Optional module-level names the extracted functions read
             from the notebook's global scope (e.g. LOG_UNMAPPED / FAIL_ON_UNMAPPED
-            config flags, or DATE_SWAP_EPOCH). Only the FunctionDefs are compiled,
-            so any notebook-global the function reads must be injected here.
+            config flags, or DATE_SWAP_EPOCH). Only the extracted FunctionDefs and
+            ClassDefs are compiled, so any notebook-global the function reads must
+            be injected here.
 
     Returns:
         dict[str, callable]: the extracted functions, sharing one namespace so
@@ -45,7 +48,7 @@ def load_notebook_functions(notebook_path, names, extra_globals=None):
     found = {
         node.name: node
         for node in tree.body
-        if isinstance(node, ast.FunctionDef) and node.name in set(names)
+        if isinstance(node, (ast.FunctionDef, ast.ClassDef)) and node.name in set(names)
     }
 
     missing = [n for n in names if n not in found]
