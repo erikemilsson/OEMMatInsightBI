@@ -2,6 +2,8 @@
 
 As-built inventory of Fabric artifacts in the `oem_lh` workspace. Mirrors what is tracked in `fabric/` in this repo (the source `fabric-cicd` deploys from).
 
+**Last measured against the live workspace on 2026-10-16** (Fabric items API, 13 items). Those 13 are exactly the *Active artifacts* below, and nothing else is in the workspace. The repo describes what gets deployed, not what else is live, so re-check workspace state with the items API or the *Currently deployed items* group in a deploy log, not by reading this file.
+
 ## Active artifacts
 
 ### 🔄 Pipeline
@@ -48,7 +50,9 @@ As-built inventory of Fabric artifacts in the `oem_lh` workspace. Mirrors what i
 | `oem_wh` | Warehouse | Never read by anything — the semantic model is DirectLake on `oem_lh`, no pipeline activity or notebook wrote to it, and its data was a frozen 2026-01-16 snapshot. Removed 2026-08-10 | `.claude/support/retired/oem-wh-warehouse/manifest.json` |
 | `StagingLakehouseForDataflows_20250822093021` | Lakehouse + SQLEndpoint | Auto-created Dataflow Gen2 staging; held 0 tables. Removed 2026-08-10 with the dataflows | — (Fabric-generated) |
 | `StagingWarehouseForDataflows_20250822093045` | Warehouse | Auto-created Dataflow Gen2 staging; held 0 tables. Removed 2026-08-10 with the dataflows | — (Fabric-generated) |
-| `Notebook_1` | Notebook | Scratch notebook from the Phase-5 snake_case rename verification; never in the repo. Removed 2026-08-10 | — (scratch) |
+| `Notebook_1` | Notebook | Scratch notebook from the Phase-5 snake_case rename verification; never in the repo. Removed 2026-08-10, the day the workspace was re-measured at 13 items. A later scratch notebook took the same default name (next row) | — (scratch) |
+| `Notebook_1` (second) | Notebook | A different scratch notebook that got Fabric's default name, from task-069's column-type investigation: its cells read `bronze_procurement_transactional` at the pre-rebuild Delta version and filter loads from 2026-08-12. Never in the repo. Found live by deploy run 32427236326 (2026-08-20); deleted 2026-10-16 (task-079) | — (scratch) |
+| `tmp_task064_seed` | DataPipeline | One-off Script pipeline from task-064/069 that drops `dbo.procurement_transactional` and reseeds its 132 rows. Its stale comment header still described the script as a "ROLLBACK DDL" restoring SMALLINT/FLOAT column types, but the script created both columns as `DECIMAL(18,2)`, and its DDL and all 132 seed rows matched the repo files exactly. Never in the repo; deleted 2026-10-16 (task-079) | `azure/procurement.sql` + `azure/procurement_seed.sql` |
 | `Report Usage Metrics Report` / `Report Usage Metrics Model` | Report / SemanticModel | Power BI auto-generated usage telemetry, not project content. Removed 2026-08-10 | — (Fabric-generated) |
 
 ## Previously removed (archived 2025-12-15)

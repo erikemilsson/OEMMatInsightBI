@@ -9,9 +9,9 @@
   "phase": "2",
   "phase_name": "Silver / Gold Transformations & Data Quality",
   "spec_section": "Business Logic & Calculations",
-  "spec_fingerprint": "sha256:b966f6b2eb73d586281f197f9f62a2772b2e67fff1d3def6847c905491290d6b",
+  "spec_fingerprint": "sha256:f831cb4e02d600ca5029c6e61095d220a9ea72ca5dca1ffc2fca2bf2f0212b80",
   "spec_version": "1",
-  "section_fingerprint": "sha256:cdc413cfe63b4ffda030173df9c623c2d3595e7d5c8ecdebeeecd42d70e6c217",
+  "section_fingerprint": "sha256:3db5050d37dc982cec573c10c34ffab64850199c2abd7e5579e8a88b2ed11518",
   "section_snapshot_ref": "",
   "estimated_hours": 16,
   "files_affected": [
@@ -39,6 +39,7 @@
     "DEC-001"
   ],
   "notes": [
+    "[DRIFT KEPT 2026-10-16] ## Business Logic & Calculations changed; user kept verification: notebook rename silver-to-gold2 -> silver_to_gold and DAX measure list corrected to the 45 live measures; the three Supply Risk measure lines are byte-unchanged. Diffed against the commit whose section hash matched the old fingerprint (9266ccf).",
     "CREATED 2026-07-19 by /health-check on selection of DEC-001 Option B — this is the follow-on 'build SR gold model' task the decision record called for.",
     "DIFFICULTY 7 — must be broken down via /breakdown 038 before work starts (per task-management rules). Natural seams: (a) un-drop `t` + carry through to fact_supply_share, (b) wire EU sourcing table into silver, (c) join WGI onto the supply fact, (d) compute dual HHI + build gold_supply_risk, (e) DAX measures + TMDL + report framing.",
     "HARD PREREQUISITE task-031: B's WGI_c weight does not exist downstream until silver_wgi preserves Value. task-031 offers 'or descope' as an alternative branch — that branch is now CLOSED by this decision. Update task-031's framing when it is picked up.",

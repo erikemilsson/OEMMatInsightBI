@@ -23,6 +23,7 @@
     "/.claude/spec_v1.md (line 697)"
   ],
   "notes": [
+    "[DRIFT KEPT 2026-10-16] ## Orchestration changed; user kept verification: bronze_wgi retry 2->0 (DEC-018), oem_wh retirement, p_epi_year/p_execution_id documented, first 06:00 scheduled firing observed; the schedule this task configured is unchanged. Diffed against the commit whose section hash matched the old fingerprint (a7db194).",
     "DEPENDENCY: Task 011 (Error Handling) should be complete before scheduling",
     "Rationale: Automated pipeline needs proper error handling and retry logic in place",
     "Pipeline currently has no schedule configured - runs manually",
@@ -244,7 +245,7 @@
   "subtasks": [],
   "progress": "Complete",
   "spec_version": "1",
-  "spec_fingerprint": "sha256:d826310c45adc2a10be9cb6f0431be5d7c4a543f91d2eb8bd6c70a6c8b901250",
-  "section_fingerprint": "sha256:21a2c67b003f6d0136d69db31da9ad389028a2172b49a2a466f4a15fe25dfcbf",
+  "spec_fingerprint": "sha256:f831cb4e02d600ca5029c6e61095d220a9ea72ca5dca1ffc2fca2bf2f0212b80",
+  "section_fingerprint": "sha256:aa8a39588fbd038b05381399fc911a5c18a60d4a44ae26cbf3a74eab28030059",
   "completion_date": "2026-08-05"
 }

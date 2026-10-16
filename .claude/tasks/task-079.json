@@ -1,16 +1,16 @@
 {
   "source": "verify-agent",
-  "status": "Pending",
+  "status": "Finished",
   "phase": "5",
   "spec_version": "spec_v1",
   "spec_fingerprint": "sha256:0662c9e198c2f7b5cb4fa50d1b1f0bf9e2cce901454ffbf9c046285a645fc18a",
   "created_date": "2026-08-21",
-  "updated_date": "2026-08-21",
+  "updated_date": "2026-10-16",
   "out_of_spec": false,
   "dependencies": [],
   "decision_dependencies": [],
-  "verification_attempts": 0,
-  "notes": "[CLAUDE'S HALF DONE 2026-08-21 — investigation complete, decision + action are Erik's]\n\nLive workspace enumerated first-hand (Fabric items API, HTTP 200, 15 items) and BOTH orphans confirmed present today. Both definitions fetched and read.\n\nTHE RECORD WAS WRONG AND IS CORRECTED IN THE DESCRIPTION ABOVE: the premise this task was filed on — that tmp_task064_seed holds rollback DDL that would silently undo the DECIMAL fix — is FALSE against the live definition. Its CREATE TABLE is DECIMAL(18,2) on both columns, matching azure/procurement.sql. Only the comment header still narrates the old SMALLINT/FLOAT rollback. The pipeline is still destructive (DROP + reseed) and still undocumented, which is why the task stands — but not for the reason it was filed.\n\nuser_review_pending set so this surfaces on the dashboard: deleting live workspace items is Erik's call, not Claude's, and the remaining work is a decision plus a Fabric UI action.",
+  "verification_attempts": 1,
+  "notes": "[DELTA 2026-10-16] Verifier minor #1: the tmp_task064_seed row quoted \"ROLLBACK DDL (SMALLINT/FLOAT)\" as if verbatim; reworded so only the verbatim phrase \"ROLLBACK DDL\" is quoted. Verifier minor #2 dropped, not a defect: the description's 'three scratch cells' is the 2026-08-21 record (the backup has 6 code cells); no deliverable repeats the count. User review already completed before this delta (Erik's delete decision, 2026-10-16). [DECISION RECORDED 2026-10-16] DEC-020 (status recorded, decided_by orchestrator) written from decisions_pending after the verify pass; FR-101 resolved. [INLINE 2026-10-16] Orchestrator implemented inline after Erik chose 'Delete both, via API' in /work. LIVE OPS (Fabric items API as fabricuser): pre-delete enumeration 15 items, both orphans present with the 2026-08-21 ids; tmp_task064_seed had no schedule (GET jobs/Pipeline/schedules -> 200, value []); both definitions backed up via getDefinition to the session scratchpad (backup-Notebook_1/, backup-tmp_task064_seed/, not committed); seed premise measured: the live script's 132 seed tuples equal azure/procurement_seed.sql's 132 in order, and Quantity/UnitPriceEUR are DECIMAL(18,2) in both live script and azure/procurement.sql. DELETE Notebook/Notebook_1 c4749a34-1522-4d38-93ce-52710b75461b -> 200; DELETE DataPipeline/tmp_task064_seed d703e278-71e8-4851-9468-4a6268cee743 -> 200 (helper refused unless displayName+type matched the id). Re-enumeration 2026-10-16T20:21Z: 13 items, exactly the inventory's 13 Active artifacts. BEFORE/AFTER: live workspace 15 -> 13 items. PREMISE CORRECTION (measured): Defect 1 ('line 51 is a FALSE RECORD') was itself wrong. The deleted Notebook_1 is a DIFFERENT item from the one removed 2026-08-10: commit eddc45b re-measured the workspace at 22 -> 13 items on 2026-08-10 with Notebook_1 swept, and the deleted notebook's cells filter load_timestamp >= '2026-08-12' and read bronze_procurement_transactional at Delta v101 (pre-2026-08-11 rebuild) -- task-069 scratch that took Fabric's default name. Its id c4749a34 first appears in repo history on 2026-08-21 (4a0aaae). So line 51 was KEPT as 'Removed 2026-08-10' and disambiguated, not rewritten as false (held in decisions_pending). FILES: docs/architecture/fabric-artifacts-inventory.md only -- dated live-measurement line under the intro; line 51 disambiguated; rows added for the second Notebook_1 and tmp_task064_seed (backup column -> azure/procurement.sql + azure/procurement_seed.sql). Deliberately NOT edited: CHANGELOG.md:22 and spec_v1.md:1042 both say Notebook_1 was removed 2026-08-10 -- true of the original item. CHECKS: uv run pytest tests/ -> 349 passed. Criterion 3 (fix the seed header if kept) is moot: deleted. [CLAUDE'S HALF DONE 2026-08-21 — investigation complete, decision + action are Erik's]\n\nLive workspace enumerated first-hand (Fabric items API, HTTP 200, 15 items) and BOTH orphans confirmed present today. Both definitions fetched and read.\n\nTHE RECORD WAS WRONG AND IS CORRECTED IN THE DESCRIPTION ABOVE: the premise this task was filed on — that tmp_task064_seed holds rollback DDL that would silently undo the DECIMAL fix — is FALSE against the live definition. Its CREATE TABLE is DECIMAL(18,2) on both columns, matching azure/procurement.sql. Only the comment header still narrates the old SMALLINT/FLOAT rollback. The pipeline is still destructive (DROP + reseed) and still undocumented, which is why the task stands — but not for the reason it was filed.\n\nuser_review_pending set so this surfaces on the dashboard: deleting live workspace items is Erik's call, not Claude's, and the remaining work is a decision plus a Fabric UI action.",
   "id": "task-079",
   "difficulty": 3,
   "owner": "both",
@@ -26,6 +26,80 @@
     "If tmp_task064_seed is kept, its stale 'ROLLBACK DDL (SMALLINT/FLOAT)' comment header is corrected — the script it heads creates DECIMAL(18,2).",
     "The end state is confirmed by re-enumerating the live workspace, not by inspection alone."
   ],
-  "user_review_pending": true,
-  "interaction_hint": "dashboard"
+  "user_review_pending": false,
+  "interaction_hint": "dashboard",
+  "user_feedback": "[2026-10-16] Erik chose 'Delete both, via API (Recommended)' when asked in /work (options: delete via API / delete in UI / document and keep / park).",
+  "resolves_friction": [
+    "FR-101"
+  ],
+  "completion_date": "2026-10-16",
+  "verification_history": [
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-10-16T20:27:49Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "pass",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [
+        {
+          "severity": "minor",
+          "description": "Inventory row for tmp_task064_seed puts \"ROLLBACK DDL (SMALLINT/FLOAT)\" in quotes, but that is a paraphrase, not the header's verbatim text (the actual header reads '-- ROLLBACK DDL — restores the column TYPES …' with SMALLINT and FLOAT on later lines); informational only, meaning is accurate."
+        },
+        {
+          "severity": "minor",
+          "description": "The task description's own record of Notebook_1's content ('three scratch cells') is incomplete: the backed-up definition has 6 code cells. This is not a deliverable defect, since the inventory row does not repeat the cell count."
+        }
+      ],
+      "notes": "Independent read-only live re-enumeration: GET /items 200, COUNT 13, matching the inventory's 13 Active rows name for name. GET on both deleted ids -> 404 EntityNotFound; positive control GET on orchestrator pipeline d44ac501 -> 200. Seed claims re-checked against the pre-delete backup: the CREATE TABLE is byte-identical to azure/procurement.sql; 132 VALUES rows equal azure/procurement_seed.sql in order (a mutated-copy control compared unequal). Criterion 2 departure judged sound: eddc45b's 22->13 re-measurement with Notebook_1 swept; the deleted notebook's executed outputs all post-date 2026-08-11; the original held task-025 checks; the id first appears in history 2026-08-21. Caveat for ratification: content alone cannot tell a new item from the same item overwritten; the two-items conclusion rests on eddc45b's count being a real live enumeration. CHANGELOG.md:22 and spec_v1.md:1042 stay true of the original. Inbound links unaffected. uv run pytest tests/ -q -> 349 passed. Scope: only docs/architecture/fabric-artifacts-inventory.md. Evidence: scratchpad/agent-task-079-verify-1/ (live_items_probe.py, probe.out).",
+      "cost": {
+        "total_tokens": 129970,
+        "tool_uses": 23,
+        "duration_ms": 231229
+      }
+    },
+    {
+      "attempt": 1,
+      "result": "pass",
+      "timestamp": "2026-10-16T20:31:46Z",
+      "checks": {
+        "files_exist": "pass",
+        "consistency_check": "pass",
+        "spec_alignment": "pass",
+        "output_quality": "pass",
+        "runtime_validation": "pass",
+        "integration_ready": "pass",
+        "scope_validation": "pass"
+      },
+      "issues": [],
+      "notes": "Delta re-check (same verifier, resumed): independent diff -u shows exactly one changed line, the tmp_task064_seed row. Only \"ROLLBACK DDL\" is quoted, verbatim from header line 1; 'restoring SMALLINT/FLOAT column types' matches header lines 3-4; 'stale' is supported by the script's DECIMAL(18,2) CREATE TABLE. Minor #1 resolved; dropping minor #2 accepted. uv run pytest tests/ -q -> 349 passed. Live workspace not re-enumerated for this doc-wording delta; the first pass's 13 items and both ids returning 404 still stand. Criteria 1/4 met by deletion, confirmed live; criterion 2 met by disambiguation (DEC-020, pending ratification); criterion 3 n/a.",
+      "delta": true,
+      "cost": {
+        "total_tokens": 135598,
+        "tool_uses": 3,
+        "duration_ms": 68129
+      }
+    }
+  ],
+  "task_verification": {
+    "result": "pass",
+    "timestamp": "2026-10-16T20:31:46Z",
+    "checks": {
+      "files_exist": "pass",
+      "consistency_check": "pass",
+      "spec_alignment": "pass",
+      "output_quality": "pass",
+      "runtime_validation": "pass",
+      "integration_ready": "pass",
+      "scope_validation": "pass"
+    },
+    "notes": "Delta re-check (same verifier, resumed): independent diff -u shows exactly one changed line, the tmp_task064_seed row. Only \"ROLLBACK DDL\" is quoted, verbatim from header line 1; 'restoring SMALLINT/FLOAT column types' matches header lines 3-4; 'stale' is supported by the script's DECIMAL(18,2) CREATE TABLE. Minor #1 resolved; dropping minor #2 accepted. uv run pytest tests/ -q -> 349 passed. Live workspace not re-enumerated for this doc-wording delta; the first pass's 13 items and both ids returning 404 still stand. Criteria 1/4 met by deletion, confirmed live; criterion 2 met by disambiguation (DEC-020, pending ratification); criterion 3 n/a.",
+    "issues": []
+  }
 }
