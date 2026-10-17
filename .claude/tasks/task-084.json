@@ -1,0 +1,28 @@
+{
+  "id": "task-084",
+  "title": "Diagnose why oem_lh's SQL analytics endpoint stopped showing new gold_quality_history rows after 2026-08-12",
+  "difficulty": 3,
+  "owner": "both",
+  "source": "orchestrator",
+  "status": "Pending",
+  "phase": "5",
+  "dependencies": [],
+  "decision_dependencies": [],
+  "files_affected": [],
+  "description": "Found 2026-10-17 while closing task-076. Erik ran a point-in-time query on oem_lh's SQL analytics endpoint (WHERE producer = 'data_quality_checks' AND refresh_timestamp = MAX for that producer): the newest row it returned was 2026-08-12 16:06:16. The same day, live DAX on the OEMInsightBI model (Direct Lake over the same Delta table) showed data_quality_checks rows through 2026-10-17T04:18:12.973 (5,038 rows) and silver_to_gold rows through 04:07 today. So the endpoint is about two months behind the Delta table, at least for gold_quality_history. Unverified: whether other tables are stale too, whether the gap is the endpoint's metadata sync (or a Delta change on/after 2026-08-12 that the sync can't process), and whether the endpoint's own MAX(refresh_timestamp) without the producer filter is also 2026-08-12. Do: (1) measure staleness per gold/silver table (endpoint MAX timestamp or row count vs Delta's latest version), read-only; (2) establish the cause on live evidence (e.g. the endpoint's metadata sync status / last sync time, and DESCRIBE HISTORY on gold_quality_history around 2026-08-12); (3) propose the fix. Any write action (a metadata refresh trigger, a table change) needs Erik's OK first; (4) once fixed, confirm the endpoint returns this morning's run; (5) if the endpoint is a reader anyone relies on, decide with Erik whether staleness needs a check. Note: memory already records that the endpoint's schema cache lags hours behind column adds; this is a data lag of weeks.",
+  "acceptanceCriteria": [
+    "Staleness is measured per table on the SQL analytics endpoint against the Delta tables, on live evidence.",
+    "The cause of the endpoint missing gold_quality_history rows after 2026-08-12 is established on live evidence.",
+    "After the fix (with Erik's OK for any write action), the endpoint returns the most recent orchestrator run's data_quality_checks rows.",
+    "Docs or spec text that describe the endpoint are updated if the cause changes how it should be used (spec via /iterate)."
+  ],
+  "out_of_spec": false,
+  "created_date": "2026-10-17",
+  "updated_date": "2026-10-17",
+  "verification_attempts": 0,
+  "notes": "[CREATED 2026-10-17] Erik approved creating this task ('yes, make the task') after task-076's completion surfaced the finding. Evidence in task-076 notes [COMPLETED 2026-10-17].",
+  "spec_version": "spec_v1",
+  "spec_fingerprint": "sha256:f831cb4e02d600ca5029c6e61095d220a9ea72ca5dca1ffc2fca2bf2f0212b80",
+  "spec_section": "## Technical Architecture",
+  "section_fingerprint": "sha256:67ffcfce5c82b95f58e7211d2b999473ef1f3d00b3dd45dcaf6a79a9a6c93930"
+}
